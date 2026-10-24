@@ -45,6 +45,14 @@ final class OverlayView: NSView {
     private var newGameArmed = false
     private var titleTime: CGFloat = 0
 
+    // Intro / controls screen (see IntroScreen.swift).
+    var introOpen = false
+    /// Opened from the title (so closing it starts the game) rather than from the pause menu (closing returns to the menu).
+    var introFromTitle = false
+    var introFade: CGFloat = 0
+    var onIntroDone: ((Bool) -> Void)?
+    var onShowControls: (() -> Void)?
+
     /// Brief confirmation shown after sending ("Thank you: saved").
     var toast: String?
 
@@ -59,17 +67,19 @@ final class OverlayView: NSView {
     override var isOpaque: Bool { false }
 
     /// Pass mouse events through to the game, except while the journal is open.
-    override func hitTest(_ point: NSPoint) -> NSView? { (feedbackOpen || menuOpen) ? super.hitTest(point) : ((journalOpen || titleOpen) ? self : nil) }
+    override func hitTest(_ point: NSPoint) -> NSView? { (feedbackOpen || menuOpen) && !introOpen ? super.hitTest(point) : ((journalOpen || titleOpen || introOpen) ? self : nil) }
 
     /// Ease the crosshair toward its target shape; returns true if anything needs redrawing.
     @discardableResult
     func step(dt: CGFloat) -> Bool {
         if titleOpen { titleTime += dt }
+        var fading = false
+        if introOpen && introFade < 1 { introFade = min(1, introFade + dt / 0.6); fading = true }
         let target: CGFloat = prompt != nil ? (promptDone ? 0.6 : 1) : 0
         let before = ring
         ring += (target - ring) * min(1, dt * 16)
         if abs(ring - target) < 0.01 { ring = target }
-        return ring != before || titleOpen
+        return ring != before || titleOpen || fading
     }
 
     // MARK: Journal geometry (shared by drawing and clicking)
@@ -90,6 +100,7 @@ final class OverlayView: NSView {
     }
 
     override func mouseDown(with event: NSEvent) {
+        if introOpen { dismissIntro(); return }
         if titleOpen { onBegin?(); return }
         guard journalOpen else { return }
         let p = convert(event.locationInWindow, from: nil)
@@ -106,18 +117,19 @@ final class OverlayView: NSView {
 
     // MARK: Drawing
 
-    private func serif(_ size: CGFloat) -> NSFont { NSFont(name: "Baskerville", size: size) ?? NSFont(name: "Georgia", size: size) ?? .systemFont(ofSize: size) }
+    func serif(_ size: CGFloat) -> NSFont { NSFont(name: "Baskerville", size: size) ?? NSFont(name: "Georgia", size: size) ?? .systemFont(ofSize: size) }
 
     override func draw(_ dirtyRect: NSRect) {
         if let b = debugBackdrop { b.setFill(); bounds.fill() }
 
-        if captured && !journalOpen && !feedbackOpen && !menuOpen && whiteout < 0.5 { drawCrosshair() }
-        if titleOpen { drawTitle() }
-        if menuOpen { drawMenuCard() }
+        if captured && !journalOpen && !feedbackOpen && !menuOpen && !introOpen && whiteout < 0.5 { drawCrosshair() }
+        if titleOpen && !introOpen { drawTitle() }
+        if menuOpen && !introOpen { drawMenuCard() }
+        if introOpen { drawIntro() }
         if journalOpen { drawJournal() }
         if feedbackOpen { drawFeedbackCard() }
         if let toast { drawToast(toast) }
-        if let bannerText, !journalOpen, !feedbackOpen, !menuOpen, !titleOpen { drawBanner(bannerText) }
+        if let bannerText, !journalOpen, !feedbackOpen, !menuOpen, !titleOpen, !introOpen { drawBanner(bannerText) }
         if whiteout > 0 { drawWhiteout() }
     }
 
@@ -319,15 +331,18 @@ final class OverlayView: NSView {
         invert.attributedTitle = NSAttributedString(string: "Invert vertical look", attributes: [.foregroundColor: NSColor.white.withAlphaComponent(0.85), .font: NSFont.systemFont(ofSize: 14)])
         let newGame = NSButton(title: "New game…", target: self, action: #selector(menuNewGame))
         newGame.frame = NSRect(x: c.minX + 36, y: c.maxY - 62, width: 150, height: 32); newGame.bezelStyle = .rounded; newGame.identifier = NSUserInterfaceItemIdentifier("newgame")
+        let controls = NSButton(title: "Controls…", target: self, action: #selector(menuControls))
+        controls.frame = NSRect(x: c.minX + 36, y: c.minY + 318, width: c.width - 72, height: 32); controls.bezelStyle = .rounded
         let quit = NSButton(title: "Quit", target: self, action: #selector(menuQuit))
         quit.frame = NSRect(x: c.maxX - 36 - 110, y: c.maxY - 62, width: 110, height: 32); quit.bezelStyle = .rounded
         menuViews = [resume, label("Mouse sensitivity", y: c.minY + 152), sens, label("Volume", y: c.minY + 192), vol,
-                     label("Render resolution", y: c.minY + 232), scale, invert, newGame, quit]
+                     label("Render resolution", y: c.minY + 232), scale, invert, controls, newGame, quit]
         for v in menuViews { v.appearance = NSAppearance(named: .darkAqua); addSubview(v) }
     }
 
     @objc private func menuResume() { onResume?() }
     @objc private func menuQuit() { onQuit?() }
+    @objc private func menuControls() { onShowControls?() }
     @objc private func menuSensitivity(_ s: NSSlider) { settings.sensitivity = Float(s.doubleValue); onSettingsChanged?(settings) }
     @objc private func menuVolume(_ s: NSSlider) { settings.volume = Float(s.doubleValue); onSettingsChanged?(settings) }
     @objc private func menuScale(_ s: NSSlider) { settings.renderScale = Float(s.doubleValue); onSettingsChanged?(settings) }
@@ -348,7 +363,7 @@ final class OverlayView: NSView {
         let title: [NSAttributedString.Key: Any] = [.font: serif(30), .foregroundColor: NSColor.white]
         let hint: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 12), .foregroundColor: NSColor.white.withAlphaComponent(0.55)]
         ("Paused" as NSString).draw(at: NSPoint(x: c.minX + 36, y: c.minY + 28), withAttributes: title)
-        ("Esc resumes.  F sends feedback.  J opens the journal." as NSString).draw(at: NSPoint(x: c.minX + 36, y: c.minY + 62), withAttributes: hint)
+        (Controls.pauseHint as NSString).draw(at: NSPoint(x: c.minX + 36, y: c.minY + 62), withAttributes: hint)
     }
 
     // MARK: Feedback panel
@@ -491,6 +506,11 @@ enum OverlayDump {
         try v.snapshot(to: base + "-title.png")
         v = make(); v.showMenu()
         try v.snapshot(to: base + "-menu.png")
+        v = make(); v.showIntro(fromTitle: true); v.introFade = 1
+        try v.snapshot(to: base + "-intro.png")
+        v = make(); v.showIntro(fromTitle: false); v.introFade = 1
+        v.frame = NSRect(x: 0, y: 0, width: 800, height: 520)
+        try v.snapshot(to: base + "-intro-small.png")
         v = make(); v.bannerText = "Oren: \"She would not follow, so I went ahead, and I have waited here since.\""
         try v.snapshot(to: base + "-banner.png")
         v = make(); v.showFeedback(); v.setFeedbackString("The surf sounds much better, but the dock feels a bit narrow.")

@@ -12,15 +12,24 @@ scripts/bundle.sh && open Lanternwright.app
 ```
 Requires macOS 15+ and the Swift toolchain (Command Line Tools are enough; Xcode is not needed).
 
+<!-- controls:begin (generated: Lanternwright --controls-md; a selftest keeps it in sync with App/Controls.swift) -->
 | Control | Action |
 |---|---|
-| Click | capture the mouse / interact with what the ring highlights |
-| W A S D (or arrows to turn) | move; **Shift** runs |
-| Mouse | look |
-| J | journal (← → turn pages) |
-| Esc | release the mouse (opens the pause menu) / close the journal / resume |
-| Ctrl-Cmd-F | full screen |
-| F | send feedback (saves your note, a screenshot and where you were) |
+| W A S D | Walk. The arrow keys ↑ ↓ also walk. |
+| ← → | Turn. |
+| Mouse | Look around. |
+| Shift | Run (hold). |
+| R | Toggle auto-run. |
+| Click | Touch or use what the ring marks: stones, pages, the lens. The ring is quieter once a thing is finished. |
+| Right mouse or Z | Look closer (hold) to see distant detail. |
+| J | Open or close the journal. Pages you find are added by themselves. |
+| J or Esc | Close a page you are reading. |
+| ← → | Turn pages. |
+| Tab | Switch between Pages and Notebook. In the Notebook, click a struck stone's rubbing to hear its tone again. |
+| Esc | Free the mouse and pause (settings, controls, new game). Press again to resume. |
+| F | Send feedback: saves your note, a screenshot and where you were. |
+| Ctrl ⌘ F | Full screen. |
+<!-- controls:end -->
 
 ## Developer tools
 ```bash

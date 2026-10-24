@@ -66,6 +66,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, MTKViewDelegate {
         view.autoResizeDrawable = false   // GameView caps the drawable size itself
         view.delegate = self
         view.onCaptureChange = { [weak self] _ in self?.updateTitle() }
+        view.interceptKey = { [weak self] code in self?.overlay.handleKey(code) ?? false }
 
         overlay = OverlayView(frame: view.bounds)
         overlay.autoresizingMask = [.width, .height]
@@ -75,6 +76,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, MTKViewDelegate {
         overlay.onClose = { [weak self] in self?.game.journal.isOpen = false }
         overlay.settings = settings
         overlay.onBegin = { [weak self] in self?.beginPlaying() }
+        overlay.onIntroDone = { [weak self] fromTitle in self?.introDone(fromTitle: fromTitle) }
+        overlay.onShowControls = { [weak self] in self?.showControls() }
         overlay.onResume = { [weak self] in self?.resumePlaying() }
         overlay.onQuit = { NSApp.terminate(nil) }
         overlay.onNewGame = { [weak self] in self?.newGame() }
@@ -92,7 +95,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, MTKViewDelegate {
         updateTitle()
         window.makeKeyAndOrderFront(nil)
         window.makeFirstResponder(view)
-        NSApp.mainMenu = AppDelegate.makeMenu()
+        NSApp.mainMenu = AppDelegate.makeMenu(target: self)
         NSApp.activate(ignoringOtherApps: true)
     }
 
@@ -122,7 +125,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, MTKViewDelegate {
             }
         }
         var sampled = self.view.input.sample(captured: self.view.isCaptured)
-        if titleActive { sampled = InputState() }                         // the world waits behind the title
+        if titleActive || overlay.introOpen { sampled = InputState() }    // the world waits behind the title and the controls screen
         // Esc while the pause menu is showing resumes (the Esc that opened the menu never reaches here: see GameView).
         if sampled.escapePressed && overlay.menuOpen { resumePlaying() }
         game.advance(now: now, input: sampled)
@@ -151,7 +154,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, MTKViewDelegate {
     private func beginPlaying() {
         titleActive = false
         overlay.titleOpen = false
-        view.captureMouse()
+        // A new game (no save) shows the controls once before the player can move; resuming a save goes straight in.
+        if !settings.introSeen && !overlay.titleHasSave { overlay.showIntro(fromTitle: true) } else { view.captureMouse() }
+    }
+
+    /// The controls screen was closed. From the title that starts the game (the click is consumed by the overlay, so it never reaches the world);
+    /// from the pause menu we simply return to the menu (it reappears because the mouse is still free).
+    private func introDone(fromTitle: Bool) {
+        if !settings.introSeen { var s = settings; s.introSeen = true; apply(settings: s) }
+        if fromTitle { view.captureMouse() }
+    }
+
+    func showControls() {
+        guard !titleActive, !overlay.introOpen, !overlay.feedbackOpen else { return }
+        if view.isCaptured { view.releaseMouse() }
+        overlay.showIntro(fromTitle: false)
     }
 
     private func resumePlaying() { view.captureMouse() }
@@ -160,6 +177,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, MTKViewDelegate {
     private func newGame() {
         SaveStore.delete()
         saveDirty = false
+        var fresh = settings; fresh.introSeen = false; apply(settings: fresh)        // a new game shows the controls again
         options.newGame = true
         let path = Bundle.main.bundlePath
         if path.hasSuffix(".app") {
@@ -195,8 +213,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, MTKViewDelegate {
     // MARK: Feedback
 
     /// F: grab what the player is looking at, then show the panel (mouse released so they can type).
-    private func openFeedback() {
-        guard !overlay.feedbackOpen else { return }
+    func openFeedback() {
+        guard !overlay.feedbackOpen, !overlay.introOpen, !titleActive else { return }
         game.journal.isOpen = false
         view.releaseMouse()
         let size = view.drawableSize
@@ -237,7 +255,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, MTKViewDelegate {
         var dirty = false
         func set<T: Equatable>(_ current: inout T, _ new: T) { if current != new { current = new; dirty = true } }
         set(&overlay.captured, view.isCaptured)
-        let wantMenu = !titleActive && !view.isCaptured && !journal.isOpen && !overlay.feedbackOpen && game.whiteout < 0.5
+        let wantMenu = !titleActive && !view.isCaptured && !journal.isOpen && !overlay.feedbackOpen && !overlay.introOpen && game.whiteout < 0.5
         if wantMenu && !overlay.menuOpen { overlay.showMenu() }
         if !wantMenu && overlay.menuOpen { overlay.hideMenu() }
         set(&overlay.prompt, game.hovered?.prompt)
@@ -259,15 +277,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, MTKViewDelegate {
         window.title = "Lanternwright"
     }
 
-    /// Minimal menu so Cmd-Q works (a bare executable gets no menu bar by default).
-    private static func makeMenu() -> NSMenu {
+    /// Menu bar: Quit (Cmd-Q), View > Full Screen (Ctrl-Cmd-F), Help > Controls / Send Feedback. The feedback item deliberately has NO key
+    /// equivalent: a plain "f" equivalent would fire while typing in the feedback panel; the F key itself is handled by the game (FeedbackShortcut).
+    static func makeMenu(target: AnyObject? = nil) -> NSMenu {
         let main = NSMenu()
         let appItem = NSMenuItem()
         main.addItem(appItem)
         let appMenu = NSMenu()
         appMenu.addItem(withTitle: "Quit Lanternwright", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         appItem.submenu = appMenu
-        // View > Enter Full Screen (Ctrl-Cmd-F, the standard macOS shortcut).
         let viewItem = NSMenuItem()
         main.addItem(viewItem)
         let viewMenu = NSMenu(title: "View")
@@ -275,6 +293,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, MTKViewDelegate {
         fs.keyEquivalentModifierMask = [.command, .control]
         viewMenu.addItem(fs)
         viewItem.submenu = viewMenu
+        let helpItem = NSMenuItem()
+        main.addItem(helpItem)
+        let helpMenu = NSMenu(title: "Help")
+        let controls = NSMenuItem(title: "Controls…", action: #selector(menuShowControls), keyEquivalent: "")
+        let feedback = NSMenuItem(title: "Send Feedback…  (\(FeedbackShortcut.label))", action: #selector(menuSendFeedback), keyEquivalent: "")
+        controls.target = target; feedback.target = target
+        helpMenu.addItem(controls); helpMenu.addItem(feedback)
+        helpItem.submenu = helpMenu
         return main
     }
+
+    @objc func menuShowControls() { showControls() }
+    @objc func menuSendFeedback() { openFeedback() }
 }

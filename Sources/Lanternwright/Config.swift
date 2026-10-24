@@ -58,7 +58,8 @@ struct LaunchOptions {
       --dump-audio <path.wav>      Render 24 s of the soundscape to a WAV (play with afplay) and exit
       --world <name>               World to render: varrow, glass (views named gw-* imply glass)
       --state <name>               World state: solved, mirrors, chimes, both, mirrorswrong, tide, tidewind
-      --dump-overlay <base>        Render crosshair/journal/end overlays to <base>-*.png and exit
+      --dump-overlay <base>        Render crosshair/journal/end/intro overlays to <base>-*.png and exit
+      --controls-md                Print the README controls table, generated from App/Controls.swift
       --feedback                   Print all saved player feedback and exit
       --feedback-dir               Print the feedback folder and exit
       --new                        Start a new game, ignoring (and later overwriting) the save
@@ -108,6 +109,7 @@ struct LaunchOptions {
             case "--feedback": o.showFeedback = true
             case "--feedback-dir": o.showFeedbackDir = true
             case "--dump-overlay": o.dumpOverlayBase = next()
+            case "--controls-md": print(Controls.markdownTable()); exit(0)
             case "--fps": o.showFPS = true
             case "--bench":
                 guard let n = Int(next()), n > 0 else { fail("--bench expects a positive integer") }

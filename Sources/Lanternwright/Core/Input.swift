@@ -19,7 +19,7 @@ struct InputState {
 final class Input {
     enum Key {
         static let a: UInt16 = 0, s: UInt16 = 1, d: UInt16 = 2, w: UInt16 = 13
-        static let e: UInt16 = 14, f: UInt16 = 3, j: UInt16 = 38, escape: UInt16 = 53, space: UInt16 = 49
+        static let e: UInt16 = 14, j: UInt16 = 38, escape: UInt16 = 53, space: UInt16 = 49
         static let tab: UInt16 = 48, z: UInt16 = 6, r: UInt16 = 15
         static let left: UInt16 = 123, right: UInt16 = 124, down: UInt16 = 125, up: UInt16 = 126
     }
@@ -45,7 +45,7 @@ final class Input {
         down.insert(code)
         if code == Key.j { journalEdge = true }
         if code == Key.escape { escapeEdge = true }
-        if code == Key.f { feedbackEdge = true }
+        if code == FeedbackShortcut.keyCode { feedbackEdge = true }
         if code == Key.tab { tabEdge = true }
         if code == Key.r { autoRunEdge = true }
         if code == Key.left { flipEdge -= 1 }

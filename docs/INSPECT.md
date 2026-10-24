@@ -101,6 +101,12 @@ How to play: `scripts/bundle.sh && open Lanternwright.app`. Headless views: `.bu
 - `--view stone-close`: the tide stone is chamfered dressed stone with pitting and chisel marks; lichen creeps up the plinth. Glyph bars unchanged.
 - Stone lanterns on the path: chamfered dressed stone, iron finial, glowing amber core.
 
+## Round 8 (R08): the controls screen
+- Delete the save (or run with `--new`) and launch: after "Click to begin" the **Finding your way** screen appears once, fades in softly, and the world does not move until you click, press Enter or Space (or Esc). Launch again: it does not return. Menu *New game…* makes it return once.
+- Esc, then **Controls…**: the same screen; closing it brings the pause menu back (not gameplay). **Help > Controls…** does the same. **Help > Send Feedback… (F)** opens the feedback panel. F in the game opens it too; F while it is open does nothing; typing F in the panel types F.
+- `--dump-overlay shots/x/o` writes `o-intro.png` (1600x900) and `o-intro-small.png` (800x520); `o-menu.png` shows the Controls button.
+- To change the feedback key: edit `FeedbackShortcut` in `App/Controls.swift` (key code and label), rebuild, run `--controls-md` and paste the table between the README markers; the selftest tells you if you forgot.
+
 ## Round 6 (R06): paths, glyphs, journal page, Glass Wood props, crystal trees
 
 - **T60.1 Cobble paths.** `--view stone-close` (lower left) and `--view gw-altar`: rounded pebbles of two sizes with dark gaps and a few large flat stones; no rectangles. Walk the Varrow path and the Glass Wood path (pale blue-violet with a faint sheen) and look straight down.

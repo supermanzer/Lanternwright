@@ -15,6 +15,8 @@ final class GameView: MTKView {
     /// Called when capture changes (the overlay shows/hides the crosshair).
     var onCaptureChange: ((Bool) -> Void)?
     private var observers: [NSObjectProtocol] = []
+    /// Lets the overlay take a key before the game sees it (the controls screen closes on Enter, Space or Esc). Return true to consume it.
+    var interceptKey: ((UInt16) -> Bool)?
 
     override var acceptsFirstResponder: Bool { true }
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
@@ -70,6 +72,7 @@ final class GameView: MTKView {
 
     override func keyDown(with event: NSEvent) {
         if event.isARepeat { return }
+        if interceptKey?(event.keyCode) == true { return }
         // The Esc that RELEASES the mouse (opening the pause menu) must not also count as the Esc that closes it.
         if event.keyCode == Input.Key.escape && isCaptured { releaseMouse(); return }
         input.keyDown(event.keyCode)
