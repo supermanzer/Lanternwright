@@ -7,6 +7,8 @@ final class AudioEngine {
     private var source: AVAudioSourceNode?
     private var lastUpdate = 0.0
     private var lastFootfalls = 0
+    private var buoyStrikes = 0
+    private var buoyNext: Double = 0
 
     init() {
         // Match the synth to the hardware rate so no resampling is needed (44100 if there is no device).
@@ -67,5 +69,14 @@ final class AudioEngine {
         // Surf fades with distance from the water: loud on the beach, a murmur 150 m inland.
         let d = game.scene.shoreDistance(x: p.x, z: p.z)
         synth.surfGain = 0.7 * (1 / (1 + d / 25)) + (d < 1 ? 0.1 : 0)
+        // Sonic landmarks: where each source is relative to the listener.
+        let lv = SonicLandmarks.levels(listener: p, yaw: game.player.yaw, world: game.world, lighthouseLit: game.state.has("lighthouseLit"))
+        synth.humGain = lv.hum; synth.humPan = lv.humPan
+        synth.buoyGain = lv.buoy; synth.buoyPan = lv.buoyPan
+        synth.galleryGain = lv.gallery
+        if game.world == .varrow && now >= buoyNext {
+            if buoyNext > 0 { synth.play(.buoy) }
+            buoyNext = now + Double(SonicLandmarks.buoyInterval(strike: buoyStrikes)); buoyStrikes += 1
+        }
     }
 }

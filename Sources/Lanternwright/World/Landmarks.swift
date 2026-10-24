@@ -19,11 +19,27 @@ enum Landmarks {
 
     static func populate(_ scene: Scene, device: MTLDevice) {
         addDock(scene, device: device)
+        addBuoy(scene, device: device)
         addLighthouse(scene, device: device)
         for id in StoneID.allCases { addStone(id, scene: scene, device: device) }
     }
 
     // MARK: Dock
+
+    /// A red bell buoy riding at sea; `Game` bobs it with the swell. Its bell is heard in `SonicLandmarks`.
+    static func addBuoy(_ scene: Scene, device: MTLDevice) {
+        let red = Surface(color: SIMD3(0.62, 0.08, 0.06), roughness: 0.5)
+        let iron = Surface(color: SIMD3(0.10, 0.10, 0.11), roughness: 0.5)
+        var b = MeshBuilder()
+        b.cylinder(radiusTop: 0.55, radiusBottom: 0.9, height: 0.9, segments: 10, surface: red, transform: translation(SIMD3(0, -0.45, 0)))
+        b.cylinder(radiusTop: 0.12, radiusBottom: 0.2, height: 1.6, segments: 8, surface: iron, transform: translation(SIMD3(0, 0.4, 0)))
+        for i in 0..<4 {                                       // the bell cage: four struts and a cap
+            let a = Float(i) / 4 * 2 * .pi + 0.4
+            b.cylinder(radiusTop: 0.025, radiusBottom: 0.03, height: 0.9, segments: 4, surface: iron, transform: translation(SIMD3(0.3 * cos(a), 0.4, 0.3 * sin(a))))
+        }
+        b.cone(radius: 0.38, height: 0.35, segments: 8, surface: red, transform: translation(SIMD3(0, 1.3, 0)))
+        scene.add("buoy", mesh: b.build(device: device, label: "buoy"), uniforms: ObjectUniforms(model: translation(Layout.buoy)))
+    }
 
     static func addDock(_ scene: Scene, device: MTLDevice) {
         let strip = Layout.dockStrip()

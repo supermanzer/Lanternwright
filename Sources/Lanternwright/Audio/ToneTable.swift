@@ -6,6 +6,8 @@ enum ToneTable {
     static let stoneHz: [Float] = [293.66, 440.00, 587.33]
     /// The five Glass Wood pillars, low to high: D4, F#4, A4, C5, D5. Pillars 0, 2, 4 are the stones' tones.
     static let glassHz: [Float] = [293.66, 369.99, 440.00, 523.25, 587.33]
+    /// The bell buoy's note: G4, the fourth above the stones' D, so it sounds like a different, further thing.
+    static let buoyHz: Float = 392.00
     /// The stone drone sits an octave below the stones' own tones.
     static let droneHz: [Float] = stoneHz.map { $0 / 2 }
     /// F#4 (5/4 over D4... in just intonation over D4 = 367.08) is the third that blooms on the solved chord.

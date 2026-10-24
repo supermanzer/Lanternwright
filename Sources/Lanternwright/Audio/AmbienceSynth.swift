@@ -19,6 +19,7 @@ enum ChimeKind: Int, Equatable {
     case glass0, glass1, glass2, glass3, glass4
     case glassTick       // a small bright click for turning a mirror or changing a pane
     case glassAmbient    // a quiet random shimmer, as if the wind brushed the crystal trees
+    case buoy            // the bell buoy; loudness and pan come from `buoyGain` / `buoyPan` at the moment it rings
 }
 
 final class AmbienceSynth {
@@ -51,6 +52,20 @@ final class AmbienceSynth {
     private var rumbleLeft: Float = 0
     private var rumbleLP: Float = 0
     private var rumbleBrown: Float = 0
+
+    // Sonic landmarks (see SonicLandmarks): set by the main thread, smoothed here so nothing zippers.
+    var humGain = SIMD4<Float>(repeating: 0)        // stones 0-2 and the lit lighthouse
+    var humPan = SIMD4<Float>(repeating: 0)
+    var buoyGain: Float = 0, buoyPan: Float = 0
+    var galleryGain: Float = 0
+    private var humSmooth = SIMD4<Float>(repeating: 0)
+    private var gallerySmooth: Float = 0
+    private var gallerySinePhase: Float = 0
+    private var whistleRng: UInt32 = 0x2545F491      // its own noise, so adding the whistle never shifts the wind and surf noise
+    private func whistleNoise() -> Float {
+        whistleRng ^= whistleRng << 13; whistleRng ^= whistleRng >> 17; whistleRng ^= whistleRng << 5
+        return Float(Int32(bitPattern: whistleRng)) / Float(Int32.max)
+    }
 
     // The stone drone: one sustained voice per Varrow stone, tuned an octave below the stone's own tone in just intonation
     // (D3 : A3 : D4 = 1 : 3/2 : 2; the values come from ToneTable), so the puzzle's progress is audible as a chord that builds. A wrong strike detunes the
@@ -152,6 +167,7 @@ final class AmbienceSynth {
                 chimes.append(bell(f, gain: 0.12, decayScale: 2.2, delay: Float(i) * 0.09, pan: Float(i) * 0.3 - 0.45))
             }
         case .rumble: rumbleLeft = 5.5
+        case .buoy: if buoyGain > 0.004 { chimes.append(bell(ToneTable.buoyHz, gain: 0.5 * buoyGain, decayScale: 1.6, pan: buoyPan)) }
         }
         if chimes.count > 14 { chimes.removeFirst(chimes.count - 14) }
     }
@@ -309,6 +325,31 @@ final class AmbienceSynth {
                 }
             }
             out[0] += drone; out[1] += drone
+
+            // --- sonic landmarks: stone hums, the lit lighthouse's tone, wind singing round the gallery (all quiet, all located)
+            humSmooth += (humGain - humSmooth) * 0.0006
+            gallerySmooth += (galleryGain - gallerySmooth) * 0.0006
+            var lmL: Float = 0, lmR: Float = 0
+            if humSmooth.max() > 1e-4 || gallerySmooth > 1e-4 {
+                for v in 0..<3 where humSmooth[v] > 1e-4 {
+                    let f = ToneTable.stoneHz[v] * 0.5
+                    let trem = 0.75 + 0.25 * sin(t * (0.21 + 0.05 * Float(v)) + Float(v))
+                    let s = (sin(2 * Float.pi * f * t) + 0.35 * sin(2 * Float.pi * f * 2.003 * t + 1)) * humSmooth[v] * trem * 0.022
+                    let pn = humPan[v]; lmL += s * (1 - pn) * 0.5 * 1.4; lmR += s * (1 + pn) * 0.5 * 1.4
+                }
+                if humSmooth.w > 1e-4 {         // the lit lighthouse: a slow open fifth, D3 + A3, with a gentle vibrato
+                    let vib = 1 + 0.002 * sin(t * 0.7)
+                    let s = (sin(2 * Float.pi * ToneTable.stoneHz[0] * 0.5 * vib * t) + 0.7 * sin(2 * Float.pi * ToneTable.stoneHz[1] * 0.5 * vib * t + 0.5)) * humSmooth.w * 0.028
+                    let pn = humPan.w; lmL += s * (1 - pn) * 0.5 * 1.4; lmR += s * (1 + pn) * 0.5 * 1.4
+                }
+                if gallerySmooth > 1e-4 {       // a whistle whose pitch rides the gust, with a breath of noise
+                    let f = 620 + 260 * gust
+                    gallerySinePhase += 2 * Float.pi * f * dt; if gallerySinePhase > 2 * Float.pi { gallerySinePhase -= 2 * Float.pi }
+                    let s = (sin(gallerySinePhase) + 0.25 * whistleNoise()) * gallerySmooth * gust * gust * wind * 0.04
+                    lmL += s * 0.7; lmR += s * 0.7
+                }
+            }
+            out[0] += lmL; out[1] += lmR
 
             // --- chimes (through the reverb) and the causeway rumble
             var bellL: Float = 0, bellR: Float = 0

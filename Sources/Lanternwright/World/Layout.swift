@@ -18,6 +18,8 @@ enum Layout {
     static let lighthouse = SIMD3<Float>(-30, 68, -48)
     static let causewayStart = SIMD3<Float>(-35, 1.5, -225)
     static let isletCenter = SIMD3<Float>(-40, 5, -320)
+    /// A bell buoy out at sea, east of the dock (sound only, plus a small floating mesh). y = the waterline.
+    static let buoy = SIMD3<Float>(262, 0, 222)
     /// Faces along the dock toward the shore (north-west), so walking forward stays on the planks.
     /// = atan2(dx, -dz) for dockEnd -> dockShore.
     static let spawnYaw: Float = -0.65

@@ -459,6 +459,51 @@ enum SelfTest {
             let ignite = render(.ignite, seconds: 4)
             check((ignite.map { abs($0) }.max() ?? 2) < 1.0 && (ignite.map { abs($0) }.max() ?? 0) > 0.1, "ignite chord is clearly audible and never clips (peak \(String(format: "%.2f", ignite.map { abs($0) }.max() ?? 0)))")
         }
+        if name == "all" || name == "sonic" {
+            typealias SL = SonicLandmarks
+            let tide = StoneID.tide.position
+            check(SL.falloff(0, ref: 8, range: 60) > 0.99 && SL.falloff(8, ref: 8, range: 60) > 0.4 && SL.falloff(60, ref: 8, range: 60) == 0 && SL.falloff(500, ref: 8, range: 60) == 0, "falloff: full at the source, about half at the reference distance, exactly zero at and beyond the range")
+            var prev: Float = 2; var monotone = true
+            for d in stride(from: Float(0), through: 70, by: 0.5) { let f = SL.falloff(d, ref: 8, range: 60); if f > prev + 1e-6 { monotone = false }; prev = f }
+            check(monotone, "falloff never increases with distance")
+            let near = SL.levels(listener: tide + SIMD3(3, 0, 0), yaw: 0, world: .varrow, lighthouseLit: false)
+            let far = SL.levels(listener: tide + SIMD3(40, 0, 0), yaw: 0, world: .varrow, lighthouseLit: false)
+            check(near.hum.x > far.hum.x && near.hum.x > 0.5 && near.hum.y == 0 && near.hum.z == 0, "the tide stone hums loud beside it and faintly at 40 m; the other stones are silent from here")
+            check(near.hum.w == 0 && SL.levels(listener: tide, yaw: 0, world: .varrow, lighthouseLit: true).hum.w > 0.01 && SL.levels(listener: Layout.dockEnd, yaw: 0, world: .varrow, lighthouseLit: true).hum.w > 0.001, "the lighthouse carries a tone only once lit, and it reaches the dock")
+            let dock = SL.levels(listener: Layout.dockEnd, yaw: Layout.spawnYaw, world: .varrow, lighthouseLit: false)
+            check(dock.buoy > 0.05 && SL.levels(listener: Layout.summitStone, yaw: 0, world: .varrow, lighthouseLit: false).buoy == 0, "the bell buoy is audible from the dock and gone from the summit")
+            check(SL.levels(listener: Layout.dockEnd, yaw: 0, world: .glassWood, lighthouseLit: true) == SL.Levels(), "no Varrow sounds in the Glass Wood")
+            // Panning: facing north (yaw 0), a source to the east is on the right, to the west on the left, ahead is centred.
+            check(SL.pan(listener: .zero, yaw: 0, source: SIMD3(10, 0, 0)) > 0.8 && SL.pan(listener: .zero, yaw: 0, source: SIMD3(-10, 0, 0)) < -0.8 && abs(SL.pan(listener: .zero, yaw: 0, source: SIMD3(0, 0, -10))) < 0.01, "pan: east is right, west is left, straight ahead is centred (facing north)")
+            check(SL.pan(listener: .zero, yaw: .pi / 2, source: SIMD3(0, 0, -10)) < -0.8, "pan follows the head: facing east, north is on the left")
+            let galleryNear = SL.levels(listener: Layout.lighthouse + SIMD3(8, 0, 0), yaw: 0, world: .varrow, lighthouseLit: false).gallery
+            check(galleryNear > 0.3 && SL.levels(listener: Layout.lighthouse + SIMD3(80, 0, 0), yaw: 0, world: .varrow, lighthouseLit: false).gallery == 0, "wind sings round the lighthouse close to it and not 80 m away")
+            let intervals = (0..<20).map { SL.buoyInterval(strike: $0) }
+            check(intervals.allSatisfy { $0 >= 5.2 && $0 <= 8.3 } && Set(intervals.map { Int($0 * 100) }).count > 10, "the buoy rings every 5-8 s, irregularly")
+            check(Scene.makeWorld(device: device).groundHeight(x: Layout.buoy.x, z: Layout.buoy.z) < -3, "the buoy floats in deep water (ground \(Scene.makeWorld(device: device).groundHeight(x: Layout.buoy.x, z: Layout.buoy.z)) m)")
+            // Offline render: located hums add audible energy and the mix never clips; a buoy strike is audible and decays.
+            func render(_ setup: (AmbienceSynth) -> Void, seconds: Int = 4) -> [Float] {
+                let synth = AmbienceSynth(sampleRate: 44100)
+                setup(synth)
+                let n = 44100 * seconds
+                var l = [Float](repeating: 0, count: n), r = l
+                l.withUnsafeMutableBufferPointer { lp in r.withUnsafeMutableBufferPointer { rp in
+                    var done = 0
+                    while done < n { synth.render(frames: 512, left: lp.baseAddress! + done, right: rp.baseAddress! + done); done += 512 }
+                } }
+                return l
+            }
+            func rmsOf(_ a: ArraySlice<Float>) -> Float { (a.reduce(0) { $0 + $1 * $1 } / Float(a.count)).squareRoot() }
+            let base = render { _ in }
+            let hums = render { $0.humGain = SIMD4(1, 1, 1, 1); $0.galleryGain = 1 }
+            let humRms = rmsOf(zip(hums, base).map { $0 - $1 }[88200...])
+            check(humRms > 0.003 && humRms < 0.06 && (hums.map { abs($0) }.max() ?? 2) < 1, "the hums and gallery whistle are audible, faint and never clip (added rms \(String(format: "%.4f", humRms)))")
+            let bell = render({ $0.buoyGain = 0.8; $0.play(.buoy) }, seconds: 10)
+            let bellDiff = zip(bell, render({ _ in }, seconds: 10)).map { $0 - $1 }
+            check(rmsOf(bellDiff[0..<22050]) > rmsOf(bellDiff[(44100 * 9)...]) * 2 && rmsOf(bellDiff[0..<22050]) > 0.003, "a bell-buoy strike is audible and decays")
+            let silentBell = render({ $0.buoyGain = 0; $0.play(.buoy) })
+            check(zip(silentBell, base).allSatisfy { abs($0 - $1) < 1e-6 }, "a buoy too far away to hear adds nothing")
+        }
         if name == "all" || name == "puzzle" {
             func freshGame() -> Game { Game(scene: Scene.makeWorld(device: device)) }
             func chimes(_ events: [GameEvent]) -> [ChimeKind] { events.compactMap { if case .chime(let k) = $0 { return k } else { return nil } } }

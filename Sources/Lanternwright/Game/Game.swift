@@ -249,6 +249,10 @@ final class Game {
         }
         // The lens floats and turns while it waits.
         let bob = sin(time * 1.2) * 0.08
+        if world == .varrow {            // the bell buoy rides the swell
+            let rock = sin(time * 0.8) * 0.12
+            scene.update("buoy") { $0.uniforms.model = translation(Layout.buoy + SIMD3(0, 0.1 + 0.25 * sin(self.time * 0.9), 0)) * rotationZ(rock) * rotationX(rock * 0.7) }
+        }
         scene.update("lens_ring") { $0.uniforms.model = translation(PuzzleProps.lensRestPosition + SIMD3(0, bob, 0)) * rotationY(self.time * 0.4) }
         scene.update("lens_core") { $0.uniforms.model = translation(PuzzleProps.lensRestPosition + SIMD3(0, bob, 0)) }
     }
