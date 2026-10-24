@@ -12,15 +12,31 @@ enum Props {
         let noise = Noise(seed: seed)
         let tint = 0.8 + 0.4 * noise.unit(3, 7)
         var b = MeshBuilder()
-        b.icosphere(subdivisions: 2, radius: { d in
-            let lump = noise.fbm(d.x * 2.1 + d.z * 5.3, d.y * 2.3 - d.z * 3.1, octaves: 3)
-            return 0.82 + 0.42 * lump
-        }, surface: Surface(color: SIMD3(0.30, 0.275, 0.235) * tint, roughness: 0.88),
-           transform: translation(SIMD3(0, size * 0.28, 0)) * scaling(SIMD3(size * 1.15, size * 0.72, size)))
-        b.recolor { p, n, c in
-            let moss = smoothstep(0.55, 0.9, n.y) * 0.55
-            return SIMD4(mix(c.x, 0.10, moss), mix(c.y, 0.20, moss), mix(c.z, 0.06, moss), c.w)
+        // F01 W3.2: not an icosphere with a lump: a subdivided mesh displaced by billow and ridged noise, then CUT by a few planes (fractures) with a soft edge,
+        // so it has the broad flat faces and chipped arrises of real broken stone, with smooth normals of the actual shape. Shape is deterministic from the seed.
+        var planes: [(n: SIMD3<Float>, d: Float)] = []
+        let cuts = 3 + Int(noise.unit(11, 1) * 3)
+        for k in 0..<cuts {
+            let a = noise.unit(Int32(20 + k), 1) * 2 * .pi, e = 0.15 + 0.85 * noise.unit(Int32(20 + k), 2)
+            planes.append((simd_normalize(SIMD3(cos(a) * (1 - e * 0.6), e, sin(a) * (1 - e * 0.6))), 0.52 + 0.30 * noise.unit(Int32(20 + k), 3)))
         }
+        let sub = size < 0.8 ? 2 : 3
+        b.icosphere(subdivisions: sub, geometricNormals: true, radius: { d in
+            let lump = noise.fbm(d.x * 1.7 + d.z * 4.1, d.y * 2.1 - d.z * 2.3, octaves: 4)
+            let ridge = 1 - abs(2 * noise.fbm(d.z * 3.3 + d.y * 1.9, d.x * 2.7 - d.y * 3.1, octaves: 3) - 1)
+            var r = 0.80 + 0.34 * lump + 0.10 * ridge * ridge
+            for p in planes {
+                let c = simd_dot(d, p.n)
+                if c > 0.05 {
+                    let lim = p.d / c
+                    let k: Float = 0.06                              // smooth minimum: the edge between the cut and the body is chipped, not razor sharp
+                    let h = max(k - abs(r - lim), 0) / k
+                    r = min(r, lim) - h * h * k * 0.25
+                }
+            }
+            return r
+        }, surface: Surface(color: SIMD3(0.34, 0.31, 0.27) * tint, roughness: 0.88, material: .rock),
+           transform: translation(SIMD3(0, size * 0.28, 0)) * scaling(SIMD3(size * 1.15, size * 0.72, size)))
         return b
     }
 

@@ -42,6 +42,8 @@ struct LaunchOptions {
     var showFeedbackDir = false
     var dumpOverlayBase: String?
     var benchFrames: Int?
+    var auditPropsOut: String?
+    var auditProps = false
     var approachTarget: String?
     var approachRange: (start: Float, min: Float, factor: Float)?
     var hardLOD = false
@@ -66,6 +68,7 @@ struct LaunchOptions {
       --approach <target|all> <out>  Continuous-detail measurement: walk toward a target, write a contact sheet and luma/high-frequency numbers
       --approach-range <start> <min> <factor>  with --approach: override the distances (e.g. 90 30 0.97 to walk through the tree LOD band)
       --hard-lod                   Debug: switch tree LODs instantly (the pre-R09 behaviour), for before/after measurements
+      --audit-props [out.md]       List every scene item with its materials and flag large props drawn flat (docs/PROPS.md)
       --controls-md                Print the README controls table, generated from App/Controls.swift
       --feedback                   Print all saved player feedback and exit
       --feedback-dir               Print the feedback folder and exit
@@ -116,6 +119,7 @@ struct LaunchOptions {
             case "--feedback": o.showFeedback = true
             case "--feedback-dir": o.showFeedbackDir = true
             case "--dump-overlay": o.dumpOverlayBase = next()
+            case "--audit-props": o.auditProps = true; if i + 1 < args.count, !args[i + 1].hasPrefix("--") { o.auditPropsOut = next() }
             case "--approach": o.approachTarget = next(); o.approachOut = next()
             case "--approach-range": o.approachRange = (Float(next()) ?? 80, Float(next()) ?? 30, Float(next()) ?? 0.97)
             case "--hard-lod": o.hardLOD = true
@@ -213,6 +217,22 @@ enum Viewpoints {
         }
         let y = t.sampleHeight(x: p.x, z: p.y) + h
         return Camera(position: SIMD3(p.x, y, p.y), yaw: 0.6, pitch: pitch)
+    }
+
+    /// `rock-close`: 2.2 m from the biggest-looking rock nearest the dock path, at 1.2 m height (F01 W3.2).
+    static func rockClose(scene: Scene) -> Camera {
+        let t = scene.terrain!
+        let from = SIMD2(Layout.dockShore.x, Layout.dockShore.z)
+        let rocks = scene.placed.filter { $0.kind == "rock" }.map { p -> (c: SIMD2<Float>, w: Float) in
+            let xs = p.low.map(\.x), zs = p.low.map(\.z)
+            return (SIMD2((xs.min()! + xs.max()!) / 2, (zs.min()! + zs.max()!) / 2), (xs.max()! - xs.min()!) + (zs.max()! - zs.min()!))
+        }.filter { $0.w > 1.2 }
+        let r = rocks.min { simd_length($0.c - from) < simd_length($1.c - from) }?.c ?? from
+        let away = simd_normalize(from - r + SIMD2(1e-3, 0))
+        let cam = r + away * 3.2
+        let y = t.sampleHeight(x: cam.x, z: cam.y) + 1.3
+        let d = SIMD3(r.x, t.sampleHeight(x: r.x, z: r.y) + 0.5, r.y) - SIMD3(cam.x, y, cam.y)
+        return Camera(position: SIMD3(cam.x, y, cam.y), yaw: atan2(d.x, -d.z), pitch: asin(d.y / simd_length(d)))
     }
 
     static func named(_ name: String) -> Camera? {

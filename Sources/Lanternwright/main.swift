@@ -30,6 +30,12 @@ if options.benchFrames != nil {
 }
 
 Scene.hardLOD = options.hardLOD
+if options.auditProps {
+    let renderer = Renderer(device: device, options: options)
+    do { try PropAudit.run(renderer: renderer, out: options.auditPropsOut); exit(0) }
+    catch { FileHandle.standardError.write(Data("error: \(error)\n".utf8)); exit(1) }
+}
+
 if let which = options.approachTarget, let out = options.approachOut {
     let renderer = Renderer(device: device, options: options)
     do { try Approach.main(renderer: renderer, which: which, out: out, width: options.width, height: options.height, range: options.approachRange); exit(0) }

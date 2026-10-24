@@ -82,10 +82,22 @@ enum Island {
     /// Pebble-only clusters also sit beside the path. All deterministic, kept off the path, pads and dock.
     static func addClutter(_ scene: Scene, device: MTLDevice) {
         let terrain = scene.terrain!
-        var pebble = MeshBuilder(), shell = MeshBuilder(), wood = MeshBuilder()
-        pebble.icosphere(subdivisions: 0, smooth: false, radius: { _ in 1 }, surface: Surface(color: SIMD3(0.36, 0.34, 0.31), roughness: 0.8))
-        shell.cone(radius: 0.07, height: 0.05, segments: 7, smooth: false, surface: Surface(color: SIMD3(0.80, 0.72, 0.62), roughness: 0.5))
-        wood.cylinder(radiusTop: 0.05, radiusBottom: 0.07, height: 1.0, segments: 6, surface: Surface(color: SIMD3(0.42, 0.37, 0.30), roughness: 0.9))   // sun-bleached grey-brown
+        var pebble = MeshBuilder(), pebbleSmall = MeshBuilder(), shell = MeshBuilder(), wood = MeshBuilder()
+        // F01 W3.1: pebbles are rounded, lumpy stones in the rock material (they were white faceted gems), shells are ribbed scallops, driftwood is a bleached,
+        // knobbly timber with a split end. All are placed on the terrain (Placement) and recorded for the contact test.
+        let pn = Noise(seed: 4411)
+        pebble.icosphere(subdivisions: 1, geometricNormals: true, radius: { d in 0.86 + 0.22 * pn.fbm(d.x * 2.3 + d.z * 3.7, d.y * 2.9 - d.z * 1.7, octaves: 3) }, surface: Surface(color: SIMD3(0.40, 0.37, 0.33), roughness: 0.8, material: .rock))
+        pebbleSmall.icosphere(subdivisions: 0, geometricNormals: true, radius: { d in 0.86 + 0.22 * pn.fbm(d.x * 2.3 + d.z * 3.7, d.y * 2.9 - d.z * 1.7, octaves: 2) }, surface: Surface(color: SIMD3(0.40, 0.37, 0.33), roughness: 0.8, material: .rock))
+        shell.icosphere(subdivisions: 0, geometricNormals: true, radius: { d in
+            let a = atan2(d.z, d.x)
+            let rib = 1 + 0.10 * pow(abs(sin(a * 7)), 0.7)
+            return 0.7 * rib * (d.y < -0.05 ? 0.5 : 1)                 // a flattened fan: ribs on the dome, a flat underside
+        }, surface: Surface(color: SIMD3(0.80, 0.72, 0.62), roughness: 0.55), transform: scaling(SIMD3(0.10, 0.045, 0.085)))
+        wood.cylinder(radiusTop: 0.045, radiusBottom: 0.075, height: 1.0, segments: 9, smooth: true, surface: Surface(color: SIMD3(0.42, 0.38, 0.32), roughness: 0.9, material: .timber))   // sun-bleached grey-brown
+        for kn in 0..<3 {                                                                   // knobs where branches were
+            let t = 0.2 + 0.6 * pn.unit(Int32(kn), 5), a = pn.unit(Int32(kn), 6) * 6.28
+            wood.sphere(radius: 0.04, segments: 6, smooth: true, surface: Surface(color: SIMD3(0.40, 0.36, 0.30), roughness: 0.9, material: .timber), transform: translation(SIMD3(cos(a) * 0.06, t, sin(a) * 0.06)))
+        }
         var batch = Batcher()
         var placed: [Placement.PlacedProp] = []
 
@@ -111,7 +123,7 @@ enum Island {
                 let r1 = noise.unit(Int32(k * 31 + i), 3), r2 = noise.unit(Int32(k * 31 + i), 5), r3 = noise.unit(Int32(k * 31 + i), 7)
                 let q = p + SIMD2(cos(r1 * 6.28), sin(r1 * 6.28)) * (r2 * r2 * 2.6 * scale)
                 let s = 0.04 + 0.17 * r3 * r3 * r3 * 1.3
-                var one = MeshBuilder(); one.append(pebble.tinted(SIMD3(repeating: 0.8 + 0.4 * r2)), transform: translation(SIMD3(0, s * 0.65, 0)) * scaling(SIMD3(s * 1.3, s * 0.65, s)))
+                var one = MeshBuilder(); one.append((s < 0.09 ? pebbleSmall : pebble).tinted(SIMD3(repeating: 0.8 + 0.4 * r2)), transform: translation(SIMD3(0, s * 0.65, 0)) * scaling(SIMD3(s * 1.3, s * 0.65, s)))
                 let tr = Placement.lay(terrain: terrain, x: q.x, z: q.y, heading: r1 * 6.28, halfX: s * 1.3, halfZ: s, sink: s * 0.4)     // lies on the slope, a third sunk
                 batch.addPlaced(one, transform: tr, prefix: "clutter_pebble"); placed.append(Placement.record(kind: "pebble", mesh: one, transform: tr))
             }

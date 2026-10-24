@@ -571,6 +571,60 @@ inline MatOut mat_palemetal(float3 P, float3 N, float3 base, float fpix) {
     return o;
 }
 
+// ---- Rock (F01 W3.2): weathered boulders and outcrops. World-space only (the rocks are merged batches). Strata bands, chipped pale edges on convex rims,
+// lichen discs and moss on upward faces, a dark wet band at the waterline and salt-bleached stone above it, pits.
+inline MatOut mat_rock(float3 P, float3 N, float3 base, float fpix) {
+    MatOut o;
+    float vS = featVis(0.4, fpix), vM = featVis(0.08, fpix), vF = featVis(0.015, fpix);
+    float3 q = warp3(P, 0.25, 1.3);
+    float strata = mix(0.5, ridged3(float3(q.x * 1.1, q.y * 4.0, q.z * 1.1), 3), vS);                 // horizontal layers
+    float grain = mix(0.5, vnoise3(P * 120.0), vF);
+    float pits = (1.0 - smoothstep(0.10, 0.22, worley(P * 30.0))) * vM;
+    float3 col = base * (0.62 + 0.8 * strata) * (0.85 + 0.30 * grain);
+    col *= 1.0 - 0.35 * pits;
+    float up = smoothstep(0.55, 0.95, N.y);
+    float lichenN = mix(0.5, vnoise3(P * 9.0 + 3.0) * 0.6 + 0.4 * vnoise3(P * 22.0), vM);
+    float lichen = smoothstep(0.55, 0.75, lichenN) * (0.35 + 0.65 * smoothstep(0.1, 0.8, N.y)) * vM;
+    col = mix(col, mix(float3(0.50, 0.52, 0.30), float3(0.70, 0.66, 0.40), vnoise3(P * 14.0)), lichen * 0.6);
+    float mossN = rfbm3(P * 3.0 + 7.0, 3);
+    float moss = smoothstep(0.50, 0.70, mossN + 0.25 * up - 0.12) * up * (1.0 - lichen * 0.5);
+    col = mix(col, float3(0.08, 0.17, 0.05) * (0.7 + 0.6 * mossN), moss * 0.8 * featVis(0.03, fpix));
+    float wet = 1.0 - smoothstep(0.3, 1.2, P.y);
+    float salt = smoothstep(0.9, 1.8, P.y) * (1.0 - smoothstep(1.8, 3.5, P.y));
+    col *= mix(1.0, 0.55, wet);
+    col = mix(col, float3(0.72, 0.70, 0.64), salt * 0.25 * smoothstep(0.45, 0.8, vnoise3(P * 4.0)));
+    o.albedo = col;
+    o.rough = clamp(0.90 - 0.30 * wet - 0.12 * moss + 0.05 * (grain - 0.5), 0.4, 1.0);
+    o.metal = 0.0;
+    o.N = bump_normal(P, N, 0.010 * (strata - 0.5) * vS - 0.004 * pits + 0.0015 * (grain - 0.5) + 0.006 * moss * vM, 1.0);
+    o.ao = 1.0 - 0.2 * pits - 0.10 * wet;
+    return o;
+}
+
+// ---- Slab (F01 W3.3): the causeway's dressed stone, which rises out of the sea. World height drives the tide: dark wet stone with algae below about 0.5 m,
+// barnacles at the waterline, salt crust above; dressed-stone pits, lichen, cracks and chips otherwise. Because slabs RISE during the puzzle the wet band
+// travels down them: they drip dry as they come up.
+inline MatOut mat_slab(float3 Pl, float3 P, float3 N, float3 base, float fpix) {
+    MatOut o = mat_dressed(Pl + float3(0.0, 4.0, 0.0), P, N, base, fpix);
+    float vB = featVis(0.03, fpix), vM = featVis(0.10, fpix);
+    float wet = 1.0 - smoothstep(0.15, 0.75, P.y);
+    float algae = wet * smoothstep(0.40, 0.70, rfbm3(P * 6.0 + 2.0, 3)) * vM;
+    float barn = (1.0 - smoothstep(0.10, 0.22, worley(P * 38.0))) * smoothstep(0.55, 0.20, P.y) * smoothstep(-0.5, 0.0, P.y);
+    barn = mix(0.05 * smoothstep(0.55, 0.20, P.y), barn, vB);
+    float3 c = o.albedo * mix(1.0, 0.50, wet);
+    c = mix(c, float3(0.05, 0.14, 0.05) * (0.7 + 0.6 * vnoise3(P * 20.0)), algae * 0.75);
+    c = mix(c, float3(0.66, 0.64, 0.58), barn * 0.8);
+    float salt = smoothstep(0.7, 1.4, P.y) * smoothstep(0.55, 0.8, vnoise3(P * 3.5 + 5.0)) * 0.30;
+    c = mix(c, float3(0.78, 0.76, 0.70), salt);
+    float crack = (1.0 - smoothstep(0.0, 0.012 + fpix * 2.0, worley3F(P * 1.6 + 3.0).y - worley3F(P * 1.6 + 3.0).x)) * step(0.6, vnoise3(P * 0.9 + 1.0)) * featVis(0.01, fpix);
+    c *= 1.0 - 0.38 * crack;
+    o.albedo = c;
+    o.rough = clamp(o.rough - 0.35 * wet + 0.1 * barn, 0.3, 1.0);
+    o.N = bump_normal(P, o.N, 0.004 * barn - 0.004 * crack, 1.0);
+    o.ao *= 1.0 - 0.3 * crack;
+    return o;
+}
+
 inline MatOut material_surface_raw(int id, float3 Pl, float3 P, float3 N, float3 base, float rough, float fpix) {
     MatOut o;
     if (id == 5) o = mat_masonry(Pl, P, N, base, fpix);
@@ -586,6 +640,8 @@ inline MatOut material_surface_raw(int id, float3 Pl, float3 P, float3 N, float3
     else if (id == 19) o = mat_palemetal(P, N, base, fpix);
     else if (id == 12) o = mat_plank(Pl, P, N, base, rough, fpix);
     else if (id == 13) o = mat_timber(P, N, base, fpix);
+    else if (id == 21) o = mat_rock(P, N, base, fpix);
+    else if (id == 22) o = mat_slab(Pl, P, N, base, fpix);
     else o = mat_bark(P, N, base, fpix);
     return o;
 }

@@ -450,7 +450,7 @@ struct MeshBuilder {
 
     /// Subdivided icosahedron, a sphere with even triangles (no pinched poles). `radius(direction)` scales each
     /// vertex, which is how rocks get their lumpy shape. Flat-shaded by default (faceted stone).
-    mutating func icosphere(subdivisions: Int = 2, smooth: Bool = false, radius: (SIMD3<Float>) -> Float,
+    mutating func icosphere(subdivisions: Int = 2, smooth: Bool = false, geometricNormals: Bool = false, radius: (SIMD3<Float>) -> Float,
                             surface: Surface, transform: float4x4 = matrix_identity_float4x4) {
         let t: Float = (1 + Float(5).squareRoot()) / 2
         var dirs: [SIMD3<Float>] = [
@@ -483,6 +483,16 @@ struct MeshBuilder {
             faces = next
         }
         let pos = dirs.map { $0 * radius($0) }
+        if geometricNormals {                                     // smooth normals of the DISPLACED shape (area-weighted), not of the sphere it came from
+            var acc = [SIMD3<Float>](repeating: .zero, count: pos.count)
+            for f in stride(from: 0, to: faces.count, by: 3) {
+                let (a, b, c) = (Int(faces[f]), Int(faces[f + 1]), Int(faces[f + 2]))
+                let n = simd_cross(pos[b] - pos[a], pos[c] - pos[a])
+                acc[a] += n; acc[b] += n; acc[c] += n
+            }
+            addIndexed(positions: pos, indices: faces, smoothNormals: acc.map { simd_length($0) > 1e-12 ? simd_normalize($0) : SIMD3(0, 1, 0) }, surface: surface, transform: transform)
+            return
+        }
         addIndexed(positions: pos, indices: faces, smoothNormals: smooth ? dirs : nil, surface: surface, transform: transform)
     }
 }

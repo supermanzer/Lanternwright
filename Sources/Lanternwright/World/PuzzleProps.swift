@@ -99,10 +99,23 @@ enum PuzzleProps {
         for k in 0..<slabCount {
             var b = MeshBuilder()
             let tone = 0.85 + 0.3 * Island.noise.unit(Int32(k), 313)
-            b.box(size: SIMD3(3.2, 0.6, 3.8), surface: Surface(color: SIMD3(0.30, 0.285, 0.26) * tone, roughness: 0.88),
-                  transform: matrix_identity_float4x4)
-            b.box(size: SIMD3(3.3, 0.12, 3.9), surface: Surface(color: SIMD3(0.22, 0.21, 0.19) * tone, roughness: 0.9),
-                  transform: translation(SIMD3(0, -0.3, 0)))
+            let n = Island.noise
+            // F01 W3.3: weathered dressed stone, not a box. Chamfered, chipped, its top gently dished and tilted a little differently each time, a darker
+            // footing course, a sunk corner and a loose chip of stone at one edge. The slab material (22) does the waterline: wet and algae below, barnacles at the
+            // surface, salt above, so the stones DRIP as they come up out of the sea.
+            let surf = Surface(color: SIMD3(0.36, 0.34, 0.31) * tone, roughness: 0.88, material: .slab)
+            let tiltX = (n.unit(Int32(k), 321) - 0.5) * 0.03, tiltZ = (n.unit(Int32(k), 322) - 0.5) * 0.03
+            b.chamferBox(size: SIMD3(3.1 - 0.15 * n.unit(Int32(k), 323), 0.6, 3.7 - 0.15 * n.unit(Int32(k), 324)), chamfer: 0.07 + 0.05 * n.unit(Int32(k), 325), surface: surf,
+                         transform: rotationX(tiltX) * rotationZ(tiltZ) * translation(SIMD3((n.unit(Int32(k), 326) - 0.5) * 0.08, 0, 0)))
+            b.chamferBox(size: SIMD3(3.35, 0.14, 3.95), chamfer: 0.05, surface: Surface(color: SIMD3(0.24, 0.225, 0.20) * tone, roughness: 0.9, material: .slab), transform: translation(SIMD3(0, -0.33, 0)))
+            // The top dished: a low chamfered inset, a few millimetres, that holds a film of water.
+            b.chamferBox(size: SIMD3(2.5, 0.02, 3.0), chamfer: 0.008, surface: Surface(color: SIMD3(0.33, 0.31, 0.285) * tone, roughness: 0.8, material: .slab),
+                         transform: rotationX(tiltX) * rotationZ(tiltZ) * translation(SIMD3(0, 0.298, 0)))
+            for c in 0..<2 {                                                                 // chips and rubble at the edge
+                let a = n.unit(Int32(k * 5 + c), 330) * 2 * .pi, rr = 1.45 + 0.4 * n.unit(Int32(k * 5 + c), 331)
+                b.chamferBox(size: SIMD3(0.28, 0.14, 0.22) * (0.6 + 0.8 * n.unit(Int32(k * 5 + c), 332)), chamfer: 0.03, surface: surf,
+                             transform: translation(SIMD3(cos(a) * rr, 0.25, sin(a) * rr * 1.1)) * rotationY(a) * rotationZ(0.3 * (n.unit(Int32(k * 5 + c), 333) - 0.5)))
+            }
             scene.add("causeway_\(k)", mesh: b.build(device: device, label: "slab"),
                       uniforms: ObjectUniforms(model: slabModel(plan, k, rise: 0)), hidden: true)   // revealed when the rumble starts
         }
@@ -113,14 +126,31 @@ enum PuzzleProps {
 
     static func addIslet(_ scene: Scene, device: MTLDevice) {
         let c = Layout.isletCenter
-        let stone = Surface(color: SIMD3(0.34, 0.325, 0.30), roughness: 0.85)
+        // F01 W3.4: the islet's stones. The lens base is a stepped footing of dressed stone with an iron band; the five pillars are tapering, leaning, faceted standing
+        // stones with chamfered tops, a stone footing and (some of them) a carved glyph panel on the face turned to the lens; one has fallen and broken.
+        let stone = Surface(color: SIMD3(0.40, 0.38, 0.35), roughness: 0.85, material: .dressed)
+        let dark = Surface(color: SIMD3(0.30, 0.285, 0.265), roughness: 0.9, material: .dressed)
+        let iron = Surface(color: SIMD3(0.07, 0.065, 0.07), roughness: 0.5, material: .iron)
         var b = MeshBuilder()
-        b.cylinder(radiusTop: 1.5, radiusBottom: 1.8, height: 0.6, segments: 12, smooth: false, surface: stone, transform: translation(SIMD3(0, 0, 0)))
+        b.lathe(profile: [SIMD2(2.0, -0.3), SIMD2(2.0, 0.18), SIMD2(1.75, 0.18), SIMD2(1.75, 0.42), SIMD2(1.35, 0.42), SIMD2(1.3, 0.62), SIMD2(0, 0.62)], segments: 14, smooth: false, surface: stone)
+        b.torus(major: 1.38, minor: 0.05, segments: 28, sides: 6, surface: iron, transform: translation(SIMD3(0, 0.55, 0)))
+        let n = Island.noise
         for i in 0..<5 {
             let a = Float(i) / 5 * 2 * .pi + 0.3
-            let h = 2.6 + 0.8 * Island.noise.unit(Int32(i), 55)
-            let m = translation(SIMD3(6.5 * cos(a), 0, 6.5 * sin(a))) * rotationY(a) * rotationZ((Island.noise.unit(Int32(i), 7) - 0.5) * 0.12)
-            b.box(size: SIMD3(0.9, h, 0.9), surface: stone, transform: m * translation(SIMD3(0, h / 2 - 0.2, 0)))
+            let h = 2.6 + 0.8 * n.unit(Int32(i), 55)
+            let broken = i == 3
+            let lean = (n.unit(Int32(i), 7) - 0.5) * 0.14
+            let m = translation(SIMD3(6.5 * cos(a), 0, 6.5 * sin(a))) * rotationY(a + 0.4 * n.unit(Int32(i), 8))
+            let rb = 0.55 + 0.1 * n.unit(Int32(i), 9), rt = rb * (0.62 + 0.15 * n.unit(Int32(i), 10))
+            b.chamferBox(size: SIMD3(rb * 2.5, 0.35, rb * 2.5), chamfer: 0.06, surface: dark, transform: m * translation(SIMD3(0, 0.0, 0)))              // footing
+            if broken {                                                                    // stump + a fallen upper part lying beside it
+                b.cylinder(radiusTop: rt * 1.1, radiusBottom: rb, height: h * 0.45, segments: 6, smooth: false, surface: stone, transform: m * translation(SIMD3(0, 0.1, 0)))
+                b.cylinder(radiusTop: rt * 0.9, radiusBottom: rt * 1.1, height: h * 0.5, segments: 6, smooth: false, surface: stone,
+                           transform: m * translation(SIMD3(1.3, 0.35, 0.4)) * rotationZ(.pi / 2 - 0.12) * rotationY(0.4))
+            } else {
+                b.cylinder(radiusTop: rt, radiusBottom: rb, height: h, segments: 6, smooth: false, surface: stone, transform: m * rotationZ(lean) * rotationX(lean * 0.5) * translation(SIMD3(0, 0.1, 0)))
+                b.chamferBox(size: SIMD3(rt * 2.0, 0.22, rt * 2.0), chamfer: 0.05, surface: stone, transform: m * rotationZ(lean) * rotationX(lean * 0.5) * translation(SIMD3(0, h + 0.1, 0)))     // a cap block
+            }
             scene.colliders.addCylinder(center: SIMD2(c.x + 6.5 * cos(a), c.z + 6.5 * sin(a)), radius: 0.7, minY: c.y - 1, maxY: c.y + h)
         }
         scene.add("islet", mesh: b.build(device: device, label: "islet"), uniforms: ObjectUniforms(model: translation(c)))

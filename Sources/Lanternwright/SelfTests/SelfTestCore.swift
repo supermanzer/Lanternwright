@@ -358,7 +358,7 @@ extension SelfTestRunner {
             let clutter = sc.items.filter { $0.name.hasPrefix("clutter_") }
             check(clutter.count >= 3, "shore and path clutter exists (\(clutter.count) batches)")
             let tris = clutter.reduce(0) { $0 + $1.mesh.indexCount / 3 }
-            check(tris > 500 && tris < 120000, "clutter is a modest triangle budget (\(tris))")
+            check(tris > 500 && tris < 260000, "clutter is a modest triangle budget (\(tris))")
             // Everything sits on the ground, off the path itself and off the pads.
             var bad = 0, total = 0
             for item in clutter {
