@@ -92,7 +92,10 @@ final class Game {
     static let ownFlags = ["lensTouched", "hint_run"]
     /// 0...1: how far the "look closer" zoom has eased in (right mouse button or Z).
     private(set) var zoomAmount: Float = 0
-    var camera: Camera { var c = player.camera; c.fovY = LookCloser.fov(zoom: zoomAmount); return c }
+    /// 0...1: how far into a run the player is (eased), which widens the view a little: speed you can see.
+    private(set) var runBlend: Float = 0
+    static let runFovBoost: Float = 0.10                 // radians at a full run (about 5.7 degrees)
+    var camera: Camera { var c = player.camera; c.fovY = LookCloser.fov(zoom: zoomAmount) + Game.runFovBoost * runBlend * (1 - zoomAmount); return c }
 
     /// The ground material under the player's feet (drives footstep sounds).
     var currentSurface: SurfaceKind { scene.surface(x: player.position.x, z: player.position.z) }
@@ -278,6 +281,7 @@ final class Game {
         if !hasRun && walkedSeconds > Game.runHintAfter && !state.has("hint_run") && banner == nil {
             state.set("hint_run"); showBanner("Hold Shift to run, or press R to run automatically.")
         }
+        runBlend += (Player.runFactor(speed: player.speed) - runBlend) * (1 - exp(-4 * Game.tick))
         zoomAmount = LookCloser.ease(zoomAmount, held: input.zoom && !journal.isOpen && !isTraveling, dt: Game.tick)
         for p in puzzles { p.updateVisuals(time: time) }
         updateDiscoveries()

@@ -85,6 +85,9 @@ struct Player {
         var wishDir = right * input.move.x + forward * input.move.y
         // Pace follows the ground ahead of the feet (1 m look-ahead along the direction of travel).
         var pace: Float = 1
+        // Ankle-deep wading: in the shallows (ground below ~10 cm above the waterline) the water drags at you, down to 60 %.
+        let here = scene.groundHeight(x: position.x, z: position.z)
+        let wading = 1 - 0.4 * smoothstep(0.1, -0.3, here)
         if length(wishDir) > 0.01 {
             wishDir = normalize(wishDir) * min(length(wishDir), 1)
             let dir = normalize(wishDir)
@@ -92,7 +95,7 @@ struct Player {
             let g1 = scene.groundHeight(x: position.x + dir.x, z: position.z + dir.y)
             if g0 > Player.minGround || g1 > Player.minGround { pace = Player.paceFactor(slope: g1 - g0) }
         }
-        let wishSpeed = (input.run ? Player.runSpeed : Player.walkSpeed) * pace
+        let wishSpeed = (input.run ? Player.runSpeed : Player.walkSpeed) * pace * wading
         let wish = wishDir * wishSpeed
         // Exponential approach to the wish velocity: a soft start/stop (time constant ~ 0.1 s).
         velocity += (wish - velocity) * min(1, dt * 10)

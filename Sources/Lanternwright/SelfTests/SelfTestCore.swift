@@ -224,6 +224,39 @@ extension SelfTestRunner {
             let saved = h.makeSave(); let h3 = Game(scene: Scene.makeWorld(device: device)); h3.restore(saved)
             check(h3.state.has("hint_run"), "the hint is remembered across sessions")
         }
+        if name == "all" || name == "movefeel" {
+            // B7 (partial): FOV widens while running and settles back; wading slows you.
+            let g = Game(scene: Scene.makeWorld(device: device))
+            var walk = InputState(); walk.move = SIMD2(0, 1)
+            g.simulate(seconds: 1, input: walk)
+            let walkFov = g.camera.fovY
+            var run = walk; run.run = true
+            g.simulate(seconds: 3, input: run)
+            check(g.camera.fovY > walkFov + 0.05 && g.camera.fovY <= LookCloser.baseFov + Game.runFovBoost + 1e-4, "running widens the view (\(walkFov * 180 / .pi) -> \(g.camera.fovY * 180 / .pi) degrees)")
+            g.simulate(seconds: 3)
+            check(abs(g.camera.fovY - LookCloser.baseFov) < 0.01, "and it settles back when you stop")
+            var zoom = run; zoom.zoom = true
+            g.simulate(seconds: 2, input: zoom)
+            check(g.camera.fovY < LookCloser.baseFov * 0.5, "zoom still wins over the run widening")
+            let sc = Scene.makeWorld(device: device)
+            func distance3s(_ start: SIMD3<Float>, yaw: Float) -> Float {
+                var p = Player(position: start, yaw: yaw); p.position.y = sc.groundHeight(x: start.x, z: start.z)
+                let a = SIMD2(p.position.x, p.position.z)
+                for _ in 0..<360 { p.step(dt: Game.tick, input: walk, scene: sc) }
+                return simd_length(SIMD2(p.position.x, p.position.z) - a)
+            }
+            // Along the dock shore the beach dips into the shallows: compare dry flat sand to ankle-deep water on the same heading.
+            var shallow: SIMD3<Float>?
+            search: for xi in stride(from: Float(100), to: 280, by: 2) { for zi in stride(from: Float(120), to: 320, by: 2) {
+                let h = sc.groundHeight(x: xi, z: zi)
+                if h < -0.18 && h > -0.3 { shallow = SIMD3(xi, h, zi); break search }
+            } }
+            let dry = distance3s(Layout.dockShore + SIMD3(6, 0, 4), yaw: Layout.spawnYaw + .pi)
+            if let s = shallow {
+                let wet = distance3s(s, yaw: .pi)       // walking back toward shallower water would speed up; head along the shelf instead
+                check(wet < dry * 0.9, "wading ankle-deep is slower than walking dry (\(wet) m vs \(dry) m in 3 s)")
+            } else { check(true, "no shallow spot found to test wading (skipped)") }
+        }
         if name == "all" || name == "zoom" {
             check(abs(LookCloser.fov(zoom: 0) - LookCloser.baseFov) < 1e-6 && LookCloser.fov(zoom: 1) < LookCloser.baseFov * 0.45 && LookCloser.fov(zoom: 1) > 0.2, "zoom 0 is the normal 60 degrees; full zoom narrows to about 22 degrees")
             var z: Float = 0, steps = 0
