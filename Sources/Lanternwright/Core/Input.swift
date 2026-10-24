@@ -9,6 +9,7 @@ struct InputState {
     var journalPressed = false         // J edge
     var escapePressed = false          // Esc edge
     var feedbackPressed = false        // F edge
+    var zoom = false                   // right mouse button or Z held: look closer
     var tabPressed = false             // Tab edge (journal: pages <-> notebook)
     var pageFlip = 0                   // -1 / +1 when left / right arrow was pressed (journal navigation)
 }
@@ -18,7 +19,7 @@ final class Input {
     enum Key {
         static let a: UInt16 = 0, s: UInt16 = 1, d: UInt16 = 2, w: UInt16 = 13
         static let e: UInt16 = 14, f: UInt16 = 3, j: UInt16 = 38, escape: UInt16 = 53, space: UInt16 = 49
-        static let tab: UInt16 = 48
+        static let tab: UInt16 = 48, z: UInt16 = 6
         static let left: UInt16 = 123, right: UInt16 = 124, down: UInt16 = 125, up: UInt16 = 126
     }
 
@@ -30,6 +31,8 @@ final class Input {
     private var escapeEdge = false
     private var flipEdge = 0
     private var tabEdge = false
+    /// Right mouse button held (set by the view).
+    var rightMouseDown = false
     private var feedbackEdge = false
 
     /// Radians of turn per mouse count. 0.0022 is a comfortable default for a 6720-px-wide display's pointer speed.
@@ -51,7 +54,7 @@ final class Input {
 
     /// Forget everything held (used when focus is lost, so a key released elsewhere doesn't stay "down").
     func releaseAll() {
-        down.removeAll(); shift = false; mouse = .zero
+        down.removeAll(); shift = false; mouse = .zero; rightMouseDown = false
     }
 
     /// Read and clear the per-frame deltas/edges. `captured` is false while the mouse is released (menus, journal).
@@ -71,6 +74,7 @@ final class Input {
             if down.contains(Key.right) { turn += 1 }
             s.look = SIMD2(mouse.x * sensitivity + turn * 0.03, -mouse.y * sensitivity * (invertY ? -1 : 1))
             s.click = clickEdge
+            s.zoom = rightMouseDown || down.contains(Key.z)
         }
         s.journalPressed = journalEdge
         s.escapePressed = escapeEdge

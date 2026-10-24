@@ -58,6 +58,8 @@ final class GameView: MTKView {
     override func mouseDown(with event: NSEvent) {
         if isCaptured { input.click() }          // when released, the overlay (menu / title / journal) handles clicks
     }
+    override func rightMouseDown(with event: NSEvent) { if isCaptured { input.rightMouseDown = true } }
+    override func rightMouseUp(with event: NSEvent) { input.rightMouseDown = false }
     override func mouseMoved(with event: NSEvent) { addDelta(event) }
     override func mouseDragged(with event: NSEvent) { addDelta(event) }
     override func rightMouseDragged(with event: NSEvent) { addDelta(event) }

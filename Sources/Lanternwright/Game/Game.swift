@@ -74,7 +74,9 @@ final class Game {
     /// Varrow only (most tests need nothing else).
     convenience init(scene: Scene) { self.init(scenes: [.varrow: scene]) }
 
-    var camera: Camera { player.camera }
+    /// 0...1: how far the "look closer" zoom has eased in (right mouse button or Z).
+    private(set) var zoomAmount: Float = 0
+    var camera: Camera { var c = player.camera; c.fovY = LookCloser.fov(zoom: zoomAmount); return c }
 
     /// The ground material under the player's feet (drives footstep sounds).
     var currentSurface: SurfaceKind { scene.surface(x: player.position.x, z: player.position.z) }
@@ -240,6 +242,7 @@ final class Game {
         if player.step(dt: Game.tick, input: isTraveling ? InputState() : input, scene: scene) { footfalls += 1; lastFootWasRun = player.lastStepWasRun }
         animator.update(Game.tick)
         time += Game.tick
+        zoomAmount = LookCloser.ease(zoomAmount, held: input.zoom && !journal.isOpen && !isTraveling, dt: Game.tick)
         for p in puzzles { p.updateVisuals(time: time) }
         updateDiscoveries()
         Birds.update(scene, time: time)
@@ -269,7 +272,7 @@ final class Game {
         if journal.isOpen && input.tabPressed { journal.tab = journal.tab == .pages ? .notebook : .pages }
         if journal.isOpen && input.pageFlip != 0 { journal.flip(input.pageFlip) }
 
-        player.applyLook(input.look)
+        player.applyLook(input.look * LookCloser.lookScale(zoom: zoomAmount))     // slower aim when zoomed, so it stays controllable
         accumulator += dt
         while accumulator >= Game.tick {
             fixedStep(input: input)

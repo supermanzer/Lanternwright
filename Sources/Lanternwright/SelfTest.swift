@@ -504,6 +504,27 @@ enum SelfTest {
             let silentBell = render({ $0.buoyGain = 0; $0.play(.buoy) })
             check(zip(silentBell, base).allSatisfy { abs($0 - $1) < 1e-6 }, "a buoy too far away to hear adds nothing")
         }
+        if name == "all" || name == "zoom" {
+            check(abs(LookCloser.fov(zoom: 0) - LookCloser.baseFov) < 1e-6 && LookCloser.fov(zoom: 1) < LookCloser.baseFov * 0.45 && LookCloser.fov(zoom: 1) > 0.2, "zoom 0 is the normal 60 degrees; full zoom narrows to about 22 degrees")
+            var z: Float = 0, steps = 0
+            var monotone = true, prev: Float = 0
+            while z < 1 && steps < 2000 { z = LookCloser.ease(z, held: true, dt: Game.tick); if z < prev { monotone = false }; prev = z; steps += 1 }
+            check(monotone && z == 1 && Float(steps) * Game.tick > 0.3 && Float(steps) * Game.tick < 2, "holding zoom eases in smoothly over about a second (\(Float(steps) * Game.tick) s) and settles exactly")
+            var out = z; steps = 0
+            while out > 0 && steps < 2000 { out = LookCloser.ease(out, held: false, dt: Game.tick); steps += 1 }
+            check(out == 0 && Float(steps) * Game.tick < 2, "releasing eases back to the normal view")
+            var fovs: [Float] = []; for k in 0...20 { fovs.append(LookCloser.fov(zoom: Float(k) / 20)) }
+            check(zip(fovs, fovs.dropFirst()).allSatisfy { $0 >= $1 }, "the field of view only ever narrows as zoom grows")
+            check(LookCloser.lookScale(zoom: 0) == 1 && LookCloser.lookScale(zoom: 1) < 0.4 && LookCloser.lookScale(zoom: 1) > 0.3, "mouse look slows with the zoom (scale \(LookCloser.lookScale(zoom: 1)))")
+            let g = Game(scene: Scene.makeWorld(device: device))
+            var held = InputState(); held.zoom = true
+            g.simulate(seconds: 1.5, input: held)
+            check(g.zoomAmount == 1 && g.camera.fovY < LookCloser.baseFov * 0.45, "the game's camera narrows while zoom is held")
+            g.simulate(seconds: 1.5)
+            check(g.zoomAmount == 0 && abs(g.camera.fovY - LookCloser.baseFov) < 1e-6, "and returns to normal when released")
+            g.toggleJournal(); g.simulate(seconds: 1, input: held)
+            check(g.zoomAmount == 0, "zoom is ignored while the journal is open")
+        }
         if name == "all" || name == "puzzle" {
             func freshGame() -> Game { Game(scene: Scene.makeWorld(device: device)) }
             func chimes(_ events: [GameEvent]) -> [ChimeKind] { events.compactMap { if case .chime(let k) = $0 { return k } else { return nil } } }
