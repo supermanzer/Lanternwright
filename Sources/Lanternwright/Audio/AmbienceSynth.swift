@@ -19,6 +19,7 @@ enum ChimeKind: Int, Equatable {
     case glass0, glass1, glass2, glass3, glass4
     case glassTick       // a small bright click for turning a mirror or changing a pane
     case glassAmbient    // a quiet random shimmer, as if the wind brushed the crystal trees
+    case doorLocked      // the lighthouse door: a latch rattles and the weight of the door thumps against its bolt
     case buoy            // the bell buoy; loudness and pan come from `buoyGain` / `buoyPan` at the moment it rings
 }
 
@@ -173,6 +174,11 @@ final class AmbienceSynth {
         case .lens:
             for (i, f) in [Float(880.0), 1318.5, 1760.0, 2217.5].enumerated() {
                 chimes.append(bell(f, gain: 0.12, decayScale: 2.2, delay: Float(i) * 0.09, pan: Float(i) * 0.3 - 0.45))
+            }
+        case .doorLocked:
+            chimes.append(ChimeVoice(delay: 0, f0: 74, gain: 0.34, partials: [Partial(ratio: 1, gain: 1, decay: 0.16), Partial(ratio: 2.1, gain: 0.5, decay: 0.09)], pan: 0))            // the weight of the door against the bolt
+            for (i, hz) in [Float(1850), 2400, 1650, 2750].enumerated() {                                                                                                    // the latch: four small iron ticks
+                chimes.append(ChimeVoice(delay: 0.03 + Float(i) * 0.055 + 0.015 * Float(i % 2), f0: hz, gain: 0.07, partials: [Partial(ratio: 1, gain: 1, decay: 0.035), Partial(ratio: 3.1, gain: 0.4, decay: 0.02)], pan: 0))
             }
         case .rumble: rumbleLeft = 5.5
         case .buoy: if buoyGain > 0.004 { chimes.append(bell(ToneTable.buoyHz, gain: 0.5 * buoyGain, decayScale: 1.6, pan: buoyPan)) }

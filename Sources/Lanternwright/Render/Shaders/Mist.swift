@@ -49,24 +49,7 @@ fragment float4 mist_fragment(MistOut in [[stage_in]],
     float3 color = skyLUT.sample(skySampler, lut_uv(mistDir), level(2)).rgb;
     float alpha = d * distFade * flat * soft * obj.tint.x;
 
-    // The lit lighthouse's beam: two opposite sectors that sweep round the lens (obj.emissive.xyz). They are only seen as they
-    // light the mist, so the beam shows over the sea and low shore and brightens wherever the haze is thick.
-    float beamOn = obj.tint.z;
-    if (beamOn > 0.001) {
-        float2 dv = P.xz - obj.emissive.xyz.xz;
-        float r = length(dv);
-        float ang = atan2(dv.x, -dv.y);                                  // 0 = north, increasing clockwise (same as player yaw)
-        float a1 = ang - obj.tint.y;
-        a1 = a1 - 6.2831853 * floor((a1 + 3.1415927) / 6.2831853);       // wrap to -pi...pi
-        float da = min(abs(a1), 3.1415927 - abs(a1));                    // nearest of the two opposite beams
-        float widthAng = 0.05;                                           // a narrow wedge of constant angle
-        float core = exp(-(da * da) / (widthAng * widthAng));
-        float reach = smoothstep(60.0, 220.0, r) * (1.0 - smoothstep(900.0, 2600.0, r));
-        float visible = smoothstep(6.0, 60.0, dist) * flat * soft;
-        float bm = core * reach * visible * beamOn;
-        color = mix(color, float3(3.2, 2.5, 1.3), min(1.0, bm * 1.4));
-        alpha = max(alpha, bm * (0.35 + 0.65 * d) * 0.8);
-    }
+    // (The lighthouse beam is real geometry now: see Beam.swift.)
     return float4(color, alpha);
 }
 """#

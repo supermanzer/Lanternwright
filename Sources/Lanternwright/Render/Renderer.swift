@@ -79,6 +79,9 @@ final class Renderer {
     let bloomPrefilterPipeline: MTLRenderPipelineState
     let godRaysPipeline: MTLRenderPipelineState
     let mistPipeline: MTLRenderPipelineState
+    /// The lighthouse beams and the glow at the lens (additive; see Beam.swift) and their ribbon mesh.
+    let beamPipeline: MTLRenderPipelineState
+    let beamMesh: Mesh
     let crystalPipeline: MTLRenderPipelineState
     let aoPipeline: MTLRenderPipelineState
     let aoBlurPipeline: MTLRenderPipelineState
@@ -229,6 +232,26 @@ final class Renderer {
         mist.colorAttachments[0].destinationAlphaBlendFactor = .one
         mist.depthAttachmentPixelFormat = Renderer.depthFormat
         mistPipeline = try! device.makeRenderPipelineState(descriptor: mist)
+
+        let beam = MTLRenderPipelineDescriptor()
+        beam.label = "beam"
+        beam.vertexFunction = ShaderLibrary.function(lib, "beam_vertex")
+        beam.fragmentFunction = ShaderLibrary.function(lib, "beam_fragment")
+        beam.colorAttachments[0].pixelFormat = Renderer.hdrFormat
+        beam.colorAttachments[0].isBlendingEnabled = true
+        beam.colorAttachments[0].sourceRGBBlendFactor = .one
+        beam.colorAttachments[0].destinationRGBBlendFactor = .one
+        beam.colorAttachments[0].sourceAlphaBlendFactor = .zero
+        beam.colorAttachments[0].destinationAlphaBlendFactor = .one
+        beam.depthAttachmentPixelFormat = Renderer.depthFormat
+        beamPipeline = try! device.makeRenderPipelineState(descriptor: beam)
+        var bv: [Vertex] = [], bi: [UInt32] = []
+        for k in 0...96 {                                                   // a ribbon: 97 stations, two vertices each (x = along 0...1, y = side -1 / +1)
+            let s = Float(k) / 96
+            for side: Float in [-1, 1] { bv.append(Vertex(position: SIMD4(s, side, 0, 1), normal: SIMD4(0, 1, 0, 0), color: SIMD4(1, 1, 1, 1))) }
+            if k > 0 { let a = UInt32(2 * (k - 1)); bi += [a, a + 1, a + 2, a + 1, a + 3, a + 2] }
+        }
+        beamMesh = Mesh(device: device, vertices: bv, indices: bi, label: "beam ribbon")
 
         let skyBG = MTLRenderPipelineDescriptor()
         skyBG.label = "sky"
@@ -488,6 +511,24 @@ final class Renderer {
                 enc.setFragmentBytes(&mu, length: MemoryLayout<ObjectUniforms>.stride, index: 2)
                 enc.drawIndexedPrimitives(type: .triangle, indexCount: ocean.mesh.indexCount, indexType: .uint32,
                                           indexBuffer: ocean.mesh.indexBuffer, indexBufferOffset: 0)
+            }
+            // The lit lighthouse's beams and the glow at the lens: real geometry from the lantern room, added as light.
+            if world == .varrow && beamIntensity > 0.001 {
+                enc.setRenderPipelineState(beamPipeline)
+                enc.setDepthStencilState(waterDepthState)
+                enc.setCullMode(.none)
+                enc.setVertexBuffer(beamMesh.vertexBuffer, offset: 0, index: 0)
+                enc.setVertexBytes(&frame, length: MemoryLayout<FrameUniforms>.stride, index: 1)
+                enc.setFragmentBytes(&frame, length: MemoryLayout<FrameUniforms>.stride, index: 1)
+                enc.setFragmentTexture(distanceTexture, index: 3)
+                for (sign, glow) in [(Float(1), Float(0)), (Float(-1), Float(0)), (Float(1), Float(1))] {
+                    var bu = ObjectUniforms()
+                    bu.tint = SIMD4(sign, beamHeading, beamIntensity, 0)
+                    bu.emissive = SIMD4(Landmarks.lensPosition, glow)
+                    enc.setVertexBytes(&bu, length: MemoryLayout<ObjectUniforms>.stride, index: 2)
+                    enc.setFragmentBytes(&bu, length: MemoryLayout<ObjectUniforms>.stride, index: 2)
+                    enc.drawIndexedPrimitives(type: .triangle, indexCount: beamMesh.indexCount, indexType: .uint32, indexBuffer: beamMesh.indexBuffer, indexBufferOffset: 0)
+                }
             }
             enc.endEncoding()
         }

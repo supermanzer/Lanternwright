@@ -124,6 +124,9 @@ final class Game {
             list.append(Interactable(id: "page_\(n)", min: p - SIMD3(0.35, 0.1, 0.35), max: p + SIMD3(0.35, 0.3, 0.35),
                                      prompt: "Read the page", reach: 3.2))
         }
+        // F01 W4.2 phase 1: the lighthouse door can be tried. It is locked (what is behind it is the user's choice: see INSPECT.md).
+        let lh = Layout.lighthouse, doorZ = lh.z + 4.25
+        list.append(Interactable(id: "lh_door", min: SIMD3(lh.x - 0.65, lh.y, doorZ - 0.35), max: SIMD3(lh.x + 0.65, lh.y + 2.4, doorZ + 0.45), prompt: "Try the door", reach: 4))
         let l = PuzzleProps.lensRestPosition
         list.append(Interactable(id: "lens", min: l - SIMD3(1.3, 1.3, 1.3), max: l + SIMD3(1.3, 1.3, 1.3), prompt: "Touch the lens", reach: 5))
         worldInteractables[.varrow] = list
@@ -169,6 +172,9 @@ final class Game {
             owner.activate(id)
         } else if id.hasPrefix("page_"), let n = Int(id.dropFirst(5)) {
             collectPage(n)
+        } else if id == "lh_door" {
+            pending.append(.chime(.doorLocked))
+            showBanner("Locked. The keeper took the key with her.")
         } else if id == "lens" {
             touchLens()
         } else if id == "gw_return" {

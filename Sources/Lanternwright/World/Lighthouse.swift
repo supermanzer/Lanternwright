@@ -85,6 +85,8 @@ enum Lighthouse {
         }
         b.cylinder(radiusTop: 0.095, radiusBottom: 0.095, height: 0.022, segments: 20, smooth: true, surface: iron,
                    transform: translation(SIMD3(0.3, baseY + 0.95, rd + 0.085)) * rotationX(.pi / 2))                                    // escutcheon plate
+        b.chamferBox(size: SIMD3(0.05, 0.12, 0.02), chamfer: 0.006, surface: iron, transform: translation(SIMD3(0.3, baseY + 0.72, rd + 0.088)))              // a keyhole plate
+        b.cylinder(radiusTop: 0.012, radiusBottom: 0.012, height: 0.01, segments: 8, smooth: true, surface: Surface(color: SIMD3(0.01, 0.01, 0.01), roughness: 1), transform: translation(SIMD3(0.3, baseY + 0.74, rd + 0.099)) * rotationX(.pi / 2))
         b.torus(major: 0.085, minor: 0.012, segments: 24, sides: 8, surface: iron,
                 transform: translation(SIMD3(0.3, baseY + 0.95, rd + 0.125)) * rotationX(.pi / 2))                                       // ring handle
         b.chamferBox(size: SIMD3(1.7, 0.14, 0.78), chamfer: 0.025, surface: dressedDark, transform: translation(SIMD3(0, baseY - 0.07, rd + 0.42)))   // worn threshold

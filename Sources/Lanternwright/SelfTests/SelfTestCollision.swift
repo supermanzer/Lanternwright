@@ -100,6 +100,13 @@ extension SelfTestRunner {
         let reached = bot.walk(to: door, within: 1.0, timeout: 120)
         check(reached, "a bot walks from the summit stone to the lighthouse door (\(reached ? "arrived" : "stopped at \(bot.feet)"))")
         check(bot.feet.y > Layout.lighthouse.y + 0.1, "and stands on the plinth in front of the door (feet \(bot.feet.y - Layout.lighthouse.y) m above the pad)")
+        // F01 W4.2 phase 1: standing at the door, clicking it gives a rattle, a thump and one line in the keeper's voice; nothing opens.
+        _ = bot.game.drainEvents()
+        bot.aim(at: SIMD3(Layout.lighthouse.x, Layout.lighthouse.y + 1.2, Layout.lighthouse.z + 4.3))
+        let hoveredDoor = bot.game.hovered?.id
+        let clicked = bot.click("lh_door")
+        let evs = bot.game.drainEvents()
+        check(clicked && evs.contains(.chime(.doorLocked)) && (bot.game.banner ?? "").hasPrefix("Locked."), "trying the lighthouse door: a latch rattle and thump, the banner says it is locked (clicked \(clicked), hovered \(hoveredDoor ?? "nothing"), events \(evs), banner \(bot.game.banner ?? "none"), feet \(bot.feet))")
         // Steep ground behaves like a wall: walking straight into a slope steeper than the limit slides along its contour (it used to stop dead).
         var steep: SIMD2<Float>?
         search: for xi in stride(from: -250, to: 250, by: 4) { for zi in stride(from: -300, to: 250, by: 4) {
