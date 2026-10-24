@@ -334,6 +334,8 @@ All seven defects are concrete and visible, so all are accepted. Item 8 (haze th
 - Backlog order: **B3, B4** first (protect what follows; bots catch item 1 regressions), then **B6** (do the interleaved-gradient-noise swap at least), **B5** cheap parts only, then **B1, B2, B7**; **B8** only if T56.2 leaves a brown cast; **B9** low priority; **B10** superseded by T56.1 (drop unless trees still look toy-like).
 - R02-8 (human questions, in INSPECT.md only): is the milky horizon haze in `overview` too thick from altitude? Is the dock's long beach shadow too hard-edged?
 
+- R02 backlog dispositions: **B8 not needed** (its trigger, a brown cast left after T56.2, did not occur: clouds now read warm and cool); **B10 superseded** by T56.1 (per-tree scale, lean, shade, dead snags, groves; the trees no longer look identical; revisit only if they still look toy-like in a human's eyes); **B9 left open** (low priority by the reviewer). B5, B6 and B7 were done in part (see their notes); B1, B2, B3, B4 are complete.
+
 ### REJECTED (with reasons)
 - **R-A2 Keep the correct prefix lit permanently after a wrong strike.** It turns a 3-stone order puzzle into a linear search (each stone needs at most two tries), which defeats A1's goal; the audible drone (T55.2) gives the same learning signal without trivialising it.
 - **R-A3 A real tide that gates the Tide stone.** Breaks pillar 4 (no timers / forced waiting); the water level is baked into terrain, dock, causeway, player wading limit and audio, so it is also high-risk for little gain.
