@@ -28,6 +28,8 @@ enum Screenshot {
         let g = Game(scenes: scenesForState)
         switch name {
         case "solved": g.puzzle.forceSolved()
+        case "mirrors": g.glass?.forceMirrorsSolved()
+        case "mirrorswrong": g.glass?.setArrangement(mirrors: MirrorCourt.solutionMirrors, panes: [1, 2, 0])
         case "tide": g.puzzle.strike(.tide)
         case "tidewind": g.puzzle.strike(.tide); g.simulate(seconds: 0.7); g.puzzle.strike(.wind)
         default: FileHandle.standardError.write(Data("unknown --state \(name)\n".utf8))

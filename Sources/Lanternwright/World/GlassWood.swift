@@ -67,6 +67,7 @@ enum GlassWood {
         addArrival(scene, device: device)
         addForest(scene, device: device)
         addLamps(scene, device: device)
+        GlassPuzzleProps.populate(scene, device: device)
         return scene
     }
 

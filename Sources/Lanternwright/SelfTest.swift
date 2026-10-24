@@ -420,7 +420,7 @@ enum SelfTest {
             j.flip(1); check(j.collectedPages[j.current].number == 3, "flip forward")
             j.flip(1); check(j.collectedPages[j.current].number == 3, "flipping past the end stays on the last page")
             j.flip(-5); check(j.current == 0, "flipping past the start stays on the first page")
-            check(JournalContent.pages.count == 4 && JournalContent.pages.allSatisfy { !$0.text.isEmpty }, "all four journal pages have text")
+            check(JournalContent.pages.count == 8 && JournalContent.pages.map(\.number) == Array(1...8) && JournalContent.pages.allSatisfy { !$0.text.isEmpty }, "all eight journal pages (4 Ilse, 4 Oren) exist, numbered 1-8, with text")
         }
         if name == "all" || name == "chimes" {
             let sr: Float = 44100
@@ -734,6 +734,99 @@ enum SelfTest {
             let old = SaveData(flags: ["solved"], pages: [], position: [175, 0.8, 205], yaw: 0, pitch: 0, playTime: 1, world: nil)
             let m = Game(scenes: scenes); m.restore(old)
             check(m.world == .varrow, "a save without a world field (from before the second world) resumes in Varrow")
+        }
+        if name == "all" || name == "mirrors" {
+            let sol = MirrorCourt.trace(mirrors: MirrorCourt.solutionMirrors, panes: MirrorCourt.solutionPanes)
+            check(sol.solved && sol.panesMet == [0, 1, 2], "the intended arrangement solves it (panes met \(sol.panesMet))")
+            let start = MirrorCourt.trace(mirrors: MirrorCourt.initialMirrors, panes: MirrorCourt.initialPanes)
+            check(!start.solved && !start.reachedReceiver, "the starting arrangement is not solved and the beam misses the receiver")
+            check(sol.points.count >= 6 && sol.segmentColor.count == sol.points.count - 1, "a trace has one colour per segment (\(sol.points.count) points)")
+            check(sol.segmentColor.first == -1 && sol.segmentColor.last == 2, "the light starts as plain moonlight and ends amber (the last pane is stone)")
+
+            // Exhaustive: all 4^3 mirror states x 3^3 pane colours terminate, and exactly ONE of the 1728 solves it.
+            var solutions: [([Int], [Int])] = [], reached = 0
+            for a in 0..<4 { for b in 0..<4 { for c in 0..<4 {
+                for x in 0..<3 { for y in 0..<3 { for z in 0..<3 {
+                    let t = MirrorCourt.trace(mirrors: [a, b, c], panes: [x, y, z])
+                    if t.reachedReceiver { reached += 1 }
+                    if t.solved { solutions.append(([a, b, c], [x, y, z])) }
+                } } }
+            } } }
+            check(solutions.count == 1 && solutions[0].0 == MirrorCourt.solutionMirrors && solutions[0].1 == MirrorCourt.solutionPanes,
+                  "exactly one of the 1728 arrangements solves it (\(solutions.count) found); the beam reaches the receiver in \(reached) of them")
+            check(reached > 1 && reached < 400, "reaching the receiver is possible with wrong colours, so the colour order really matters (\(reached) arrangements reach it)")
+
+            // Any single click away from the solution is not solved (so there are no cheap near-misses).
+            var oneAway = 0
+            for k in 0..<3 {
+                var m = MirrorCourt.solutionMirrors; m[k] = (m[k] + 1) % 4
+                if MirrorCourt.trace(mirrors: m, panes: MirrorCourt.solutionPanes).solved { oneAway += 1 }
+                var p = MirrorCourt.solutionPanes; p[k] = (p[k] + 1) % 3
+                if MirrorCourt.trace(mirrors: MirrorCourt.solutionMirrors, panes: p).solved { oneAway += 1 }
+            }
+            check(oneAway == 0, "no arrangement one click from the solution also solves it")
+            // Reflection rules.
+            check(MirrorCourt.reflect((1, 0), state: 3) == (0, -1) && MirrorCourt.reflect((0, -1), state: 1) == (-1, 0) && MirrorCourt.reflect((-1, 0), state: 3) == (0, 1), "the three solution mirrors turn the beam east->north->west->south")
+            check(MirrorCourt.reflect((1, 0), state: 0) == (1, 0) && MirrorCourt.reflect((1, 0), state: 2) == (-1, 0), "an axis mirror passes a parallel beam and bounces a perpendicular one back")
+            // Geometry: the whole court fits on the flat pad.
+            let corners = [MirrorCourt.world((0, 0)), MirrorCourt.world((4, 4)), MirrorCourt.world((0, 4)), MirrorCourt.world((4, 0))]
+            let farthest = corners.map { distance(SIMD2($0.x, $0.z), SIMD2(GlassLayout.mirrorCourt.x, GlassLayout.mirrorCourt.z)) }.max()!
+            check(farthest < GlassLayout.pads[1].radius - 4, "the court fits inside its flat pad (corner \(String(format: "%.1f", farthest)) m from the centre, pad radius \(GlassLayout.pads[1].radius))")
+        }
+        if name == "all" || name == "mirrorgame" {
+            // Each game gets freshly built scenes, because the puzzle mutates scene items.
+            func fresh() -> Game {
+                let g = Game(scenes: [.varrow: Scene.makeWorld(device: device), .glassWood: GlassWood.build(device: device)])
+                g.travel(to: .glassWood); _ = g.drainEvents()
+                return g
+            }
+            func item(_ g: Game, _ name: String) -> DrawItem { g.scenes[.glassWood]!.items.first { $0.name == name }! }
+            func visibleBeams(_ g: Game) -> Int { (0..<GlassPuzzleProps.beamSegments).filter { !item(g, "gw_beam_\($0)").hidden }.count }
+            func chimes(_ e: [GameEvent]) -> [ChimeKind] { e.compactMap { if case .chime(let k) = $0 { return k } else { return nil } } }
+
+            var g = fresh()
+            let ids = g.interactables.map(\.id)
+            check(["gw_mirror_0", "gw_mirror_1", "gw_mirror_2", "gw_pane_0", "gw_pane_1", "gw_pane_2", "gw_return"].allSatisfy(ids.contains), "the court's mirrors, panes and the return ring are interactable")
+            check(g.interactables.first { $0.id == "page_5" }?.enabled == true && ["page_6", "page_7", "page_8"].allSatisfy { id in g.interactables.first { $0.id == id }?.enabled == false }, "page 5 is readable at once; 6-8 wait to be earned")
+            check(item(g, "page_6").hidden && item(g, "page_7").hidden && item(g, "page_8").hidden && !item(g, "page_5").hidden, "pages 6-8 are not visible in the world yet")
+            check(visibleBeams(g) >= 1, "a beam is already visible in the court at the start (\(visibleBeams(g)) segment(s))")
+
+            // A wrong arrangement that nonetheless reaches the receiver: panes in the wrong order do not solve it.
+            g.glass!.click("gw_mirror_0"); g.glass!.click("gw_mirror_0"); g.glass!.click("gw_mirror_0")     // M1: 0 -> 3
+            for _ in 0..<3 { g.glass!.click("gw_mirror_1") }                                                  // M2: 2 -> 1
+            for _ in 0..<2 { g.glass!.click("gw_mirror_2") }                                                  // M3: 1 -> 3
+            check(g.glass!.mirrors == MirrorCourt.solutionMirrors && !g.state.has("gw_mirrors"), "right mirrors, wrong glass: not solved")
+            check(MirrorCourt.trace(mirrors: g.glass!.mirrors, panes: g.glass!.panes).reachedReceiver, "...but the beam does reach the receiver, which shows the wrong colour instead of the win")
+            g.glass!.click("gw_pane_0")                                                                         // A: 2 -> 0 (tide)
+            check(!g.state.has("gw_mirrors"), "one pane right is still not enough")
+            g.glass!.click("gw_pane_1")                                                                         // B: 0 -> 1 (wind)
+            g.glass!.click("gw_pane_2")                                                                         // C: 1 -> 2 (stone)
+            check(g.state.has("gw_mirrors") && g.glass!.panes == MirrorCourt.solutionPanes, "tide, wind, stone in the right order solves the mirror court")
+
+            // The reward plays out over a few seconds.
+            check(item(g, "page_6").hidden, "the page does not appear in the same instant")
+            g.simulate(seconds: 4)
+            check(chimes(g.drainEvents()).filter { [.tide, .wind, .stone, .ignite].contains($0) }.prefix(4) == [.tide, .wind, .stone, .ignite], "the wood answers with tide, wind, stone, then the chord")
+            check(!item(g, "page_6").hidden && g.interactables.first { $0.id == "page_6" }?.enabled == true, "Oren's page 6 appears at the receiver")
+            check(!item(g, "gw_column").hidden && item(g, "gw_column").uniforms.model.columns.1.y > 40, "a tall column of light rises from the receiver (height \(String(format: "%.0f", item(g, "gw_column").uniforms.model.columns.1.y)) m)")
+
+            // Solved is permanent.
+            let before = g.glass!.mirrors
+            g.glass!.click("gw_mirror_0"); g.glass!.click("gw_pane_1")
+            check(g.glass!.mirrors == before && g.state.has("gw_mirrors") && chimes(g.drainEvents()).filter { $0 == .glassTick }.count == 2, "after solving, clicks only tick; the solution stays")
+
+            // Saving and restoring keeps it solved and reveals the page again.
+            let tmp = NSTemporaryDirectory() + "lw-mirror-\(getpid())"
+            setenv("LANTERNWRIGHT_SAVE_DIR", tmp, 1)
+            defer { try? FileManager.default.removeItem(atPath: tmp); unsetenv("LANTERNWRIGHT_SAVE_DIR") }
+            try? SaveStore.save(g.makeSave())
+            let h = Game(scenes: [.varrow: Scene.makeWorld(device: device), .glassWood: GlassWood.build(device: device)])
+            if let save = SaveStore.load() { h.restore(save) }
+            check(h.world == .glassWood && h.state.has("gw_mirrors") && h.glass!.panes == MirrorCourt.solutionPanes && !h.scenes[.glassWood]!.items.first { $0.name == "page_6" }!.hidden, "a save resumes with the mirror court solved and page 6 available")
+
+            // Collecting a revealed page works and hides it everywhere.
+            g.activate("page_6")
+            check(g.journal.collectedPages.map(\.number) == [6] && g.journal.isOpen && item(g, "page_6").hidden, "reading page 6 opens the journal on it and removes it from the world")
         }
         return ok
     }

@@ -37,7 +37,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, MTKViewDelegate {
         if !options.newGame, !debugLaunch, options.camera == nil, options.viewName == nil, let save = SaveStore.load() { game.restore(save) }
         // `--state solved` / `--world glass` jump straight to the interesting place for inspection. They never touch the save.
         if options.state == "solved" { game.puzzle.forceSolved(); game.simulate(seconds: 0.1); _ = game.drainEvents() }
-        if options.world == .glassWood { game.travel(to: .glassWood); _ = game.drainEvents() }
+        if options.state == "mirrors" { game.glass?.forceMirrorsSolved(); game.simulate(seconds: 0.1); _ = game.drainEvents() }
+        if options.world == .glassWood || options.state == "mirrors" { game.travel(to: .glassWood); _ = game.drainEvents() }
         game.state.onChange = { [weak self] _, _ in self?.saveDirty = true }
         NotificationCenter.default.addObserver(forName: NSApplication.willTerminateNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.writeSave() }

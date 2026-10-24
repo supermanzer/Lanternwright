@@ -14,14 +14,15 @@ inline float2 hash22(float2 p) {
     return fract((p3.xx + p3.yz) * p3.zy);
 }
 
-// Bilinear sample of the terrain texture (r = height, g = path weight), using read() so no float32 filtering is needed.
-float2 terrain_sample(texture2d<float> tex, float2 xz) {
+// Bilinear sample of the terrain texture (x = height, y = path weight, z = landmark-pad mask), using read() so no float32
+// filtering is needed.
+float3 terrain_sample(texture2d<float> tex, float2 xz) {
     float g = (xz.x + 512.0) / 2.0, h = (xz.y + 512.0) / 2.0;
     g = clamp(g, 0.0, 511.0); h = clamp(h, 0.0, 511.0);
     uint x0 = uint(g), z0 = uint(h);
     float fx = g - float(x0), fz = h - float(z0);
-    float2 a = tex.read(uint2(x0, z0)).rg,     b = tex.read(uint2(x0 + 1, z0)).rg;
-    float2 c = tex.read(uint2(x0, z0 + 1)).rg, d = tex.read(uint2(x0 + 1, z0 + 1)).rg;
+    float3 a = tex.read(uint2(x0, z0)).rgb,     b = tex.read(uint2(x0 + 1, z0)).rgb;
+    float3 c = tex.read(uint2(x0, z0 + 1)).rgb, d = tex.read(uint2(x0 + 1, z0 + 1)).rgb;
     return mix(mix(a, b, fx), mix(c, d, fx), fz);
 }
 
@@ -45,7 +46,7 @@ vertex LitOut grass_vertex(uint vid [[vertex_id]], uint iid [[instance_id]],
     float radius = gp.field.z;
     if (dist > radius) return o;
 
-    float2 ts = terrain_sample(terrainTex, xz);
+    float3 ts = terrain_sample(terrainTex, xz);
     float y = ts.x;
     // Normal from the height field (central differences, 2 m apart).
     float hx = terrain_sample(terrainTex, xz + float2(2.0, 0.0)).x - terrain_sample(terrainTex, xz - float2(2.0, 0.0)).x;
@@ -53,7 +54,7 @@ vertex LitOut grass_vertex(uint vid [[vertex_id]], uint iid [[instance_id]],
     float ny = 1.0 / sqrt(1.0 + (hx * hx + hz * hz) / 16.0);
 
     // Where does grass grow? Not on sand/beach, the path, steep rock or the bare summit.
-    float density = smoothstep(2.2, 4.0, y) * (1.0 - smoothstep(0.35, 0.9, ts.y)) * smoothstep(0.80, 0.90, ny) * (1.0 - smoothstep(52.0, 64.0, y));
+    float density = smoothstep(2.2, 4.0, y) * (1.0 - smoothstep(0.35, 0.9, ts.y)) * (1.0 - ts.z) * smoothstep(0.80, 0.90, ny) * (1.0 - smoothstep(52.0, 64.0, y));
     // Thin the field with distance so far blades (sub-pixel) are not drawn at all.
     float keep = density * (1.0 - smoothstep(0.35 * radius, radius, dist) * 0.9);
     if (hash22(float2(gcell) + 17.0).x > keep) return o;

@@ -147,25 +147,7 @@ enum Landmarks {
         body.box(size: SIMD3(1.9, 0.25, 1.5), surface: Surface(color: SIMD3(0.20, 0.19, 0.17), roughness: 0.85), transform: translation(SIMD3(0, 0.05, 0)))
         scene.add("stone_\(id.name)", mesh: body.build(device: device, label: "stone_\(id.name)"), uniforms: ObjectUniforms(model: model))
 
-        // Glyph inset on the +Z face. Each glyph is a different shape so the three stones are distinguishable at a glance
-        // and (later) recognisable on the mural in the next world.
-        var g = MeshBuilder()
-        let glow = Surface(color: SIMD3(1, 1, 1), roughness: 0.4)
-        let z: Float = 0.435
-        let y: Float = 1.55
-        switch id {
-        case .tide:        // three stacked waves
-            let offsets: [Float] = [-0.07, 0.07, -0.07]
-            for (i, dx) in offsets.enumerated() {
-                g.box(size: SIMD3(0.62, 0.07, 0.03), surface: glow, transform: translation(SIMD3(dx, y + 0.24 - Float(i) * 0.24, z)))
-            }
-        case .wind:        // two diagonal strokes
-            for dx: Float in [-0.17, 0.17] {
-                g.box(size: SIMD3(0.07, 0.72, 0.03), surface: glow, transform: translation(SIMD3(dx, y, z)) * rotationZ(0.6))
-            }
-        case .summit:      // a solid square
-            g.box(size: SIMD3(0.48, 0.48, 0.03), surface: glow, transform: translation(SIMD3(0, y, z)))
-        }
+        let g = glyphMesh(id, z: 0.435, y: 1.55)
         let idle = SIMD4(id.color, 0.3)
         scene.add("glyph_\(id.name)", mesh: g.build(device: device, label: "glyph"),
                   uniforms: ObjectUniforms(model: model, tint: SIMD4(id.color, 1), emissive: idle))
@@ -178,5 +160,26 @@ enum Landmarks {
                   uniforms: ObjectUniforms(model: translation(capstoneBase(id)), tint: SIMD4(id.color, 1), emissive: SIMD4(id.color, 0.5)))
 
         scene.colliders.addCylinder(center: SIMD2(p.x, p.z), radius: 0.85, minY: p.y - 1, maxY: p.y + stoneHeight)
+    }
+
+    /// The glyph for a stone, as thin raised bars/squares facing +Z at (0, y, z). Reused on the Glass Wood's murals so the
+    /// player meets the same symbols in both worlds: tide = three waves, wind = two diagonals, stone = a solid square.
+    static func glyphMesh(_ id: StoneID, z: Float, y: Float, scale: Float = 1) -> MeshBuilder {
+        var g = MeshBuilder()
+        let glow = Surface(color: SIMD3(1, 1, 1), roughness: 0.4)
+        switch id {
+        case .tide:
+            let offsets: [Float] = [-0.07, 0.07, -0.07]
+            for (i, dx) in offsets.enumerated() {
+                g.box(size: SIMD3(0.62, 0.07, 0.03) * scale, surface: glow, transform: translation(SIMD3(dx, y + (0.24 - Float(i) * 0.24) * scale, z)))
+            }
+        case .wind:
+            for dx: Float in [-0.17, 0.17] {
+                g.box(size: SIMD3(0.07, 0.72, 0.03) * scale, surface: glow, transform: translation(SIMD3(dx * scale, y, z)) * rotationZ(0.6))
+            }
+        case .summit:
+            g.box(size: SIMD3(0.48, 0.48, 0.03) * scale, surface: glow, transform: translation(SIMD3(0, y, z)))
+        }
+        return g
     }
 }

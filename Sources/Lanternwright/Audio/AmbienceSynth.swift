@@ -15,6 +15,10 @@ import Foundation
 /// The sounds the puzzle makes. Pitches are tuned to D: tide D4, wind A4, stone D5 (a rising open fifth/octave).
 enum ChimeKind: Int, Equatable {
     case tide, wind, stone, fail, ignite, rumble, lens
+    /// The five glass chimes at the Glass Wood's pool: D4, F#4, A4, C5, D5. Three of them (D4, A4, D5) are the Varrow stones' tones.
+    case glass0, glass1, glass2, glass3, glass4
+    case glassTick       // a small bright click for turning a mirror or changing a pane
+    case glassAmbient    // a quiet random shimmer, as if the wind brushed the crystal trees
 }
 
 final class AmbienceSynth {
@@ -99,8 +103,25 @@ final class AmbienceSynth {
         ], pan: pan)
     }
 
+    /// Glass rings higher and thinner than a bell: partial ratios 1, 2.32, 4.25, 6.63 and a shorter decay.
+    private func glassVoice(_ f: Float, gain: Float, decayScale: Float = 1, delay: Float = 0, pan: Float = 0) -> ChimeVoice {
+        ChimeVoice(delay: delay, f0: f, gain: gain, partials: [
+            Partial(ratio: 1.0, gain: 1.0, decay: 2.6 * decayScale), Partial(ratio: 2.32, gain: 0.38, decay: 1.5 * decayScale),
+            Partial(ratio: 4.25, gain: 0.16, decay: 0.8 * decayScale), Partial(ratio: 6.63, gain: 0.06, decay: 0.4 * decayScale),
+        ], pan: pan)
+    }
+
+    private static let glassPitches: [Float] = [293.66, 369.99, 440.00, 523.25, 587.33]
+
     private func startChime(_ kind: ChimeKind) {
         switch kind {
+        case .glass0, .glass1, .glass2, .glass3, .glass4:
+            let i = kind.rawValue - ChimeKind.glass0.rawValue
+            chimes.append(glassVoice(AmbienceSynth.glassPitches[i], gain: 0.28, pan: Float(i) * 0.3 - 0.6))
+        case .glassTick: chimes.append(glassVoice(1174.66, gain: 0.10, decayScale: 0.22))
+        case .glassAmbient:
+            let pitches: [Float] = [587.33, 739.99, 880.0, 1174.66]
+            chimes.append(glassVoice(pitches[Int(stepRandom() * 3.999)], gain: 0.05, decayScale: 2.2, pan: stepRandom() * 2 - 1))
         case .tide:  chimes.append(bell(293.66, gain: 0.30, pan: -0.2))
         case .wind:  chimes.append(bell(440.00, gain: 0.28, pan: 0.0))
         case .stone: chimes.append(bell(587.33, gain: 0.26, pan: 0.2))

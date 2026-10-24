@@ -14,6 +14,7 @@ final class Game {
     let state = PuzzleState()
     let animator = Animator()
     private(set) var puzzle: LighthousePuzzle!
+    private(set) var glass: GlassWoodLogic?
     private var worldInteractables: [WorldKind: [Interactable]] = [:]
     var interactables: [Interactable] { worldInteractables[world] ?? [] }
     private(set) var hovered: Interactable?
@@ -38,7 +39,18 @@ final class Game {
         self.scenes = scenes
         player = Player(position: Layout.dockEnd, yaw: Layout.spawnYaw)
         puzzle = LighthousePuzzle(scene: scenes[.varrow]!, state: state, animator: animator) { [weak self] in self?.pending.append($0) }
+        if let gw = scenes[.glassWood] {
+            glass = GlassWoodLogic(scene: gw, state: state, animator: animator, emit: { [weak self] in self?.pending.append($0) },
+                                   revealPage: { [weak self] n in self?.revealPage(n) })
+        }
         buildInteractables()
+    }
+
+    /// Make a hidden journal page visible and readable (puzzles call this as a reward).
+    private func revealPage(_ n: Int) {
+        guard !state.has("page_\(n)") else { return }
+        scenes[.glassWood]?.update("page_\(n)") { $0.hidden = false }
+        setInteractable("page_\(n)", enabled: true)
     }
 
     /// Varrow only (most tests need nothing else).
@@ -74,9 +86,14 @@ final class Game {
 
         if scenes[.glassWood] != nil {
             let r = GlassLayout.returnLens
-            worldInteractables[.glassWood] = [
-                Interactable(id: "gw_return", min: r - SIMD3(1.3, 1.3, 1.3), max: r + SIMD3(1.3, 1.3, 1.3), prompt: "Return through the lens", reach: 5),
-            ]
+            var gwList = [Interactable(id: "gw_return", min: r - SIMD3(1.3, 1.3, 1.3), max: r + SIMD3(1.3, 1.3, 1.3), prompt: "Return through the lens", reach: 5)]
+            gwList += glass?.interactables() ?? []
+            for n in 5...8 {
+                let p = GlassPuzzleProps.pagePosition(n)
+                gwList.append(Interactable(id: "page_\(n)", min: p - SIMD3(0.35, 0.1, 0.35), max: p + SIMD3(0.35, 0.3, 0.35),
+                                           prompt: "Read the page", reach: 3.2, enabled: n == 5))     // 6-8 are revealed by the puzzles
+            }
+            worldInteractables[.glassWood] = gwList
         }
     }
 
@@ -100,6 +117,8 @@ final class Game {
             touchLens()
         } else if id == "gw_return" {
             fadeThrough(to: .varrow)
+        } else if id.hasPrefix("gw_") {
+            glass?.click(id)
         }
     }
 
@@ -107,7 +126,7 @@ final class Game {
     func restorePage(_ n: Int) {
         state.set("page_\(n)")
         journal.collect(n)
-        scene.update("page_\(n)") { $0.hidden = true }
+        for sc in scenes.values { sc.update("page_\(n)") { $0.hidden = true } }       // the page lives in whichever world it belongs to
         setInteractable("page_\(n)", enabled: false)
     }
 
@@ -192,9 +211,10 @@ final class Game {
         puzzle.updateVisuals(time: time)
         Birds.update(scene, time: time)
         // Uncollected pages glow faintly so they read as "pick me up", even in shadow.
-        for n in 1...4 where !state.has("page_\(n)") {
+        for n in (world == .varrow ? 1...4 : 5...8) where !state.has("page_\(n)") {
             scene.update("page_\(n)") { $0.uniforms.emissive.w = 0.25 + 0.15 * sin(self.time * 2.4 + Float(n)) }
         }
+        glass?.updateVisuals(time: time)
         // The lens floats and turns while it waits.
         let bob = sin(time * 1.2) * 0.08
         scene.update("lens_ring") { $0.uniforms.model = translation(PuzzleProps.lensRestPosition + SIMD3(0, bob, 0)) * rotationY(self.time * 0.4) }

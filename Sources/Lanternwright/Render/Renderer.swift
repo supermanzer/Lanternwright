@@ -164,20 +164,28 @@ final class Renderer {
 
         // Terrain heights (r) and path weight (g) per world, for the grass vertex shader.
         for (kind, sc) in scenes {
-            let tDesc = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .rg32Float, width: Terrain.gridCount, height: Terrain.gridCount, mipmapped: false)
+            let tDesc = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .rgba32Float, width: Terrain.gridCount, height: Terrain.gridCount, mipmapped: false)
             tDesc.usage = .shaderRead
             let tex = device.makeTexture(descriptor: tDesc)!
             tex.label = "terrain heights \(kind.rawValue)"
             let n = Terrain.gridCount
-            var texels = [Float](repeating: 0, count: n * n * 2)
+            var texels = [Float](repeating: 0, count: n * n * 4)
             for j in 0..<n {
                 for i in 0..<n {
                     let x = Terrain.origin + Float(i) * Terrain.spacing, z = Terrain.origin + Float(j) * Terrain.spacing
-                    texels[(j * n + i) * 2] = sc.terrain.sampleHeight(x: x, z: z)
-                    texels[(j * n + i) * 2 + 1] = sc.terrain.pathWeight(x: x, z: z)
+                    texels[(j * n + i) * 4] = sc.terrain.sampleHeight(x: x, z: z)
+                    texels[(j * n + i) * 4 + 1] = sc.terrain.pathWeight(x: x, z: z)
+                    // Grass-free zone around every landmark pad (about 0.62 of its radius, softly edged), so floors stay clear.
+                    var bare: Float = 0
+                    for pad in sc.terrain.spec.pads {
+                        let d = length(SIMD2(x - pad.center.x, z - pad.center.z))
+                        let r = pad.radius * 0.62
+                        bare = max(bare, 1 - smoothstep(r - 1.5, r + 1.5, d))
+                    }
+                    texels[(j * n + i) * 4 + 2] = bare
                 }
             }
-            tex.replace(region: MTLRegionMake2D(0, 0, n, n), mipmapLevel: 0, withBytes: texels, bytesPerRow: n * 8)
+            tex.replace(region: MTLRegionMake2D(0, 0, n, n), mipmapLevel: 0, withBytes: texels, bytesPerRow: n * 16)
             terrainTextures[kind] = tex
         }
 

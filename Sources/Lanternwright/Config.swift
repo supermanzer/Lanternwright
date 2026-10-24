@@ -54,7 +54,7 @@ struct LaunchOptions {
       --debug <name>               Debug view: depth, shadow, albedo, ambient
       --dump-audio <path.wav>      Render 24 s of the soundscape to a WAV (play with afplay) and exit
       --world <name>               World to render: varrow, glass (views named gw-* imply glass)
-      --state <name>               World state for screenshots: solved, tide, tidewind
+      --state <name>               World state: solved, mirrors, mirrorswrong, tide, tidewind
       --dump-overlay <base>        Render crosshair/journal/end overlays to <base>-*.png and exit
       --feedback                   Print all saved player feedback and exit
       --feedback-dir               Print the feedback folder and exit
@@ -140,6 +140,7 @@ enum Viewpoints {
         case "gw-arrival":  return Camera(position: GlassLayout.arrival + SIMD3(0, Player.eyeHeight, 4), yaw: 0, pitch: 0.06)
         case "gw-overview": return Camera(position: SIMD3(0, 70, 330), yaw: 0, pitch: -0.2)
         case "gw-court":    return Camera(position: GlassLayout.mirrorCourt + SIMD3(26, 3.0, 30), yaw: -0.8, pitch: -0.05)
+        case "gw-court-high": return Camera(position: GlassLayout.mirrorCourt + SIMD3(0, 22, 20), yaw: 0.0, pitch: -1.05)
         case "gw-chimes":   return Camera(position: GlassLayout.chimeRing + SIMD3(-22, 3.0, 24), yaw: 0.75, pitch: -0.04)
         case "gw-altar":    return Camera(position: GlassLayout.altar + SIMD3(0, 3.0, 28), yaw: 0, pitch: 0.05)
         default:         return nil
