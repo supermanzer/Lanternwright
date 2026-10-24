@@ -253,26 +253,28 @@ inline MatOut mat_masonry(float3 Pl, float3 P, float3 N, float3 base, float fpix
     float dEdge = min(min(fu, 1.0 - fu) * blockLen, min(fv, 1.0 - fv) * courseH);
     // A half-block now and then: one extra joint down the middle.
     if (h2 > 0.88) dEdge = min(dEdge, abs(fu - 0.5) * blockLen);
-    dEdge += 0.003 * (vnoise3(Pl * 18.0 + h1 * 11.0) - 0.5);                          // chiselled, wobbling edges
+    // Chipped arrises (R10-1): the edge of each block breaks up by its own amount: some arrises are crisp, some worn and chipped, so the rim is never one outline.
+    float worn = smoothstep(0.35, 0.95, h4);
+    dEdge += (0.003 + 0.016 * worn) * (vnoise3(Pl * 18.0 + h1 * 11.0) - 0.5) + 0.012 * worn * (vnoise3(Pl * 55.0 + h3 * 7.0) - 0.5) * featVis(0.02, fpix);
 
-    float mortarW = 0.009 + 0.008 * h4;
+    float mortarW = 0.005 + 0.020 * h4 * h4 + 0.004 * h1;                                // joints of very different widths
     float edge = max(0.005, fpix * 0.9);
     // Joints are macro structure: they stay (faintly) at any distance. A joint narrower than a pixel keeps its average darkness (lineAmp).
     float mortar = (1.0 - smoothstep(mortarW - edge, mortarW + edge, dEdge)) * lineAmp(mortarW, edge);
-    float chamfer = 0.025 + 0.05 * hash13(float3(bi, c, 5.0));
+    float chamfer = 0.008 + 0.075 * hash13(float3(bi, c, 5.0));                            // per-block bevel: some sharp, some worn round
 
     // Height (metres): convex or dished face, irregular chamfer, recessed joint, a little roughness.
     float cx = fu - 0.5, cy = fv - 0.5;
     float dish = (h3 - 0.5) * 0.045 * (1.0 - 4.0 * (cx * cx + cy * cy)) * 0.5;
     float face = 0.016 * (vnoise3(Pl * 3.2 + h1 * 30.0) - 0.5) + dish;
     float pm = pits_mask(Pl, h1 * 13.0, smoothstep(0.25, 0.85, h2 * 0.6 + h4 * 0.5), fpix);
-    float h = face + (h3 - 0.5) * 0.012 + 0.007 * smoothstep(0.0, chamfer, dEdge) - 0.014 * mortar - 0.0035 * pm;
+    float h = face + (h3 - 0.5) * 0.034 + (h1 - 0.5) * 0.012 + 0.007 * smoothstep(0.0, chamfer, dEdge) - 0.014 * mortar - 0.0035 * pm;
     h *= mix(0.3, 1.0, featVis(0.10, fpix));                                           // the relief fades; roughness takes over (see material_surface)
 
     float speck = mix(0.5, vnoise3(Pl * 55.0), featVis(0.018, fpix));
     // Tone: warm and cool greys, wide value range, an odd rust-stained block. Per-block tone is a 0.3-0.9 m feature: hinted from afar.
     float3 warm = float3(1.10, 1.01, 0.90), cool = float3(0.90, 0.97, 1.06);
-    float3 blockTone = mix(float3(1.0), mix(cool, warm, h1) * (0.66 + 0.7 * h3), featVis(0.30, fpix));
+    float3 blockTone = mix(float3(1.0), mix(cool, warm, h1) * (0.62 + 0.76 * h3) * (1.0 - 0.18 * worn * smoothstep(0.0, 0.05, 0.05 - dEdge)), featVis(0.30, fpix));
     float3 granite = base * blockTone * (0.92 + 0.16 * speck);
     granite = mix(granite, float3(0.52, 0.36, 0.27) * (0.8 + 0.4 * h4), step(h2, 0.06) * 0.8);       // rust-stained
     granite *= 1.0 - 0.3 * pm;
@@ -534,8 +536,16 @@ inline MatOut mat_timber(float3 P, float3 N, float3 base, float fpix) {
     float barn = (1.0 - smoothstep(0.10, 0.22, worley(P * 40.0))) * smoothstep(0.9, 0.4, P.y) * smoothstep(-0.2, 0.1, P.y);
     barn = mix(0.07 * smoothstep(0.9, 0.4, P.y) * smoothstep(-0.2, 0.1, P.y), barn, featVis(0.025, fpix));      // barnacles: 2.5 cm, to their mean coverage
     albedo = mix(albedo, float3(0.62, 0.60, 0.55), barn * 0.85);
+    // Post tops and cut ends (R10-3): weathered grey end grain with rings and radial splits; the wood darkens where it meets the water.
+    float top = smoothstep(0.55, 0.9, N.y);
+    float2 cc = fract(P.xz * 3.0) - 0.5;
+    float rings = 0.5 + 0.5 * sin(length(cc) * 45.0 + 3.0 * vnoise3(P * 6.0));
+    float split = smoothstep(0.05, 0.0, abs(sin(atan2(cc.y, cc.x) * 3.0 + 6.0 * vnoise3(P * 3.0)))) * smoothstep(0.55, 0.9, vnoise3(P * 9.0 + 4.0)) * featVis(0.02, fpix);
+    albedo = mix(albedo, float3(0.30, 0.28, 0.25) * (0.82 + 0.20 * rings), top * 0.85);
+    albedo *= 1.0 - 0.7 * split * top;
+    albedo *= 1.0 - 0.25 * smoothstep(0.3, -0.1, P.y);
     o.albedo = albedo;
-    o.rough = clamp(0.88 - 0.2 * wet + 0.1 * barn, 0.4, 1.0);
+    o.rough = clamp(0.88 - 0.2 * wet + 0.1 * barn + 0.06 * top, 0.4, 1.0);
     o.metal = 0.0;
     o.N = bump_normal(P, N, 0.003 * (fibre - 0.5) + 0.006 * barn, 1.0);
     o.ao = 1.0 - 0.25 * barn;

@@ -28,8 +28,8 @@ enum Landmarks {
 
     /// A red bell buoy riding at sea; `Game` bobs it with the swell. Its bell is heard in `SonicLandmarks`.
     static func addBuoy(_ scene: Scene, device: MTLDevice) {
-        let red = Surface(color: SIMD3(0.62, 0.08, 0.06), roughness: 0.5)
-        let iron = Surface(color: SIMD3(0.10, 0.10, 0.11), roughness: 0.5)
+        let red = Surface(color: SIMD3(0.62, 0.08, 0.06), roughness: 0.5, material: .paint)
+        let iron = Surface(color: SIMD3(0.10, 0.10, 0.11), roughness: 0.5, material: .iron)
         var b = MeshBuilder()
         b.cylinder(radiusTop: 0.55, radiusBottom: 0.9, height: 0.9, segments: 10, surface: red, transform: translation(SIMD3(0, -0.45, 0)))
         b.cylinder(radiusTop: 0.12, radiusBottom: 0.2, height: 1.6, segments: 8, surface: iron, transform: translation(SIMD3(0, 0.4, 0)))
@@ -169,7 +169,7 @@ enum Landmarks {
 
         // The lens: dark until the puzzle is solved, then blazing.
         var lens = MeshBuilder()
-        lens.sphere(radius: 0.85, segments: 16, surface: Surface(color: SIMD3(0.8, 0.75, 0.6), roughness: 0.2), transform: translation(SIMD3(0, 26.9, 0)))
+        lens.sphere(radius: 0.85, segments: 16, surface: Surface(color: SIMD3(0.8, 0.75, 0.6), roughness: 0.2, material: .paleMetal), transform: translation(SIMD3(0, 26.9, 0)))
         scene.add("lighthouse_lens", mesh: lens.build(device: device, label: "lens"), uniforms: ObjectUniforms(model: translation(lh)))
     }
 

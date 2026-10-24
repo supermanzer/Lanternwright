@@ -77,9 +77,9 @@ enum GlassWood {
         let a = GlassLayout.arrival
         var plate = MeshBuilder()
         plate.cylinder(radiusTop: 3.6, radiusBottom: 3.9, height: 0.25, segments: 20, smooth: false,
-                       surface: Surface(color: SIMD3(0.16, 0.17, 0.24), roughness: 0.4), transform: translation(SIMD3(0, -0.05, 0)))
+                       surface: Surface(color: SIMD3(0.26, 0.27, 0.38), roughness: 0.5, material: .glassStone), transform: translation(SIMD3(0, -0.05, 0)))
         // Inlay: concentric rings, radial tile seams and a roundel, so the plate you stand on reads as laid stone, not one smooth dome.
-        let pale = Surface(color: SIMD3(0.34, 0.36, 0.50), roughness: 0.35)
+        let pale = Surface(color: SIMD3(0.50, 0.53, 0.68), roughness: 0.35, material: .paleMetal)
         let seam = Surface(color: SIMD3(0.07, 0.07, 0.12), roughness: 0.6)
         let top: Float = 0.205                  // the plate's top face: the cylinder is lifted -0.05 and 0.25 tall
         for r: Float in [1.15, 2.2, 3.15] {

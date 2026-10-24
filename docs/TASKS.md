@@ -471,6 +471,14 @@ All accepted. Not built without the user: the abandoned interior behind the door
 - [x] **T64.15 R07 leftovers folded in.** Seams above the arch, hinge smear (the shadow-filter radius was ruled out), Glass Wood panes, mirror cue, copper roof dim sky tint, wading splash, small sliding collision.
   > done: 2026-10-23. See T62.1-T62.5 (seams fixed, hinge smear explained and left, panes, mirror cue, copper tint, splash).
 
+### Review round 10 (R10: after F01; docs/reviews/R10-after-f01.md). Budget +0.3 ms.
+All accepted except the optional last part of item 5.
+- [x] **T65.1 Masonry (R10-1).** Per-block bevel 0.008-0.083 m, chipped arrises (edge breakup 3-19 mm and fine chips on worn blocks), joints 5-29 mm, per-block face offset (+-17 mm), darker worn rims. Plinth slab corners checked: the overlapping edges are the stacked chamfered steps, intentional. *Evidence:* shots/r10/lh-base.png.
+- [x] **T65.2 Grass mid-scale (R10-2).** Three noise bands (2, 8, 30 m) modulate ground tone and blade height/density, hollows go earthy, grass/sand ecotone made ragged (stronger warped mask plus 11 cm break-up); grass cell 0.26 -> 0.29 to pay for it. *Evidence:* shots/r10/shore.png.
+- [x] **T65.3 Posts (R10-3).** Timber tops get grey end grain (rings, radial splits), wet-darkened low; cap roughness up. Cleats unchanged (iron material). Lit frame still reads warm because of the low sun: albedo view confirms (shots/r10/dock-alb.png).
+- [x] **T65.4 Steep ground (R10-4).** Scree crevices blend into the stones above ~30 degrees and relief drops 60 %. *Evidence:* shots/r10/ground-slope.png.
+- [x] **T65.5 Islet and flat props (R10-5).** Islet: a worn flagstone ring round the pillars (shots/r10/islet.png); GW arrival plate (glass stone + pale metal), buoy (paint + iron) and lens (pale metal) leave the flat material: audit now 0 large flat props. Skipped: shared weather(), per-object seeds, prop-gallery sheet.
+
 ### REJECTED (with reasons)
 - **R-A2 Keep the correct prefix lit permanently after a wrong strike.** It turns a 3-stone order puzzle into a linear search (each stone needs at most two tries), which defeats A1's goal; the audible drone (T55.2) gives the same learning signal without trivialising it.
 - **R-A3 A real tide that gates the Tide stone.** Breaks pillar 4 (no timers / forced waiting); the water level is baked into terrain, dock, causeway, player wading limit and audio, so it is also high-risk for little gain.

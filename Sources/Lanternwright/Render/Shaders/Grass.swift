@@ -63,6 +63,8 @@ vertex LitOut grass_vertex(uint vid [[vertex_id]], uint iid [[instance_id]],
     bool glassW = frame.worldB.x > 0.5;
     float tall = glassW ? smoothstep(0.70, 0.88, vnoiseV(float3(xz.x, 5.0, xz.y) * 0.42)) : 0.0;     // ~2.5 m tufts of tall blades
     // The Glass Wood gets deeper clumping: real bare patches between clumps, and (below) taller tufts, so it is not an even carpet.
+    float gb2 = vnoiseV(float3(xz.x, 1.0, xz.y) * 0.5 + 1.7), gb8 = vnoiseV(float3(xz.x, 1.0, xz.y) * 0.125 + 4.1), gb30 = vnoiseV(float3(xz.x, 1.0, xz.y) * 0.033 + 9.3);   // the same bands as the ground (Lit.swift)
+    density *= mix(0.55, 1.0, smoothstep(0.25, 0.5, gb30)) * mix(0.7, 1.0, smoothstep(0.2, 0.45, gb8));
     density *= mix(glassW ? 0.04 : 0.45, 1.0, glassW ? smoothstep(0.36, 0.56, clump) : smoothstep(0.28, 0.50, clump)) * (0.78 + 0.22 * tuft) * (1.0 - 0.9 * ts.w);     // thinner under conifers (needle litter)
     // Thin the field with distance so far blades (sub-pixel) are not drawn at all.
     float keep = density * (1.0 - smoothstep(0.3 * radius, radius, dist));          // thins to ZERO at the edge (dithered by the per-blade threshold below): no ring where blades stop
@@ -72,7 +74,7 @@ vertex LitOut grass_vertex(uint vid [[vertex_id]], uint iid [[instance_id]],
     // Blade shape: height, width, lean, facing.
     float hr = h11(rnd.x * 91.7 + rnd.y * 13.1);
     bool seedHead = h11(rnd.x * 53.3 + rnd.y * 7.7) > 0.955;                  // a few taller stems with a pale tip: meadow, not carpet
-    float height = (0.22 + 0.34 * hr) * (0.62 + 0.75 * clump) * (0.85 + 0.3 * tuft) * (seedHead ? 1.9 : 1.0) * (glassW ? mix(0.6, 1.1, smoothstep(0.3, 0.6, clump)) * (1.0 + 1.1 * tall) : 1.0) * (1.0 - smoothstep(0.7 * radius, radius, dist)) * smoothstep(0.5, 2.2, dist);   // blades right under the eye shrink away (a stray blade at the lens looked like a stake)
+    float height = (0.22 + 0.34 * hr) * (0.62 + 0.75 * clump) * (0.85 + 0.3 * tuft) * (0.55 + 0.45 * gb8 + 0.35 * gb2) * (seedHead ? 1.9 : 1.0) * (glassW ? mix(0.6, 1.1, smoothstep(0.3, 0.6, clump)) * (1.0 + 1.1 * tall) : 1.0) * (1.0 - smoothstep(0.7 * radius, radius, dist)) * smoothstep(0.5, 2.2, dist);   // blades right under the eye shrink away (a stray blade at the lens looked like a stake)
     float width = (0.016 + 0.008 * rnd.y) * (1.0 - 0.35 * smoothstep(0.6 * radius, radius, dist));                                        // thin blades: a meadow, not triangles
     float yaw = rnd.x * 6.2831853;
     float2 facing = float2(cos(yaw), sin(yaw));

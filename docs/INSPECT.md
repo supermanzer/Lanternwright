@@ -117,6 +117,9 @@ How to play: `scripts/bundle.sh && open Lanternwright.app`. Headless views: `.bu
 - **Door (W4.2 phase 1).** Stand on the plinth and click the door: rattle, thump, "Locked. The keeper took the key with her."
 - **Glass Wood (R07).** Panes are thick tinted glass with a colour marker on their plinth; mirrors have a faint moonlit sheen and a bright edge.
 
+## R10
+- `--view lh-base` (varied blocks, chipped edges), `--view shore` (patchy meadow, ragged sand edge), `--view dock-close` (grey post tops), `--view ground-slope`, and the islet from the causeway end (paved ring). Settled bench vs before: about +0.2 to +0.35 ms.
+
 ## Questions for the user (not decided by anyone but you)
 1. **The door.** Is the locked door (phase 1: you try it, it rattles, a keeper's line) enough, or do you want the abandoned interior (phase 2) behind it after the island puzzle is solved?
 2. **Slipping on steep slopes.** Do you want to try it (a setting, default off): beyond about 40 degrees you slide gently downhill until the ground is gentler, never any harm? What angle feels right?

@@ -109,12 +109,14 @@ inline GroundOut ground_scree(float3 P, float3 Ng, float fpix, float3 meanCol) {
     float lichen = smoothstep(0.58, 0.82, vnoise3(q * 11.0 + 3.0)) * step(0.4, big.z) * v6;                // pale lichen on some stones
     float3 stoneCol = meanCol * tone * (0.88 + 0.24 * grain);
     stoneCol = mix(stoneCol, float3(0.46, 0.50, 0.30) * (0.8 + 0.4 * grain), lichen * 0.55);
+    float steepF = smoothstep(0.87, 0.60, Ng.y);                                       // R10-4: above ~30 degrees the crevices soften into the stones (they read as mud cracks)
     float3 gap = mix(meanCol * float3(0.20, 0.18, 0.15), float3(0.07, 0.11, 0.04), smoothstep(0.4, 0.75, vnoise3(q * 5.0 + 8.0)) * 0.6);     // dark, damp, a little moss in the crevices
+    gap = mix(gap, stoneCol * 0.62, steepF * 0.7);
     float3 col = mix(gap, stoneCol, saturate(stones * 1.1));
     col *= 1.0 + 0.12 * smoothstep(0.55, 0.9, crackBig) * (1.0 - smoothstep(0.9, 1.0, crackBig));        // lit edges
     col = mix(meanCol, col, v6);
     o.albedo = col;
-    o.h = v1 * (0.016 * (plate * 0.65 + stones * 0.35) + 0.003 * (grain - 0.5));
+    o.h = v1 * (0.016 * (1.0 - 0.6 * steepF) * (plate * 0.65 + stones * 0.35) + 0.003 * (grain - 0.5));
     o.rough = mix(0.9, 0.97, (1.0 - stones) * v1);
     return o;
 }

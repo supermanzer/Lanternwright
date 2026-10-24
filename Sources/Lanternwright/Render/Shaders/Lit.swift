@@ -63,7 +63,13 @@ float3 terrain_surface(float3 P, float3 Ng, float pathW, float wet, float duff, 
     // Blade-scale grain (3 cm) hints at the grass from afar: as the instanced blades thin out with distance, the ground already carries their texture.
     float bladeW = featVis(0.03, fpix);
     float bladeGrain = bladeW > 0.01 ? mix(0.5, vnoise3(float3(P.x * 34.0, P.y * 6.0, P.z * 34.0)), bladeW) : 0.5;
-    float3 grass = mix(lush, parched, dry) * (0.65 + 0.7 * meso) * (0.9 + 0.2 * micro) * (0.9 + 0.2 * bladeGrain);
+    // Mid-scale variation (R10-2): three bands at about 2, 8 and 30 m change the grass's tone and height, and the hollows go earthy, so the meadow is patches,
+    // drifts and bare ground, not one felt. (The blades use the same bands: see Grass.swift.)
+    float b2 = vnoiseV(P * 0.5 + 1.7), b8 = vnoiseV(P * 0.125 + 4.1), b30 = vnoiseV(P * 0.033 + 9.3);
+    float bands = 0.5 * b8 + 0.3 * b2 + 0.4 * b30;
+    float hollow = smoothstep(0.38, 0.22, b8 * 0.6 + b30 * 0.4);
+    float3 grass = mix(lush, parched, dry) * (0.65 + 0.7 * meso) * (0.9 + 0.2 * micro) * (0.9 + 0.2 * bladeGrain) * (0.70 + 0.65 * bands);
+    grass = mix(grass, (glass ? float3(0.10, 0.08, 0.15) : float3(0.17, 0.12, 0.07)) * (0.7 + 0.6 * meso), hollow * 0.55);
 
     // Strata are horizontal bands (noise squashed along Y). They only read as rock layers on steep faces: on flat or gently
     // rolling ground the same bands trace elevation contours (concentric rings), so there the rock is isotropic, and the bands
@@ -85,7 +91,7 @@ float3 terrain_surface(float3 P, float3 Ng, float pathW, float wet, float duff, 
     float sandCoarse = 0.0;
     if (wet > 0.05) {                                                        // dry ground (wet = 0) cannot be sand: skip the noise there
         float3 pwm = warp3(P, 0.45, 0.45);
-        sandCoarse = smoothstep(0.30, 0.70, wet * (1.0 - 0.7 * rockMask) + (rfbm3(pwm * 2.6, 3) - 0.5) * 0.45);
+        sandCoarse = smoothstep(0.30, 0.70, wet * (1.0 - 0.7 * rockMask) + (rfbm3(pwm * 2.6, 3) - 0.5) * 0.75 + (vnoise3(P * 9.0) - 0.5) * 0.30 * featVis(0.05, fpix));        // a ragged ecotone: tongues and islands, not a line
     }
     float sandMask = sandCoarse;
     // Ground detail (Ground.swift): soil, moss, clover and straw under the grass; grains, grit and pebbles in the sand; scree on the slopes. Each layer
@@ -120,6 +126,11 @@ float3 terrain_surface(float3 P, float3 Ng, float pathW, float wet, float duff, 
     stoneCol *= mix(0.78, 1.08, cob.x);                                      // tops catch more light, flanks sit darker
     float3 earth = mix(gapCol, stoneCol, cob.y) * (0.9 + 0.2 * meso);
     float pm = smoothstep(0.25, 0.75, pathW + (meso - 0.5) * 0.5);
+    // The islet's ground (R10-5): a worn paved ring of flagstones round the pillars and the lens, with ragged edges, instead of bare turf.
+    if (!glass) {
+        float di = length(P.xz - float2(-40.0, -320.0)) + 1.6 * (vnoiseV(P * 0.9) - 0.5) * 2.0;
+        pm = max(pm, (1.0 - smoothstep(6.0, 9.5, di)) * 0.9);
+    }
     albedo = mix(albedo, earth, pm);
 
     // Forest floor under conifers: warm brown needle litter and duff, finer-grained and darker than the meadow, with lighter fallen

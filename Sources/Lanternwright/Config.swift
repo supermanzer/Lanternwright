@@ -14,7 +14,7 @@ enum LookDefaults {
     static let godRayStrength: Float = 0.32
     static let aoStrength: Float = 0.9
     static let aoRadius: Float = 1.6
-    static let grassCell: Float = 0.26
+    static let grassCell: Float = 0.29
 }
 
 /// Command-line options. Parsed once in main.swift.
