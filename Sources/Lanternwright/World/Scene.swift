@@ -7,6 +7,8 @@ struct DrawItem {
     var uniforms: ObjectUniforms
     /// Hidden items are skipped by every pass (used for things that appear later, such as puzzle beams).
     var hidden = false
+    /// Glass: drawn in its own pass after the opaque scene (it refracts a copy of it), and casts no shadow.
+    var refractive = false
 
     /// World-space bounding box: the mesh's local box transformed by the model matrix.
     var worldBounds: (min: SIMD3<Float>, max: SIMD3<Float>) {
@@ -30,10 +32,10 @@ final class Scene {
     private(set) var items: [DrawItem] = []
     private var nameIndex: [String: Int] = [:]
 
-    func add(_ name: String, mesh: Mesh, uniforms: ObjectUniforms = ObjectUniforms(), hidden: Bool = false) {
+    func add(_ name: String, mesh: Mesh, uniforms: ObjectUniforms = ObjectUniforms(), hidden: Bool = false, refractive: Bool = false) {
         precondition(nameIndex[name] == nil, "duplicate scene item \(name)")
         nameIndex[name] = items.count
-        items.append(DrawItem(name: name, mesh: mesh, uniforms: uniforms, hidden: hidden))
+        items.append(DrawItem(name: name, mesh: mesh, uniforms: uniforms, hidden: hidden, refractive: refractive))
     }
 
     func has(_ name: String) -> Bool { nameIndex[name] != nil }

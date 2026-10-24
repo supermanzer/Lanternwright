@@ -73,6 +73,7 @@ final class Renderer {
     private let bloomPrefilterPipeline: MTLRenderPipelineState
     private let godRaysPipeline: MTLRenderPipelineState
     private let mistPipeline: MTLRenderPipelineState
+    private let crystalPipeline: MTLRenderPipelineState
     private let aoPipeline: MTLRenderPipelineState
     private let aoBlurPipeline: MTLRenderPipelineState
     private let aoApplyPipeline: MTLRenderPipelineState
@@ -179,6 +180,14 @@ final class Renderer {
             tex.replace(region: MTLRegionMake2D(0, 0, n, n), mipmapLevel: 0, withBytes: texels, bytesPerRow: n * 8)
             terrainTextures[kind] = tex
         }
+
+        let cr = MTLRenderPipelineDescriptor()
+        cr.label = "crystal"
+        cr.vertexFunction = ShaderLibrary.function(lib, "lit_vertex")
+        cr.fragmentFunction = ShaderLibrary.function(lib, "crystal_fragment")
+        cr.colorAttachments[0].pixelFormat = Renderer.hdrFormat
+        cr.depthAttachmentPixelFormat = Renderer.depthFormat
+        crystalPipeline = try! device.makeRenderPipelineState(descriptor: cr)
 
         let mist = MTLRenderPipelineDescriptor()
         mist.label = "mist"
@@ -483,7 +492,7 @@ final class Renderer {
             let sunFrustum = Frustum(viewProj: matrix)
             for item in scene.items {
                 let b = item.worldBounds
-                guard !item.hidden, sunFrustum.intersects(min: b.min, max: b.max) else { continue }
+                guard !item.hidden, !item.refractive, sunFrustum.intersects(min: b.min, max: b.max) else { continue }
                 lastShadowDraws += 1
                 var u = item.uniforms
                 enc.setVertexBuffer(item.mesh.vertexBuffer, offset: 0, index: 0)
@@ -525,7 +534,7 @@ final class Renderer {
             lastOpaqueDraws = 0
             for item in scene.items {
                 let b = item.worldBounds
-                guard !item.hidden, camFrustum.intersects(min: b.min, max: b.max) else { continue }
+                guard !item.hidden, !item.refractive, camFrustum.intersects(min: b.min, max: b.max) else { continue }
                 lastOpaqueDraws += 1
                 var u = item.uniforms
                 enc.setVertexBuffer(item.mesh.vertexBuffer, offset: 0, index: 0)
@@ -586,6 +595,29 @@ final class Renderer {
             enc.setFragmentTexture(distanceTexture, index: 3)
             enc.drawIndexedPrimitives(type: .triangle, indexCount: ocean.mesh.indexCount, indexType: .uint32,
                                       indexBuffer: ocean.mesh.indexBuffer, indexBufferOffset: 0)
+            // Glass (crystal trees etc.): refracts the scene copy, so it is drawn after the water has been laid down.
+            let glass = scene.items.filter { $0.refractive && !$0.hidden }
+            if !glass.isEmpty {
+                enc.setRenderPipelineState(crystalPipeline)
+                // Depth WRITE on and back faces culled. This is a performance rule on Apple's tile-based GPU, measured here:
+                // a depth-tested pass that does not write depth cannot discard hidden fragments, and drawing both faces of
+                // closed prisms shades everything twice. Together they made the glass cost 6-11 ms; with both, it is free.
+                enc.setDepthStencilState(depthState)
+                enc.setCullMode(.back)
+                enc.setVertexBytes(&frame, length: MemoryLayout<FrameUniforms>.stride, index: 1)
+                enc.setFragmentBytes(&frame, length: MemoryLayout<FrameUniforms>.stride, index: 1)
+                let camFrustum = Frustum(viewProj: frame.viewProj)
+                for item in glass {
+                    let b = item.worldBounds
+                    guard camFrustum.intersects(min: b.min, max: b.max) else { continue }
+                    var u = item.uniforms
+                    enc.setVertexBuffer(item.mesh.vertexBuffer, offset: 0, index: 0)
+                    enc.setVertexBytes(&u, length: MemoryLayout<ObjectUniforms>.stride, index: 2)
+                    enc.setFragmentBytes(&u, length: MemoryLayout<ObjectUniforms>.stride, index: 2)
+                    enc.drawIndexedPrimitives(type: .triangle, indexCount: item.mesh.indexCount, indexType: .uint32,
+                                              indexBuffer: item.mesh.indexBuffer, indexBufferOffset: 0)
+                }
+            }
             // Mist sheets: same disc, alpha-blended, two layers at different heights with different noise.
             enc.setRenderPipelineState(mistPipeline)
             for (height, strength, seed) in [(Float(1.6), Float(0.85), Float(0.0)), (Float(6.5), Float(0.5), Float(0.37))] {

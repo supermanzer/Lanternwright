@@ -47,7 +47,7 @@ enum GlassTerrain {
         var h: Float = d < radius
             ? 11 * pow(1 - smoothstep(30, radius, d), 1.2) + 2.5 * (1 - smoothstep(radius * 0.8, radius, d)) * smoothstep(0, 1, 1 - d / radius)
             : seaFloor * smoothstep(radius, radius + 110, d)
-        h -= 16 * (1 - smoothstep(14, poolRadius, length(p - pool)))
+        h -= 26 * (1 - smoothstep(14, poolRadius, length(p - pool)))      // deep enough that the water goes dark
         return h
     }
 }
@@ -65,6 +65,8 @@ enum GlassWood {
             scene.add(chunk.name, mesh: chunk.mesh, uniforms: chunk.uniforms)
         }
         addArrival(scene, device: device)
+        addForest(scene, device: device)
+        addLamps(scene, device: device)
         return scene
     }
 
@@ -85,5 +87,55 @@ enum GlassWood {
         core.sphere(radius: 0.3, segments: 14, surface: Surface(color: SIMD3(1, 1, 1), roughness: 0.2))
         scene.add("gw_return_core", mesh: core.build(device: device, label: "return core"),
                   uniforms: ObjectUniforms(model: translation(GlassLayout.returnLens), tint: SIMD4(1, 1, 1, 1), emissive: SIMD4(1.0, 0.85, 0.55, 5)))
+    }
+
+    /// The crystal forest: groves of glass trees on gentle dry ground, clear of the route, the pads and the pool's bank.
+    static func addForest(_ scene: Scene, device: MTLDevice) {
+        let spots = Island.scatter(spacing: 9, salt: 311, accept: { x, z, h, ny, r in
+            guard h > 2.5, ny > 0.88, Island.isClear(terrain: scene.terrain, x: x, z: z, pathMargin: 7, padMargin: 7, avoidDock: false) else { return false }
+            if length(SIMD2(x, z) - GlassTerrain.pool) < GlassTerrain.poolRadius + 6 { return false }
+            let grove = Island.noise.fbm(x * 0.014 + 5, z * 0.014 - 12, octaves: 3)
+            return r < 0.12 + 0.95 * max(0, grove + 0.12)
+        }, terrain: scene.terrain)
+        var batch = Island.Batcher()
+        var count = 0
+        for s in spots.prefix(220) {
+            let y = scene.terrain.sampleHeight(x: s.x, z: s.z)
+            let height = 6 + 9 * (s.rand * 11.3 - floor(s.rand * 11.3))
+            let tree = Props.crystalTree(seed: UInt32(truncatingIfNeeded: count &* 7907 &+ 17), height: height)
+            batch.add(tree, at: SIMD3(s.x, y - 0.1, s.z), yaw: s.rand * 60, prefix: "crystals")
+            scene.colliders.addCylinder(center: SIMD2(s.x, s.z), radius: 0.55, minY: y - 1, maxY: y + height)
+            count += 1
+        }
+        batch.commit(scene, device: device, uniforms: ObjectUniforms(model: matrix_identity_float4x4, tint: SIMD4(1, 1, 1, 1), emissive: SIMD4(0.6, 0.85, 1.0, 1.8)), refractive: true)
+    }
+
+    /// Glowing spires every 14 m along the route, alternating sides: the same "follow the light" guidance as Varrow's lanterns.
+    static func addLamps(_ scene: Scene, device: MTLDevice) {
+        let proto = Props.crystalLamp()
+        var lamps = MeshBuilder()
+        var side: Float = 1
+        let pts = GlassLayout.path.map { SIMD2($0.x, $0.z) }
+        var carried: Float = 8
+        for k in 0..<(pts.count - 1) {
+            let a = pts[k], b = pts[k + 1]
+            let dir = normalize(b - a), nrm = SIMD2(-dir.y, dir.x)
+            let len = length(b - a)
+            var s = carried
+            while s < len {
+                let c = a + dir * s + nrm * 2.4 * side
+                side = -side
+                let clearOfPads = GlassLayout.pads.allSatisfy { length(c - SIMD2($0.center.x, $0.center.z)) > $0.radius * 0.6 }
+                if clearOfPads {
+                    let y = scene.terrain.sampleHeight(x: c.x, z: c.y)
+                    lamps.append(proto, transform: translation(SIMD3(c.x, y, c.y)))
+                    scene.colliders.addCylinder(center: c, radius: 0.3, minY: y - 1, maxY: y + 1.8)
+                }
+                s += 14
+            }
+            carried = s - len
+        }
+        scene.add("gw_lamps", mesh: lamps.build(device: device, label: "lamps"),
+                  uniforms: ObjectUniforms(model: matrix_identity_float4x4, tint: SIMD4(1, 1, 1, 1), emissive: SIMD4(0.35, 0.9, 1.0, 5)))
     }
 }

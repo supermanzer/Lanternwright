@@ -84,4 +84,69 @@ enum Props {
         }
         return b
     }
+
+    // MARK: Crystal
+
+    /// A glass tree: a bent trunk of tapering faceted prisms, angled branches, and a crown of floating shards.
+    /// Vertex colour is the glass TINT (the crystal shader filters the scene through it): cyan, violet or rose.
+    static func crystalTree(seed: UInt32, height: Float) -> MeshBuilder {
+        let noise = Noise(seed: seed)
+        func tint(_ k: Int32) -> SIMD3<Float> {
+            let pick = noise.unit(k, 77)
+            let hue: SIMD3<Float> = pick < 0.45 ? SIMD3(0.45, 0.95, 1.0) : (pick < 0.8 ? SIMD3(0.72, 0.58, 1.0) : SIMD3(1.0, 0.62, 0.92))
+            return hue * (0.85 + 0.3 * noise.unit(k, 9))
+        }
+        var b = MeshBuilder()
+        let rough: Float = 0.08
+        // Trunk: 4 stacked hexagonal frusta, each leaning a little from the one below, like a growing crystal.
+        var base = SIMD3<Float>(0, 0, 0)
+        var topOfTrunk = base
+        let radius0 = 0.30 + 0.011 * height
+        for i in 0..<4 {
+            let t = Float(i) / 4
+            let r0 = radius0 * (1 - 0.62 * t), r1 = radius0 * (1 - 0.62 * (t + 0.25))
+            let h = height * 0.22
+            let lean = SIMD3((noise.unit(Int32(i), 1) - 0.5) * 0.9, 0, (noise.unit(Int32(i), 2) - 0.5) * 0.9)
+            b.cylinder(radiusTop: r1, radiusBottom: r0, height: h, segments: 6, smooth: false,
+                       surface: Surface(color: tint(Int32(i)), roughness: rough), transform: translation(base) * rotationY(noise.unit(Int32(i), 3) * 3))
+            base += SIMD3(0, h * 0.97, 0) + lean * 0.35
+            topOfTrunk = base
+        }
+        // Branches: thinner prisms fanning out of the upper trunk.
+        let branches = 3 + Int(noise.unit(5, 5) * 3)
+        for k in 0..<branches {
+            let a = (Float(k) + noise.unit(Int32(k), 6)) / Float(branches) * 2 * .pi
+            let up = 0.45 + 0.35 * noise.unit(Int32(k), 7)
+            let d = normalize(SIMD3(cos(a), up * 1.4, sin(a)))
+            let len = height * (0.22 + 0.14 * noise.unit(Int32(k), 8))
+            let from = topOfTrunk - SIMD3(0, height * (0.10 + 0.12 * noise.unit(Int32(k), 4)), 0)
+            b.cylinder(radiusTop: 0.04, radiusBottom: radius0 * 0.32, height: len, segments: 5, smooth: false,
+                       surface: Surface(color: tint(Int32(10 + k)), roughness: rough), transform: translation(from) * rotation(aligningYTo: d))
+            // A shard at the end of each branch.
+            b.icosphere(subdivisions: 0, radius: { _ in 1 }, surface: Surface(color: tint(Int32(20 + k)), roughness: rough),
+                        transform: translation(from + d * len) * rotation(aligningYTo: d) * scaling(SIMD3(0.16, 0.5 + 0.35 * noise.unit(Int32(k), 12), 0.16)))
+        }
+        // Crown: shards hovering around the top.
+        let shards = 6 + Int(noise.unit(6, 6) * 5)
+        for k in 0..<shards {
+            let a = Float(k) * 2.399 + noise.unit(Int32(k), 13)         // golden-angle spread
+            let r = 0.8 + 1.6 * noise.unit(Int32(k), 14)
+            let y = topOfTrunk.y + 0.4 + 2.4 * noise.unit(Int32(k), 15)
+            let size = 0.28 + 0.5 * noise.unit(Int32(k), 16)
+            b.icosphere(subdivisions: 0, radius: { _ in 1 }, surface: Surface(color: tint(Int32(30 + k)), roughness: rough),
+                        transform: translation(SIMD3(topOfTrunk.x + r * cos(a), y, topOfTrunk.z + r * sin(a)))
+                                   * rotationY(a) * rotationZ(0.5 * noise.unit(Int32(k), 17)) * scaling(SIMD3(size * 0.45, size * 1.4, size * 0.45)))
+        }
+        return b
+    }
+
+    /// A glowing crystal spire used as a path lamp (opaque; the glow is the item's emissive, which blooms).
+    static func crystalLamp() -> MeshBuilder {
+        var b = MeshBuilder()
+        let stone = Surface(color: SIMD3(0.16, 0.17, 0.26), roughness: 0.5)
+        b.cylinder(radiusTop: 0.34, radiusBottom: 0.42, height: 0.22, segments: 6, smooth: false, surface: stone)
+        b.cylinder(radiusTop: 0.02, radiusBottom: 0.16, height: 1.5, segments: 6, smooth: false,
+                   surface: Surface(color: SIMD3(0.6, 0.95, 1.0), roughness: 0.15), transform: translation(SIMD3(0, 0.2, 0)))
+        return b
+    }
 }

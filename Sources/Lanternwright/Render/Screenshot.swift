@@ -46,7 +46,12 @@ enum Screenshot {
         guard let target = renderer.device.makeTexture(descriptor: desc) else { throw Failure.texture }
         renderer.fixedTime = nil
         print("benchmark at \(options.width)x\(options.height), \(options.benchFrames ?? 0) frames per view")
-        for name in ["dock", "overview", "shore", "summit"] {
+        if let w = options.world { renderer.world = w }
+        let views = renderer.world == .glassWood ? ["gw-arrival", "gw-overview", "gw-court", "gw-altar"] : ["dock", "overview", "shore", "summit"]
+        let glassTris = renderer.scene.items.filter { $0.refractive }.reduce(0) { $0 + $1.mesh.indexCount / 3 }
+        let allTris = renderer.scene.items.reduce(0) { $0 + $1.mesh.indexCount / 3 }
+        print("triangles: glass \(glassTris), scene total \(allTris)")
+        for name in views {
             let camera = Viewpoints.named(name)!
             var times: [Double] = []
             for i in 0..<((options.benchFrames ?? 60) + 5) {

@@ -17,10 +17,11 @@ enum Island {
     // MARK: Placement rules
 
     /// True if (x, z) is clear of the path, the landmark pads, the dock and the islet's lens ring.
-    static func isClear(terrain: Terrain, x: Float, z: Float, pathMargin: Float, padMargin: Float) -> Bool {
+    static func isClear(terrain: Terrain, x: Float, z: Float, pathMargin: Float, padMargin: Float, avoidDock: Bool = true) -> Bool {
         if terrain.pathDistance(x: x, z: z) < pathMargin { return false }
         let p = SIMD2(x, z)
-        for pad in Layout.pads where length(p - SIMD2(pad.center.x, pad.center.z)) < pad.radius + padMargin { return false }
+        for pad in terrain.spec.pads where length(p - SIMD2(pad.center.x, pad.center.z)) < pad.radius + padMargin { return false }
+        guard avoidDock else { return true }
         let dock = Layout.dockStrip()
         let ab = dock.b - dock.a
         let t = min(max(dot(p - dock.a, ab) / dot(ab, ab), 0), 1)
@@ -60,9 +61,9 @@ enum Island {
             let key = "\(prefix)_\(Int(floor(p.x / 120)))_\(Int(floor(p.z / 120)))"
             cells[key, default: MeshBuilder()].append(piece, transform: translation(p) * rotationY(yaw))
         }
-        func commit(_ scene: Scene, device: MTLDevice, uniforms: ObjectUniforms = ObjectUniforms()) {
+        func commit(_ scene: Scene, device: MTLDevice, uniforms: ObjectUniforms = ObjectUniforms(), refractive: Bool = false) {
             for (name, b) in cells.sorted(by: { $0.key < $1.key }) where !b.isEmpty {
-                scene.add(name, mesh: b.build(device: device, label: name), uniforms: uniforms)
+                scene.add(name, mesh: b.build(device: device, label: name), uniforms: uniforms, refractive: refractive)
             }
         }
     }
