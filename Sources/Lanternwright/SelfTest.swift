@@ -538,6 +538,13 @@ enum SelfTest {
             let nbGame = freshGame(); nbGame.restore(nbSave)
             check(nbGame.state.has("struck_tide") && nbGame.state.has("seen_wind") && !nbGame.state.has("struck_wind"), "the notebook survives a save and restore")
 
+            // 3d. One shared vocabulary: the Glass Wood's murals, pane colours and chime pitches all restate Varrow's stones.
+            check(LighthousePuzzle.order == StoneID.allCases, "Varrow's solution order is the stones' own order (tide, wind, stone)")
+            check(MirrorCourt.solutionPanes.map { GlassPuzzleProps.color($0) } == LighthousePuzzle.order.map(\.color), "the mirror court's pane colours, in order, are the stones' colours in solution order")
+            check(GlassWoodLogic.chimeSolution.map { ToneTable.glassHz[$0] } == LighthousePuzzle.order.map { ToneTable.stoneHz[$0.rawValue] }, "the chime puzzle's solution pitches are the stones' tones in solution order")
+            check(zip(ToneTable.droneHz, ToneTable.stoneHz).allSatisfy { abs($0 * 2 - $1) < 0.01 }, "the stone drone is exactly an octave under the stones' tones")
+            check(ToneTable.stoneHz == [293.66, 440.00, 587.33] && ToneTable.stoneHz[0] < ToneTable.stoneHz[1] && ToneTable.stoneHz[1] < ToneTable.stoneHz[2], "the stones' tones rise in solution order")
+
             // 4. The right order solves it and runs the whole sequence.
             g = freshGame()
             for id in LighthousePuzzle.order { g.puzzle.strike(id); g.simulate(seconds: 0.7) }

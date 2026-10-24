@@ -53,10 +53,10 @@ final class AmbienceSynth {
     private var rumbleBrown: Float = 0
 
     // The stone drone: one sustained voice per Varrow stone, tuned an octave below the stone's own tone in just intonation
-    // (D3 : A3 : D4 = 1 : 3/2 : 2), so the puzzle's progress is audible as a chord that builds. A wrong strike detunes the
+    // (D3 : A3 : D4 = 1 : 3/2 : 2; the values come from ToneTable), so the puzzle's progress is audible as a chord that builds. A wrong strike detunes the
     // voices and fades them; the solved puzzle blooms a major third on top (F#4 = 5/4 over D3... a D major chord).
-    static let droneHz: [Float] = [146.83, 220.25, 293.66]
-    static let droneThirdHz: Float = 367.08          // F#4: 5/4 x D4 in just intonation
+    static let droneHz = ToneTable.droneHz
+    static let droneThirdHz = ToneTable.droneThirdHz
     private var droneTarget: [Float] = [0, 0, 0]
     private var droneGain: [Float] = [0, 0, 0]
     private var droneSour: Float = 0
@@ -126,7 +126,7 @@ final class AmbienceSynth {
         ], pan: pan)
     }
 
-    private static let glassPitches: [Float] = [293.66, 369.99, 440.00, 523.25, 587.33]
+    private static let glassPitches = ToneTable.glassHz
 
     private func startChime(_ kind: ChimeKind) {
         switch kind {
@@ -137,9 +137,9 @@ final class AmbienceSynth {
         case .glassAmbient:
             let pitches: [Float] = [587.33, 739.99, 880.0, 1174.66]
             chimes.append(glassVoice(pitches[Int(stepRandom() * 3.999)], gain: 0.05, decayScale: 2.2, pan: stepRandom() * 2 - 1))
-        case .tide:  chimes.append(bell(293.66, gain: 0.30, pan: -0.2))
-        case .wind:  chimes.append(bell(440.00, gain: 0.28, pan: 0.0))
-        case .stone: chimes.append(bell(587.33, gain: 0.26, pan: 0.2))
+        case .tide:  chimes.append(bell(ToneTable.stoneHz[0], gain: 0.30, pan: -0.2))
+        case .wind:  chimes.append(bell(ToneTable.stoneHz[1], gain: 0.28, pan: 0.0))
+        case .stone: chimes.append(bell(ToneTable.stoneHz[2], gain: 0.26, pan: 0.2))
         case .fail:  // a soft falling minor third
             chimes.append(bell(311.13, gain: 0.16, decayScale: 0.45))
             chimes.append(bell(261.63, gain: 0.14, decayScale: 0.5, delay: 0.22))
