@@ -58,17 +58,24 @@ float3 terrain_surface(float3 P, float3 Ng, float pathW, float wet, float palett
 
     float rockMask = 1.0 - smoothstep(0.72, 0.90, slope);
     rockMask = max(rockMask, 0.65 * smoothstep(52.0, 66.0, P.y + 12.0 * (macro - 0.5)));
+    // Height blending: let the layers' own grain decide where one gives way to the other, so a boundary is a crisp, ragged
+    // edge (rock poking through grass) rather than a soft linear fade.
+    rockMask = mix(rockMask, smoothstep(0.30, 0.70, rockMask + ((meso - 0.5) * 0.55 + (micro - 0.5) * 0.25) * min(rockMask * 4.0, 1.0)), 0.5);   // half-sharpened: grain acts only where rock is already likely
     float3 albedo = mix(grass, rock, rockMask);
 
     float wetSand = 1.0 - smoothstep(-0.1, 0.5, P.y);
     float3 sand = mix(glass ? float3(0.46, 0.48, 0.62) : float3(0.56, 0.47, 0.31), glass ? float3(0.20, 0.21, 0.32) : float3(0.30, 0.235, 0.15), wetSand) * (0.94 + 0.12 * micro);
-    float sandMask = wet * (1.0 - 0.7 * rockMask);
+    float sandMask = smoothstep(0.30, 0.70, wet * (1.0 - 0.7 * rockMask) + (micro - 0.5) * 0.30);
     albedo = mix(albedo, sand, sandMask);
 
     float pebble = smoothstep(0.72, 0.82, vnoise3(P * 6.0));
     float3 earth = mix(glass ? float3(0.20, 0.20, 0.30) : float3(0.23, 0.165, 0.10), glass ? float3(0.46, 0.50, 0.62) : float3(0.38, 0.32, 0.25), pebble) * (0.85 + 0.3 * meso);
     float pm = smoothstep(0.25, 0.75, pathW + (meso - 0.5) * 0.5);
     albedo = mix(albedo, earth, pm);
+
+    // Wet ground darkens near the waterline (spray and damp), beyond the wet sand itself.
+    float damp = (1.0 - smoothstep(0.3, 2.0, P.y)) * (1.0 - sandMask);
+    albedo *= mix(1.0, 0.68, damp);
 
     // Normal perturbation: gradient of a small bump field, projected onto the surface plane.
     float rockiness = max(rockMask, pm * 0.5);
@@ -84,6 +91,10 @@ float3 terrain_surface(float3 P, float3 Ng, float pathW, float wet, float palett
     N = normalize(Ng - g * bumpStrength);
 
     rough = mix(mix(0.92, 0.85, rockMask), mix(0.95, 0.45, wetSand), sandMask);
+    // Gloss varies at three scales (patches, clumps, grain) so no surface has one uniform sheen; damp ground is glossier.
+    rough += ((macro - 0.5) * 0.16 + (meso - 0.5) * 0.20 + (micro - 0.5) * 0.12) * 0.6;
+    rough -= 0.22 * damp;
+    rough = clamp(rough, mix(0.62, 0.28, max(damp, sandMask)), 0.98);       // dry ground never turns glossy (it would mirror the sky on flats)
     return albedo;
 }
 
