@@ -122,16 +122,29 @@ final class Terrain {
 
     // MARK: Cached sampling
 
-    /// Bilinear height from the cached grid. Positions outside the grid clamp to its edge.
-    func sampleHeight(x: Float, z: Float) -> Float {
+    /// The four corner heights and fractional position of the grid cell containing (x, z); positions outside clamp to the edge.
+    private func cell(x: Float, z: Float) -> (h00: Float, h10: Float, h01: Float, h11: Float, fx: Float, fz: Float) {
         let n = Terrain.gridCount
         let gx = min(max((x - Terrain.origin) / Terrain.spacing, 0), Float(n - 1) - 1e-3)
         let gz = min(max((z - Terrain.origin) / Terrain.spacing, 0), Float(n - 1) - 1e-3)
         let i = Int(gx), j = Int(gz)
-        let fx = gx - Float(i), fz = gz - Float(j)
-        let h00 = heights[j * n + i], h10 = heights[j * n + i + 1]
-        let h01 = heights[(j + 1) * n + i], h11 = heights[(j + 1) * n + i + 1]
-        return mix(mix(h00, h10, fx), mix(h01, h11, fx), fz)
+        return (heights[j * n + i], heights[j * n + i + 1], heights[(j + 1) * n + i], heights[(j + 1) * n + i + 1], gx - Float(i), gz - Float(j))
+    }
+
+    /// Height of the rendered surface. The terrain mesh splits every cell along its a-d diagonal into triangles (a, c, d) and
+    /// (a, d, b) (a = (i, j), b = (i+1, j), c = (i, j+1), d = (i+1, j+1); see TerrainMesh), so the ground you walk on is the
+    /// ground you see: this interpolates on that same triangle, not bilinearly (which would float or sink up to a few cm).
+    func sampleHeight(x: Float, z: Float) -> Float {
+        let c = cell(x: x, z: z)
+        if c.fx >= c.fz { return c.h00 + c.fx * (c.h10 - c.h00) + c.fz * (c.h11 - c.h10) }     // triangle (a, d, b)
+        return c.h00 + c.fz * (c.h01 - c.h00) + c.fx * (c.h11 - c.h01)                          // triangle (a, c, d)
+    }
+
+    /// Normal of the mesh triangle under (x, z): what a physics query or a decal should use (`normal` is the smooth lighting normal).
+    func faceNormal(x: Float, z: Float) -> SIMD3<Float> {
+        let c = cell(x: x, z: z), s = Terrain.spacing
+        if c.fx >= c.fz { return normalize(SIMD3(-(c.h10 - c.h00) / s, 1, -(c.h11 - c.h10) / s)) }
+        return normalize(SIMD3(-(c.h11 - c.h01) / s, 1, -(c.h01 - c.h00) / s))
     }
 
     /// Surface normal from central differences of the cached grid.

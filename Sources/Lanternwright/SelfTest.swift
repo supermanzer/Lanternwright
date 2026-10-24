@@ -118,6 +118,43 @@ enum SelfTest {
             }
             let nrm = t.normal(x: 40, z: 55)
             check(abs(length(nrm) - 1) < 1e-4 && nrm.y > 0.3, "normal is unit and points upward on the ridge (y=\(nrm.y))")
+            // The sampler is the mesh: compare against the triangles actually uploaded to the GPU at 5000 seeded random points.
+            do {
+                let chunks = TerrainMesh.buildChunks(terrain: t, device: device)
+                var byName: [String: DrawItem] = [:]; for c in chunks { byName[c.name] = c }
+                let per = (Terrain.gridCount - 1) / TerrainMesh.chunksPerSide
+                var seed: UInt64 = 0x9E3779B97F4A7C15
+                func rnd() -> Float { seed = seed &* 6364136223846793005 &+ 1442695040888963407; return Float(seed >> 40) / Float(1 << 24) }
+                var worst: Float = 0, worstNormal: Float = 1, tested = 0
+                for _ in 0..<5000 {
+                    let x = -400 + rnd() * 800, z = -400 + rnd() * 800
+                    let gx = (x - Terrain.origin) / Terrain.spacing, gz = (z - Terrain.origin) / Terrain.spacing
+                    let ci = Int(gx) / per, cj = Int(gz) / per
+                    guard let item = byName["terrain_\(ci)_\(cj)"] else { continue }
+                    let li = Int(gx) - ci * per, lj = Int(gz) - cj * per
+                    let verts = item.mesh.vertexBuffer.contents().assumingMemoryBound(to: Vertex.self)
+                    let idx = item.mesh.indexBuffer.contents().assumingMemoryBound(to: UInt32.self)
+                    let base = (lj * per + li) * 6
+                    for tri in 0..<2 {
+                        let p = (0..<3).map { SIMD3(verts[Int(idx[base + tri * 3 + $0])].position.x, verts[Int(idx[base + tri * 3 + $0])].position.y, verts[Int(idx[base + tri * 3 + $0])].position.z) }
+                        // barycentric weights of (x, z) in this triangle's footprint
+                        let d = (p[1].z - p[2].z) * (p[0].x - p[2].x) + (p[2].x - p[1].x) * (p[0].z - p[2].z)
+                        let w0 = ((p[1].z - p[2].z) * (x - p[2].x) + (p[2].x - p[1].x) * (z - p[2].z)) / d
+                        let w1 = ((p[2].z - p[0].z) * (x - p[2].x) + (p[0].x - p[2].x) * (z - p[2].z)) / d
+                        let w2 = 1 - w0 - w1
+                        if w0 >= -1e-4 && w1 >= -1e-4 && w2 >= -1e-4 {
+                            let meshY = w0 * p[0].y + w1 * p[1].y + w2 * p[2].y
+                            worst = max(worst, abs(meshY - t.sampleHeight(x: x, z: z)))
+                            let fn = normalize(cross(p[1] - p[0], p[2] - p[0])); let fnUp = fn.y < 0 ? -fn : fn
+                            worstNormal = min(worstNormal, dot(fnUp, t.faceNormal(x: x, z: z)))
+                            tested += 1
+                            break
+                        }
+                    }
+                }
+                check(tested > 4500 && worst < 0.001, "terrain sampleHeight equals the mesh triangle height at \(tested) random points (worst difference \(worst * 1000) mm)")
+                check(worstNormal > 0.9999, "faceNormal equals the mesh triangle's normal (worst dot \(worstNormal))")
+            }
             var maxSlopeOnPath: Float = 0, worstAt = ""
             for k in 0..<(Layout.lanternPath.count - 1) {
                 let a = Layout.lanternPath[k], b = Layout.lanternPath[k + 1]
