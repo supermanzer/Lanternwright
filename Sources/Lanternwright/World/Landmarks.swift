@@ -59,7 +59,7 @@ enum Landmarks {
         while z < len - 0.1 {
             let tone = 0.78 + 0.44 * Island.noise.unit(k, 91)
             let plank = Surface(color: SIMD3(0.30, 0.20, 0.115) * tone, roughness: 0.85)
-            b.box(size: SIMD3(width, 0.07, 0.24), surface: plank, transform: translation(SIMD3(0, deckY(z) - 0.035, z)) * tilt)
+            b.bevelBox(size: SIMD3(width, 0.07, 0.24), bevel: 0.012, surface: plank, transform: translation(SIMD3(0, deckY(z) - 0.035, z)) * tilt)
             z += pitch; k += 1
         }
         let beam = Surface(color: SIMD3(0.16, 0.11, 0.07), roughness: 0.9)
@@ -119,7 +119,7 @@ enum Landmarks {
         b.cone(radius: 3.0, height: 2.0, segments: 8, smooth: false, surface: red, transform: translation(SIMD3(0, 28.7, 0)))
         b.sphere(radius: 0.22, segments: 8, surface: iron, transform: translation(SIMD3(0, 30.8, 0)))
         // Door (south face, +Z, toward the approaching player) with a stone surround, and three dark windows.
-        b.box(size: SIMD3(1.9, 3.1, 0.5), surface: Surface(color: SIMD3(0.40, 0.38, 0.34), roughness: 0.9), transform: translation(SIMD3(0, 1.55, 4.15)))
+        b.bevelBox(size: SIMD3(1.9, 3.1, 0.5), bevel: 0.06, surface: Surface(color: SIMD3(0.40, 0.38, 0.34), roughness: 0.9), transform: translation(SIMD3(0, 1.55, 4.15)))
         b.box(size: SIMD3(1.4, 2.6, 0.5), surface: Surface(color: SIMD3(0.16, 0.10, 0.06), roughness: 0.8), transform: translation(SIMD3(0, 1.3, 4.25)))
         for wy: Float in [9, 15, 21] {
             let r = 4.2 - 1.4 * (wy - 1) / 24
@@ -158,9 +158,9 @@ enum Landmarks {
         let basalt = Surface(color: SIMD3(0.075, 0.08, 0.09), roughness: 0.5)
 
         var body = MeshBuilder()
-        body.box(size: SIMD3(1.3, stoneHeight, 0.85), surface: basalt, transform: translation(SIMD3(0, stoneHeight / 2 - 0.1, 0)))
+        body.bevelBox(size: SIMD3(1.3, stoneHeight, 0.85), bevel: 0.05, surface: basalt, transform: translation(SIMD3(0, stoneHeight / 2 - 0.1, 0)))
         body.box(size: SIMD3(1.12, 0.3, 0.7), surface: basalt, transform: translation(SIMD3(0.03, stoneHeight - 0.05, 0)) * rotationY(0.14))
-        body.box(size: SIMD3(1.9, 0.25, 1.5), surface: Surface(color: SIMD3(0.20, 0.19, 0.17), roughness: 0.85), transform: translation(SIMD3(0, 0.05, 0)))
+        body.bevelBox(size: SIMD3(1.9, 0.25, 1.5), bevel: 0.04, surface: Surface(color: SIMD3(0.20, 0.19, 0.17), roughness: 0.85), transform: translation(SIMD3(0, 0.05, 0)))
         // Rank marks: 1, 2 or 3 notches low on the arrival face = how near the sky this stone stands (tide 1, wind 2, stone 3).
         // With the journal's "each stone a little nearer the sky than the last" the order is deduced, not read out.
         let rank = id.rawValue + 1

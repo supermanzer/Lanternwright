@@ -580,6 +580,30 @@ enum SelfTest {
             check(up < Player.walkSpeed * 3 * 0.97, "the climb is visibly slower than the flat pace (\(up) m vs \(Player.walkSpeed * 3) m)")
             _ = flat
         }
+        if name == "all" || name == "clutter" {
+            let sc = Scene.makeWorld(device: device)
+            let clutter = sc.items.filter { $0.name.hasPrefix("clutter_") }
+            check(clutter.count >= 3, "shore and path clutter exists (\(clutter.count) batches)")
+            let tris = clutter.reduce(0) { $0 + $1.mesh.indexCount / 3 }
+            check(tris > 500 && tris < 60000, "clutter is a modest triangle budget (\(tris))")
+            // Everything sits on the ground, off the path itself and off the pads.
+            var bad = 0, total = 0
+            for item in clutter {
+                let verts = item.mesh.vertexBuffer.contents().assumingMemoryBound(to: Vertex.self)
+                let n = item.mesh.vertexBuffer.length / MemoryLayout<Vertex>.stride
+                for i in stride(from: 0, to: n, by: 7) {
+                    let v = verts[i].position
+                    total += 1
+                    let g = sc.terrain.sampleHeight(x: v.x, z: v.z)
+                    if v.y < g - 0.45 || v.y > g + 1.4 { bad += 1 }   // driftwood ends can overhang a slope
+                }
+            }
+            check(total > 0 && bad == 0, "clutter vertices all rest on the ground (\(bad) of \(total) floating or buried)")
+            let again = Scene.makeWorld(device: device).items.filter { $0.name.hasPrefix("clutter_") }.map { "\($0.name):\($0.mesh.indexCount)" }
+            check(again == clutter.map { "\($0.name):\($0.mesh.indexCount)" }, "clutter placement is deterministic")
+            var mb = MeshBuilder(); mb.bevelBox(size: SIMD3(1, 1, 1), bevel: 0.1, surface: Surface(color: SIMD3(1, 1, 1), roughness: 0.5))
+            check(mb.vertices.count > 0 && mb.vertices.allSatisfy { abs($0.position.x) <= 0.5 + 1e-5 && abs($0.position.y) <= 0.5 + 1e-5 && abs($0.position.z) <= 0.5 + 1e-5 }, "a bevelled box stays inside its nominal size (\(mb.vertices.count) vertices)")
+        }
         if name == "all" || name == "zoom" {
             check(abs(LookCloser.fov(zoom: 0) - LookCloser.baseFov) < 1e-6 && LookCloser.fov(zoom: 1) < LookCloser.baseFov * 0.45 && LookCloser.fov(zoom: 1) > 0.2, "zoom 0 is the normal 60 degrees; full zoom narrows to about 22 degrees")
             var z: Float = 0, steps = 0

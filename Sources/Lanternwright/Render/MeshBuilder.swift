@@ -92,6 +92,15 @@ struct MeshBuilder {
 
     // MARK: Primitives
 
+    /// A box with its edges chamfered by `bevel`, built as three overlapping boxes each inset on two axes. The steps catch
+    /// the light along every edge (a hard-edged box looks like a computer model; a bevelled one looks made). No coplanar faces.
+    mutating func bevelBox(size: SIMD3<Float>, bevel: Float, surface: Surface, transform: float4x4 = matrix_identity_float4x4) {
+        let b = min(bevel, min(size.x, min(size.y, size.z)) * 0.3)
+        box(size: SIMD3(size.x, size.y - 2 * b, size.z - 2 * b), surface: surface, transform: transform)
+        box(size: SIMD3(size.x - 2 * b, size.y, size.z - 2 * b), surface: surface, transform: transform)
+        box(size: SIMD3(size.x - 2 * b, size.y - 2 * b, size.z), surface: surface, transform: transform)
+    }
+
     mutating func box(size: SIMD3<Float>, surface: Surface, transform: float4x4 = matrix_identity_float4x4) {
         let h = size * 0.5
         let faces: [[SIMD3<Float>]] = [

@@ -11,6 +11,7 @@ enum Island {
         Birds.populate(scene, device: device)
         addLanterns(scene, device: device)
         addRocks(scene, device: device)
+        addClutter(scene, device: device)
         addTrees(scene, device: device)
     }
 
@@ -66,6 +67,42 @@ enum Island {
                 scene.add(name, mesh: b.build(device: device, label: name), uniforms: uniforms, refractive: refractive)
             }
         }
+    }
+
+    // MARK: Clutter
+
+    /// Pebbles, shells and driftwood on the beach and along the path's edges: small things that say people and tides were here.
+    /// Deterministic, kept off the path itself, the pads and the dock, merged per 120 m cell.
+    static func addClutter(_ scene: Scene, device: MTLDevice) {
+        let terrain = scene.terrain!
+        var pebble = MeshBuilder(), shell = MeshBuilder(), wood = MeshBuilder()
+        pebble.icosphere(subdivisions: 1, smooth: false, radius: { _ in 1 }, surface: Surface(color: SIMD3(0.36, 0.34, 0.31), roughness: 0.8))
+        shell.cone(radius: 0.07, height: 0.05, segments: 7, smooth: false, surface: Surface(color: SIMD3(0.80, 0.72, 0.62), roughness: 0.5))
+        wood.cylinder(radiusTop: 0.045, radiusBottom: 0.065, height: 1.0, segments: 6, surface: Surface(color: SIMD3(0.32, 0.27, 0.21), roughness: 0.9))
+        var batch = Batcher()
+        let places = scatter(spacing: 3.2, salt: 4242, accept: { x, z, h, ny, r in
+            let onBeach = h > 0.15 && h < 1.7
+            let besidePath = terrain.pathDistance(x: x, z: z) > 1.6 && terrain.pathDistance(x: x, z: z) < 5.5 && ny > 0.85
+            return (onBeach || besidePath) && r < 0.55 && isClear(terrain: terrain, x: x, z: z, pathMargin: 1.2, padMargin: 1.5)
+        }, terrain: terrain)
+        for (k, p) in places.enumerated() {
+            let y = terrain.sampleHeight(x: p.x, z: p.z)
+            let yaw = noise.unit(Int32(k), 91) * 2 * .pi
+            let kind = noise.unit(Int32(k) &+ 5, 17)
+            if kind < 0.6 {                                      // a pebble, squashed and slightly sunk
+                let s = 0.07 + 0.12 * noise.unit(Int32(k), 33)
+                var one = MeshBuilder(); one.append(pebble, transform: scaling(SIMD3(s * 1.3, s * 0.7, s)))
+                batch.add(one, at: SIMD3(p.x, y + s * 0.2, p.z), yaw: yaw, prefix: "clutter_pebble")
+            } else if kind < 0.85 {                              // a shell
+                batch.add(shell, at: SIMD3(p.x, y + 0.01, p.z), yaw: yaw, prefix: "clutter_shell")
+            } else if y < 1.7 {                                  // driftwood lying on the sand
+                var one = MeshBuilder()
+                let len = 0.8 + 1.4 * noise.unit(Int32(k), 61)
+                one.append(wood, transform: rotationZ(.pi / 2) * scaling(SIMD3(1, len, 1)) * translation(SIMD3(0, -0.5, 0)))
+                batch.add(one, at: SIMD3(p.x, y + 0.05, p.z), yaw: yaw, prefix: "clutter_wood")
+            }
+        }
+        batch.commit(scene, device: device)
     }
 
     // MARK: Lanterns
