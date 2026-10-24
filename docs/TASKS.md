@@ -299,7 +299,8 @@ Triage rules: reject anything that breaks a design pillar (DESIGN.md §2) or a h
 ### Accepted, backlog (not worked this round)
 - [ ] **T55.B1 Hover states (A10):** distinct look for untouched / finished interactables (no new sounds: UI blips are rejected in the review's own detriment list).
 - [ ] **T55.B2 Pace helpers (A12):** one-time "hold Shift to run" hint; an auto-run toggle.
-- [ ] **T55.B3 Split `SelfTest.swift` (966 lines) and `Renderer.swift` (706) by area (A15).**
+- [x] **T55.B3 Split `SelfTest.swift` (966 lines) and `Renderer.swift` (706) by area (A15).**
+  > done: 2026-10-23. SelfTest.swift (1343 lines, one function) -> a 24-line SelfTestRunner (name, device, ok, check) plus SelfTests/SelfTest{Core,World,Audio,Game}.swift holding the blocks verbatim as methods (each keeps its own name == guard, so --selftest <name> still works). Renderer.swift 757 -> 548 lines + Renderer+Frame.swift (216: debug view, sky LUT bake, targets, per-frame uniforms, post passes, luma, bloom, cascade fit); stored properties/helpers relaxed from private to internal so the extension can reach them. Proof it is a pure refactor: 325 -> 324 check( occurrences (the removed func check line), 360 PASS 0 FAIL, and the dock screenshot is byte-identical (cmp) to the one before the split.
 - [ ] **T55.B4 Scripted playthrough bots per world (A16):** walk to each stone/puzzle and solve with real clicks, including both lens transitions.
 - [ ] **T55.B5 Water upgrades (P2 §4.3):** more wave components, Jacobian whitecaps, crest subsurface, reflection of the island, one swell function shared by foam, wet sand and surf audio.
 - [ ] **T55.B6 Lighting extras (P2 §4.1):** warm ground bounce in the irradiance map, PCSS contact hardening with interleaved-gradient noise instead of the sin-hash, shadow-map-marched god rays that work from any angle.

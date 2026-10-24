@@ -1,0 +1,598 @@
+import Foundation
+import Metal
+import simd
+
+/// Self-tests: world.
+extension SelfTestRunner {
+    func runWorld() {
+        if name == "all" || name == "terrain" || name == "terrain-map" {
+            let t = Terrain()
+            for (label, p) in [("tideStone", Layout.tideStone), ("windStone", Layout.windStone), ("summitStone", Layout.summitStone),
+                               ("lighthouse", Layout.lighthouse), ("causewayStart", Layout.causewayStart), ("isletCenter", Layout.isletCenter),
+                               ("dockShore", Layout.dockShore)] {
+                let h = t.sampleHeight(x: p.x, z: p.z)
+                check(abs(h - p.y) < 1, "\(label) ground \(String(format: "%.2f", h)) vs layout y \(p.y)")
+            }
+            let de = t.sampleHeight(x: Layout.dockEnd.x, z: Layout.dockEnd.z)
+            check(de < -0.5, "dock end is over water (\(String(format: "%.2f", de)) m)")
+            check(abs(t.sampleHeight(x: 33.3, z: -71.7) - t.height(x: 33.3, z: -71.7)) < 1.0, "cache agrees with analytic height")
+            if ProcessInfo.processInfo.environment["TERRAIN_DEBUG"] != nil {
+                let a = SIMD2(Layout.dockShore.x, Layout.dockShore.z), b = SIMD2(Layout.dockEnd.x, Layout.dockEnd.z)
+                let dir = normalize(b - a), side = SIMD2(-dir.y, dir.x)
+                for k in stride(from: 0, through: 40, by: 5) {
+                    let c = a + dir * Float(k)
+                    print("along dock +\(k) m: centre \(String(format: "%.2f", t.sampleHeight(x: c.x, z: c.y)))  left 6m \(String(format: "%.2f", t.sampleHeight(x: c.x + side.x * 6, z: c.y + side.y * 6)))  right 6m \(String(format: "%.2f", t.sampleHeight(x: c.x - side.x * 6, z: c.y - side.y * 6)))")
+                }
+            }
+            let nrm = t.normal(x: 40, z: 55)
+            check(abs(length(nrm) - 1) < 1e-4 && nrm.y > 0.3, "normal is unit and points upward on the ridge (y=\(nrm.y))")
+            // The sampler is the mesh: compare against the triangles actually uploaded to the GPU at 5000 seeded random points.
+            do {
+                let chunks = TerrainMesh.buildChunks(terrain: t, device: device)
+                var byName: [String: DrawItem] = [:]; for c in chunks { byName[c.name] = c }
+                let per = (Terrain.gridCount - 1) / TerrainMesh.chunksPerSide
+                var seed: UInt64 = 0x9E3779B97F4A7C15
+                func rnd() -> Float { seed = seed &* 6364136223846793005 &+ 1442695040888963407; return Float(seed >> 40) / Float(1 << 24) }
+                var worst: Float = 0, worstNormal: Float = 1, tested = 0
+                for _ in 0..<5000 {
+                    let x = -400 + rnd() * 800, z = -400 + rnd() * 800
+                    let gx = (x - Terrain.origin) / Terrain.spacing, gz = (z - Terrain.origin) / Terrain.spacing
+                    let ci = Int(gx) / per, cj = Int(gz) / per
+                    guard let item = byName["terrain_\(ci)_\(cj)"] else { continue }
+                    let li = Int(gx) - ci * per, lj = Int(gz) - cj * per
+                    let verts = item.mesh.vertexBuffer.contents().assumingMemoryBound(to: Vertex.self)
+                    let idx = item.mesh.indexBuffer.contents().assumingMemoryBound(to: UInt32.self)
+                    let base = (lj * per + li) * 6
+                    for tri in 0..<2 {
+                        let p = (0..<3).map { SIMD3(verts[Int(idx[base + tri * 3 + $0])].position.x, verts[Int(idx[base + tri * 3 + $0])].position.y, verts[Int(idx[base + tri * 3 + $0])].position.z) }
+                        // barycentric weights of (x, z) in this triangle's footprint
+                        let d = (p[1].z - p[2].z) * (p[0].x - p[2].x) + (p[2].x - p[1].x) * (p[0].z - p[2].z)
+                        let w0 = ((p[1].z - p[2].z) * (x - p[2].x) + (p[2].x - p[1].x) * (z - p[2].z)) / d
+                        let w1 = ((p[2].z - p[0].z) * (x - p[2].x) + (p[0].x - p[2].x) * (z - p[2].z)) / d
+                        let w2 = 1 - w0 - w1
+                        if w0 >= -1e-4 && w1 >= -1e-4 && w2 >= -1e-4 {
+                            let meshY = w0 * p[0].y + w1 * p[1].y + w2 * p[2].y
+                            worst = max(worst, abs(meshY - t.sampleHeight(x: x, z: z)))
+                            let fn = normalize(cross(p[1] - p[0], p[2] - p[0])); let fnUp = fn.y < 0 ? -fn : fn
+                            worstNormal = min(worstNormal, dot(fnUp, t.faceNormal(x: x, z: z)))
+                            tested += 1
+                            break
+                        }
+                    }
+                }
+                check(tested > 4500 && worst < 0.001, "terrain sampleHeight equals the mesh triangle height at \(tested) random points (worst difference \(worst * 1000) mm)")
+                check(worstNormal > 0.9999, "faceNormal equals the mesh triangle's normal (worst dot \(worstNormal))")
+            }
+            var maxSlopeOnPath: Float = 0, worstAt = ""
+            for k in 0..<(Layout.lanternPath.count - 1) {
+                let a = Layout.lanternPath[k], b = Layout.lanternPath[k + 1]
+                var prev = t.sampleHeight(x: a.x, z: a.z)
+                for s in 1...100 {
+                    let q = a + (b - a) * (Float(s) / 100)
+                    let h = t.sampleHeight(x: q.x, z: q.z)
+                    let sl = abs(h - prev) / (length(SIMD2(b.x - a.x, b.z - a.z)) / 100)
+                    if sl > maxSlopeOnPath { maxSlopeOnPath = sl; worstAt = "leg \(k) step \(s) at (\(Int(q.x)), \(Int(q.z))) h \(String(format: "%.1f", h))" }
+                    prev = h
+                }
+            }
+            print("steepest slope along the straight-line lantern path: \(String(format: "%.2f", maxSlopeOnPath)) (rise/run) \(worstAt)")
+            check(maxSlopeOnPath < 1.0, "lantern path stays walkable (steepest < 1.0 rise/run; player limit is 1.19)")
+            if name == "terrain-map" {
+                // ASCII overview, 4 m per column: ' ' deep, '.' shallow, '~' awash, then land bands by height.
+                for j in stride(from: -400, to: 260, by: 10) {
+                    var row = ""
+                    for i in stride(from: -300, to: 280, by: 5) {
+                        let h = t.sampleHeight(x: Float(i), z: Float(j))
+                        row.append(h < -8 ? " " : h < -1 ? "." : h < 0.3 ? "~" : h < 4 ? "," : h < 15 ? ":" : h < 35 ? "o" : h < 55 ? "O" : "@")
+                    }
+                    print(row)
+                }
+            }
+        }
+        if name == "all" || name == "birds" {
+            let scene = Scene.makeWorld(device: device)
+            check((0..<Birds.count).allSatisfy { scene.has("bird_\($0)") }, "all \(Birds.count) gulls exist in the scene")
+            var lowest: Float = 1e9, worstHeading: Float = 0
+            for k in 0..<Birds.count {
+                for step in 0..<400 {
+                    let t = Float(step) * 0.5
+                    let p = Birds.pose(k, time: t), q = Birds.pose(k, time: t + 0.05)
+                    lowest = min(lowest, p.position.y - scene.groundHeight(x: p.position.x, z: p.position.z))
+                    let v = SIMD2(q.position.x - p.position.x, q.position.z - p.position.z)
+                    var diff = abs(atan2(v.x, v.y) - p.heading)
+                    if diff > .pi { diff = 2 * .pi - diff }
+                    worstHeading = max(worstHeading, diff)
+                }
+            }
+            check(lowest > 6, "no gull ever flies lower than 6 m above ground or sea (lowest \(String(format: "%.1f", lowest)) m)")
+            check(worstHeading < 0.12, "every gull faces the way it flies (worst heading error \(String(format: "%.3f", worstHeading)) rad)")
+            check(Birds.pose(3, time: 17.5).position == Birds.pose(3, time: 17.5).position, "flight paths are deterministic")
+            let g = Game(scene: scene)
+            let before = scene.items.first { $0.name == "bird_0" }!.uniforms.model
+            g.simulate(seconds: 2)
+            check(scene.items.first { $0.name == "bird_0" }!.uniforms.model != before, "gulls move as the game runs")
+        }
+        if name == "all" || name == "worlds" {
+            let scenes = Dictionary(uniqueKeysWithValues: WorldKind.allCases.map { ($0, Scene.make($0, device: device)) })
+            check(scenes.count == WorldKind.allCases.count && scenes.values.allSatisfy { !$0.items.isEmpty }, "every world builds a non-empty scene")
+            let glass = scenes[.glassWood]!
+
+            // The Glass Wood's ground.
+            let arrival = GlassLayout.arrival
+            check(abs(glass.terrain.sampleHeight(x: arrival.x, z: arrival.z) - arrival.y) < 0.6 && arrival.y > 2, "the arrival pad is dry land at its layout height (\(String(format: "%.1f", arrival.y)) m)")
+            let poolDepth = glass.terrain.sampleHeight(x: GlassTerrain.pool.x, z: GlassTerrain.pool.y)
+            check(poolDepth < -1, "the pool in the middle is a water-filled hollow (\(String(format: "%.1f", poolDepth)) m)")
+            var lowestOnPath: Float = 99, steepest: Float = 0
+            for k in 0..<(GlassLayout.path.count - 1) {
+                let a = GlassLayout.path[k], b = GlassLayout.path[k + 1]
+                let len = length(SIMD2(b.x - a.x, b.z - a.z))
+                var prev = glass.terrain.sampleHeight(x: a.x, z: a.z)
+                for i in 1...80 {
+                    let q = a + (b - a) * (Float(i) / 80)
+                    let h = glass.terrain.sampleHeight(x: q.x, z: q.z)
+                    lowestOnPath = min(lowestOnPath, h)
+                    steepest = max(steepest, abs(h - prev) / (len / 80)); prev = h
+                }
+            }
+            check(lowestOnPath > 1.0, "the whole route stays on dry land (lowest \(String(format: "%.1f", lowestOnPath)) m)")
+            check(steepest < 1.0, "the route is walkable (steepest \(String(format: "%.2f", steepest)) rise/run)")
+            for (label, pad) in [("mirror court", GlassLayout.mirrorCourt), ("chime ring", GlassLayout.chimeRing), ("altar", GlassLayout.altar), ("junction", GlassLayout.junction)] {
+                check(abs(glass.terrain.sampleHeight(x: pad.x, z: pad.z) - pad.y) < 0.6 && pad.y > 1.5, "\(label) sits on level dry ground at \(String(format: "%.1f", pad.y)) m")
+            }
+
+            // Travelling: lens -> Glass Wood -> return -> Varrow.
+            let g = Game(scenes: scenes)
+            g.puzzle.forceSolved()
+            check(g.world == .varrow && g.interactables.contains { $0.id == "lens" }, "the game starts in Varrow with its own interactables")
+            g.activate("lens")
+            check(g.isTraveling && g.world == .varrow, "touching the lens starts the fade, still in Varrow")
+            var input = InputState(); input.move = SIMD2(0, 1)
+            let startPos = g.player.position
+            g.simulate(seconds: 0.5, input: input)
+            check(distance(g.player.position, startPos) < 0.05, "the player stands still while the world folds")
+            g.simulate(seconds: Game.fadeOutSeconds - 0.4)
+            check(g.world == .glassWood && g.whiteout > 0.99, "at full white the world has changed to the Glass Wood (whiteout \(String(format: "%.2f", g.whiteout)))")
+            check(distance(SIMD2(g.player.position.x, g.player.position.z), SIMD2(arrival.x, arrival.z)) < 0.01 && abs(g.player.position.y - arrival.y) < 0.6, "you arrive on the arrival pad")
+            check(g.interactables.map(\.id).contains("gw_return") && !g.interactables.map(\.id).contains("lens") && g.drainEvents().contains(.worldChanged(.glassWood)), "the Glass Wood has its own interactables (and not Varrow's) and a worldChanged event was emitted")
+            g.simulate(seconds: Game.holdSeconds + Game.fadeInSeconds + 0.2)
+            check(g.whiteout == 0 && !g.isTraveling && g.whiteCaption == nil, "the white fades away and control returns")
+            g.simulate(seconds: 2, input: input)
+            check(distance(g.player.position, arrival) > 3, "you can walk in the Glass Wood")
+
+            g.player = Player(position: GlassLayout.returnLens - SIMD3(0, 2.3, 0) + SIMD3(0, 0, 3), yaw: 0)     // 3 m south of the ring, facing it
+            g.player.pitch = 0.0
+            g.player.position.y = g.scene.groundHeight(x: g.player.position.x, z: g.player.position.z)
+            g.updateHover()
+            check(g.hovered?.id == "gw_return", "standing before the return ring, it is hoverable (\(g.hovered?.id ?? "nothing"))")
+            g.activate("gw_return")
+            g.simulate(seconds: Game.fadeOutSeconds + 0.1)
+            check(g.world == .varrow && distance(SIMD2(g.player.position.x, g.player.position.z), SIMD2(Layout.isletCenter.x, Layout.isletCenter.z + 5)) < 0.1, "the return ring takes you back to the islet in Varrow")
+            g.simulate(seconds: 3)
+            check(g.state.has("solved") && g.whiteout == 0, "Varrow's progress is intact after the round trip")
+
+            // Without the Glass Wood scene (Varrow-only games) the lens simply does nothing.
+            let lone = Game(scene: scenes[.varrow]!)
+            lone.puzzle.forceSolved(); lone.activate("lens"); lone.simulate(seconds: 3)
+            check(lone.world == .varrow && lone.whiteout == 0, "a Varrow-only game ignores the lens rather than breaking")
+
+            // Saving in the second world.
+            let tmp = NSTemporaryDirectory() + "lw-worlds-\(getpid())"
+            setenv("LANTERNWRIGHT_SAVE_DIR", tmp, 1)
+            defer { try? FileManager.default.removeItem(atPath: tmp); unsetenv("LANTERNWRIGHT_SAVE_DIR") }
+            let h = Game(scenes: scenes); h.puzzle.forceSolved(); h.travel(to: .glassWood)
+            h.player = Player(position: GlassLayout.point(-20, 120), yaw: 0.7)
+            h.player.position.y = h.scene.groundHeight(x: -20, z: 120)
+            try? SaveStore.save(h.makeSave())
+            let k = Game(scenes: scenes)
+            if let save = SaveStore.load() { k.restore(save) }
+            check(k.world == .glassWood && abs(k.player.position.x + 20) < 0.01 && k.state.has("solved"), "a save made in the Glass Wood resumes there")
+            let old = SaveData(worldFlags: ["varrow": ["solved"]], pages: [], position: [175, 0.8, 205], yaw: 0, pitch: 0, playTime: 1, world: nil)
+            let m = Game(scenes: scenes); m.restore(old)
+            check(m.world == .varrow, "a save without a world field (from before the second world) resumes in Varrow")
+        }
+        if name == "all" || name == "mirrors" {
+            let sol = MirrorCourt.trace(mirrors: MirrorCourt.solutionMirrors, panes: MirrorCourt.solutionPanes)
+            check(sol.solved && sol.panesMet == [0, 1, 2], "the intended arrangement solves it (panes met \(sol.panesMet))")
+            let start = MirrorCourt.trace(mirrors: MirrorCourt.initialMirrors, panes: MirrorCourt.initialPanes)
+            check(!start.solved && !start.reachedReceiver, "the starting arrangement is not solved and the beam misses the receiver")
+            check(sol.points.count >= 6 && sol.segmentColor.count == sol.points.count - 1, "a trace has one colour per segment (\(sol.points.count) points)")
+            check(sol.segmentColor.first == -1 && sol.segmentColor.last == 2, "the light starts as plain moonlight and ends amber (the last pane is stone)")
+
+            // Exhaustive: all 4^3 mirror states x 3^3 pane colours terminate, and exactly ONE of the 1728 solves it.
+            var solutions: [([Int], [Int])] = [], reached = 0
+            for a in 0..<4 { for b in 0..<4 { for c in 0..<4 {
+                for x in 0..<3 { for y in 0..<3 { for z in 0..<3 {
+                    let t = MirrorCourt.trace(mirrors: [a, b, c], panes: [x, y, z])
+                    if t.reachedReceiver { reached += 1 }
+                    if t.solved { solutions.append(([a, b, c], [x, y, z])) }
+                } } }
+            } } }
+            check(solutions.count == 1 && solutions[0].0 == MirrorCourt.solutionMirrors && solutions[0].1 == MirrorCourt.solutionPanes,
+                  "exactly one of the 1728 arrangements solves it (\(solutions.count) found); the beam reaches the receiver in \(reached) of them")
+            check(reached > 1 && reached < 400, "reaching the receiver is possible with wrong colours, so the colour order really matters (\(reached) arrangements reach it)")
+
+            // Any single click away from the solution is not solved (so there are no cheap near-misses).
+            var oneAway = 0
+            for k in 0..<3 {
+                var m = MirrorCourt.solutionMirrors; m[k] = (m[k] + 1) % 4
+                if MirrorCourt.trace(mirrors: m, panes: MirrorCourt.solutionPanes).solved { oneAway += 1 }
+                var p = MirrorCourt.solutionPanes; p[k] = (p[k] + 1) % 3
+                if MirrorCourt.trace(mirrors: MirrorCourt.solutionMirrors, panes: p).solved { oneAway += 1 }
+            }
+            check(oneAway == 0, "no arrangement one click from the solution also solves it")
+            // Reflection rules.
+            check(MirrorCourt.reflect((1, 0), state: 3) == (0, -1) && MirrorCourt.reflect((0, -1), state: 1) == (-1, 0) && MirrorCourt.reflect((-1, 0), state: 3) == (0, 1), "the three solution mirrors turn the beam east->north->west->south")
+            check(MirrorCourt.reflect((1, 0), state: 0) == (1, 0) && MirrorCourt.reflect((1, 0), state: 2) == (-1, 0), "an axis mirror passes a parallel beam and bounces a perpendicular one back")
+            // Geometry: the whole court fits on the flat pad.
+            let corners = [MirrorCourt.world((0, 0)), MirrorCourt.world((4, 4)), MirrorCourt.world((0, 4)), MirrorCourt.world((4, 0))]
+            let farthest = corners.map { distance(SIMD2($0.x, $0.z), SIMD2(GlassLayout.mirrorCourt.x, GlassLayout.mirrorCourt.z)) }.max()!
+            check(farthest < GlassLayout.pads[1].radius - 4, "the court fits inside its flat pad (corner \(String(format: "%.1f", farthest)) m from the centre, pad radius \(GlassLayout.pads[1].radius))")
+        }
+        if name == "all" || name == "mirrorgame" {
+            // Each game gets freshly built scenes, because the puzzle mutates scene items.
+            func fresh() -> Game {
+                let g = Game(scenes: [.varrow: Scene.makeWorld(device: device), .glassWood: GlassWood.build(device: device)])
+                g.travel(to: .glassWood); _ = g.drainEvents()
+                return g
+            }
+            func item(_ g: Game, _ name: String) -> DrawItem { g.scenes[.glassWood]!.items.first { $0.name == name }! }
+            func visibleBeams(_ g: Game) -> Int { (0..<GlassPuzzleProps.beamSegments).filter { !item(g, "gw_beam_\($0)").hidden }.count }
+            func chimes(_ e: [GameEvent]) -> [ChimeKind] { e.compactMap { if case .chime(let k) = $0 { return k } else { return nil } } }
+
+            var g = fresh()
+            let ids = g.interactables.map(\.id)
+            check(["gw_mirror_0", "gw_mirror_1", "gw_mirror_2", "gw_pane_0", "gw_pane_1", "gw_pane_2", "gw_return"].allSatisfy(ids.contains), "the court's mirrors, panes and the return ring are interactable")
+            check(g.interactables.first { $0.id == "page_5" }?.enabled == true && ["page_6", "page_7", "page_8"].allSatisfy { id in g.interactables.first { $0.id == id }?.enabled == false }, "page 5 is readable at once; 6-8 wait to be earned")
+            check(item(g, "page_6").hidden && item(g, "page_7").hidden && item(g, "page_8").hidden && !item(g, "page_5").hidden, "pages 6-8 are not visible in the world yet")
+            check(visibleBeams(g) >= 1, "a beam is already visible in the court at the start (\(visibleBeams(g)) segment(s))")
+
+            // A wrong arrangement that nonetheless reaches the receiver: panes in the wrong order do not solve it.
+            g.glass!.click("gw_mirror_0"); g.glass!.click("gw_mirror_0"); g.glass!.click("gw_mirror_0")     // M1: 0 -> 3
+            for _ in 0..<3 { g.glass!.click("gw_mirror_1") }                                                  // M2: 2 -> 1
+            for _ in 0..<2 { g.glass!.click("gw_mirror_2") }                                                  // M3: 1 -> 3
+            check(g.glass!.mirrors == MirrorCourt.solutionMirrors && !g.state.has("gw_mirrors"), "right mirrors, wrong glass: not solved")
+            check(MirrorCourt.trace(mirrors: g.glass!.mirrors, panes: g.glass!.panes).reachedReceiver, "...but the beam does reach the receiver, which shows the wrong colour instead of the win")
+            g.glass!.click("gw_pane_0")                                                                         // A: 2 -> 0 (tide)
+            check(!g.state.has("gw_mirrors"), "one pane right is still not enough")
+            g.glass!.click("gw_pane_1")                                                                         // B: 0 -> 1 (wind)
+            g.glass!.click("gw_pane_2")                                                                         // C: 1 -> 2 (stone)
+            check(g.state.has("gw_mirrors") && g.glass!.panes == MirrorCourt.solutionPanes, "tide, wind, stone in the right order solves the mirror court")
+
+            // The reward plays out over a few seconds.
+            check(item(g, "page_6").hidden, "the page does not appear in the same instant")
+            g.simulate(seconds: 4)
+            check(chimes(g.drainEvents()).filter { [.tide, .wind, .stone, .ignite].contains($0) }.prefix(4) == [.tide, .wind, .stone, .ignite], "the wood answers with tide, wind, stone, then the chord")
+            check(!item(g, "page_6").hidden && g.interactables.first { $0.id == "page_6" }?.enabled == true, "Oren's page 6 appears at the receiver")
+            check(!item(g, "gw_column").hidden && item(g, "gw_column").uniforms.model.columns.1.y > 40, "a tall column of light rises from the receiver (height \(String(format: "%.0f", item(g, "gw_column").uniforms.model.columns.1.y)) m)")
+
+            // Solved is permanent.
+            let before = g.glass!.mirrors
+            g.glass!.click("gw_mirror_0"); g.glass!.click("gw_pane_1")
+            check(g.glass!.mirrors == before && g.state.has("gw_mirrors") && chimes(g.drainEvents()).filter { $0 == .glassTick }.count == 2, "after solving, clicks only tick; the solution stays")
+
+            // Saving and restoring keeps it solved and reveals the page again.
+            let tmp = NSTemporaryDirectory() + "lw-mirror-\(getpid())"
+            setenv("LANTERNWRIGHT_SAVE_DIR", tmp, 1)
+            defer { try? FileManager.default.removeItem(atPath: tmp); unsetenv("LANTERNWRIGHT_SAVE_DIR") }
+            try? SaveStore.save(g.makeSave())
+            let h = Game(scenes: [.varrow: Scene.makeWorld(device: device), .glassWood: GlassWood.build(device: device)])
+            if let save = SaveStore.load() { h.restore(save) }
+            check(h.world == .glassWood && h.state.has("gw_mirrors") && h.glass!.panes == MirrorCourt.solutionPanes && !h.scenes[.glassWood]!.items.first { $0.name == "page_6" }!.hidden, "a save resumes with the mirror court solved and page 6 available")
+
+            // Collecting a revealed page works and hides it everywhere.
+            g.activate("page_6")
+            check(g.journal.collectedPages.map(\.number) == [6] && g.journal.isOpen && item(g, "page_6").hidden, "reading page 6 opens the journal on it and removes it from the world")
+        }
+        if name == "all" || name == "chimegame" {
+            func fresh() -> Game {
+                let g = Game(scenes: [.varrow: Scene.makeWorld(device: device), .glassWood: GlassWood.build(device: device)])
+                g.travel(to: .glassWood); _ = g.drainEvents(); return g
+            }
+            func item(_ g: Game, _ name: String) -> DrawItem { g.scenes[.glassWood]!.items.first { $0.name == name }! }
+            func chimes(_ e: [GameEvent]) -> [ChimeKind] { e.compactMap { if case .chime(let k) = $0 { return k } else { return nil } } }
+
+            var g = fresh()
+            check((0..<5).allSatisfy { g.interactables.map(\.id).contains("gw_chime_\($0)") }, "all five glass chimes are interactable")
+            check(GlassPuzzleProps.chimeHeights == GlassPuzzleProps.chimeHeights.sorted(by: >), "taller chimes are lower in pitch (heights fall as pitch rises)")
+            let ringDist = (0..<5).map { distance(SIMD2(GlassPuzzleProps.chimePosition($0).x, GlassPuzzleProps.chimePosition($0).z), SIMD2(GlassLayout.chimeRing.x, GlassLayout.chimeRing.z)) }
+            check(ringDist.allSatisfy { abs($0 - GlassPuzzleProps.chimeRadius) < 0.01 } && ringDist.max()! < GlassLayout.pads[3].radius - 2, "the chimes stand on a ring inside the flat pad")
+
+            // A decoy first: fail, reset after 0.8 s.
+            g.glass!.strikeChime(1)
+            check(chimes(g.drainEvents()) == [.glass1, .fail] && g.glass!.chimeSequence.isEmpty, "a decoy chime rings and fails")
+            g.simulate(seconds: 1)
+            g.glass!.strikeChime(0)
+            check(g.glass!.chimeSequence == [0], "after the reset the right first tone (D4 = tide) is accepted")
+            g.simulate(seconds: 0.2)
+            g.glass!.strikeChime(3)                                                  // decoy in the middle
+            check(g.glass!.chimeSequence == [0], "a decoy mid-sequence fails without adding to it")
+            g.glass!.strikeChime(2)                                                  // during the reset delay: ignored
+            check(g.glass!.chimeSequence == [0], "strikes during the reset delay are ignored")
+            g.simulate(seconds: 1)
+            check(g.glass!.chimeSequence.isEmpty, "the whole sequence resets after a mistake")
+
+            // The right order: D4, A4, D5 (tide, wind, stone tones).
+            _ = g.drainEvents()
+            for k in GlassWoodLogic.chimeSolution { g.glass!.strikeChime(k); g.simulate(seconds: 0.6) }
+            check(g.state.has("gw_chimes"), "D4, A4, D5 in order solves the chimes")
+            g.simulate(seconds: 4)
+            let evs = chimes(g.drainEvents())
+            check(evs.prefix(3) == [.glass0, .glass2, .glass4] && evs.contains(.ignite) && evs.filter { $0 == .glass0 }.count == 2, "each strike rings, then the three tones sound together and the shimmer follows (\(evs.prefix(8)))")
+            check(!item(g, "page_7").hidden && g.interactables.first { $0.id == "page_7" }?.enabled == true, "Oren's page 7 appears at the chime ring")
+            check(!item(g, "gw_column_chimes").hidden && item(g, "gw_column_chimes").uniforms.model.columns.1.y > 40, "an amber column of light rises from the ring")
+            g.glass!.strikeChime(1)
+            check(g.state.has("gw_chimes") && g.glass!.chimeSequence == GlassWoodLogic.chimeSolution, "solved stays solved; later strikes just ring")
+
+            // Persistence.
+            let tmp = NSTemporaryDirectory() + "lw-chime-\(getpid())"
+            setenv("LANTERNWRIGHT_SAVE_DIR", tmp, 1)
+            defer { try? FileManager.default.removeItem(atPath: tmp); unsetenv("LANTERNWRIGHT_SAVE_DIR") }
+            try? SaveStore.save(g.makeSave())
+            let h = Game(scenes: [.varrow: Scene.makeWorld(device: device), .glassWood: GlassWood.build(device: device)])
+            if let save = SaveStore.load() { h.restore(save) }
+            check(h.state.has("gw_chimes") && !h.scenes[.glassWood]!.items.first { $0.name == "page_7" }!.hidden && !h.state.has("gw_mirrors"), "a save keeps the chimes solved (and the mirrors unsolved)")
+
+            // The three solution chimes really are the Varrow stones' pitches.
+            let sr: Float = 44100
+            func render(_ kind: ChimeKind) -> [Float] {
+                let synth = AmbienceSynth(sampleRate: sr); synth.windGain = 0; synth.surfGain = 0; synth.master = 1; synth.play(kind)
+                var l = [Float](repeating: 0, count: Int(sr)), r = l
+                l.withUnsafeMutableBufferPointer { lp in r.withUnsafeMutableBufferPointer { rp in
+                    var d = 0; while d < Int(sr) { let c = min(512, Int(sr) - d); synth.render(frames: c, left: lp.baseAddress! + d, right: rp.baseAddress! + d); d += c }
+                } }
+                return l
+            }
+            func energy(_ x: [Float], hz: Float) -> Float {
+                let w = 2 * Float.pi * hz / sr, c = 2 * cos(w); var s1: Float = 0, s2: Float = 0
+                for v in x { let s0 = v + c * s1 - s2; s2 = s1; s1 = s0 }
+                return s1 * s1 + s2 * s2 - c * s1 * s2
+            }
+            for (glassKind, hz, name) in [(ChimeKind.glass0, Float(293.66), "D4"), (.glass1, 369.99, "F#4"), (.glass2, 440.0, "A4"), (.glass3, 523.25, "C5"), (.glass4, 587.33, "D5")] {
+                let x = render(glassKind)
+                check(energy(x, hz: hz) > 15 * energy(x, hz: hz * 1.12), "glass chime \(name) rings at its pitch")
+            }
+            let a = render(.glass0), b = render(.tide)
+            check(energy(a, hz: 293.66) > 15 * energy(a, hz: 440) && energy(b, hz: 293.66) > 15 * energy(b, hz: 440), "chime 0 and Varrow's tide stone share the pitch D4 (so the player's memory of the stone is the key)")
+            check(energy(render(.glass2), hz: 440) > 15 * energy(render(.wind), hz: 440 * 1.12) && energy(render(.wind), hz: 440) > 15 * energy(render(.wind), hz: 440 * 1.12), "chime 2 and the wind stone share A4")
+            let tick = render(.glassTick)
+            // The chime bus is an 8-line FDN reverb: no discrete echo, a faint wash from ~25 ms. The tick must leave only that.
+            let early = tick[0..<4000].map { abs($0) }.max() ?? 0, dryLate = tick[Int(sr * 0.26)..<Int(sr * 0.35)].map { abs($0) }.max() ?? 1
+            check(early > 0.02 && dryLate < early * 0.15, "the mirror tick is short: only a faint reverb wash is left at 0.3 s (peak \(String(format: "%.2f", early)) -> \(String(format: "%.4f", dryLate)) at 0.3 s)")
+        }
+        if name == "all" || name == "altar" {
+            func fresh() -> Game {
+                let g = Game(scenes: [.varrow: Scene.makeWorld(device: device), .glassWood: GlassWood.build(device: device)])
+                g.travel(to: .glassWood); _ = g.drainEvents(); return g
+            }
+            func item(_ g: Game, _ name: String) -> DrawItem { g.scenes[.glassWood]!.items.first { $0.name == name }! }
+            func enabled(_ g: Game, _ id: String) -> Bool { g.interactables.first { $0.id == id }?.enabled == true }
+
+            var g = fresh()
+            check(item(g, "gw_altar_ilse").hidden && item(g, "gw_altar_oren").hidden && !enabled(g, "gw_altar_ilse") && !enabled(g, "gw_altar_oren"), "the altar's pedestals are hidden and inert at the start")
+            g.glass!.touchAltar(0)
+            check(g.banner == nil && !g.state.has("gw_ilse_heard"), "touching a dormant altar does nothing")
+
+            // One puzzle is not enough, in either order.
+            g.glass!.forceMirrorsSolved(); g.glass!.checkAltar(); g.simulate(seconds: 6)
+            check(!g.state.has("gw_altar") && item(g, "gw_altar_ilse").hidden, "solving only the mirrors does not wake the altar")
+            g = fresh()
+            g.glass!.forceChimesSolved(); g.glass!.checkAltar(); g.simulate(seconds: 6)
+            check(!g.state.has("gw_altar"), "solving only the chimes does not wake it either")
+
+            // Both, by really playing the second puzzle: chimes first, then the mirrors.
+            g = fresh()
+            for k in GlassWoodLogic.chimeSolution { g.glass!.strikeChime(k); g.simulate(seconds: 0.6) }
+            g.simulate(seconds: 5)
+            check(g.state.has("gw_chimes") && !g.state.has("gw_altar"), "chimes solved first: the altar is still asleep")
+            g.glass!.setArrangement(mirrors: MirrorCourt.solutionMirrors, panes: MirrorCourt.solutionPanes)
+            g.simulate(seconds: 5)
+            check(g.state.has("gw_mirrors") && g.state.has("gw_altar"), "then the mirrors: the altar wakes (either order works)")
+            check(g.banner?.contains("woken") == true, "a line of text announces it (\"\(g.banner ?? "")\")")
+            check(!item(g, "gw_altar_ilse").hidden && !item(g, "gw_altar_oren").hidden && !item(g, "gw_column_altar").hidden, "the pedestals and a column of light appear")
+            check(!enabled(g, "gw_altar_ilse") && item(g, "page_8").hidden, "…but they are not touchable until they have finished rising")
+            g.simulate(seconds: 5)
+            check(enabled(g, "gw_altar_ilse") && enabled(g, "gw_altar_oren") && !item(g, "page_8").hidden && enabled(g, "page_8"), "once risen, both lights can be touched and Oren's last page (8) appears")
+            let sunk = item(g, "gw_altar_ilse").uniforms.model.columns.3.y
+            check(abs(sunk - GlassLayout.altar.y) < 0.05, "the pedestals have risen to ground level (y \(String(format: "%.2f", sunk)) vs \(String(format: "%.2f", GlassLayout.altar.y)))")
+
+            // Hearing the two accounts.
+            g.activate("gw_altar_ilse")
+            check(g.state.has("gw_ilse_heard") && g.banner?.hasPrefix("Ilse:") == true && !g.state.has("gw_end"), "Ilse's account is shown; the end is not reached with only one")
+            g.activate("gw_altar_oren")
+            check(g.state.has("gw_oren_heard") && g.banner?.hasPrefix("Oren:") == true && g.state.has("gw_end"), "Oren's account is shown; hearing both reaches the end of the second world")
+            g.simulate(seconds: 8)
+            check(g.banner?.contains("choose") == true, "after a pause the closing line sets up the choice (\"\(g.banner ?? "")\")")
+            g.simulate(seconds: 12)
+            check(g.banner == nil, "banners clear themselves")
+
+            // A save keeps all of it; returning to Varrow acknowledges it.
+            let tmp = NSTemporaryDirectory() + "lw-altar-\(getpid())"
+            setenv("LANTERNWRIGHT_SAVE_DIR", tmp, 1)
+            defer { try? FileManager.default.removeItem(atPath: tmp); unsetenv("LANTERNWRIGHT_SAVE_DIR") }
+            try? SaveStore.save(g.makeSave())
+            let h = Game(scenes: [.varrow: Scene.makeWorld(device: device), .glassWood: GlassWood.build(device: device)])
+            if let save = SaveStore.load() { h.restore(save) }
+            check(h.state.has("gw_altar") && h.state.has("gw_end") && enabled(h, "gw_altar_oren") && !h.scenes[.glassWood]!.items.first { $0.name == "page_8" }!.hidden, "a save restores the awakened altar and the story flags")
+            h.activate("gw_return"); h.simulate(seconds: Game.fadeOutSeconds + 0.1)
+            check(h.world == .varrow && h.banner?.contains("two accounts") == true, "returning to Varrow after the end acknowledges it (\"\(h.banner ?? "")\")")
+        }
+        if name == "all" || name == "interaction" {
+            let lo = SIMD3<Float>(-1, 0, -1), hi = SIMD3<Float>(1, 3, 1)
+            check(Interaction.rayBox(origin: SIMD3(0, 1.5, 5), dir: SIMD3(0, 0, -1), min: lo, max: hi).map { abs($0 - 4) < 1e-4 } ?? false, "ray straight at a box hits its near face (4 m)")
+            check(Interaction.rayBox(origin: SIMD3(3, 1.5, 5), dir: SIMD3(0, 0, -1), min: lo, max: hi) == nil, "ray passing beside the box misses")
+            check(Interaction.rayBox(origin: SIMD3(0, 1.5, 5), dir: SIMD3(0, 0, 1), min: lo, max: hi) == nil, "ray pointing away misses (no hits behind the origin)")
+            check(Interaction.rayBox(origin: SIMD3(0, 1.5, 0), dir: SIMD3(1, 0, 0), min: lo, max: hi) == 0, "ray starting inside the box reports distance 0")
+            check(Interaction.rayBox(origin: SIMD3(0, 5, 5), dir: SIMD3(0, 0, -1), min: lo, max: hi) == nil, "axis-parallel ray above the box misses")
+            let near = Interactable(id: "near", min: lo, max: hi, prompt: "n")
+            var far = Interactable(id: "far", min: SIMD3(-1, 0, -11), max: SIMD3(1, 3, -9), prompt: "f"); far.reach = 20
+            check(Interaction.pick(origin: SIMD3(0, 1.5, 4), dir: SIMD3(0, 0, -1), in: [far, near])?.id == "near", "pick returns the nearest of two boxes on the ray (near is 3 m away, far is 13 m)")
+            var tooFar = near; tooFar.reach = 2
+            check(Interaction.pick(origin: SIMD3(0, 1.5, 5), dir: SIMD3(0, 0, -1), in: [tooFar]) == nil, "an object beyond its reach is not hoverable")
+            var off = near; off.enabled = false
+            check(Interaction.pick(origin: SIMD3(0, 1.5, 5), dir: SIMD3(0, 0, -1), in: [off]) == nil, "disabled interactables are ignored")
+        }
+        if name == "all" || name == "interact" {
+            func freshGame() -> Game { Game(scene: Scene.makeWorld(device: device)) }
+            // Hover: stand where the tide stone is faced and look at it.
+            var g = freshGame()
+            let id = StoneID.tide
+            let toward = normalize(SIMD2(id.approachFrom.x - id.position.x, id.approachFrom.z - id.position.z))
+            let stand = SIMD2(id.position.x, id.position.z) + toward * 2.6
+            let look = SIMD2(-toward.x, -toward.y)
+            g.player = Player(position: SIMD3(stand.x, id.position.y, stand.y), yaw: atan2(look.x, -look.y))
+            g.player.pitch = 0.05
+            g.updateHover()
+            check(g.hovered?.id == "stone_tide", "looking at the tide stone from 2.6 m hovers it (\(g.hovered?.id ?? "nothing"))")
+            g.player.yaw += 1.2; g.updateHover()
+            check(g.hovered == nil, "looking away un-hovers it")
+            g.player.yaw -= 1.2
+            g.player = Player(position: SIMD3(stand.x + toward.x * 6, id.position.y, stand.y + toward.y * 6), yaw: atan2(look.x, -look.y))
+            g.updateHover()
+            check(g.hovered == nil, "from 8.6 m away the stone is out of reach")
+
+            // Clicking through the real input path strikes the stone.
+            g = freshGame()
+            g.player = Player(position: SIMD3(stand.x, id.position.y, stand.y), yaw: atan2(look.x, -look.y)); g.player.pitch = 0.05
+            var click = InputState(); click.click = true
+            g.advance(now: 100, input: InputState()); g.advance(now: 100.02, input: click)
+            check(g.state.has("lit_tide"), "a click on the hovered stone strikes it")
+
+            // Pages: collecting hides the page, opens the journal, disables the interactable.
+            g = freshGame()
+            g.activate("page_1")
+            check(g.journal.isOpen && g.journal.collectedPages.map(\.number) == [1], "collecting page 1 opens the journal on it")
+            check(g.scene.items.first { $0.name == "page_1" }?.hidden == true && g.interactables.first { $0.id == "page_1" }?.enabled == false, "the collected page disappears from the world")
+            check(g.drainEvents().contains(.pageCollected(1)), "a pageCollected event is emitted")
+            g.updateHover(); check(g.hovered == nil, "nothing is hoverable while the journal is open")
+            g.toggleJournal(); check(!g.journal.isOpen, "J closes the journal")
+
+            // The lens does nothing until the causeway is up (the full world-travel tests are in `worlds`).
+            g = freshGame()
+            g.activate("lens"); g.simulate(seconds: 2.5)
+            check(!g.state.has("lensTouched") && g.whiteout == 0 && g.world == .varrow, "the lens is inert before the puzzle is solved")
+
+            // Page positions are on the ground and reachable.
+            g = freshGame()
+            for n in 1...4 {
+                let p = PuzzleProps.pagePosition(n, terrain: g.scene.terrain)
+                let gnd = g.scene.groundHeight(x: p.x, z: p.z)
+                check(p.y >= gnd - 0.01 && p.y - gnd < 0.7, "page \(n) lies on the ground (\(String(format: "%.2f", p.y - gnd)) m above it)")
+            }
+        }
+        if name == "all" || name == "input" {
+            let input = Input()
+            input.keyDown(Input.Key.w); input.keyDown(Input.Key.d)
+            let s1 = input.sample(captured: true)
+            check(abs(length(s1.move) - 1) < 1e-5 && s1.move.x > 0 && s1.move.y > 0, "W+D is a unit-length diagonal (no faster diagonal)")
+            input.addMouse(dx: 100, dy: -50)
+            let s2 = input.sample(captured: true)
+            check(s2.look.x > 0 && s2.look.y > 0, "mouse right turns right, mouse up looks up")
+            check(input.sample(captured: true).look == .zero, "mouse delta is consumed once")
+            input.keyDown(Input.Key.j)
+            check(input.sample(captured: false).journalPressed, "J edge is reported even when the mouse is released")
+            check(input.sample(captured: false).journalPressed == false, "edge fires once")
+            check(input.sample(captured: false).move == .zero, "no movement while the mouse is released")
+            input.releaseAll()
+            check(input.sample(captured: true).move == .zero, "releaseAll clears held keys")
+        }
+        if name == "all" || name == "player" {
+            let scene = Scene.makeWorld(device: device)
+            let dt = Game.tick
+            func ground(_ p: Player) -> Float { scene.groundHeight(x: p.position.x, z: p.position.z) }
+            func flat(_ v: SIMD3<Float>) -> SIMD2<Float> { SIMD2(v.x, v.z) }
+
+            // 1. Spawn on the dock and walk forward: we end up on the beach, never in the water.
+            var p = Player(position: Layout.dockEnd, yaw: Layout.spawnYaw)
+            var lowest: Float = 99
+            for i in 0..<(14 * 120) {       // 41 m of dock at 3.2 m/s = 13 s
+                p.step(dt: dt, input: InputState(move: SIMD2(0, 1)), scene: scene)
+                lowest = min(lowest, ground(p))
+                if ProcessInfo.processInfo.environment["PLAYER_DEBUG"] != nil, i % 120 == 0 {
+                    print("t=\(i / 120) pos=(\(p.position.x), \(p.position.y), \(p.position.z)) speed=\(p.speed) ground=\(ground(p))")
+                }
+            }
+            check(lowest > -0.1 && distance(flat(p.position), flat(Layout.dockShore)) < 12,
+                  "walking forward from spawn follows the dock to the beach without falling in (lowest ground \(String(format: "%.2f", lowest)), \(String(format: "%.1f", distance(flat(p.position), flat(Layout.dockShore)))) m from the dock's landward end)")
+
+            // 2. The sea is a wall: from the end of the dock walk straight out to sea.
+            p = Player(position: Layout.dockEnd, yaw: Layout.spawnYaw + .pi)
+            lowest = 99
+            for _ in 0..<(20 * 120) {
+                p.step(dt: dt, input: InputState(move: SIMD2(0, 1)), scene: scene)
+                lowest = min(lowest, ground(p))
+            }
+            check(lowest > Player.minGround - 0.05, "cannot wade out to sea (lowest ground \(String(format: "%.2f", lowest)) m)")
+
+            // 3. A bot walks the whole lantern path and reaches the lighthouse.
+            p = Player(position: Layout.dockShore, yaw: 0)
+            var path = Layout.lanternPath
+            path.removeFirst()
+            var reachedAll = true
+            var worstLeg = ""
+            for (i, wp) in path.enumerated() {
+                let reach: Float = (i == path.count - 1) ? 8 : 2.5     // the lighthouse is solid: stop beside it
+                var t: Float = 0
+                var arrived = false
+                while t < 150 {
+                    let d = flat(wp) - flat(p.position)
+                    if length(d) < reach { arrived = true; break }
+                    p.yaw = atan2(d.x, -d.y)
+                    p.step(dt: dt, input: InputState(move: SIMD2(0, 1)), scene: scene)
+                    t += dt
+                }
+                if !arrived { reachedAll = false; worstLeg = "leg \(i) stuck at (\(Int(p.position.x)), \(Int(p.position.z)))"; break }
+            }
+            check(reachedAll, "bot walks dock shore -> tide -> wind -> summit stone -> lighthouse \(worstLeg)")
+
+            // 4. Walk straight at the lighthouse: stopped by the tower, not inside it.
+            let lh = flat(Layout.lighthouse)
+            p = Player(position: SIMD3(lh.x, Layout.lighthouse.y, lh.y + 14), yaw: 0)   // 14 m south, facing north
+            p.position.y = ground(p)
+            for _ in 0..<(8 * 120) { p.step(dt: dt, input: InputState(move: SIMD2(0, 1)), scene: scene) }
+            let dLH = distance(flat(p.position), lh)
+            check(dLH > 5.5 + Player.radius - 0.1 && dLH < 5.5 + Player.radius + 0.5, "lighthouse is solid (stopped \(String(format: "%.2f", dLH)) m from its axis)")
+
+            // 5. Speeds: walking settles at 3.2 m/s, running at 6.5 m/s.
+            p = Player(position: SIMD3(40, 34, 55), yaw: 0)
+            for _ in 0..<(3 * 120) { p.step(dt: dt, input: InputState(move: SIMD2(1, 0)), scene: scene) }
+            let walk = p.speed
+            var r = InputState(); r.move = SIMD2(1, 0); r.run = true
+            for _ in 0..<(3 * 120) { p.step(dt: dt, input: r, scene: scene) }
+            check(abs(walk - 3.2) < 0.4 && abs(p.speed - 6.5) < 0.8, "walk \(String(format: "%.2f", walk)) m/s, run \(String(format: "%.2f", p.speed)) m/s (on a slope)")
+
+            // 5b. Gait: walking is a natural ~2.2 steps/s; running lengthens the stride so cadence rises only ~1.4x, not 2x.
+            func cadence(run: Bool) -> Float {
+                let q = Player(position: SIMD3(Layout.dockShore.x, Layout.dockShore.y, Layout.dockShore.z), yaw: 3.0)
+                var pl = q
+                var input = InputState(); input.move = SIMD2(0, 1); input.run = run
+                pl.position.y = scene.groundHeight(x: pl.position.x, z: pl.position.z)
+                for _ in 0..<(2 * 120) { pl.step(dt: dt, input: input, scene: scene) }          // settle to full speed
+                let start = pl.stepCount
+                var travelled: Float = 0, last = SIMD2(pl.position.x, pl.position.z)
+                for _ in 0..<(6 * 120) {
+                    pl.step(dt: dt, input: input, scene: scene)
+                    let now = SIMD2(pl.position.x, pl.position.z); travelled += distance(now, last); last = now
+                }
+                _ = travelled
+                return Float(pl.stepCount - start) / 6
+            }
+            let walkCadence = cadence(run: false), runCadence = cadence(run: true)
+            check(walkCadence > 1.8 && walkCadence < 2.6, "walking cadence is natural (\(String(format: "%.2f", walkCadence)) steps/s)")
+            check(runCadence / walkCadence > 1.2 && runCadence / walkCadence < 1.6, "running is a different gait, not 2x walking (\(String(format: "%.2f", runCadence)) vs \(String(format: "%.2f", walkCadence)) steps/s = \(String(format: "%.2f", runCadence / walkCadence))x)")
+            check(Player.stepLength(speed: Player.runSpeed) > 1.4 * Player.stepLength(speed: Player.walkSpeed), "the run stride is much longer than the walk stride")
+
+            // 6. Frame-rate independence: the same 4 s of "walk forward" at 30, 60 and 144 fps covers the same ground.
+            var distances: [Float] = []
+            for fps in [30.0, 60.0, 144.0] {
+                let g = Game(scene: scene)
+                g.player = Player(position: SIMD3(Layout.dockShore.x, Layout.dockShore.y, Layout.dockShore.z), yaw: 3.0)
+                var input = InputState(); input.move = SIMD2(0, 1)
+                var now = 1000.0
+                let start = SIMD2(g.player.position.x, g.player.position.z)
+                for _ in 0..<Int(fps * 4) { now += 1 / fps; g.advance(now: now, input: input) }
+                distances.append(distance(SIMD2(g.player.position.x, g.player.position.z), start))
+            }
+            check((distances.max()! - distances.min()!) / distances.max()! < 0.03, "movement is frame-rate independent (30/60/144 fps: \(distances.map { String(format: "%.2f", $0) }) m)")
+        }
+    }
+}
