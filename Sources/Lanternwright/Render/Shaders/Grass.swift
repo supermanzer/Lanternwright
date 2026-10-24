@@ -56,13 +56,18 @@ vertex LitOut grass_vertex(uint vid [[vertex_id]], uint iid [[instance_id]],
 
     // Where does grass grow? Not on sand/beach, the path, steep rock or the bare summit.
     float density = smoothstep(2.2, 4.0, y) * (1.0 - smoothstep(0.35, 0.9, ts.y)) * (1.0 - ts.z) * smoothstep(0.80, 0.90, ny) * (1.0 - smoothstep(52.0, 64.0, y));
+    // Meadow structure at three scales: ~11 m clumps (with bare patches between them), ~2 m tufts, and per-blade variance.
+    float clump = fbm3(float3(xz.x, 3.0, xz.y) * 0.09);                       // 0..0.94, mean ~0.47
+    float tuft = vnoise3(float3(xz.x, 9.0, xz.y) * 0.55);
+    density *= mix(0.22, 1.0, smoothstep(0.30, 0.52, clump)) * (0.75 + 0.25 * tuft);
     // Thin the field with distance so far blades (sub-pixel) are not drawn at all.
     float keep = density * (1.0 - smoothstep(0.35 * radius, radius, dist) * 0.9);
     if (hash22(float2(gcell) + 17.0).x > keep) return o;
 
     // Blade shape: height, width, lean, facing.
     float hr = h11(rnd.x * 91.7 + rnd.y * 13.1);
-    float height = (0.22 + 0.34 * hr) * (1.0 - smoothstep(0.7 * radius, radius, dist));
+    bool seedHead = h11(rnd.x * 53.3 + rnd.y * 7.7) > 0.955;                  // a few taller stems with a pale tip: meadow, not carpet
+    float height = (0.22 + 0.34 * hr) * (0.62 + 0.75 * clump) * (0.85 + 0.3 * tuft) * (seedHead ? 1.9 : 1.0) * (1.0 - smoothstep(0.7 * radius, radius, dist));
     float width = 0.030 + 0.012 * rnd.y;
     float yaw = rnd.x * 6.2831853;
     float2 facing = float2(cos(yaw), sin(yaw));
@@ -91,7 +96,9 @@ vertex LitOut grass_vertex(uint vid [[vertex_id]], uint iid [[instance_id]],
     bool glass = frame.worldB.x > 0.5;
     float3 lush = glass ? float3(0.04, 0.17, 0.20) : float3(0.060, 0.165, 0.030);
     float3 parched = glass ? float3(0.15, 0.10, 0.28) : float3(0.27, 0.205, 0.070);
-    float3 col = mix(lush, parched, dry) * (0.75 + 0.55 * hr) * (0.55 + 0.75 * t);
+    float hue = clump - 0.47;                                                  // patches lean toward one colour or the other
+    float3 col = mix(lush, parched, clamp(dry + hue * 0.9, 0.0, 1.0)) * (0.75 + 0.55 * hr) * (0.55 + 0.75 * t) * (0.85 + 0.3 * tuft);
+    if (seedHead) col = mix(col, glass ? float3(0.55, 0.62, 0.85) : float3(0.62, 0.55, 0.30), smoothstep(0.55, 1.0, t) * 0.8);
 
     o.worldPos = wp;
     o.position = frame.viewProj * float4(wp, 1.0);
