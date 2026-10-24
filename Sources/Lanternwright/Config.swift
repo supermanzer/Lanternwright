@@ -228,6 +228,10 @@ enum Viewpoints {
         // A resonance stone seen from 3 m, at the height of its glyph (R04-7).
         case "stone-close": return Camera(position: Layout.tideStone + SIMD3(1.2, 1.9, 3.2), yaw: -0.3, pitch: -0.12)
         case "material-sheet": return Camera(position: Props.sheetOrigin + SIMD3(10.5, 0.25, 12.5), yaw: 0, pitch: 0, fovY: 38 * .pi / 180)     // every material, a sphere and a slab (F01 W0)
+        // The dock for F01 W2: 1 m above the planks looking down, low from the beach, and from the water under the deck.
+        case "dock-close": return Camera(position: SIMD3(168.5, 1.9, 198.0), yaw: -0.74, pitch: -0.75)
+        case "dock-side":  return Camera(position: SIMD3(150, 1.0, 196), yaw: 1.08, pitch: 0.03)
+        case "dock-under": return Camera(position: SIMD3(170.5, -0.1, 199.5), yaw: -0.74, pitch: 0.28)
         case "overview": return Camera(position: SIMD3(330, 150, 330), yaw: -0.76, pitch: -0.19)
         case "summit":   return Camera(position: SIMD3(-30, 70, -32), yaw: .pi, pitch: -0.05)
         case "shore":    return Camera(position: SIMD3(150, 3.2, 172), yaw: -1.95, pitch: 0.03)

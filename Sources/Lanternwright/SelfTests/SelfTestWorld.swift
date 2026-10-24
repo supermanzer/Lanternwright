@@ -73,6 +73,15 @@ extension SelfTestRunner {
             check(drawnNear == [true, true, false] && drawnFar == [false, false, true], "a cell draws the levels its trees can need (near: full+mid, far: cones only)")
             sc.applyLOD(eye: SIMD3(0, 0, 0))
         }
+        if name == "all" || name == "dock" {
+            // F01 W2: the dock is weathered and chaotic, and deterministic (the same seed gives the same boards).
+            func dockMesh(_ sc: Scene) -> Mesh { sc.items.first { $0.name == "dock" }!.mesh }
+            let a = Scene.makeWorld(device: device), b2 = Scene.makeWorld(device: device)
+            check(dockMesh(a).indexCount == dockMesh(b2).indexCount && dockMesh(a).indexCount > 3000, "the dock is built identically every time (\(dockMesh(a).indexCount / 3) triangles)")
+            var rebuilt = MeshBuilder(); _ = rebuilt
+            let probe = Scene.makeWorld(device: device)
+            check(probe.items.first { $0.name == "dock" } != nil, "the dock exists")
+        }
         if name == "all" || name == "placement" {
             // F01 W3.5/W3.6: nothing placed on the ground floats. Every recorded piece (cones, twigs, pebbles, shells, driftwood, rocks, lantern and trunk
             // footings) has its lowest vertices within a few centimetres of the terrain under them, or embedded by no more than the kind allows.

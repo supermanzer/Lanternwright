@@ -12,20 +12,6 @@ struct GroundOut {
     float rough;
 };
 
-// 2D cellular noise with the vector to the nearest feature point: xy = from that point to p (cell units), z = distance F1, w = cell id 0..1.
-inline float4 cell2n(float2 p) {
-    float2 i = floor(p), f = fract(p);
-    float d1 = 1e9; float2 v = float2(0.0); float id = 0.0;
-    for (int k = 0; k < 9; k++) {
-        float2 g = float2(float(k % 3) - 1.0, float(k / 3) - 1.0);
-        float2 h2 = hash22w(i + g + 31.0);
-        float2 r = g + 0.15 + 0.7 * h2 - f;
-        float d = dot(r, r);
-        if (d < d1) { d1 = d; v = -r; id = h2.x; }
-    }
-    return float4(v, sqrt(d1), id);
-}
-
 // The luminance of a colour (for keeping means).
 inline float lum3(float3 c) { return dot(c, float3(0.2126, 0.7152, 0.0722)); }
 

@@ -451,27 +451,69 @@ inline MatOut mat_bark(float3 P, float3 N, float3 base, float fpix) {
     return o;
 }
 
-// ---- Deck planks: boards laid across the dock (boards run along local z, 0.275 m apart), fibres across, silvered by weather. ------
-inline MatOut mat_plank(float3 Pl, float3 P, float3 N, float3 base, float fpix) {
+// 2D cellular noise with the vector to the nearest feature point: xy = from that point to p (cell units), z = distance F1, w = cell id 0..1.
+inline float4 cell2n(float2 p) {
+    float2 i = floor(p), f = fract(p);
+    float d1 = 1e9; float2 v = float2(0.0); float id = 0.0;
+    for (int k = 0; k < 9; k++) {
+        float2 g = float2(float(k % 3) - 1.0, float(k / 3) - 1.0);
+        float2 h2 = hash22w(i + g + 31.0);
+        float2 r = g + 0.15 + 0.7 * h2 - f;
+        float d = dot(r, r);
+        if (d < d1) { d1 = d; v = -r; id = h2.x; }
+    }
+    return float4(v, sqrt(d1), id);
+}
+
+// ---- Deck planks (F01 W2): weathered deck boards. `seed` (0..1, the vertex roughness channel; exactly 1 = a replacement board) selects the board's own tone,
+// grain, knots and checks. Grain is a GROWTH-RING model: distance from a virtual trunk axis below the board, domain-warped, with cathedral figures, knots that
+// swirl the rings round them, long checks opening toward the ends; silvered grey on top, dark and mossy low and wet, salt crust, rust streaks under nail heads,
+// a worn walking line down the middle. Board axis is local x; the dock runs along local z (Pl is the dock's own frame).
+inline MatOut mat_plank(float3 Pl, float3 P, float3 N, float3 base, float seed, float fpix) {
     MatOut o;
-    float q = (Pl.z - 0.15 + 0.1375) / 0.275;
-    float k = floor(q), f = fract(q);
-    float hp = hash13(float3(k, 4.0, 7.0)), hp2 = hash13(float3(k, 9.0, 2.0));
-    float edgeD = min(f, 1.0 - f) * 0.275;
-    float grainW = featVis(0.012, fpix);
-    float g1 = vnoise3(float3(Pl.x * 1.2, Pl.z * 85.0 + hp * 30.0, 1.0)), g2 = vnoise3(float3(Pl.x * 5.0, Pl.z * 30.0 + hp * 7.0, 4.0));
-    float fibre = mix(0.5, g1 * 0.6 + g2 * 0.4, grainW);
-    float weather = saturate(0.45 + 0.5 * vnoise3(float3(Pl.x * 0.8, Pl.z * 0.5, k)) + 0.2 * (hp - 0.5));
-    float3 fresh = base * mix(1.0, 0.7 + 0.6 * hp, featVis(0.27, fpix)) * (0.8 + 0.4 * fibre);
-    float3 silver = float3(0.36, 0.33, 0.29) * (0.8 + 0.4 * fibre);
-    float3 albedo = mix(fresh, silver, weather * 0.75);
-    albedo *= 1.0 - 0.38 * (1.0 - smoothstep(0.7, 1.6, P.y));                      // the seaward boards stay wet and dark
-    float edgeAO = 1.0 - (1.0 - smoothstep(0.0, 0.02, edgeD)) * lineAmp(0.02, max(0.02, fpix * 0.9));      // the board edges: a 2 cm shadow line, energy kept
-    o.albedo = albedo * mix(0.6, 1.0, edgeAO);
-    o.rough = clamp(0.84 + 0.1 * (fibre - 0.5) - 0.12 * (1.0 - smoothstep(0.7, 1.6, P.y)), 0.4, 1.0);
+    bool fresh = seed > 0.995;
+    float hp = fract(seed * 7.13), hq = fract(seed * 13.7 + 0.3);
+    float vGrain = featVis(0.02, fpix), vFib = featVis(0.004, fpix), vKnot = featVis(0.08, fpix);
+    // The board-local cross coordinate: boards are ~0.2 m deep; use the position within the dock plus the seed to decorrelate neighbours.
+    float zz = Pl.z * 3.7 + seed * 41.0;
+    // Growth rings: distance from a trunk axis 0.35 m below the board, bent by a slow warp, so rings run along the board as cathedral arches.
+    float2 q = float2(Pl.x * 1.3 + hp * 9.0, zz);
+    float warpA = 0.9 * (vnoise3(float3(q * 0.6, seed * 5.0)) - 0.5);
+    float ringPos = (zz * 0.42 + warpA + 0.35 * sin(Pl.x * 2.1 + hp * 6.0)) * 22.0 + hq * 9.0;
+    // Knots: a few per board; the rings swirl round them.
+    float4 kc = cell2n(float2(Pl.x * 2.2 + seed * 17.0, zz * 0.9));
+    float knot = (1.0 - smoothstep(0.04, 0.15, kc.z)) * step(0.80, kc.w) * vKnot;           // one board in five has a knot or two
+    ringPos += knot * 5.0 * (1.0 - kc.z * 5.0);
+    float rings = 0.5 + 0.5 * sin(ringPos);
+    float late = smoothstep(0.55, 0.9, rings);                                     // dark latewood bands
+    float fibre = mix(0.5, vnoise3(float3(Pl.x * 2.2, zz * 70.0, seed * 3.0)) * 0.7 + 0.3 * vnoise3(float3(Pl.x * 0.9, zz * 190.0, seed * 5.0)), vFib);        // long fibres along the board
+    // Checks: long cracks along the grain, opening toward the ends of the board.
+    float checkLine = 1.0 - smoothstep(0.0, 0.05 + fpix * 3.0, abs(vnoise3(float3(Pl.x * 0.4, zz * 11.0, seed * 9.0 + 2.0)) - 0.5));
+    float check = checkLine * smoothstep(0.42, 0.7, vnoise3(float3(Pl.x * 1.1 + 4.0, zz * 2.0, seed * 4.0))) * step(0.35, hq) * featVis(0.012, fpix);
+    // Colour: the board's own tone, silvered by the sun, darker where wet (seaward, low), salt-bleached patches, a worn walking line.
+    float silver = saturate(0.55 + 0.45 * (hp - 0.5) * 2.0 + 0.3 * (vnoise3(P * 0.7) - 0.5));
+    float3 wood = base * (0.55 + 0.75 * mix(0.5, hp, featVis(0.15, fpix)));
+    wood *= mix(0.78, 1.14, mix(0.5, late, vGrain)) * (0.88 + 0.24 * fibre);
+    float3 silverCol = float3(0.40, 0.375, 0.34) * (0.72 + 0.4 * mix(0.5, late, vGrain)) * (0.85 + 0.3 * fibre);
+    float3 albedo = fresh ? wood : mix(wood, silverCol, silver * 0.82);
+    float low = 1.0 - smoothstep(0.7, 1.6, P.y);
+    albedo *= 1.0 - 0.42 * low;
+    float green = low * smoothstep(0.55, 0.8, vnoise3(P * 3.0 + 6.0)) * 0.5;      // a film of algae on the lowest boards
+    albedo = mix(albedo, float3(0.10, 0.17, 0.07) * (0.8 + 0.4 * fibre), green);
+    float salt = smoothstep(0.62, 0.82, vnoise3(float3(P.x * 1.5, P.y * 0.5, P.z * 1.5) + 9.0)) * (1.0 - low * 0.5) * 0.35;
+    albedo = mix(albedo, float3(0.78, 0.76, 0.70), salt * (fresh ? 0.0 : 1.0));
+    float walk = exp(-Pl.x * Pl.x / (2.0 * 0.38 * 0.38));
+    albedo *= mix(1.0, 1.14, walk * 0.7);                                          // polished by feet
+    // Rust streaks running along the board from the nail heads (columns at x = +-0.8 and +-0.95).
+    float rustCol = exp(-pow(abs(Pl.x) - 0.88, 2.0) / (2.0 * 0.07 * 0.07));
+    float rust = rustCol * smoothstep(0.45, 0.8, vnoise3(float3(Pl.x * 8.0, zz * 5.0, seed * 6.0))) * featVis(0.05, fpix);
+    albedo = mix(albedo, float3(0.30, 0.13, 0.05) * (0.8 + 0.4 * fibre), rust * 0.65);
+    albedo *= 1.0 - 0.7 * check - 0.30 * knot * smoothstep(0.14, 0.03, kc.z);
+    o.albedo = albedo;
+    o.rough = clamp(0.86 + 0.10 * (fibre - 0.5) - 0.14 * low - 0.10 * walk + 0.06 * salt, 0.4, 1.0);
     o.metal = 0.0;
-    o.N = bump_normal(P, N, 0.003 * (fibre - 0.5), 1.0);
-    o.ao = mix(0.7, 1.0, edgeAO);
+    o.N = bump_normal(P, N, 0.0018 * (late - 0.5) * vGrain + 0.002 * (fibre - 0.5) - 0.004 * check + 0.002 * knot, 1.0);
+    o.ao = 1.0 - 0.45 * check;
     return o;
 }
 
@@ -542,7 +584,7 @@ inline MatOut material_surface_raw(int id, float3 Pl, float3 P, float3 N, float3
     else if (id == 17 || id == 20) o = mat_glassstone(Pl, P, N, base, fpix);
     else if (id == 18) o = mat_mirror(P, N, fpix);
     else if (id == 19) o = mat_palemetal(P, N, base, fpix);
-    else if (id == 12) o = mat_plank(Pl, P, N, base, fpix);
+    else if (id == 12) o = mat_plank(Pl, P, N, base, rough, fpix);
     else if (id == 13) o = mat_timber(P, N, base, fpix);
     else o = mat_bark(P, N, base, fpix);
     return o;
