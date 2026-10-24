@@ -118,7 +118,7 @@ final class AmbienceSynth {
         case .glass0, .glass1, .glass2, .glass3, .glass4:
             let i = kind.rawValue - ChimeKind.glass0.rawValue
             chimes.append(glassVoice(AmbienceSynth.glassPitches[i], gain: 0.28, pan: Float(i) * 0.3 - 0.6))
-        case .glassTick: chimes.append(glassVoice(1174.66, gain: 0.10, decayScale: 0.22))
+        case .glassTick: chimes.append(glassVoice(1174.66, gain: 0.12, decayScale: 0.04))
         case .glassAmbient:
             let pitches: [Float] = [587.33, 739.99, 880.0, 1174.66]
             chimes.append(glassVoice(pitches[Int(stepRandom() * 3.999)], gain: 0.05, decayScale: 2.2, pan: stepRandom() * 2 - 1))

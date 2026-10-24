@@ -23,6 +23,17 @@ final class GlassWoodLogic {
 
     static let columnHeight: Float = 46
 
+    // MARK: Chime state
+    /// The three tones of the Varrow stones, as chime indices: tide = D4 (0), wind = A4 (2), stone = D5 (4).
+    /// The other two chimes (F#4, C5) are decoys; only your memory of how the stones sounded tells them apart.
+    static let chimeSolution = [0, 2, 4]
+    private(set) var chimeSequence: [Int] = []
+    private var chimeResetting = false
+    private var chimeLit = [Float](repeating: 0, count: GlassPuzzleProps.chimeCount)
+    private var chimeSwing = [Float](repeating: 0, count: GlassPuzzleProps.chimeCount)
+    private var chimeColumn: Float = 0
+    var chimesSolved: Bool { state.has("gw_chimes") }
+
     init(scene: Scene, state: PuzzleState, animator: Animator, emit: @escaping (GameEvent) -> Void, revealPage: @escaping (Int) -> Void) {
         self.scene = scene
         self.state = state
@@ -44,10 +55,16 @@ final class GlassWoodLogic {
             let p = GlassPuzzleProps.panePosition(k) + SIMD3(0, 1.3, 0)
             list.append(Interactable(id: "gw_pane_\(k)", min: p - SIMD3(1.1, 1.2, 1.1), max: p + SIMD3(1.1, 1.2, 1.1), prompt: "Change the glass", reach: 5))
         }
+        for k in 0..<GlassPuzzleProps.chimeCount {
+            let p = GlassPuzzleProps.chimePosition(k)
+            list.append(Interactable(id: "gw_chime_\(k)", min: SIMD3(p.x - 0.8, p.y, p.z - 0.8), max: SIMD3(p.x + 0.8, p.y + GlassPuzzleProps.chimeHeights[k] + 1.0, p.z + 0.8),
+                                     prompt: "Strike the glass", reach: 6))
+        }
         return list
     }
 
     func click(_ id: String) {
+        if id.hasPrefix("gw_chime_"), let k = Int(id.dropFirst(9)), k < GlassPuzzleProps.chimeCount { strikeChime(k); return }
         if id.hasPrefix("gw_mirror_"), let k = Int(id.dropFirst(10)), k < 3 {
             emit(.chime(.glassTick))
             guard !mirrorsSolved else { return }
@@ -96,6 +113,64 @@ final class GlassWoodLogic {
         }
     }
 
+    // MARK: Chimes
+
+    private func chimeKind(_ k: Int) -> ChimeKind { [ChimeKind.glass0, .glass1, .glass2, .glass3, .glass4][k] }
+
+    /// Strike chime k. Like the stones of Varrow: the right tone lights it; a wrong one rings dissonantly, then everything resets.
+    func strikeChime(_ k: Int) {
+        emit(.chime(chimeKind(k)))
+        swing(k)
+        guard !chimesSolved, !chimeResetting else { return }
+        if k == GlassWoodLogic.chimeSolution[chimeSequence.count] {
+            chimeSequence.append(k)
+            fadeChime(k, to: 1)
+            if chimeSequence.count == GlassWoodLogic.chimeSolution.count { solveChimes() }
+        } else {
+            chimeResetting = true
+            emit(.chime(.fail))
+            animator.after(0.8) { [weak self] in
+                guard let self else { return }
+                for i in 0..<GlassPuzzleProps.chimeCount where self.chimeLit[i] > 0 { self.fadeChime(i, to: 0) }
+                self.chimeSequence = []
+                self.chimeResetting = false
+            }
+        }
+    }
+
+    private func fadeChime(_ k: Int, to target: Float) {
+        let from = chimeLit[k]
+        animator.tween(duration: 0.5, ease: .outCubic) { [weak self] t in self?.chimeLit[k] = from + (target - from) * t }
+    }
+
+    /// A struck glass tube rocks and settles: a damped swing over about a second.
+    private func swing(_ k: Int) {
+        animator.tween(duration: 1.3, ease: .linear) { [weak self] t in
+            self?.chimeSwing[k] = 0.09 * exp(-3.2 * t) * sin(t * 28)
+        }
+    }
+
+    private func solveChimes() {
+        state.set("gw_chimes")
+        // The three tones sound together as a chord, then the ignition shimmer.
+        animator.after(0.5) { [weak self] in
+            self?.emit(.chime(.glass0)); self?.emit(.chime(.glass2)); self?.emit(.chime(.glass4))
+        }
+        animator.after(1.3) { [weak self] in self?.emit(.chime(.ignite)) }
+        scene.update("gw_column_chimes") { $0.hidden = false }
+        animator.tween(delay: 0.8, duration: 3.0, ease: .inOutCubic) { [weak self] t in self?.chimeColumn = t }
+        animator.after(2.0) { [weak self] in self?.revealPage(7) }
+    }
+
+    func forceChimesSolved() {
+        state.set("gw_chimes")
+        chimeSequence = GlassWoodLogic.chimeSolution
+        for k in GlassWoodLogic.chimeSolution { chimeLit[k] = 1 }
+        chimeColumn = 1
+        scene.update("gw_column_chimes") { $0.hidden = false }
+        revealPage(7)
+    }
+
     // MARK: Reward
 
     private func solveMirrors() {
@@ -133,6 +208,23 @@ final class GlassWoodLogic {
     // MARK: Visuals (every tick)
 
     func updateVisuals(time: Float) {
+        for k in 0..<GlassPuzzleProps.chimeCount {
+            let lit = chimeLit[k]
+            let idle = 0.35 + 0.15 * sin(time * 2.0 + Float(k))              // gentle pulse: strike me
+            let model = GlassPuzzleProps.chimeModel(k, swing: chimeSwing[k])
+            scene.update("gw_chime_\(k)") {
+                $0.uniforms.model = model
+                $0.uniforms.emissive = SIMD4(0.5 + 0.4 * lit, 0.8, 1.0 - 0.3 * lit, idle * (1 - lit) + 2.6 * lit)
+            }
+        }
+        if chimeColumn > 0 {
+            let h = max(chimeColumn * GlassWoodLogic.columnHeight, 0.01)
+            let c = GlassLayout.chimeRing
+            scene.update("gw_column_chimes") {
+                $0.uniforms.model = translation(c) * scaling(SIMD3(1, h, 1))
+                $0.uniforms.emissive = SIMD4(1.0, 0.75, 0.4, 6 + 1.5 * sin(time * 1.9))
+            }
+        }
         for k in 0..<3 {
             let m = GlassPuzzleProps.mirrorModel(k, turns: mirrorTurns[k])
             scene.update("gw_mirror_\(k)") { $0.uniforms.model = m }

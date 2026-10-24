@@ -828,6 +828,82 @@ enum SelfTest {
             g.activate("page_6")
             check(g.journal.collectedPages.map(\.number) == [6] && g.journal.isOpen && item(g, "page_6").hidden, "reading page 6 opens the journal on it and removes it from the world")
         }
+        if name == "all" || name == "chimegame" {
+            func fresh() -> Game {
+                let g = Game(scenes: [.varrow: Scene.makeWorld(device: device), .glassWood: GlassWood.build(device: device)])
+                g.travel(to: .glassWood); _ = g.drainEvents(); return g
+            }
+            func item(_ g: Game, _ name: String) -> DrawItem { g.scenes[.glassWood]!.items.first { $0.name == name }! }
+            func chimes(_ e: [GameEvent]) -> [ChimeKind] { e.compactMap { if case .chime(let k) = $0 { return k } else { return nil } } }
+
+            var g = fresh()
+            check((0..<5).allSatisfy { g.interactables.map(\.id).contains("gw_chime_\($0)") }, "all five glass chimes are interactable")
+            check(GlassPuzzleProps.chimeHeights == GlassPuzzleProps.chimeHeights.sorted(by: >), "taller chimes are lower in pitch (heights fall as pitch rises)")
+            let ringDist = (0..<5).map { distance(SIMD2(GlassPuzzleProps.chimePosition($0).x, GlassPuzzleProps.chimePosition($0).z), SIMD2(GlassLayout.chimeRing.x, GlassLayout.chimeRing.z)) }
+            check(ringDist.allSatisfy { abs($0 - GlassPuzzleProps.chimeRadius) < 0.01 } && ringDist.max()! < GlassLayout.pads[3].radius - 2, "the chimes stand on a ring inside the flat pad")
+
+            // A decoy first: fail, reset after 0.8 s.
+            g.glass!.strikeChime(1)
+            check(chimes(g.drainEvents()) == [.glass1, .fail] && g.glass!.chimeSequence.isEmpty, "a decoy chime rings and fails")
+            g.simulate(seconds: 1)
+            g.glass!.strikeChime(0)
+            check(g.glass!.chimeSequence == [0], "after the reset the right first tone (D4 = tide) is accepted")
+            g.simulate(seconds: 0.2)
+            g.glass!.strikeChime(3)                                                  // decoy in the middle
+            check(g.glass!.chimeSequence == [0], "a decoy mid-sequence fails without adding to it")
+            g.glass!.strikeChime(2)                                                  // during the reset delay: ignored
+            check(g.glass!.chimeSequence == [0], "strikes during the reset delay are ignored")
+            g.simulate(seconds: 1)
+            check(g.glass!.chimeSequence.isEmpty, "the whole sequence resets after a mistake")
+
+            // The right order: D4, A4, D5 (tide, wind, stone tones).
+            _ = g.drainEvents()
+            for k in GlassWoodLogic.chimeSolution { g.glass!.strikeChime(k); g.simulate(seconds: 0.6) }
+            check(g.state.has("gw_chimes"), "D4, A4, D5 in order solves the chimes")
+            g.simulate(seconds: 4)
+            let evs = chimes(g.drainEvents())
+            check(evs.prefix(3) == [.glass0, .glass2, .glass4] && evs.contains(.ignite) && evs.filter { $0 == .glass0 }.count == 2, "each strike rings, then the three tones sound together and the shimmer follows (\(evs.prefix(8)))")
+            check(!item(g, "page_7").hidden && g.interactables.first { $0.id == "page_7" }?.enabled == true, "Oren's page 7 appears at the chime ring")
+            check(!item(g, "gw_column_chimes").hidden && item(g, "gw_column_chimes").uniforms.model.columns.1.y > 40, "an amber column of light rises from the ring")
+            g.glass!.strikeChime(1)
+            check(g.state.has("gw_chimes") && g.glass!.chimeSequence == GlassWoodLogic.chimeSolution, "solved stays solved; later strikes just ring")
+
+            // Persistence.
+            let tmp = NSTemporaryDirectory() + "lw-chime-\(getpid())"
+            setenv("LANTERNWRIGHT_SAVE_DIR", tmp, 1)
+            defer { try? FileManager.default.removeItem(atPath: tmp); unsetenv("LANTERNWRIGHT_SAVE_DIR") }
+            try? SaveStore.save(g.makeSave())
+            let h = Game(scenes: [.varrow: Scene.makeWorld(device: device), .glassWood: GlassWood.build(device: device)])
+            if let save = SaveStore.load() { h.restore(save) }
+            check(h.state.has("gw_chimes") && !h.scenes[.glassWood]!.items.first { $0.name == "page_7" }!.hidden && !h.state.has("gw_mirrors"), "a save keeps the chimes solved (and the mirrors unsolved)")
+
+            // The three solution chimes really are the Varrow stones' pitches.
+            let sr: Float = 44100
+            func render(_ kind: ChimeKind) -> [Float] {
+                let synth = AmbienceSynth(sampleRate: sr); synth.windGain = 0; synth.surfGain = 0; synth.master = 1; synth.play(kind)
+                var l = [Float](repeating: 0, count: Int(sr)), r = l
+                l.withUnsafeMutableBufferPointer { lp in r.withUnsafeMutableBufferPointer { rp in
+                    var d = 0; while d < Int(sr) { let c = min(512, Int(sr) - d); synth.render(frames: c, left: lp.baseAddress! + d, right: rp.baseAddress! + d); d += c }
+                } }
+                return l
+            }
+            func energy(_ x: [Float], hz: Float) -> Float {
+                let w = 2 * Float.pi * hz / sr, c = 2 * cos(w); var s1: Float = 0, s2: Float = 0
+                for v in x { let s0 = v + c * s1 - s2; s2 = s1; s1 = s0 }
+                return s1 * s1 + s2 * s2 - c * s1 * s2
+            }
+            for (glassKind, hz, name) in [(ChimeKind.glass0, Float(293.66), "D4"), (.glass1, 369.99, "F#4"), (.glass2, 440.0, "A4"), (.glass3, 523.25, "C5"), (.glass4, 587.33, "D5")] {
+                let x = render(glassKind)
+                check(energy(x, hz: hz) > 15 * energy(x, hz: hz * 1.12), "glass chime \(name) rings at its pitch")
+            }
+            let a = render(.glass0), b = render(.tide)
+            check(energy(a, hz: 293.66) > 15 * energy(a, hz: 440) && energy(b, hz: 293.66) > 15 * energy(b, hz: 440), "chime 0 and Varrow's tide stone share the pitch D4 (so the player's memory of the stone is the key)")
+            check(energy(render(.glass2), hz: 440) > 15 * energy(render(.wind), hz: 440 * 1.12) && energy(render(.wind), hz: 440) > 15 * energy(render(.wind), hz: 440 * 1.12), "chime 2 and the wind stone share A4")
+            let tick = render(.glassTick)
+            // The chime bus has a reverb whose first echo arrives at 0.37 s, so judge the dry tick before that.
+            let early = tick[0..<4000].map { abs($0) }.max() ?? 0, dryLate = tick[Int(sr * 0.26)..<Int(sr * 0.35)].map { abs($0) }.max() ?? 1
+            check(early > 0.02 && dryLate < early * 0.08, "the mirror tick is short: gone before the first echo (peak \(String(format: "%.2f", early)) -> \(String(format: "%.4f", dryLate)) at 0.3 s)")
+        }
         return ok
     }
 }

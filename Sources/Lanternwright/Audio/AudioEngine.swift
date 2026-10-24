@@ -53,6 +53,8 @@ final class AudioEngine {
         }
         guard now - lastUpdate > 0.125 else { return }
         lastUpdate = now
+        // In the Glass Wood the breeze sets the crystal trees shimmering now and then (about once every 8 s).
+        if game.world == .glassWood && Float.random(in: 0..<1) < 0.125 / 8 { synth.play(.glassAmbient) }
         let p = game.player.position
         // Wind is stronger up high and in the open.
         synth.windGain = 0.18 + 0.55 * min(max(p.y / 70, 0), 1)

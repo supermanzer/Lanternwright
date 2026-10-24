@@ -21,6 +21,7 @@ enum GlassPuzzleProps {
 
     static func populate(_ scene: Scene, device: MTLDevice) {
         addMirrorCourt(scene, device: device)
+        addChimeRing(scene, device: device)
         addPages(scene, device: device)
     }
 
@@ -150,5 +151,74 @@ enum GlassPuzzleProps {
                                                tint: SIMD4(1, 1, 1, 1), emissive: SIMD4(0.7, 0.9, 1.0, 0.35)),
                       hidden: n != 5)
         }
+    }
+
+    // MARK: Chime ring
+
+    static let chimeCount = 5
+    /// Heights shrink as the pitch rises (D4 longest, D5 shortest): the way a real glass chime or xylophone bar behaves.
+    static let chimeHeights: [Float] = [3.5, 3.1, 2.75, 2.45, 2.2]
+    static let chimeRadius: Float = 6.5
+
+    static func chimePosition(_ k: Int) -> SIMD3<Float> {
+        // An arc on the far side of the ring from where the path arrives, so you stand in the opening facing all five.
+        let a = Float.pi / 4 + Float(k - 2) * 0.5
+        let c = GlassLayout.chimeRing
+        return SIMD3(c.x + chimeRadius * cos(a), c.y, c.z + chimeRadius * sin(a))
+    }
+
+    static func chimeModel(_ k: Int, swing: Float) -> float4x4 {
+        // Swing about the axis tangent to the ring (a pendulum motion toward and away from the centre).
+        let c = GlassLayout.chimeRing
+        let p = chimePosition(k)
+        let radial = normalize(SIMD3(p.x - c.x, 0, p.z - c.z))
+        let tangent = SIMD3(-radial.z, 0, radial.x)
+        let ax = rotation(aligningYTo: normalize(SIMD3(0, 1, 0) + radial * swing + tangent * 0))   // lean toward/away from the centre
+        return translation(p) * ax
+    }
+
+    static func addChimeRing(_ scene: Scene, device: MTLDevice) {
+        let stone = Surface(color: SIMD3(0.20, 0.21, 0.30), roughness: 0.45)
+        let c = GlassLayout.chimeRing
+        var fixed = MeshBuilder()
+        fixed.cylinder(radiusTop: chimeRadius + 2.5, radiusBottom: chimeRadius + 2.7, height: 0.12, segments: 40, smooth: false,
+                       surface: Surface(color: SIMD3(0.20, 0.21, 0.32), roughness: 0.35))
+        for k in 0..<chimeCount {
+            let p = chimePosition(k) - c
+            fixed.cylinder(radiusTop: 0.5, radiusBottom: 0.65, height: 0.4, segments: 6, smooth: false, surface: stone, transform: translation(p + SIMD3(0, 0.1, 0)))
+        }
+        scene.add("gw_chime_base", mesh: fixed.build(device: device, label: "chime base"), uniforms: ObjectUniforms(model: translation(c)))
+
+        for k in 0..<chimeCount {
+            var glass = MeshBuilder()
+            let h = chimeHeights[k]
+            glass.cylinder(radiusTop: 0.16, radiusBottom: 0.26, height: h, segments: 6, smooth: false,
+                           surface: Surface(color: SIMD3(0.8, 0.95, 1.0), roughness: 0.06, material: .emissiveGlass), transform: translation(SIMD3(0, 0.5, 0)))
+            glass.cone(radius: 0.16, height: 0.35, segments: 6, smooth: false, surface: Surface(color: SIMD3(0.8, 0.95, 1.0), roughness: 0.06, material: .emissiveGlass),
+                       transform: translation(SIMD3(0, 0.5 + h, 0)))
+            scene.add("gw_chime_\(k)", mesh: glass.build(device: device, label: "chime \(k)"),
+                      uniforms: ObjectUniforms(model: chimeModel(k, swing: 0), tint: SIMD4(0.8, 0.95, 1.0, 1), emissive: SIMD4(0.5, 0.8, 1.0, 0.4)))
+        }
+
+        // The mural for this puzzle: the same three glyphs in the same order, on a wall beside the path just before the ring,
+        // turned to face the player as they walk in from the north-west (it must show its FACE, not its back).
+        let m = c + SIMD3(-6, 0, -12)
+        var wall = MeshBuilder()
+        wall.box(size: SIMD3(9, 3.4, 0.6), surface: Surface(color: SIMD3(0.12, 0.12, 0.2), roughness: 0.4), transform: translation(SIMD3(0, 1.7, 0)))
+        wall.box(size: SIMD3(9.6, 0.3, 0.9), surface: stone, transform: translation(SIMD3(0, 3.5, 0)))
+        wall.box(size: SIMD3(9.6, 0.3, 0.9), surface: stone, transform: translation(SIMD3(0, 0.1, 0)))
+        let face = rotationY(-.pi / 4)                                     // local +Z -> south-west: toward the path
+        scene.add("gw_chime_mural", mesh: wall.build(device: device, label: "chime mural"), uniforms: ObjectUniforms(model: translation(m) * face))
+        for (i, id) in StoneID.allCases.enumerated() {
+            let g = Landmarks.glyphMesh(id, z: 0.33, y: 1.7, scale: 1.9)
+            scene.add("gw_chime_mural_glyph_\(i)", mesh: g.build(device: device, label: "mural glyph"),
+                      uniforms: ObjectUniforms(model: translation(m) * face * translation(SIMD3((Float(i) - 1) * 2.9, 0, 0)), tint: SIMD4(id.color, 1), emissive: SIMD4(id.color, 0.9)))
+        }
+
+        // The light released when the chimes are solved: an amber/cyan column from the centre of the ring.
+        var column = MeshBuilder()
+        column.cylinder(radiusTop: 0.28, radiusBottom: 0.5, height: 1, segments: 10, smooth: true, caps: false, surface: Surface(color: SIMD3(1, 1, 1), roughness: 0.5))
+        scene.add("gw_column_chimes", mesh: column.build(device: device, label: "column"),
+                  uniforms: ObjectUniforms(model: translation(c) * scaling(SIMD3(1, 0.001, 1)), tint: SIMD4(1.0, 0.8, 0.5, 1), emissive: SIMD4(1.0, 0.75, 0.4, 7)), hidden: true)
     }
 }
