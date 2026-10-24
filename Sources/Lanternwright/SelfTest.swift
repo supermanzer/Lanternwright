@@ -559,6 +559,27 @@ enum SelfTest {
             let there = SIMD3<Float>(Wind.direction.x * 90, 0, Wind.direction.y * 90)
             check(abs(Wind.strength(at: there, time: 25 + 10) - Wind.strength(at: .zero, time: 25)) < 1e-4, "gusts travel downwind at 9 m/s")
         }
+        if name == "all" || name == "pace" {
+            check(Player.paceFactor(slope: 0) == 1 && Player.paceFactor(slope: 0.3) < 1 && Player.paceFactor(slope: 0.3) > Player.paceFactor(slope: 0.6) && Player.paceFactor(slope: -0.2) > 1 && Player.paceFactor(slope: -0.2) < 1.09, "pace: uphill slower than flat slower than gentle downhill (flat 1, +0.3 \(Player.paceFactor(slope: 0.3)), -0.2 \(Player.paceFactor(slope: -0.2)))")
+            check((-3...3).map { Player.paceFactor(slope: Float($0) * 0.5) }.allSatisfy { $0 >= Player.minPace - 1e-6 && $0 <= 1.081 }, "pace never drops below 55 % nor exceeds 108 %")
+            // On the real hill: walk straight uphill and straight downhill from the same spot and compare distances in 3 s.
+            let sc = Scene.makeWorld(device: device)
+            func walked(from p: SIMD3<Float>, yaw: Float, run: Bool) -> Float {
+                var pl = Player(position: p, yaw: yaw); pl.position.y = sc.groundHeight(x: p.x, z: p.z)
+                var inp = InputState(); inp.move = SIMD2(0, 1); inp.run = run
+                let start = SIMD2(pl.position.x, pl.position.z)
+                for _ in 0..<360 { pl.step(dt: Game.tick, input: inp, scene: sc) }
+                return length(SIMD2(pl.position.x, pl.position.z) - start)
+            }
+            let spot = SIMD3<Float>(60, 0, 80)                       // on the south-east slope of the hill
+            let toward = Layout.lighthouse - spot
+            let upYaw = atan2(toward.x, -toward.z)
+            let up = walked(from: spot, yaw: upYaw, run: false), down = walked(from: spot, yaw: upYaw + .pi, run: false)
+            let flat = walked(from: SIMD3(150, 0, 172) , yaw: Layout.spawnYaw, run: false)
+            check(up < down && up >= Player.walkSpeed * 3 * Player.minPace * 0.9, "walking uphill covers less ground in 3 s than walking down (up \(up) m, down \(down) m)")
+            check(up < Player.walkSpeed * 3 * 0.97, "the climb is visibly slower than the flat pace (\(up) m vs \(Player.walkSpeed * 3) m)")
+            _ = flat
+        }
         if name == "all" || name == "zoom" {
             check(abs(LookCloser.fov(zoom: 0) - LookCloser.baseFov) < 1e-6 && LookCloser.fov(zoom: 1) < LookCloser.baseFov * 0.45 && LookCloser.fov(zoom: 1) > 0.2, "zoom 0 is the normal 60 degrees; full zoom narrows to about 22 degrees")
             var z: Float = 0, steps = 0

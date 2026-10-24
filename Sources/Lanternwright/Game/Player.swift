@@ -13,6 +13,15 @@ struct Player {
     /// The sea is a soft wall: you may not wade where the ground is deeper than this below the surface.
     static let minGround: Float = -0.4
 
+    /// Walking pace by slope (rise over run in the direction of travel): steep climbs slow you toward 55 % of your pace, a gentle
+    /// descent speeds you up by a little (8 %), and the ground you can walk (see `maxSlope`) never stops you. Cadence follows
+    /// because the step length is a function of speed.
+    static let minPace: Float = 0.55
+    static func paceFactor(slope: Float) -> Float {
+        if slope >= 0 { return 1 - (1 - minPace) * min(slope / 0.8, 1) }
+        return 1 + 0.08 * min(-slope / 0.5, 1)
+    }
+
     var position: SIMD3<Float>
     var yaw: Float
     var pitch: Float = 0
@@ -73,8 +82,18 @@ struct Player {
         // Wish velocity in world space. Yaw 0 faces north (-Z); positive yaw turns toward +X.
         let forward = SIMD2(sin(yaw), -cos(yaw))
         let right = SIMD2(cos(yaw), sin(yaw))
-        let wishSpeed = input.run ? Player.runSpeed : Player.walkSpeed
-        let wish = (right * input.move.x + forward * input.move.y) * wishSpeed
+        var wishDir = right * input.move.x + forward * input.move.y
+        // Pace follows the ground ahead of the feet (1 m look-ahead along the direction of travel).
+        var pace: Float = 1
+        if length(wishDir) > 0.01 {
+            wishDir = normalize(wishDir) * min(length(wishDir), 1)
+            let dir = normalize(wishDir)
+            let g0 = scene.groundHeight(x: position.x, z: position.z)
+            let g1 = scene.groundHeight(x: position.x + dir.x, z: position.z + dir.y)
+            if g0 > Player.minGround || g1 > Player.minGround { pace = Player.paceFactor(slope: g1 - g0) }
+        }
+        let wishSpeed = (input.run ? Player.runSpeed : Player.walkSpeed) * pace
+        let wish = wishDir * wishSpeed
         // Exponential approach to the wish velocity: a soft start/stop (time constant ~ 0.1 s).
         velocity += (wish - velocity) * min(1, dt * 10)
         if length(velocity) < 0.01 && length(wish) == 0 { velocity = .zero }
