@@ -74,6 +74,14 @@ final class Game {
     /// Varrow only (most tests need nothing else).
     convenience init(scene: Scene) { self.init(scenes: [.varrow: scene]) }
 
+    /// Home-island atmosphere that answers to what you have done: the mist thins once you have been through the lens, and
+    /// a lighthouse beam fades in once the lamp is lit. Both ease slowly (the renderer reads them).
+    private(set) var mistScale: Float = 1
+    private(set) var beamAmount: Float = 0
+    static let thinMist: Float = 0.45
+    private var atmosphereTargets: (mist: Float, beam: Float) { (state.has("lensTouched") ? Game.thinMist : 1, state.has("lighthouseLit") ? 1 : 0) }
+    /// Jump the slow atmosphere easing to where it is heading (loading a save, `--state`).
+    func settleAtmosphere() { (mistScale, beamAmount) = atmosphereTargets }
     /// 0...1: how far the "look closer" zoom has eased in (right mouse button or Z).
     private(set) var zoomAmount: Float = 0
     var camera: Camera { var c = player.camera; c.fovY = LookCloser.fov(zoom: zoomAmount); return c }
@@ -242,6 +250,9 @@ final class Game {
         if player.step(dt: Game.tick, input: isTraveling ? InputState() : input, scene: scene) { footfalls += 1; lastFootWasRun = player.lastStepWasRun }
         animator.update(Game.tick)
         time += Game.tick
+        let target = atmosphereTargets
+        mistScale += (target.mist - mistScale) * min(1, Game.tick / 12)        // about 12 s to thin
+        beamAmount += (target.beam - beamAmount) * min(1, Game.tick / 4)       // about 4 s to fade in
         zoomAmount = LookCloser.ease(zoomAmount, held: input.zoom && !journal.isOpen && !isTraveling, dt: Game.tick)
         for p in puzzles { p.updateVisuals(time: time) }
         updateDiscoveries()

@@ -24,6 +24,10 @@ final class Renderer {
     var options: LaunchOptions
     /// Fixed clock for deterministic screenshots; nil = wall clock.
     var fixedTime: Float?
+    /// Home-island atmosphere driven by the game: 1 = full mist, lower after the first trip through the lens; beam 0...1 = lit lighthouse sweep.
+    var mistScale: Float = 1
+    var beamIntensity: Float = 0
+    static let beamRate: Float = 0.22      // radians per second: a full turn every ~29 s, each beam passing you every ~14 s
 
     private var frame = FrameUniforms()
     /// Draw calls issued last frame (opaque / shadow), for diagnostics.
@@ -627,10 +631,12 @@ final class Renderer {
                 }
             }
             // Mist sheets: same disc, alpha-blended, two layers at different heights with different noise.
+            let beamHeading = 0.6 + (fixedTime ?? Float(Date().timeIntervalSince(startTime))) * Renderer.beamRate
             enc.setRenderPipelineState(mistPipeline)
             for (height, strength, seed) in [(Float(1.6), Float(0.85), Float(0.0)), (Float(6.5), Float(0.5), Float(0.37))] {
                 var mu = ocean.uniforms(camera: camera, level: height)
-                mu.tint = SIMD4(strength, 0, 0, seed)
+                mu.tint = SIMD4(strength * mistScale, beamHeading, world == .varrow ? beamIntensity : 0, seed)
+                mu.emissive = SIMD4(Landmarks.lensPosition, 0)
                 enc.setVertexBytes(&mu, length: MemoryLayout<ObjectUniforms>.stride, index: 2)
                 enc.setFragmentBytes(&mu, length: MemoryLayout<ObjectUniforms>.stride, index: 2)
                 enc.drawIndexedPrimitives(type: .triangle, indexCount: ocean.mesh.indexCount, indexType: .uint32,

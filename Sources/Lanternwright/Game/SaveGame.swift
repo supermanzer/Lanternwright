@@ -136,6 +136,7 @@ extension Game {
             player = Player(position: p, yaw: s.yaw)
             player.pitch = s.pitch
         }
+        settleAtmosphere()
         simulate(seconds: 0.05)          // let visuals (lens glow, slab heights) settle
         _ = drainEvents()
     }

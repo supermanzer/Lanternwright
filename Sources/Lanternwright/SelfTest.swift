@@ -622,6 +622,24 @@ enum SelfTest {
             check(Set(["gw_mirrors", "gw_chimes", "gw_altar", "gw_end"]).isSubset(of: Set(both.persistentFlags)), "the Glass Wood's flags appear in the derived save list")
             check(!both.puzzles[1].handles("gw_return") && both.puzzles[1].handles("gw_mirror_0") && !both.puzzles[0].handles("gw_mirror_0"), "ownership: the return ring is the game's, mirrors are the Glass Wood's")
 
+            // 3f. The link changes the home island: the beam fades in once the lamp is lit; the mist thins after the first trip through the lens.
+            g = freshGame()
+            check(g.mistScale == 1 && g.beamAmount == 0, "a fresh island has full mist and no beam")
+            g.simulate(seconds: 10)
+            check(g.mistScale == 1 && g.beamAmount == 0, "nothing changes by itself")
+            g.puzzle.forceSolved(); g.simulate(seconds: 1)
+            check(g.beamAmount > 0.05 && g.beamAmount < 0.9 && g.mistScale == 1, "once the lamp is lit the beam fades in gradually (\(g.beamAmount)); the mist is unchanged")
+            g.simulate(seconds: 13)
+            check(g.beamAmount > 0.95 && g.mistScale == 1, "the beam reaches full strength; the mist is still untouched before the trip")
+            g.state.set("lensTouched"); g.simulate(seconds: 3)
+            check(g.mistScale < 1 && g.mistScale > Game.thinMist + 0.05, "after the first trip through the lens the mist begins to thin slowly (\(g.mistScale))")
+            g.simulate(seconds: 70)
+            check(abs(g.mistScale - Game.thinMist) < 0.01 && g.mistScale >= Game.thinMist - 1e-4, "the mist settles at its thinner level and never below it")
+            let atm = freshGame(); atm.puzzle.forceSolved(); atm.state.set("lensTouched"); atm.settleAtmosphere()
+            check(atm.mistScale == Game.thinMist && atm.beamAmount == 1, "loading a travelled, solved game starts with the island already changed")
+            let atm2 = freshGame(); atm2.restore(atm.makeSave())
+            check(atm2.mistScale == Game.thinMist && atm2.beamAmount == 1, "restoring a save settles the atmosphere instantly")
+
             // 4. The right order solves it and runs the whole sequence.
             g = freshGame()
             for id in LighthousePuzzle.order { g.puzzle.strike(id); g.simulate(seconds: 0.7) }

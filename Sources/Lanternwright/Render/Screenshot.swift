@@ -23,11 +23,13 @@ enum Screenshot {
     }
 
     /// `--state`: put the world into a puzzle state so it can be photographed.
-    static func applyState(_ name: String?, scenes scenesForState: [WorldKind: Scene]) {
-        guard let name else { return }
+    @discardableResult
+    static func applyState(_ name: String?, scenes scenesForState: [WorldKind: Scene]) -> Game? {
+        guard let name else { return nil }
         let g = Game(scenes: scenesForState)
         switch name {
         case "solved": g.puzzle.forceSolved()
+        case "travelled": g.puzzle.forceSolved(); g.state.set("lensTouched")
         case "mirrors": g.glass?.forceMirrorsSolved()
         case "chimes": g.glass?.forceChimesSolved()
         case "both": g.glass?.forceMirrorsSolved(); g.glass?.forceChimesSolved(); g.glass?.forceAltar()
@@ -37,7 +39,9 @@ enum Screenshot {
         default: FileHandle.standardError.write(Data("unknown --state \(name)\n".utf8))
         }
         g.simulate(seconds: 1.5)
+        g.settleAtmosphere()
         _ = g.drainEvents()
+        return g
     }
 
     /// `--bench N`: render N frames per viewpoint offscreen and report GPU time, so performance can be judged
@@ -95,7 +99,7 @@ enum Screenshot {
 
         renderer.fixedTime = 12
         if let w = options.world { renderer.world = w } else if options.viewName?.hasPrefix("gw-") == true { renderer.world = .glassWood }
-        applyState(options.state, scenes: renderer.scenes)
+        if let g = applyState(options.state, scenes: renderer.scenes) { renderer.mistScale = g.mistScale; renderer.beamIntensity = g.beamAmount }
         let camera = options.camera
             ?? options.viewName.flatMap(Viewpoints.named)
             ?? Viewpoints.named("overview")!

@@ -36,7 +36,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, MTKViewDelegate {
         let debugLaunch = options.state != nil || options.world != nil
         if !options.newGame, !debugLaunch, options.camera == nil, options.viewName == nil, let save = SaveStore.load() { game.restore(save) }
         // `--state solved` / `--world glass` jump straight to the interesting place for inspection. They never touch the save.
-        if options.state == "solved" { game.puzzle.forceSolved(); game.simulate(seconds: 0.1); _ = game.drainEvents() }
+        if options.state == "solved" || options.state == "travelled" { game.puzzle.forceSolved(); if options.state == "travelled" { game.state.set("lensTouched") }; game.settleAtmosphere(); game.simulate(seconds: 0.1); _ = game.drainEvents() }
         if options.state == "mirrors" || options.state == "both" { game.glass?.forceMirrorsSolved() }
         if options.state == "chimes" || options.state == "both" { game.glass?.forceChimesSolved() }
         if options.state == "both" { game.glass?.forceAltar() }
@@ -127,6 +127,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, MTKViewDelegate {
         if sampled.escapePressed && overlay.menuOpen { resumePlaying() }
         game.advance(now: now, input: sampled)
         renderer.world = game.world                                        // draw the world the player is in
+        renderer.mistScale = game.mistScale; renderer.beamIntensity = game.beamAmount
         syncOverlay(now: now)
         if now - lastSave > 15 { lastSave = now; writeSave() }          // autosave (position changes constantly)
         if saveDirty { writeSave() }                                    // progress events save immediately
