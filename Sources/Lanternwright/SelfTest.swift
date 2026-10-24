@@ -604,6 +604,20 @@ enum SelfTest {
             var mb = MeshBuilder(); mb.bevelBox(size: SIMD3(1, 1, 1), bevel: 0.1, surface: Surface(color: SIMD3(1, 1, 1), roughness: 0.5))
             check(mb.vertices.count > 0 && mb.vertices.allSatisfy { abs($0.position.x) <= 0.5 + 1e-5 && abs($0.position.y) <= 0.5 + 1e-5 && abs($0.position.z) <= 0.5 + 1e-5 }, "a bevelled box stays inside its nominal size (\(mb.vertices.count) vertices)")
         }
+        if name == "all" || name == "exposure" {
+            check(EyeAdaptation.target(averageLuminance: 0.18) == 1 && EyeAdaptation.target(averageLuminance: 0.01) > 1 && EyeAdaptation.target(averageLuminance: 5) < 1, "a mid-grey scene keeps its exposure; a dark scene brightens, a bright one darkens")
+            check((0..<40).allSatisfy { let l = pow(Float(10), Float($0) / 10 - 3); let t = EyeAdaptation.target(averageLuminance: l); return t >= 0.75 && t <= 1.35 }, "the correction is always within 0.75...1.35")
+            var eye = EyeAdaptation(); var secondsUp: Float = 0
+            while abs(eye.exposure - EyeAdaptation.target(averageLuminance: 0.01)) > 0.02 && secondsUp < 30 { eye.update(averageLuminance: 0.01, dt: 1 / 60); secondsUp += 1 / 60 }
+            var down = EyeAdaptation(); down.snap(averageLuminance: 0.01); var secondsDown: Float = 0
+            while abs(down.exposure - EyeAdaptation.target(averageLuminance: 5)) > 0.02 && secondsDown < 30 { down.update(averageLuminance: 5, dt: 1 / 60); secondsDown += 1 / 60 }
+            check(secondsUp > 1.5 && secondsUp < 8 && secondsDown < secondsUp && secondsDown > 0.2, "exposure converges, slower brightening (\(secondsUp) s) than darkening (\(secondsDown) s)")
+            var steady = EyeAdaptation(); steady.update(averageLuminance: 0.18, dt: 5)
+            check(steady.exposure == 1, "a steady mid-grey scene stays at exactly the authored exposure")
+            var frozen = EyeAdaptation(); frozen.update(averageLuminance: 0.01, dt: 0)
+            check(frozen.exposure == 1, "no time passing means no adaptation")
+            check(LaunchOptions.parse(["lanternwright", "--screenshot", "x.png", "--auto-exposure"]).autoExposure == true && LaunchOptions.parse(["lanternwright", "--screenshot", "x.png"]).autoExposure == false, "screenshots are fixed-exposure unless --auto-exposure is passed")
+        }
         if name == "all" || name == "zoom" {
             check(abs(LookCloser.fov(zoom: 0) - LookCloser.baseFov) < 1e-6 && LookCloser.fov(zoom: 1) < LookCloser.baseFov * 0.45 && LookCloser.fov(zoom: 1) > 0.2, "zoom 0 is the normal 60 degrees; full zoom narrows to about 22 degrees")
             var z: Float = 0, steps = 0

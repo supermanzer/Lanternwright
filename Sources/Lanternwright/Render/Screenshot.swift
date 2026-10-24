@@ -98,6 +98,7 @@ enum Screenshot {
         guard let target = renderer.device.makeTexture(descriptor: desc) else { throw Failure.texture }
 
         renderer.fixedTime = 12
+        renderer.autoExposure = options.autoExposure
         if let w = options.world { renderer.world = w } else if options.viewName?.hasPrefix("gw-") == true { renderer.world = .glassWood }
         if let g = applyState(options.state, scenes: renderer.scenes) { renderer.mistScale = g.mistScale; renderer.beamIntensity = g.beamAmount }
         let camera = options.camera

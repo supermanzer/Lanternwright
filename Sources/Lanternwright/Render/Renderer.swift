@@ -88,6 +88,16 @@ final class Renderer {
     private let bloomUpPipeline: MTLRenderPipelineState
     /// Half-resolution bloom chain; level i is (w, h) / 2^(i+1).
     private var bloomChain: [MTLTexture] = []
+    /// Eye adaptation: a 64 x 36 grid of mean log luminance, read back on the CPU one frame late.
+    private var lumaPipeline: MTLRenderPipelineState!
+    private var lumaTexture: MTLTexture?
+    private var lumaLock = NSLock()
+    private var measuredLuma: Float?
+    private var adaptation = EyeAdaptation()
+    private var lastAdaptTime: Float?
+    /// Windowed play adapts; screenshots keep the authored exposure unless `--auto-exposure`.
+    var autoExposure = true
+    var currentAutoExposure: Float { adaptation.exposure }
     private let blackTexture: MTLTexture
     static let bloomLevels = 5
 
@@ -272,6 +282,7 @@ final class Renderer {
             d.colorAttachments[0].pixelFormat = format
             return try! device.makeRenderPipelineState(descriptor: d)
         }
+        lumaPipeline = monoPipeline("luma", "luma_fragment", format: .rg32Float)
         aoPipeline = monoPipeline("ssao", "ssao_fragment", format: .r16Float)
         aoBlurPipeline = monoPipeline("ssao blur", "ssao_blur_fragment", format: .r16Float)
         aoApplyPipeline = monoPipeline("ssao apply", "ssao_apply_fragment", format: Renderer.hdrFormat)
@@ -366,7 +377,16 @@ final class Renderer {
         frame.sunDir = SIMD4(sun, 1)
         let sunT = wp.lightTint ?? Atmosphere.sunTransmittance(elevationDeg: wp.sunElevation)
         frame.sunColor = SIMD4(sunT, wp.sunIrradiance)   // rgb = transmittance (or a fixed tint), w = irradiance
-        frame.fogParams = SIMD4(wp.fogDensity, wp.fogFalloff, wp.exposure, wp.bloom)
+        var autoScale: Float = 1
+        if autoExposure {
+            lumaLock.lock(); let l = measuredLuma; lumaLock.unlock()
+            if let l {
+                if let last = lastAdaptTime { adaptation.update(averageLuminance: l, dt: min(max(t - last, 0), 0.25)) } else { adaptation.snap(averageLuminance: l) }
+                lastAdaptTime = t
+            }
+            autoScale = adaptation.exposure
+        }
+        frame.fogParams = SIMD4(wp.fogDensity, wp.fogFalloff, wp.exposure * autoScale, wp.bloom)
         frame.worldA = SIMD4(wp.starAmount, wp.lightDiskScale, wp.secondMoon?.radius ?? 0, wp.lightDiskRadius)
         if let m = wp.secondMoon {
             let d = Renderer.sunDirection(elevationDeg: m.elevation, azimuthDeg: m.azimuth)
@@ -443,6 +463,28 @@ final class Renderer {
         enc.setFragmentTexture(source, index: 0)
         enc.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
         enc.endEncoding()
+    }
+
+    /// Average the HDR image down to 64 x 36 log-luminance samples and read them back when the GPU is done (one frame late).
+    private func encodeLuma(_ cb: MTLCommandBuffer, hdr: MTLTexture) {
+        if lumaTexture == nil {
+            let d = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .rg32Float, width: 64, height: 36, mipmapped: false)
+            d.usage = [.renderTarget, .shaderRead]
+            d.storageMode = .shared
+            lumaTexture = device.makeTexture(descriptor: d)
+            lumaTexture?.label = "luma"
+        }
+        guard let target = lumaTexture else { return }
+        postPass(cb, "luma", lumaPipeline, source: hdr, target: target, load: .dontCare)
+        cb.addCompletedHandler { [weak self] _ in
+            var px = [Float](repeating: 0, count: 64 * 36 * 2)
+            target.getBytes(&px, bytesPerRow: 64 * 2 * MemoryLayout<Float>.stride, from: MTLRegionMake2D(0, 0, 64, 36), mipmapLevel: 0)
+            var num: Float = 0, den: Float = 0
+            for i in 0..<(64 * 36) { num += px[2 * i] * px[2 * i + 1]; den += px[2 * i + 1] }
+            let mean = num / max(den, 1e-4)
+            guard let self, mean.isFinite else { return }
+            self.lumaLock.lock(); self.measuredLuma = pow(2, mean); self.lumaLock.unlock()
+        }
     }
 
     private func encodeBloom(_ cb: MTLCommandBuffer) {
@@ -689,6 +731,7 @@ final class Renderer {
             }
         }
         encodeBloom(commandBuffer)
+        if autoExposure, let hdr = hdrTexture { encodeLuma(commandBuffer, hdr: hdr) }
 
         // 2. Composite (tonemap) into the target.
         let comp = MTLRenderPassDescriptor()

@@ -25,6 +25,8 @@ struct LaunchOptions {
     var width = 1600
     var height = 900
     var frames = 3
+    /// Eye adaptation is always on in the game; screenshots keep a fixed exposure (deterministic) unless this is set.
+    var autoExposure = false
     /// Sun elevation / azimuth in degrees (azimuth measured clockwise from north).
     var sunElevation: Float = LookDefaults.sunElevation
     var sunAzimuth: Float = LookDefaults.sunAzimuth
@@ -49,6 +51,7 @@ struct LaunchOptions {
       --view <name>                Viewpoint: dock overview summit shore islet; gw-arrival gw-overview gw-court gw-court-high gw-chimes gw-altar
       --camera x,y,z,yaw,pitch     Explicit camera (radians for yaw/pitch)
       --size WxH                   Output size for --screenshot (default 1600x900)
+      --auto-exposure              Let screenshots adapt their exposure to the scene (default: fixed)
       --frames N                   Frames rendered before capture (default 3)
       --sun elevDeg,azimuthDeg     Sun position (default 8,250)
       --debug <name>               Debug view: depth, shadow, albedo, ambient, cascade, ao, noao
@@ -94,6 +97,7 @@ struct LaunchOptions {
                 guard v.count == 2 else { fail("--sun expects elevationDeg,azimuthDeg") }
                 (o.sunElevation, o.sunAzimuth) = (v[0], v[1])
             case "--debug": o.debugView = next()
+            case "--auto-exposure": o.autoExposure = true
             case "--dump-audio": o.dumpAudioPath = next()
             case "--state": o.state = next()
             case "--world":

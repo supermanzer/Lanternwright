@@ -204,6 +204,26 @@ fragment float4 godrays_fragment(FullscreenOut in [[stage_in]],
     return float4(tint * (sum / float(N)) * falloff, 1.0);
 }
 
+// Eye adaptation input: each output pixel (a 64 x 36 grid) holds the mean log2 luminance of a 4 x 4 spread of the HDR image.
+// The sun disk is clamped so one bright pixel cannot dominate the average.
+fragment float4 luma_fragment(FullscreenOut in [[stage_in]],
+                              texture2d<float> src [[texture(0)]]) {
+    float2 cell = 1.0 / float2(64.0, 36.0);
+    float sum = 0.0;
+    // Metering favours the ground and middle of the frame (like looking at where you are going); the sky counts for little.
+    // With this, `sum` is scaled by the weight so the grid still holds a weighted mean (weight folded back in below).
+    for (int j = 0; j < 4; j++) {
+        for (int i = 0; i < 4; i++) {
+            float2 o = (float2(i, j) - 1.5) / 4.0 * cell;
+            float3 c = src.sample(bloomSampler, in.uv + o).rgb;
+            float lum = clamp(dot(c, float3(0.2126, 0.7152, 0.0722)), 1e-3, 30.0);
+            sum += log2(lum);
+        }
+    }
+    float w = mix(0.25, 1.0, smoothstep(0.15, 0.55, in.uv.y));         // uv.y = 0 at the top of the frame
+    return float4(sum / 16.0, w, 0.0, 1.0);
+}
+
 fragment float4 composite_fragment(FullscreenOut in [[stage_in]],
                                    texture2d<float> hdr [[texture(0)]],
                                    texture2d<float> bloom [[texture(1)]],
