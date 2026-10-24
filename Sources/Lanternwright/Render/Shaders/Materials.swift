@@ -6,7 +6,7 @@
 // (joints at 3-15 cm per pixel, pits at 2-7 cm, ...), and thresholds widen by `fpix`, so detail resolves smoothly instead of
 // crawling. We have no anti-aliasing; this is what stands in for it.
 //
-// Material ids (vertex normal.w): 5 masonry, 6 paint, 7 iron, 8 copper, 9 wood, 10 bark, 11 dressed stone, 12 deck plank, 13 timber.
+// Material ids (vertex normal.w): 5 masonry, 6 paint, 7 iron, 8 copper, 9 wood, 10 bark, 11 dressed stone, 12 deck plank, 13 timber, 14 carved glyph stone (dressed + carve_glyph), 15 paper, 16 pebble (dressed, no object emissive), 17 glass stone, 18 mirror, 19 pale metal, 20 carved glyph on glass stone.
 enum MaterialShaders {
     static let source = #"""
 struct MatOut {
@@ -48,6 +48,151 @@ inline float worley(float3 x) {
     }
     return sqrt(d);
 }
+// Cobbles (R06): a 2D cellular pattern of rounded pebbles with dark gaps. Two scales (cells of about 12 cm and 36 cm); a third of the
+// large cells become stones that replace the small pebbles beneath them. x = dome height 0..1 (0 in the gaps), y = body mask
+// (1 on a pebble, 0 in a gap), z = per-pebble hash, w = 1 on a large stone. Band-limited by `fpix` to its mean.
+inline float2 hash22w(float2 p) {
+    float3 q = fract(float3(p.xyx) * float3(0.1031, 0.1030, 0.0973));
+    q += dot(q, q.yzx + 33.33);
+    return fract((q.xx + q.yz) * q.zy);
+}
+inline float4 cobble_cell(float2 p, float seed) {
+    float2 i = floor(p), f = fract(p);
+    float d1 = 1e9, d2 = 1e9;
+    float2 id1 = float2(0.0);
+    for (int k = 0; k < 9; k++) {
+        float2 g = float2(float(k % 3) - 1.0, float(k / 3) - 1.0);
+        float2 o = hash22w(i + g + seed);
+        float2 r = g + 0.15 + 0.7 * o - f;                       // jitter kept off the cell edge so pebbles stay round
+        float d = dot(r, r);
+        if (d < d1) { d2 = d1; d1 = d; id1 = i + g + seed; }
+        else if (d < d2) { d2 = d; }
+    }
+    float bd = 0.5 * (sqrt(d2) - sqrt(d1));                       // distance to the nearest border (approximately)
+    float hid = hash22w(id1 + 17.0).x;
+    return float4(bd, hid, hash22w(id1 + 3.0).y, 0.0);
+}
+inline float4 cobbles(float2 P, float fpix) {
+    const float2x2 R = float2x2(float2(0.82, 0.57), float2(-0.57, 0.82));
+    float2 p = R * (P + 0.035 * float2(vnoise3(float3(P * 7.0, 1.0)) - 0.5, vnoise3(float3(P * 7.0, 5.0)) - 0.5) * 2.0);   // wobble the outlines: no straight facets
+    float4 a = cobble_cell(p * 8.5, 0.0);                        // pebbles, 12 cm
+    float4 b = cobble_cell(p * 2.9 + 40.0, 11.0);                // stones, 35 cm
+    bool big = b.y > 0.70;
+    float bdA = a.x / 8.5, bdB = b.x / 2.9;                      // borders in metres
+    float bd = big ? bdB : bdA;
+    float rad = big ? 0.045 : 0.03;                              // how far in from the border the dome reaches full height
+    float gap = big ? 0.012 : 0.008;
+    float soft = 0.004 + fpix * 0.8;
+    float body = smoothstep(gap - soft, gap + soft, bd);
+    float tt = saturate((bd - gap) / rad);
+    float dome = (1.0 - (1.0 - tt) * (1.0 - tt)) * (0.55 + 0.45 * (big ? b.z : a.z));      // round shoulder, flat crown (no crease along the medial axis)
+    dome = saturate(dome) * (big ? 1.0 : 0.8);
+    float w = fadeBelow(fpix, 0.012, 0.05);
+    float hid = big ? b.z : a.z;
+    return float4(mix(0.45, dome, w), mix(0.82, body, w), hid, big ? 1.0 : 0.0);
+}
+
+// ---- Carved glyphs (R06): the resonance stones' symbols are cut into the face (material 14). Signed-distance shapes in the stone's own
+// frame; the groove is 2 cm deep with a bevelled edge, the emissive sits on its floor and is found with a one-step parallax, so the
+// stone edge hides it at an angle. A lit rim runs round the bevel and a soft halo spills onto the stone (a fake local light).
+// obj.tint.w encodes the glyph: integer part = kind (0 tide, 1 wind, 2 summit), fraction = (scale - 1) / 2 (murals draw it 1.9x);
+// obj.emissive = glow colour and strength.
+inline float sd_box(float2 p, float2 h) { float2 d = abs(p) - h; return length(max(d, 0.0)) + min(max(d.x, d.y), 0.0); }
+inline float sd_rbox(float2 p, float2 h, float r) { return sd_box(p, h - r) - r; }
+inline float2 rot2(float2 p, float a) { float c = cos(a), s = sin(a); return float2(c * p.x - s * p.y, s * p.x + c * p.y); }
+inline float glyph_sdf(int kind, float2 q) {
+    if (kind == 0) {
+        float d = sd_rbox(q - float2(-0.07, 0.24), float2(0.31, 0.035), 0.02);
+        d = min(d, sd_rbox(q - float2(0.07, 0.0), float2(0.31, 0.035), 0.02));
+        return min(d, sd_rbox(q - float2(-0.07, -0.24), float2(0.31, 0.035), 0.02));
+    }
+    if (kind == 1) {
+        float d = sd_rbox(rot2(q - float2(-0.17, 0.0), -0.6), float2(0.035, 0.36), 0.02);
+        return min(d, sd_rbox(rot2(q - float2(0.17, 0.0), -0.6), float2(0.035, 0.36), 0.02));
+    }
+    return sd_rbox(q, float2(0.24), 0.03);
+}
+// Returns the glow (added to the colour); changes albedo, roughness and the normal in place.
+inline float3 carve_glyph(float3 Pl, float3 P, float3 faceN, float3 Vl, float4 tint, float4 em, thread float3& albedo, thread float& rough, thread float3& N) {
+    int kind = int(floor(tint.w + 0.01));
+    float scale = 1.0 + (tint.w - float(kind)) * 2.0;
+    float y0 = scale > 1.2 ? 1.7 : 1.55;
+    const float depth = 0.020;
+    float face = smoothstep(0.85, 0.95, faceN.z);                          // only the flat front, never the sides
+    if (face < 0.01) return float3(0.0);
+    float2 q0 = (Pl.xy - float2(0.0, y0)) / scale;
+    float d0 = glyph_sdf(kind, q0) * scale;
+    float2 q1 = (Pl.xy - Vl.xy / max(Vl.z, 0.2) * depth - float2(0.0, y0)) / scale;     // where the sight line meets the floor
+    float d1 = glyph_sdf(kind, q1) * scale;
+    float strength = em.w;
+    float3 col = em.rgb;
+    float aa = max(length(dfdx(P)), length(dfdy(P)));
+    float inside = 1.0 - smoothstep(-aa, aa, d0);
+    float bevel = smoothstep(-0.013, 0.0, d0) * inside;                     // 1 at the lip, 0 in the flat floor
+    float h = -depth * (1.0 - bevel) * inside;
+    N = normalize(mix(N, bump_normal(P, N, h, 1.0), face));
+    float floorSeen = inside * (1.0 - smoothstep(-0.002 - aa, 0.001 + aa, d1));
+    float3 glow = col * strength * floorSeen * 0.9;                         // the lit floor of the channel
+    float rim = inside * smoothstep(-0.016, -0.004, d0) * (1.0 - smoothstep(-0.004, 0.0, d0));
+    glow += col * min(strength, 3.0) * rim * 0.6;                           // thin lit rim on the bevel
+    float halo = exp(-max(d0, 0.0) / (0.05 * max(scale, 1.0))) * (1.0 - inside);
+    glow += col * albedo * 4.0 * min(strength, 3.0) * halo * 0.22;          // soft halo: light falling on the stone around it
+    albedo *= mix(1.0, 0.35, inside * (1.0 - floorSeen));                   // a groove wall in shade
+    rough = mix(rough, 0.45, inside);
+    // The rank marks (1 to 3 notches low on the arrival face: how near the sky this stone stands): carved, with a faint glint.
+    if (scale < 1.2) {
+        int rank = kind + 1;
+        float nd = 1e9;
+        for (int i = 0; i < 3; i++) if (i < rank) nd = min(nd, sd_rbox(Pl.xy - float2((float(i) - float(rank - 1) * 0.5) * 0.17, 0.62), float2(0.035, 0.15), 0.02));
+        float nin = 1.0 - smoothstep(-aa, aa, nd);
+        float nb = smoothstep(-0.01, 0.0, nd);
+        N = normalize(mix(N, bump_normal(P, N, -0.014 * (1.0 - nb) * nin, 1.0), face));
+        albedo *= mix(1.0, 0.4, nin);
+        glow += col * min(strength, 2.0) * nin * 0.12;
+    }
+    return glow * face;
+}
+
+// ---- Journal paper (R06): warm, foxed at the edges, with fibre grain, a crease and rows of hand-written-looking sepia strokes. The page is
+// a sheet about 0.34 x 0.46 m; Pl is its own frame (x across, z down the sheet). Ink is band-limited to a faint average density.
+inline MatOut mat_paper(float3 Pl, float3 P, float3 N, float fpix) {
+    MatOut o;
+    float fibreW = fadeBelow(fpix, 0.002, 0.01);
+    float fibre = mix(0.5, vnoise3(float3(Pl.x * 220.0, Pl.y * 3.0, Pl.z * 60.0)) * 0.6 + vnoise3(float3(Pl.x * 60.0, 0.0, Pl.z * 190.0)) * 0.4, fibreW);
+    float3 paper = float3(0.80, 0.70, 0.50) * (0.92 + 0.16 * fibre);
+    float2 e = float2(0.17 - abs(Pl.x), 0.23 - abs(Pl.z));
+    float edge = min(e.x, e.y);
+    float fox = fbm3(float3(Pl.x * 14.0, 0.0, Pl.z * 14.0) + 5.0);
+    paper *= 1.0 - 0.30 * smoothstep(0.045, 0.0, edge) - 0.16 * smoothstep(0.5, 0.8, fox);
+    paper = mix(paper, paper * float3(0.85, 0.72, 0.5), smoothstep(0.03, 0.0, edge) * 0.5);        // browned rim
+    // Ink rows
+    const float rowH = 0.0245;
+    float zr = (Pl.z + 0.205) / rowH;
+    float r = floor(zr);
+    float hr = hash13(float3(r, 3.0, 9.0)), hr2 = hash13(float3(r, 8.0, 2.0));
+    float wob = (vnoise3(float3(Pl.x * 26.0, r, 5.0)) - 0.5) * 0.0016;
+    float dz = (fract(zr) - 0.38) * rowH + wob;
+    float xEnd = 0.135 - 0.11 * step(0.72, hr2) * hr;                      // short last lines of paragraphs
+    bool inBlock = abs(Pl.x + 0.0) < 0.135 && Pl.x < xEnd && Pl.z > -0.205 && Pl.z < 0.19 && hr < 0.93;
+    float words = smoothstep(0.30, 0.38, vnoise3(float3(Pl.x * 24.0 + r * 5.3, r, 3.0)));
+    float letters = 0.55 + 0.45 * vnoise3(float3(Pl.x * 330.0 + r * 11.0, r, 1.0));
+    float thick = 0.00115 * (0.7 + 0.6 * vnoise3(float3(Pl.x * 90.0, r, 2.0)));
+    float stroke = (1.0 - smoothstep(thick * 0.6, thick * 1.3 + fpix, abs(dz))) * words * letters * (inBlock ? 1.0 : 0.0);
+    float inkW = fadeBelow(fpix, 0.0012, 0.006);
+    float cover = mix((inBlock ? 0.22 : 0.0) * words, stroke, inkW);
+    float3 ink = float3(0.18, 0.10, 0.045);
+    float3 albedo = mix(paper, ink, saturate(cover) * 0.9);
+    // The crease: a dark hairline with a pale shoulder either side.
+    float cz = Pl.z - 0.03;
+    albedo *= 1.0 - 0.28 * exp(-cz * cz / (2.0 * 0.0035 * 0.0035)) + 0.04 * exp(-cz * cz / (2.0 * 0.02 * 0.02));
+    o.albedo = albedo;
+    o.rough = 0.92;
+    o.metal = 0.0;
+    o.N = bump_normal(P, N, 0.0004 * (fibre - 0.5) - 0.0003 * cover, 1.0);
+    o.ao = mix(0.75, 1.0, smoothstep(0.0, 0.05, edge));
+    return o;
+}
+
 // Rounded pits: two scales (about 3x apart) so sizes vary, clustered by a slow mask, gated per block (`gate` 0..1).
 inline float pits_mask(float3 Pl, float seed, float gate, float fpix) {
     float microW = fadeBelow(fpix, 0.02, 0.08);
@@ -186,7 +331,8 @@ inline MatOut mat_paint(float3 Pl, float3 P, float3 N, float3 base, float fpix) 
         h -= 0.0015 * flake;
     }
     albedo *= 1.0 - 0.28 * smoothstep(0.58, 0.88, streak) * fadeBelow(fpix, 0.05, 0.3);          // drip stains
-    float crackLine = 1.0 - smoothstep(0.0, 0.004 + fpix * 0.7, abs(vnoise3(Pl * float3(3.2, 2.4, 3.2) + 21.0) - 0.5));
+    // Hairline cracks: the iso-line of a noise stretched hard along Y, so they run mostly down the wall (an unstretched iso-line closes into rings).
+    float crackLine = 1.0 - smoothstep(0.0, 0.004 + fpix * 0.7, abs(vnoise3(Pl * float3(3.2, 0.35, 3.2) + 21.0) - 0.5));
     float crack = crackLine * smoothstep(0.45, 0.85, vnoise3(Pl * 0.8 + 5.0)) * fadeBelow(fpix, 0.006, 0.03);
     albedo *= 1.0 - 0.4 * crack;
     h -= 0.003 * crack;
@@ -329,6 +475,35 @@ inline MatOut mat_timber(float3 P, float3 N, float3 base, float fpix) {
     return o;
 }
 
+// ---- Glass Wood materials (R06): cold frosted stone, true mirror, pale brushed metal. -----------------------------------------
+inline MatOut mat_glassstone(float3 Pl, float3 P, float3 N, float3 base, float fpix) {
+    MatOut o = mat_dressed(Pl + float3(0.0, 4.0, 0.0), P, N, base, fpix);                 // pits and chisel marks, no lichen
+    float sparkle = step(0.965, vnoise3(P * 80.0)) * fadeBelow(fpix, 0.01, 0.04);
+    o.albedo = o.albedo * float3(0.94, 0.96, 1.08) + float3(0.10, 0.12, 0.20) * sparkle;   // frost glints
+    o.rough = clamp(o.rough - 0.2, 0.3, 1.0);
+    return o;
+}
+inline MatOut mat_mirror(float3 P, float3 N, float fpix) {
+    MatOut o;
+    o.albedo = float3(0.93, 0.96, 1.0);
+    o.rough = 0.03;
+    o.metal = 1.0;
+    o.N = bump_normal(P, N, 0.0003 * vnoise3(P * 2.5), 1.0);                                 // a whisper of waviness so reflections are not CG-flat
+    o.ao = 1.0;
+    return o;
+}
+inline MatOut mat_palemetal(float3 P, float3 N, float3 base, float fpix) {
+    MatOut o;
+    float W = fadeBelow(fpix, 0.01, 0.05);
+    float streak = mix(0.5, vnoise3(float3(P.x * 4.0 + P.z * 4.0, P.y * 90.0, 1.0)), W);    // brushed along the horizontal
+    o.albedo = base * (0.88 + 0.24 * streak);
+    o.rough = 0.30 + 0.16 * streak;
+    o.metal = 1.0;
+    o.N = N;
+    o.ao = 1.0;
+    return o;
+}
+
 inline MatOut material_surface(int id, float3 Pl, float3 P, float3 N, float3 base, float rough, float fpix) {
     MatOut o;
     if (id == 5) o = mat_masonry(Pl, P, N, base, fpix);
@@ -336,7 +511,12 @@ inline MatOut material_surface(int id, float3 Pl, float3 P, float3 N, float3 bas
     else if (id == 7) o = mat_iron(P, N, base, fpix);
     else if (id == 8) o = mat_copper(P, N, fpix);
     else if (id == 9) o = mat_wood(Pl, P, N, base, fpix);
-    else if (id == 11) o = mat_dressed(Pl, P, N, base, fpix);
+    else if (id == 11 || id == 14) o = mat_dressed(Pl, P, N, base, fpix);
+    else if (id == 16) o = mat_dressed(Pl + float3(0.0, 4.0, 0.0), P, N, base, fpix);      // a loose pebble: no lichen at its "foot"
+    else if (id == 15) o = mat_paper(Pl, P, N, fpix);
+    else if (id == 17 || id == 20) o = mat_glassstone(Pl, P, N, base, fpix);
+    else if (id == 18) o = mat_mirror(P, N, fpix);
+    else if (id == 19) o = mat_palemetal(P, N, base, fpix);
     else if (id == 12) o = mat_plank(Pl, P, N, base, fpix);
     else if (id == 13) o = mat_timber(P, N, base, fpix);
     else o = mat_bark(P, N, base, fpix);

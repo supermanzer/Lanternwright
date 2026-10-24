@@ -139,10 +139,58 @@ enum PuzzleProps {
 
     static var lensRestPosition: SIMD3<Float> { Layout.isletCenter + SIMD3(0, 2.3, 0) }
 
+    /// One sheet of paper, shared by every journal page (both worlds): a 12 x 16 grid with a gentle tent over the fold (z = 0.03), a curled
+    /// corner, a wavy edge, a ragged outline and a torn corner, a thin underside so it is never see-through, and a pebble weighting the
+    /// far corner. Paper is material 15 (grain, foxing, sepia strokes and the crease are procedural); the pebble is material 16.
+    static func pageMesh() -> MeshBuilder {
+        let nx = 12, nz = 16
+        func height(_ x: Float, _ z: Float) -> Float {
+            let r = simd_length(SIMD2(x - 0.17, z - 0.23))
+            let curl = 0.035 * pow(max(0, 1 - r / 0.13), 2)
+            let curl2 = 0.012 * pow(max(0, 1 - simd_length(SIMD2(x + 0.17, z + 0.23)) / 0.09), 2)
+            let tent = 0.011 * max(0, 1 - abs(z - 0.03) / 0.21)
+            let edge = max(abs(x) / 0.17, abs(z) / 0.23)
+            let wave = 0.0035 * sin(z * 34 + x * 11) * max(0, edge - 0.55)
+            return -0.008 + curl + curl2 + tent + wave
+        }
+        var pos: [SIMD3<Float>] = [], nrm: [SIMD3<Float>] = []
+        for j in 0...nz {
+            for i in 0...nx {
+                var x = (Float(i) / Float(nx) - 0.5) * 0.34, z = (Float(j) / Float(nz) - 0.5) * 0.46
+                if i == 0 || i == nx || j == 0 || j == nz {                         // ragged edge: pull border vertices in by a few mm
+                    let k = Int32(j * 31 + i)
+                    let pull = 0.003 + 0.007 * Island.noise.unit(k, 71)
+                    x -= (x < 0 ? -1 : 1) * pull * (i == 0 || i == nx ? 1 : 0.3); z -= (z < 0 ? -1 : 1) * pull * (j == 0 || j == nz ? 1 : 0.3)
+                }
+                if i == 0 && j == nz { x += 0.05; z -= 0.05 }                        // a torn corner
+                pos.append(SIMD3(x, height(x, z), z))
+                let e: Float = 0.004
+                let n = simd_normalize(SIMD3(-(height(x + e, z) - height(x - e, z)) / (2 * e), 1, -(height(x, z + e) - height(x, z - e)) / (2 * e)))
+                nrm.append(n)
+            }
+        }
+        var idx: [UInt32] = []
+        for j in 0..<nz { for i in 0..<nx {
+            let a = UInt32(j * (nx + 1) + i), b = a + 1, c = a + UInt32(nx + 1), d = c + 1
+            idx += [a, c, d, a, d, b]
+        } }
+        let paper = Surface(color: SIMD3(0.85, 0.80, 0.66), roughness: 0.9, material: .paper)
+        var m = MeshBuilder()
+        m.addIndexed(positions: pos, indices: idx, smoothNormals: nrm, surface: paper, transform: matrix_identity_float4x4)
+        // Underside: the same sheet 1.5 mm lower, wound the other way.
+        let under = pos.map { $0 - SIMD3(0, 0.0015, 0) }
+        var rev: [UInt32] = []
+        for t in stride(from: 0, to: idx.count, by: 3) { rev += [idx[t], idx[t + 2], idx[t + 1]] }
+        m.addIndexed(positions: under, indices: rev, smoothNormals: nrm.map { -$0 }, surface: paper, transform: matrix_identity_float4x4)
+        // A small flattened pebble on the lower-left corner.
+        let pebble = Surface(color: SIMD3(0.46, 0.43, 0.38), roughness: 0.85, material: .pebble)
+        m.icosphere(subdivisions: 1, smooth: true, radius: { _ in 1 }, surface: pebble,
+                    transform: translation(SIMD3(-0.115, height(-0.115, -0.17) + 0.008, -0.17)) * rotationY(0.6) * scaling(SIMD3(0.034, 0.016, 0.024)))
+        return m
+    }
+
     static func addPages(_ scene: Scene, device: MTLDevice) {
-        var b = MeshBuilder()
-        b.box(size: SIMD3(0.34, 0.012, 0.46), surface: Surface(color: SIMD3(0.85, 0.80, 0.66), roughness: 0.9))
-        let mesh = b.build(device: device, label: "page")
+        let mesh = pageMesh().build(device: device, label: "page")
         for n in 1...4 {
             let p = pagePosition(n, terrain: scene.terrain)
             let yaw = Island.noise.unit(Int32(n), 17) * 2 * .pi

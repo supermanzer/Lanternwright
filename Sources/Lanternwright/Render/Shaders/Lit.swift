@@ -77,10 +77,15 @@ float3 terrain_surface(float3 P, float3 Ng, float pathW, float wet, float duff, 
     float sandMask = smoothstep(0.30, 0.70, wet * (1.0 - 0.7 * rockMask) + (micro - 0.5) * 0.30);
     albedo = mix(albedo, sand, sandMask);
 
-    float pfp = fpix * 6.0;                                                 // pixel size in this noise's cell units
-    float pebHalf = 0.05 + pfp * 0.9;
-    float pebble = mix(smoothstep(0.77 - pebHalf, 0.77 + pebHalf, vnoise3(P * 6.0)), 0.12, smoothstep(0.25, 0.9, pfp));
-    float3 earth = mix(glass ? float3(0.20, 0.20, 0.30) : float3(0.23, 0.165, 0.10), glass ? float3(0.46, 0.50, 0.62) : float3(0.38, 0.32, 0.25), pebble) * (0.85 + 0.3 * meso);
+    // Path surface (R06): Worley cobbles, rounded pebbles of varied size with dark soil-and-sand gaps, a few large stones, a tone and
+    // roughness per pebble. The dome heights feed the bump normal and darken the gaps (a little occlusion) below.
+    float4 cob = cobbles(P.xz, fpix);
+    float3 gapCol = (glass ? float3(0.11, 0.11, 0.19) : float3(0.15, 0.11, 0.075)) * (0.8 + 0.4 * meso);
+    float3 stoneA = glass ? float3(0.36, 0.40, 0.58) : float3(0.40, 0.34, 0.27);
+    float3 stoneB = glass ? float3(0.58, 0.52, 0.74) : float3(0.30, 0.285, 0.265);
+    float3 stoneCol = mix(stoneA, stoneB, cob.z) * (0.8 + 0.4 * fract(cob.z * 7.3)) * (0.9 + 0.2 * micro);
+    stoneCol *= mix(0.78, 1.08, cob.x);                                      // tops catch more light, flanks sit darker
+    float3 earth = mix(gapCol, stoneCol, cob.y) * (0.9 + 0.2 * meso);
     float pm = smoothstep(0.25, 0.75, pathW + (meso - 0.5) * 0.5);
     albedo = mix(albedo, earth, pm);
 
@@ -113,6 +118,7 @@ float3 terrain_surface(float3 P, float3 Ng, float pathW, float wet, float duff, 
     g -= dot(g, Ng) * Ng;
     float bumpStrength = mix(0.006, 0.09, rockiness) * (1.0 - 0.5 * sandMask) * (1.0 - smoothstep(0.04, 0.25, fpix));   // sand stays smooth: pits read as noise at a grazing sun
     N = normalize(Ng - g * bumpStrength);
+    N = normalize(mix(N, bump_normal(P, N, cob.x * (cob.w > 0.5 ? 0.04 : 0.022) * (1.0 - smoothstep(0.04, 0.2, fpix)), 1.0), pm));
     // Sand and flat pale ground carry faint wind ripples (crests across the wind, bent by a slow noise) so open flats are not a
     // smooth dome. They fade with the pixel footprint so distant sand does not shimmer.
     float rippleFade = (1.0 - smoothstep(0.06, 0.4, fpix)) * max(sandMask, 0.0) * smoothstep(0.6, 0.95, Ng.y);
@@ -125,6 +131,7 @@ float3 terrain_surface(float3 P, float3 Ng, float pathW, float wet, float duff, 
 
     rough = mix(mix(0.92, 0.85, rockMask), mix(0.95, 0.45, wetSand), sandMask);
     rough = mix(rough, 1.0, duffW);
+    rough = mix(rough, glass ? mix(0.5, 0.78, fract(cob.z * 5.1)) : mix(0.72, 0.95, fract(cob.z * 5.1)), pm * cob.y * 0.7);   // pebbles: a faint glassy sheen in the Glass Wood
     // Gloss varies at three scales (patches, clumps, grain) so no surface has one uniform sheen; damp ground is glossier.
     rough += ((macro - 0.5) * 0.16 + (meso - 0.5) * 0.20 + (micro - 0.5) * 0.12) * 0.6;
     rough -= 0.22 * damp;
@@ -229,6 +236,7 @@ fragment LitFragOut lit_fragment(LitOut in [[stage_in]],
 
     // Procedural prop materials (masonry, paint, iron, copper, wood, bark): albedo, roughness, metalness, bumped normal, AO.
     float metal = 0.0, matAO = 1.0;
+    float3 glyphGlow = float3(0.0);
     int mid = int(in.material + 0.5);
     if (mid >= 5) {
         // Position in the object's own frame (origin and orientation of its model matrix: the lighthouse axis, the dock's length, a stone's face).
@@ -236,6 +244,10 @@ fragment LitFragOut lit_fragment(LitOut in [[stage_in]],
         float3 Pl = transpose(Rm) * (in.worldPos - obj.model.columns[3].xyz);
         MatOut mo = material_surface(mid, Pl, in.worldPos, n, albedo, rough, fpix);
         albedo = mo.albedo; rough = mo.rough; metal = mo.metal; n = mo.N; matAO = mo.ao;
+        if (mid == 14 || mid == 20) {
+            float3 Vw = normalize(frame.cameraPos.xyz - in.worldPos);
+            glyphGlow = carve_glyph(Pl, in.worldPos, transpose(Rm) * normalize(in.normal), transpose(Rm) * Vw, obj.tint, obj.emissive, albedo, rough, n);
+        }
     }
 
     float3 V = normalize(frame.cameraPos.xyz - in.worldPos);
@@ -276,6 +288,7 @@ fragment LitFragOut lit_fragment(LitOut in [[stage_in]],
     // Diffuse ambient from the convolved irradiance map (see irradiance_fragment for why not a blurry LUT mip).
     float3 irradiance = irradianceMap.sample(skySampler, lut_uv(n)).rgb;
     float3 R = reflect(-V, n);
+    if (mid == 18) R = normalize(float3(R.x, max(R.y, 0.14), R.z));       // a mirror shows the sky, not the dark ground row of the table
     float3 envSpec = skyLUT.sample(skySampler, lut_uv(R), level(rough * 6.0)).rgb;
     float3 fEnv = F0 + (max(float3(1.0 - rough), F0) - F0) * pow(1.0 - NoV, 5.0);
     float3 ambient = (albedo * irradiance * (1.0 - metal) * (1.0 - dot(fEnv, float3(0.333))) + envSpec * fEnv) * matAO;
@@ -287,7 +300,7 @@ fragment LitFragOut lit_fragment(LitOut in [[stage_in]],
     float3 bounce = groundAlb * frame.sunColor.rgb * frame.sunColor.w * max(L.y, 0.10) / M_PI_F * 1.6;
     ambient += albedo * (1.0 - metal) * bounce * saturate(0.5 - 0.5 * n.y) * matAO;
 
-    float3 emissive = obj.emissive.rgb * obj.emissive.w;
+    float3 emissive = (mid == 14 || mid == 20) ? glyphGlow : (mid == 16 ? float3(0.0) : obj.emissive.rgb * obj.emissive.w * (mid == 15 ? 0.35 : 1.0));   // paper: the hover pulse is a hint, not a lamp
     float3 col = diffuse + specular + ambient + emissive;
     col = apply_fog(col, in.worldPos, frame, skyLUT);
     // Debug views (--debug shadow|albedo|ambient).

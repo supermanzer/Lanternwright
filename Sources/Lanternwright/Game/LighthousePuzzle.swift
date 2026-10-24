@@ -155,7 +155,7 @@ final class LighthousePuzzle: WorldPuzzle {
             let i = id.rawValue
             let l = lit[i]
             let idle = 0.3 + 0.18 * sin(time * 2.1 + Float(i) * 2)             // gentle pulse: "touch me" until used
-            scene.update("glyph_\(id.name)") { $0.uniforms.emissive.w = idle * (1 - l) + 5.0 * l }
+            scene.update("stone_\(id.name)_face") { $0.uniforms.emissive.w = idle * (1 - l) + 5.0 * l }
             let bob = l * 0.07 * sin(time * 1.6 + Float(i))
             let rise = 0.3 * l + bob
             let capPos = Landmarks.capstoneBase(id) + SIMD3(0, rise, 0)

@@ -39,35 +39,64 @@ enum GlassPuzzleProps {
         translation(mirrorPosition(k) + SIMD3(0, 1.25, 0)) * rotationY(-turns * .pi / 4)
     }
 
+    /// The Glass Wood's own material language: cold frosted stone (material 17), pale brushed metal (19), true mirrors (18).
+    static func frost(_ tone: Float = 1) -> Surface { Surface(color: SIMD3(0.26, 0.27, 0.39) * tone, roughness: 0.6, material: .glassStone) }
+    static let pale = Surface(color: SIMD3(0.62, 0.65, 0.76), roughness: 0.35, material: .paleMetal)
+
     static func addMirrorCourt(_ scene: Scene, device: MTLDevice) {
-        let stone = Surface(color: SIMD3(0.20, 0.21, 0.30), roughness: 0.45)
+        let stone = frost()
         var fixed = MeshBuilder()
 
-        // Floor tiles mark the 5 x 5 grid so the court reads as a board.
+        // The court floor: inlaid slabs on a 5 x 5 grid with real joints between them, each a little different in tone and height; the
+        // middle of the court is lighter (worn smooth by feet), and a raised kerb frames the whole board.
+        let half = Float(MirrorCourt.size) * MirrorCourt.cell / 2
         for c in 0..<MirrorCourt.size {
             for r in 0..<MirrorCourt.size {
                 let w = MirrorCourt.world((c, r))
-                let shade: Float = (c + r) % 2 == 0 ? 1.0 : 0.78
-                fixed.box(size: SIMD3(MirrorCourt.cell - 0.35, 0.06, MirrorCourt.cell - 0.35),
-                          surface: Surface(color: SIMD3(0.24, 0.25, 0.38) * shade, roughness: 0.35),
-                          transform: translation(w - GlassLayout.mirrorCourt + SIMD3(0, 0.0, 0)))
+                let k = Int32(c * 7 + r * 13)
+                let centre = simd_length(SIMD2(w.x - GlassLayout.mirrorCourt.x, w.z - GlassLayout.mirrorCourt.z)) / half
+                let tone: Float = ((c + r) % 2 == 0 ? 1.0 : 0.80) * (0.92 + 0.16 * Island.noise.unit(k, 5)) * (1.12 - 0.25 * min(centre, 1))
+                let lift = (Island.noise.unit(k, 6) - 0.5) * 0.006
+                fixed.chamferBox(size: SIMD3(MirrorCourt.cell - 0.14, 0.07, MirrorCourt.cell - 0.14), chamfer: 0.025, surface: frost(tone),
+                                 transform: translation(w - GlassLayout.mirrorCourt + SIMD3(0, lift, 0)) * rotationY((Island.noise.unit(k, 7) - 0.5) * 0.006))
             }
         }
-        // Mirror posts and pane frames.
+        for sgn: Float in [-1, 1] {
+            fixed.chamferBox(size: SIMD3(half * 2 + 0.9, 0.12, 0.45), chamfer: 0.04, surface: frost(0.85), transform: translation(SIMD3(0, 0.02, sgn * (half + 0.22))))
+            fixed.chamferBox(size: SIMD3(0.45, 0.12, half * 2 + 0.9), chamfer: 0.04, surface: frost(0.85), transform: translation(SIMD3(sgn * (half + 0.22), 0.02, 0)))
+        }
+        // Mirror stands: a base plate with a ring of eight detent marks (one per quarter-eighth turn: the mirror turns in 45 degree
+        // steps), a post with a pivot collar. The turning part (see `plateMesh`) carries a pointer that sweeps over the marks.
         for k in 0..<3 {
             let p = mirrorPosition(k) - GlassLayout.mirrorCourt
-            fixed.cylinder(radiusTop: 0.10, radiusBottom: 0.16, height: 0.55, segments: 8, smooth: false, surface: stone, transform: translation(p))
+            fixed.chamferBox(size: SIMD3(1.5, 0.10, 1.5), chamfer: 0.03, surface: frost(1.1), transform: translation(p + SIMD3(0, 0.08, 0)))
+            fixed.torus(major: 0.58, minor: 0.018, segments: 24, sides: 6, surface: pale, transform: translation(p + SIMD3(0, 0.135, 0)))
+            for d in 0..<8 {
+                let a = Float(d) * .pi / 4
+                fixed.chamferBox(size: SIMD3(0.07, 0.02, 0.16), chamfer: 0.005, surface: pale,
+                                 transform: translation(p + SIMD3(cos(a) * 0.58, 0.14, sin(a) * 0.58)) * rotationY(-a))
+            }
+            fixed.cylinder(radiusTop: 0.10, radiusBottom: 0.16, height: 0.55, segments: 10, smooth: true, surface: stone, transform: translation(p + SIMD3(0, 0.13, 0)))
+            fixed.torus(major: 0.17, minor: 0.04, segments: 18, sides: 6, surface: pale, transform: translation(p + SIMD3(0, 0.60, 0)))
+            // The pane's stand: a plinth, frame members with chamfers and pins.
             let q = panePosition(k) - GlassLayout.mirrorCourt
             let yaw = rotationY(paneYaw[k])
+            fixed.chamferBox(size: SIMD3(2.7, 0.12, 0.55), chamfer: 0.03, surface: frost(1.05), transform: translation(q + SIMD3(0, 0.04, 0)) * yaw)
             for dx: Float in [-1.05, 1.05] {
-                fixed.box(size: SIMD3(0.16, 2.5, 0.2), surface: stone, transform: translation(q + SIMD3(0, 1.25, 0)) * yaw * translation(SIMD3(dx, 0, 0)))
+                fixed.chamferBox(size: SIMD3(0.16, 2.5, 0.2), chamfer: 0.03, surface: stone, transform: translation(q + SIMD3(0, 1.25, 0)) * yaw * translation(SIMD3(dx, 0, 0)))
             }
-            fixed.box(size: SIMD3(2.3, 0.16, 0.2), surface: stone, transform: translation(q + SIMD3(0, 2.5, 0)) * yaw)
-            fixed.box(size: SIMD3(2.3, 0.16, 0.2), surface: stone, transform: translation(q + SIMD3(0, 0.05, 0)) * yaw)
+            fixed.chamferBox(size: SIMD3(2.3, 0.16, 0.2), chamfer: 0.03, surface: stone, transform: translation(q + SIMD3(0, 2.5, 0)) * yaw)
+            fixed.chamferBox(size: SIMD3(2.3, 0.16, 0.2), chamfer: 0.03, surface: stone, transform: translation(q + SIMD3(0, 0.15, 0)) * yaw)
+            for (dx, dy): (Float, Float) in [(-1.05, 0.5), (1.05, 0.5), (-1.05, 2.0), (1.05, 2.0)] {
+                fixed.cylinder(radiusTop: 0.035, radiusBottom: 0.035, height: 0.03, segments: 8, smooth: true, surface: pale,
+                               transform: translation(q + SIMD3(0, dy, 0)) * yaw * translation(SIMD3(dx, 0, 0.1)) * rotationX(.pi / 2))
+            }
         }
-        // Receiver pedestal.
+        // Receiver pedestal: stepped, with an inlaid ring.
         let rp = MirrorCourt.world(MirrorCourt.receiver) - GlassLayout.mirrorCourt
-        fixed.cylinder(radiusTop: 0.45, radiusBottom: 0.8, height: 1.0, segments: 8, smooth: false, surface: stone, transform: translation(rp))
+        fixed.lathe(profile: [SIMD2(0.95, 0), SIMD2(0.95, 0.14), SIMD2(0.80, 0.14), SIMD2(0.80, 0.24), SIMD2(0.52, 0.34), SIMD2(0.46, 0.95), SIMD2(0.60, 0.95), SIMD2(0.60, 1.02), SIMD2(0, 1.02)],
+                    segments: 16, smooth: false, surface: stone, transform: translation(rp))
+        fixed.torus(major: 0.70, minor: 0.02, segments: 24, sides: 6, surface: pale, transform: translation(rp + SIMD3(0, 0.245, 0)))
         scene.add("gw_court", mesh: fixed.build(device: device, label: "court"), uniforms: ObjectUniforms(model: translation(GlassLayout.mirrorCourt)))
 
         // The moon-prism: a tall glowing crystal that always fires east.
@@ -77,19 +106,25 @@ enum GlassPuzzleProps {
         scene.add("gw_source", mesh: prism.build(device: device, label: "prism"),
                   uniforms: ObjectUniforms(model: translation(MirrorCourt.world(MirrorCourt.source)), tint: SIMD4(1, 1, 1, 1), emissive: SIMD4(moonlight, 3.5)))
 
-        // Mirrors (they turn) and panes (they change colour).
+        // Mirrors (they turn) and panes (they change colour). The mirror is a real mirror: a bevelled metal plate (material 18) that reflects
+        // the sky, in a pale metal frame with corner bolts, on a yoke with a collar and a pointer that sweeps the base's detent marks.
         var plate = MeshBuilder()
-        plate.box(size: SIMD3(1.9, 1.7, 0.06), surface: Surface(color: SIMD3(0.9, 0.95, 1.0), roughness: 0.02, material: .emissiveGlass))
-        for sx: Float in [-0.97, 0.97] { plate.box(size: SIMD3(0.07, 1.78, 0.12), surface: stone, transform: translation(SIMD3(sx, 0, 0))) }
-        plate.box(size: SIMD3(2.0, 0.07, 0.12), surface: stone, transform: translation(SIMD3(0, 0.88, 0)))
-        plate.box(size: SIMD3(2.0, 0.07, 0.12), surface: stone, transform: translation(SIMD3(0, -0.88, 0)))
+        plate.chamferBox(size: SIMD3(1.84, 1.64, 0.05), chamfer: 0.02, surface: Surface(color: SIMD3(0.93, 0.96, 1.0), roughness: 0.03, material: .mirror))
+        for sx: Float in [-0.97, 0.97] { plate.chamferBox(size: SIMD3(0.09, 1.8, 0.12), chamfer: 0.02, surface: pale, transform: translation(SIMD3(sx, 0, 0))) }
+        for sy: Float in [-0.885, 0.885] { plate.chamferBox(size: SIMD3(2.04, 0.09, 0.12), chamfer: 0.02, surface: pale, transform: translation(SIMD3(0, sy, 0))) }
+        for (bx, by): (Float, Float) in [(-0.97, -0.885), (0.97, -0.885), (-0.97, 0.885), (0.97, 0.885)] {
+            plate.cylinder(radiusTop: 0.03, radiusBottom: 0.03, height: 0.03, segments: 8, smooth: true, surface: pale, transform: translation(SIMD3(bx, by, 0.06)) * rotationX(.pi / 2))
+        }
+        plate.cylinder(radiusTop: 0.04, radiusBottom: 0.04, height: 0.45, segments: 8, smooth: true, surface: pale, transform: translation(SIMD3(0, -1.25, 0)))      // yoke stem
+        plate.cylinder(radiusTop: 0.20, radiusBottom: 0.20, height: 0.06, segments: 14, smooth: true, surface: pale, transform: translation(SIMD3(0, -1.0, 0)))
+        plate.chamferBox(size: SIMD3(0.62, 0.03, 0.06), chamfer: 0.008, surface: pale, transform: translation(SIMD3(0.4, -1.0, 0)))                            // the pointer
         let plateMesh = plate.build(device: device, label: "mirror")
         var pane = MeshBuilder()
-        pane.box(size: SIMD3(1.9, 2.3, 0.07), surface: Surface(color: SIMD3(0.32, 0.32, 0.32), roughness: 0.04, material: .emissiveGlass))
+        pane.chamferBox(size: SIMD3(1.9, 2.3, 0.07), chamfer: 0.02, surface: Surface(color: SIMD3(0.32, 0.32, 0.32), roughness: 0.04, material: .emissiveGlass))
         let paneMesh = pane.build(device: device, label: "pane")
         for k in 0..<3 {
             scene.add("gw_mirror_\(k)", mesh: plateMesh,
-                      uniforms: ObjectUniforms(model: mirrorModel(k, turns: Float(MirrorCourt.initialMirrors[k])), tint: SIMD4(1, 1, 1, 1), emissive: SIMD4(0.5, 0.6, 0.8, 0.5)))
+                      uniforms: ObjectUniforms(model: mirrorModel(k, turns: Float(MirrorCourt.initialMirrors[k])), tint: SIMD4(1, 1, 1, 1), emissive: SIMD4(0.5, 0.6, 0.8, 0.05)))
             let col = color(MirrorCourt.initialPanes[k])
             scene.add("gw_pane_\(k)", mesh: paneMesh,
                       uniforms: ObjectUniforms(model: translation(panePosition(k) + SIMD3(0, 1.3, 0)) * rotationY(paneYaw[k]), tint: SIMD4(col, 1), emissive: SIMD4(col, 0.7)))
@@ -115,16 +150,26 @@ enum GlassPuzzleProps {
         }
 
         // The mural: three glyphs in the order the beam must meet its glass, on a wall facing the way the player arrives.
-        let m = GlassLayout.mirrorCourt + SIMD3(0, 0, 12.5)
+        addMural(scene, name: "gw_mural", model: translation(GlassLayout.mirrorCourt + SIMD3(0, 0, 12.5)), device: device)
+    }
+
+    /// A mural of the three resonance glyphs, as on the Varrow stones: a framed wall of frosted stone with three panels whose glyphs are
+    /// carved channels with a glowing floor (material 20, the same shader as the stones). The wall faces local +Z.
+    static func addMural(_ scene: Scene, name: String, model: float4x4, device: MTLDevice) {
         var wall = MeshBuilder()
-        wall.box(size: SIMD3(9, 3.4, 0.6), surface: Surface(color: SIMD3(0.12, 0.12, 0.2), roughness: 0.4), transform: translation(SIMD3(0, 1.7, 0)))
-        wall.box(size: SIMD3(9.6, 0.3, 0.9), surface: stone, transform: translation(SIMD3(0, 3.5, 0)))
-        wall.box(size: SIMD3(9.6, 0.3, 0.9), surface: stone, transform: translation(SIMD3(0, 0.1, 0)))
-        scene.add("gw_mural", mesh: wall.build(device: device, label: "mural"), uniforms: ObjectUniforms(model: translation(m)))
+        wall.chamferBox(size: SIMD3(9, 3.4, 0.6), chamfer: 0.05, surface: frost(0.8), transform: translation(SIMD3(0, 1.7, 0)))
+        wall.chamferBox(size: SIMD3(9.6, 0.3, 0.9), chamfer: 0.06, surface: frost(1.05), transform: translation(SIMD3(0, 3.5, 0)))
+        wall.chamferBox(size: SIMD3(9.6, 0.3, 0.9), chamfer: 0.06, surface: frost(1.05), transform: translation(SIMD3(0, 0.1, 0)))
+        for x: Float in [-4.45, -1.45, 1.45, 4.45] {                                   // pilasters between the panels
+            wall.chamferBox(size: SIMD3(0.32, 3.4, 0.78), chamfer: 0.05, surface: frost(1.1), transform: translation(SIMD3(x, 1.7, 0.06)))
+        }
+        scene.add(name, mesh: wall.build(device: device, label: name), uniforms: ObjectUniforms(model: model))
         for (i, id) in StoneID.allCases.enumerated() {
-            let g = Landmarks.glyphMesh(id, z: 0.33, y: 1.7, scale: 1.9)
-            scene.add("gw_mural_glyph_\(i)", mesh: g.build(device: device, label: "mural glyph"),
-                      uniforms: ObjectUniforms(model: translation(m + SIMD3((Float(i) - 1) * 2.9, 0, 0)), tint: SIMD4(id.color, 1), emissive: SIMD4(id.color, 0.9)))
+            var panel = MeshBuilder()
+            panel.chamferBox(size: SIMD3(2.7, 2.7, 0.12), chamfer: 0.04, surface: Surface(color: SIMD3(0.20, 0.21, 0.32), roughness: 0.6, material: .glyphGlass),
+                             transform: translation(SIMD3(0, 1.7, 0.33)))
+            scene.add("\(name)_glyph_\(i)", mesh: panel.build(device: device, label: "mural panel"),
+                      uniforms: ObjectUniforms(model: model * translation(SIMD3((Float(i) - 1) * 2.9, 0, 0)), tint: SIMD4(1, 1, 1, Float(id.rawValue) + 0.45), emissive: SIMD4(id.color, 0.9)))
         }
     }
 
@@ -142,9 +187,7 @@ enum GlassPuzzleProps {
     }
 
     static func addPages(_ scene: Scene, device: MTLDevice) {
-        var b = MeshBuilder()
-        b.box(size: SIMD3(0.34, 0.012, 0.46), surface: Surface(color: SIMD3(0.85, 0.80, 0.66), roughness: 0.9))
-        let mesh = b.build(device: device, label: "page")
+        let mesh = PuzzleProps.pageMesh().build(device: device, label: "page")
         for n in 5...8 {
             let p = pagePosition(n)
             scene.add("page_\(n)", mesh: mesh,
@@ -179,11 +222,12 @@ enum GlassPuzzleProps {
     }
 
     static func addChimeRing(_ scene: Scene, device: MTLDevice) {
-        let stone = Surface(color: SIMD3(0.20, 0.21, 0.30), roughness: 0.45)
+        let stone = frost()
         let c = GlassLayout.chimeRing
         var fixed = MeshBuilder()
-        fixed.cylinder(radiusTop: chimeRadius + 2.5, radiusBottom: chimeRadius + 2.7, height: 0.12, segments: 40, smooth: false,
-                       surface: Surface(color: SIMD3(0.20, 0.21, 0.32), roughness: 0.35))
+        fixed.lathe(profile: [SIMD2(chimeRadius + 2.7, 0), SIMD2(chimeRadius + 2.7, 0.1), SIMD2(chimeRadius + 2.45, 0.13), SIMD2(0, 0.13)], segments: 40, smooth: false, surface: frost(1.0))
+        fixed.torus(major: chimeRadius + 1.7, minor: 0.04, segments: 64, sides: 6, surface: pale, transform: translation(SIMD3(0, 0.135, 0)))       // an inlaid ring
+        fixed.torus(major: chimeRadius - 1.3, minor: 0.03, segments: 64, sides: 6, surface: pale, transform: translation(SIMD3(0, 0.135, 0)))
         for k in 0..<chimeCount {
             let p = chimePosition(k) - c
             fixed.cylinder(radiusTop: 0.5, radiusBottom: 0.65, height: 0.4, segments: 6, smooth: false, surface: stone, transform: translation(p + SIMD3(0, 0.1, 0)))
@@ -203,18 +247,7 @@ enum GlassPuzzleProps {
 
         // The mural for this puzzle: the same three glyphs in the same order, on a wall beside the path just before the ring,
         // turned to face the player as they walk in from the north-west (it must show its FACE, not its back).
-        let m = c + SIMD3(-6, 0, -12)
-        var wall = MeshBuilder()
-        wall.box(size: SIMD3(9, 3.4, 0.6), surface: Surface(color: SIMD3(0.12, 0.12, 0.2), roughness: 0.4), transform: translation(SIMD3(0, 1.7, 0)))
-        wall.box(size: SIMD3(9.6, 0.3, 0.9), surface: stone, transform: translation(SIMD3(0, 3.5, 0)))
-        wall.box(size: SIMD3(9.6, 0.3, 0.9), surface: stone, transform: translation(SIMD3(0, 0.1, 0)))
-        let face = rotationY(-.pi / 4)                                     // local +Z -> south-west: toward the path
-        scene.add("gw_chime_mural", mesh: wall.build(device: device, label: "chime mural"), uniforms: ObjectUniforms(model: translation(m) * face))
-        for (i, id) in StoneID.allCases.enumerated() {
-            let g = Landmarks.glyphMesh(id, z: 0.33, y: 1.7, scale: 1.9)
-            scene.add("gw_chime_mural_glyph_\(i)", mesh: g.build(device: device, label: "mural glyph"),
-                      uniforms: ObjectUniforms(model: translation(m) * face * translation(SIMD3((Float(i) - 1) * 2.9, 0, 0)), tint: SIMD4(id.color, 1), emissive: SIMD4(id.color, 0.9)))
-        }
+        addMural(scene, name: "gw_chime_mural", model: translation(c + SIMD3(-6, 0, -12)) * rotationY(-.pi / 4), device: device)      // local +Z -> south-west: toward the path
 
         // The light released when the chimes are solved: an amber/cyan column from the centre of the ring.
         var column = MeshBuilder()
@@ -235,12 +268,23 @@ enum GlassPuzzleProps {
     }
 
     static func addAltar(_ scene: Scene, device: MTLDevice) {
-        let stone = Surface(color: SIMD3(0.20, 0.21, 0.30), roughness: 0.45)
+        let stone = frost()
         let a = GlassLayout.altar
+        // The dais: three broad steps up to a carved rim; a ring of pale inlay lozenges, and a thin inlaid ring that glows faintly.
         var dais = MeshBuilder()
-        dais.cylinder(radiusTop: 6.2, radiusBottom: 6.6, height: 0.35, segments: 24, smooth: false, surface: Surface(color: SIMD3(0.18, 0.19, 0.30), roughness: 0.35))
-        dais.cylinder(radiusTop: 5.2, radiusBottom: 5.6, height: 0.2, segments: 24, smooth: false, surface: stone, transform: translation(SIMD3(0, 0.35, 0)))
+        dais.lathe(profile: [SIMD2(6.7, 0), SIMD2(6.7, 0.18), SIMD2(6.1, 0.18), SIMD2(6.1, 0.37), SIMD2(5.5, 0.37), SIMD2(5.5, 0.55), SIMD2(0, 0.55)],
+                   segments: 48, smooth: false, surface: frost(0.95))
+        for k in 0..<24 {
+            let ang = Float(k) / 24 * 2 * .pi
+            dais.chamferBox(size: SIMD3(0.5, 0.025, 0.14), chamfer: 0.008, surface: pale,
+                            transform: translation(SIMD3(cos(ang) * 5.05, 0.555, sin(ang) * 5.05)) * rotationY(-ang))
+        }
+        dais.torus(major: 4.6, minor: 0.05, segments: 64, sides: 6, surface: pale, transform: translation(SIMD3(0, 0.55, 0)))
         scene.add("gw_altar_dais", mesh: dais.build(device: device, label: "altar dais"), uniforms: ObjectUniforms(model: translation(a)))
+        var glowRing = MeshBuilder()
+        glowRing.torus(major: 4.0, minor: 0.035, segments: 64, sides: 6, surface: Surface(color: SIMD3(1, 1, 1), roughness: 0.3), transform: translation(SIMD3(0, 0.56, 0)))
+        scene.add("gw_altar_glow", mesh: glowRing.build(device: device, label: "altar glow"),
+                  uniforms: ObjectUniforms(model: translation(a), tint: SIMD4(0.55, 0.72, 1.0, 1), emissive: SIMD4(0.55, 0.72, 1.0, 0.7)))
 
         // The two pedestals start sunk in the ground and rise when both puzzles are solved.
         for which in 0..<2 {

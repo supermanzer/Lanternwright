@@ -275,6 +275,14 @@ struct MeshBuilder {
         let ri = width / 2, ro = ri + bw * 1.4
         let centre = SIMD3<Float>(0, spring, 0)
         let gap: Float = 0.012
+        // Mortar: a dark backing course in the same wedges, a little shallower, so the joints between voussoirs read as dark mortar
+        // and not as slits of the lit wall behind.
+        var mortar = surface
+        mortar.color = surface.color * 0.22
+        for i in 0..<n {
+            let a0 = .pi - Float(i) / Float(n) * .pi, a1 = .pi - Float(i + 1) / Float(n) * .pi
+            ringBlock(centre: centre, a0: a0, a1: a1, r0: ri + 0.01, r1: ro - 0.01, z0: -depth / 2 + 0.02, z1: depth / 2 - 0.045, surface: mortar, transform: transform)
+        }
         for i in 0..<n {
             let a0 = .pi - Float(i) / Float(n) * .pi - gap, a1 = .pi - Float(i + 1) / Float(n) * .pi + gap
             let key = i == n / 2

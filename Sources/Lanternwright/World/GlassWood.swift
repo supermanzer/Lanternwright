@@ -67,6 +67,7 @@ enum GlassWood {
         addArrival(scene, device: device)
         addForest(scene, device: device)
         addLamps(scene, device: device)
+        addPathTufts(scene, device: device)
         GlassPuzzleProps.populate(scene, device: device)
         return scene
     }
@@ -120,17 +121,76 @@ enum GlassWood {
         let sites = PoissonDisc.sample(min: SIMD2(-290, -380), max: SIMD2(260, 260), rMin: 7, rMax: 24,
                                        radius: { 24 - 17 * density($0.x, $0.y) }, accept: { allowed($0.x, $0.y) }, seed: 0xC0FFEE)
         let spots = sites.map { (x: $0.x, z: $0.y, rand: Island.noise.unit(Int32($0.x * 3.1), Int32($0.y * 3.1))) }
-        var batch = Island.Batcher()
-        var count = 0
-        for s in spots.prefix(220) {
+        // Like the conifers: each tree is one of a few variants at three LODs, merged per 60 m cell; the cell shows the LOD for its distance.
+        let cell: Float = 60
+        var cells = [[String: MeshBuilder]](repeating: [:], count: 3)
+        for (count, s) in spots.prefix(220).enumerated() {
             let y = scene.terrain.sampleHeight(x: s.x, z: s.z)
             let height = 6 + 9 * (s.rand * 11.3 - floor(s.rand * 11.3))
-            let tree = Props.crystalTree(seed: UInt32(truncatingIfNeeded: count &* 7907 &+ 17), height: height)
-            batch.add(tree, at: SIMD3(s.x, y - 0.1, s.z), yaw: s.rand * 60, prefix: "crystals")
+            let variant = Int(Island.noise.unit(Int32(count), 5) * Float(CrystalTrees.variantCount)) % CrystalTrees.variantCount
+            let h = height / CrystalTrees.nominalHeight
+            let width = h * (0.85 + 0.3 * Island.noise.unit(Int32(count), 13))
+            let i = Int(floor(s.x / cell)), j = Int(floor(s.z / cell))
+            let m = translation(SIMD3(s.x, y - 0.1, s.z)) * rotationY(s.rand * 60) * scaling(SIMD3(width, h, width))
+            for lod in 0..<3 { cells[lod]["crystals_L\(lod)_\(i)_\(j)", default: MeshBuilder()].append(CrystalTrees.variant(variant, lod: lod), transform: m) }
             scene.colliders.addCylinder(center: SIMD2(s.x, s.z), radius: 0.55, minY: y - 1, maxY: y + height)
-            count += 1
         }
-        batch.commit(scene, device: device, uniforms: ObjectUniforms(model: matrix_identity_float4x4, tint: SIMD4(1, 1, 1, 1), emissive: SIMD4(0.6, 0.85, 1.0, 1.8)), refractive: true)
+        let treeUniforms = ObjectUniforms(model: matrix_identity_float4x4, tint: SIMD4(1, 1, 1, 1), emissive: SIMD4(0.6, 0.85, 1.0, 1.8))
+        for name in cells[0].keys.sorted() {
+            let suffix = String(name.dropFirst("crystals_L0".count))
+            var names: [String] = []
+            for lod in 0..<3 {
+                let n = "crystals_L\(lod)\(suffix)"
+                guard let mb = cells[lod][n], !mb.isEmpty else { continue }
+                scene.add(n, mesh: mb.build(device: device, label: n), uniforms: treeUniforms, hidden: lod != 0, refractive: true)
+                names.append(n)
+            }
+            let parts = suffix.split(separator: "_").compactMap { Int($0) }
+            if parts.count == 2 {
+                let lo = SIMD2(Float(parts[0]) * cell, Float(parts[1]) * cell)
+                scene.lodGroups.append(Scene.LODGroup(names: names, min: lo, max: lo + SIMD2(cell, cell)))
+            }
+        }
+    }
+
+    /// Small glowing crystal tufts beside the path (R06): clusters of 2-4 little prisms in teal and violet, scattered at irregular spacing within a
+    /// few metres of the route, something for the eye to find in the grass. Opaque with an emissive, like the lamps.
+    static func addPathTufts(_ scene: Scene, device: MTLDevice) {
+        let noise = Noise(seed: 777)
+        var tufts = MeshBuilder()
+        let pts = GlassLayout.path.map { SIMD2($0.x, $0.z) }
+        var carried: Float = 3
+        var n: Int32 = 0
+        for k in 0..<(pts.count - 1) {
+            let a = pts[k], b = pts[k + 1]
+            let dir = normalize(b - a), nrm = SIMD2(-dir.y, dir.x)
+            let len = length(b - a)
+            var s = carried
+            while s < len {
+                n += 1
+                let off = (2.2 + 3.8 * noise.unit(n, 1)) * (noise.unit(n, 2) < 0.5 ? -1 : 1)
+                let c = a + dir * s + nrm * off
+                if GlassLayout.pads.allSatisfy({ length(c - SIMD2($0.center.x, $0.center.z)) > $0.radius * 0.6 }) {
+                    let y = scene.terrain.sampleHeight(x: c.x, z: c.y)
+                    let hue = noise.unit(n, 3)
+                    let count = 2 + Int(noise.unit(n, 4) * 2.99)
+                    for j in 0..<count {
+                        let ang = noise.unit(n * 5 + Int32(j), 5) * 6.28, lean = 0.15 + 0.45 * noise.unit(n * 5 + Int32(j), 6)
+                        let L = 0.16 + 0.34 * noise.unit(n * 5 + Int32(j), 7)
+                        let d = normalize(SIMD3(cos(ang) * lean, 1, sin(ang) * lean))
+                        let col = SIMD3<Float>(0.40, 0.95, 1.0) + (SIMD3<Float>(0.74, 0.55, 1.0) - SIMD3<Float>(0.40, 0.95, 1.0)) * hue
+                        let s = Surface(color: col * (0.8 + 0.4 * noise.unit(n * 5 + Int32(j), 8)), roughness: 0.15)
+                        let m = translation(SIMD3(c.x + cos(ang) * 0.06 * Float(j), y - 0.02, c.y + sin(ang) * 0.06 * Float(j))) * rotation(aligningYTo: d)
+                        tufts.cylinder(radiusTop: L * 0.09, radiusBottom: L * 0.12, height: L * 0.72, segments: 6, smooth: false, caps: false, surface: s, transform: m)
+                        tufts.cone(radius: L * 0.09, height: L * 0.34, segments: 6, smooth: false, surface: s, transform: m * translation(SIMD3(0, L * 0.72, 0)))
+                    }
+                }
+                s += 2.5 + 4.5 * noise.unit(n, 9)
+            }
+            carried = s - len
+        }
+        scene.add("gw_tufts", mesh: tufts.build(device: device, label: "tufts"),
+                  uniforms: ObjectUniforms(model: matrix_identity_float4x4, tint: SIMD4(1, 1, 1, 1), emissive: SIMD4(0.5, 0.9, 1.0, 2.2)))
     }
 
     /// Glowing spires every 14 m along the route, alternating sides: the same "follow the light" guidance as Varrow's lanterns.

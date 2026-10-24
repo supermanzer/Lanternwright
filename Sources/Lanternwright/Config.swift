@@ -148,11 +148,17 @@ enum Viewpoints {
         return cam3
     }
 
+    /// `page-close`: 0.8 m above the journal page on the tide stone's plinth, looking down at it (R06).
+    static func pageClose(terrain: Terrain) -> Camera {
+        let p = PuzzleProps.pagePosition(2, terrain: terrain)
+        return Camera(position: p + SIMD3(0.0, 0.8, 0.45), yaw: 0, pitch: -1.0)
+    }
+
     static func named(_ name: String) -> Camera? {
         switch name {
         case "dock":     return Camera(position: SIMD3(175, 2.5, 205), yaw: -0.75, pitch: 0.02)
         // Lighthouse close-ups (R03). The tower stands at Layout.lighthouse with its door on the +Z (south) side; ground y = 68.
-        case "lh-door":  return Camera(position: SIMD3(-30, 70.38, -43.0), yaw: 0, pitch: -0.02)       // 0.8 m from the door, standing on the third step: where a player can stand (collider 4.65 m + 0.35)
+        case "lh-door":  return Camera(position: SIMD3(-30, 70.75, -41.0), yaw: 0, pitch: 0.06)        // 2.8 m back from the door, on the approach: the arch, jambs, threshold and steps in frame (R06; the 0.8 m view showed only planks)
         case "lh-arch":  return Camera(position: SIMD3(-30, 69.7, -40.0), yaw: 0, pitch: 0.12)         // 3.8 m back: the whole arched doorway
         case "lh-base":  return Camera(position: SIMD3(-25.85, 69.4, -43.85), yaw: -0.38, pitch: 0.05)
         case "lh-mid":   return Camera(position: SIMD3(-30, 69.7, -32), yaw: 0, pitch: 0.55)
@@ -168,6 +174,7 @@ enum Viewpoints {
         case "gw-overview": return Camera(position: SIMD3(0, 70, 330), yaw: 0, pitch: -0.2)
         case "gw-court":    return Camera(position: GlassLayout.mirrorCourt + SIMD3(26, 3.0, 30), yaw: -0.8, pitch: -0.05)
         case "gw-court-high": return Camera(position: GlassLayout.mirrorCourt + SIMD3(0, 22, 20), yaw: 0.0, pitch: -1.05)
+        case "gw-mirrors":  return Camera(position: GlassPuzzleProps.mirrorPosition(1) + SIMD3(4.0, 1.4, 4.5), yaw: -0.727, pitch: -0.04)   // a mirror stand from 6 m (R06)
         case "gw-chimes":   return Camera(position: GlassLayout.chimeRing + SIMD3(-22, 3.0, -24), yaw: 2.4, pitch: -0.02)
         case "gw-altar":    return Camera(position: GlassLayout.altar + SIMD3(0, 3.0, 28), yaw: 0, pitch: 0.05)
         default:         return nil

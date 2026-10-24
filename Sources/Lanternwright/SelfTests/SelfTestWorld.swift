@@ -67,6 +67,39 @@ extension SelfTestRunner {
             check(oneEach, "from any eye position exactly one level of every tree cell is visible")
             sc.applyLOD(eye: SIMD3(0, 0, 0))
         }
+        if name == "all" || name == "r06" {
+            func tris(_ b: MeshBuilder) -> Int { b.indices.count / 3 }
+            func finite(_ b: MeshBuilder) -> Bool { b.vertices.allSatisfy { $0.position.x.isFinite && $0.position.y.isFinite && $0.position.z.isFinite && abs(simd_length(SIMD3($0.normal.x, $0.normal.y, $0.normal.z)) - 1) < 1e-2 } }
+            // The new procedural materials are dispatched by id in the shader (Materials.swift), so the ids must match the Swift enum.
+            let src = MaterialShaders.source
+            let ids: [(MaterialID, Float)] = [(.plank, 12), (.timber, 13), (.glyphStone, 14), (.paper, 15), (.pebble, 16), (.glassStone, 17), (.mirror, 18), (.paleMetal, 19), (.glyphGlass, 20)]
+            check(ids.allSatisfy { $0.0.rawValue == $0.1 }, "material ids 12-20 are what the shader expects")
+            check([12, 13, 15, 17, 18, 19].allSatisfy { src.contains("id == \($0)") } && src.contains("id == 14") && src.contains("id == 16") && src.contains("id == 20"), "the shader dispatches every new material id")
+            // The journal page: a thin sheet with a curled corner, a pebble, finite normals; shared by both worlds.
+            let page = PuzzleProps.pageMesh()
+            let xs = page.vertices.map(\.position.x), ys = page.vertices.map(\.position.y), zs = page.vertices.map(\.position.z)
+            check(finite(page) && xs.min()! > -0.2 && xs.max()! < 0.2 && zs.min()! > -0.26 && zs.max()! < 0.26, "the page is a 34 x 46 cm sheet")
+            check(ys.max()! - ys.min()! > 0.02 && ys.max()! - ys.min()! < 0.08, "it is curled and creased, not flat and not a tent (relief \(ys.max()! - ys.min()!) m)")
+            check(page.vertices.contains { abs($0.normal.w - MaterialID.paper.rawValue) < 0.01 } && page.vertices.contains { abs($0.normal.w - MaterialID.pebble.rawValue) < 0.01 }, "it has paper and a pebble weighting it")
+            // Crystal trees: three LODs, strictly cheaper, a self-lit vein near, different variants, sane size.
+            let t0 = CrystalTrees.variant(0, lod: 0), t1 = CrystalTrees.variant(0, lod: 1), t2 = CrystalTrees.variant(0, lod: 2)
+            check(tris(t0) > tris(t1) && tris(t1) > tris(t2) && tris(t2) > 40 && tris(t0) < 6000, "crystal tree LODs get cheaper (\(tris(t0)) / \(tris(t1)) / \(tris(t2)) triangles)")
+            check(finite(t0) && finite(t1) && finite(t2), "crystal tree vertices and normals are finite and unit")
+            let veinNear = t0.vertices.filter { $0.color.w > 0.5 }.count, veinFar = t2.vertices.filter { $0.color.w > 0.5 }.count
+            check(veinNear > 20 && veinFar == 0, "the trunk vein is self-lit up close (vertex alpha) and absent at the far level")
+            let top = t0.vertices.map(\.position.y).max()!, spread = t0.vertices.map { simd_length(SIMD2($0.position.x, $0.position.z)) }.max()!
+            check(top > 7 && top < 14 && spread > 1.5 && spread < 6, "a crystal tree is a tall tree with a spreading crown (height \(top), crown radius \(spread) m)")
+            let sigs = Set((0..<CrystalTrees.variantCount).map { i -> Int in let m = CrystalTrees.variant(i, lod: 0); return m.vertices.count * 31 + Int(m.vertices.map(\.position.x).reduce(0, +) * 100) })
+            check(sigs.count >= 8, "the crystal tree variants are genuinely different (\(sigs.count) distinct of \(CrystalTrees.variantCount))")
+            // The Glass Wood forest uses LOD cells like the conifers, and the stones' faces are their own objects carrying the glyph glow.
+            let gw = GlassWood.build(device: device)
+            check(gw.lodGroups.count > 3 && gw.lodGroups.allSatisfy { $0.names.count == 3 && $0.names.allSatisfy { n in gw.items.first { $0.name == n }?.refractive == true } }, "crystal tree cells have three refractive levels each (\(gw.lodGroups.count) cells)")
+            check(gw.has("gw_tufts") && gw.has("gw_altar_glow") && gw.has("gw_mural_glyph_0") && gw.has("gw_chime_mural_glyph_2"), "the path tufts, altar glow and both murals' carved panels exist")
+            let island = Scene.makeWorld(device: device)
+            check(StoneID.allCases.allSatisfy { island.has("stone_\($0.name)_face") && island.has("stone_\($0.name)") }, "each resonance stone is a plinth plus a face object (the face carries the glyph glow)")
+            let faceOf = { (id: StoneID) in island.items.first { $0.name == "stone_\(id.name)_face" }!.uniforms }
+            check(faceOf(.tide).tint.w == 0 && faceOf(.wind).tint.w == 1 && faceOf(.summit).tint.w == 2, "the face object's tint.w selects its glyph (tide 0, wind 1, summit 2)")
+        }
         if name == "all" || name == "surfacemix" {
             let sc = Scene.makeWorld(device: device)
             func mixAt(_ x: Float, _ z: Float) -> StepMix { sc.surfaceMix(x: x, z: z).mix }

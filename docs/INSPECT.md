@@ -101,6 +101,19 @@ How to play: `scripts/bundle.sh && open Lanternwright.app`. Headless views: `.bu
 - `--view stone-close`: the tide stone is chamfered dressed stone with pitting and chisel marks; lichen creeps up the plinth. Glyph bars unchanged.
 - Stone lanterns on the path: chamfered dressed stone, iron finial, glowing amber core.
 
+## Round 6 (R06): paths, glyphs, journal page, Glass Wood props, crystal trees
+
+- **T60.1 Cobble paths.** `--view stone-close` (lower left) and `--view gw-altar`: rounded pebbles of two sizes with dark gaps and a few large flat stones; no rectangles. Walk the Varrow path and the Glass Wood path (pale blue-violet with a faint sheen) and look straight down.
+- **T60.2 Carved glyphs.** `--view stone-close`, then `--state solved`: each glyph is a groove with a bevelled lip; step sideways and the stone edge hides part of the glow; the lit state adds a bright rim and a halo. The three low notches on the face are the rank marks (1 tide, 2 wind, 3 summit stone), not a stray bar. Walk up to a stone in the game and strike it: the glow should pulse and then blaze.
+- **T60.3 Journal page.** `--view page-close` (0.8 m above page 2 on the tide stone plinth) and the bottom right of `stone-close`: warm paper, a crease, ragged and curled edges, sepia lines, a small pebble on a corner. Hover it in the game: the pulse is a gentle hint.
+- **T60.4 Glass Wood props.** `--view gw-court`, `gw-mirrors`, `gw-chimes`, `gw-altar`: framed true mirrors that show the sky, stands with a ring of eight detent marks (turn a mirror and the pointer under it sweeps them), inlaid court slabs with joints, murals with carved glowing glyphs, a stepped altar with an inlaid glowing ring.
+- **T60.5 Crystal trees.** `--view gw-arrival` and `gw-overview`: twisted faceted trunks with a lit spiral vein, forking branches, clusters of pointed prisms teal to violet, small crystals at the foot. Walk up to one: LODs switch at 45 m and 130 m.
+- **T60.6 Glass Wood grass.** `--view gw-court`: bare patches, taller violet-tipped tufts, and small glowing crystal tufts beside the route.
+- **T60.7 lh-door and the white band.** `--view lh-door` frames the arch, jambs and door (dark mortar between the voussoirs); `--view lh-mid`: the lower white band has no ring contour.
+
+### Question for the user: stylised or needle-level conifers?
+The conifers are now tiered drooping sprays that read as conifers from the dock and from 5 m. The next step would be individual needles (many alpha-tested cards). That needs alpha-to-coverage or MSAA to stop the edges crawling, which we deliberately do not run (the opaque pass has several attachments, including a float32 distance buffer that cannot be resolved by averaging), and it costs frame time. Is the stylised look the one you want (cheap, clean, painterly, matches the rest), or do you want the needle-level look and the cost of making it hold still?
+
 ## Round 5 (R05): footsteps that change with the surface (a person must listen)
 
 Each step is now built from an impact, a ringing body and a cloud of tiny grains, with the numbers for every surface in one table (`FootstepRecipe.table` in `Audio/Footsteps.swift`). Everything below was measured with offline tests (spectrum, decay, grain counts, blends), but only you can judge whether it *sounds* right: tell me which surface is wrong and in what way, and I will change that one row. To audition without playing: `.build/release/Lanternwright --dump-audio shots/m55/steps.wav && afplay shots/m55/steps.wav` (after the grass walk and run, it plays five steps each of dock planks, dry sand, wet sand, packed earth, stone, rock, then a walk off the end of the dock onto sand).

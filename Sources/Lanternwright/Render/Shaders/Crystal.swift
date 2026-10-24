@@ -55,7 +55,8 @@ fragment float4 crystal_fragment(LitOut in [[stage_in]],
     float vein = 0.65 * vnoise3(vp) + 0.35 * vnoise3(vp * 2.3);        // two octaves are plenty for slow veins, and cheap
     vein = smoothstep(0.58, 0.72, vein);
     float pulse = 0.75 + 0.25 * sin(t * 1.3 + P.x * 0.2 + P.z * 0.17);
-    float3 glow = tint * obj.emissive.rgb * obj.emissive.w * (0.18 + 1.8 * vein * pulse);
+    float core = step(0.5, in.color.a);                              // vertex alpha > 0.5 marks a self-lit vein (the crystal trees' trunk vein)
+    float3 glow = tint * obj.emissive.rgb * obj.emissive.w * (0.18 + 1.8 * vein * pulse + 3.0 * core * pulse);
 
     float3 col = mix(body, refl, F) + spec + glow;
     col = apply_fog(col, P, frame, skyLUT);

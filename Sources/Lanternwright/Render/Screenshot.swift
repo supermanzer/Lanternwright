@@ -103,6 +103,7 @@ enum Screenshot {
         if let g = applyState(options.state, scenes: renderer.scenes) { renderer.mistScale = g.mistScale; renderer.beamIntensity = g.beamAmount }
         let camera = options.camera
             ?? (options.viewName == "tree-close" ? Viewpoints.treeClose(terrain: renderer.scene.terrain) : nil)
+            ?? (options.viewName == "page-close" ? Viewpoints.pageClose(terrain: renderer.scene.terrain) : nil)
             ?? options.viewName.flatMap(Viewpoints.named)
             ?? Viewpoints.named("overview")!
 
