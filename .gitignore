@@ -1,0 +1,6 @@
+.build/
+*.app
+/shots/
+.DS_Store
+.swiftpm/
+docs/shots/*

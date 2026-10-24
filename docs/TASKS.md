@@ -1,0 +1,231 @@
+# Lanternwright: Task Breakdown
+
+Executable task list for the milestones in [DESIGN.md](DESIGN.md). Each task is sized for one focused session: one goal, a small set of files, and a verification step. **Do the tasks in order.** Each task assumes the ones above it are done, and each milestone assumes the previous milestone is complete. When a task is finished, change its checkbox to `[x]` and add one line under it: `> done: <date> — <anything the next task must know>`.
+
+---
+
+## 0. Fixed conventions (do not change without updating this section)
+
+### Coordinates and units
+* Units are **meters**. **Right-handed, +Y up.** Sea level is `y = 0`. **North = −Z**, **East = +X**.
+* Camera: `yaw` is in radians, and `yaw = 0` looks north (−Z). Positive yaw turns right (toward +X). `pitch` is positive looking up and is clamped to ±1.45.
+  `forward = (sin(yaw)·cos(pitch), sin(pitch), −cos(yaw)·cos(pitch))`
+* Matrices are column-major `simd_float4x4`. Depth is standard (not reversed): range 0..1 with `depthCompare = .less` and clear depth to 1. The near plane is 0.1 m and the far plane is 8000 m. Use a 32-bit float depth buffer (`depth32Float`).
+
+### Shared GPU structs (Swift `Render/GPUTypes.swift` ⇄ MSL `Shaders/Common.swift`)
+Shared structs use only `float4`/`float4x4`. Never use `float3`/`SIMD3` in a shared struct, because the two languages pad it differently and the mismatch fails silently. Each Swift struct has a `static let expectedStride` that is asserted at startup.
+
+```c
+struct Vertex {            // 48 bytes
+  float4 position;         // xyz, w = 1
+  float4 normal;           // xyz, w = materialID (0 std, 1 terrain, 2 emissive-glass, 3 foliage)
+  float4 color;            // rgb albedo (linear), a = roughness
+};                         // material 1 (terrain): color.r = path weight 0..1, color.g = shore wetness
+struct FrameUniforms {     // 288 bytes
+  float4x4 viewProj;
+  float4x4 invViewProj;
+  float4x4 sunViewProj;
+  float4 cameraPos;        // xyz, w = time seconds
+  float4 sunDir;           // xyz = unit vector TOWARD the sun, w = unused (1)
+  float4 sunColor;         // rgb = sun transmittance after the atmosphere, w = sun irradiance (22)
+  float4 fogParams;        // x = density, y = height falloff, z = exposure, w = bloom strength
+  float4 screen;           // x = width, y = height, z = 1/width, w = 1/height
+  float4 misc;             // x = water level, y = wave strength, z = unused, w = world size of one shadow texel
+};
+struct ObjectUniforms {    // 96 bytes
+  float4x4 model;
+  float4 tint;             // multiplies albedo
+  float4 emissive;         // rgb = emissive color, w = intensity
+};
+```
+
+### Binding slots
+| Slot | Vertex stage | Fragment stage |
+|---|---|---|
+| buffer 0 | vertices (`device const Vertex*`, indexed by `[[vertex_id]]`, with an index buffer) | — |
+| buffer 1 | FrameUniforms | FrameUniforms |
+| buffer 2 | ObjectUniforms | ObjectUniforms |
+| texture 0 | — | shadow map (depth32Float) |
+| texture 1 | — | sky LUT (rgba16Float, lat-long, mipmapped) |
+| texture 2 | — | scene color copy (for water refraction) |
+| texture 3 | — | straight-line view distance in metres (r32Float; 1e5 = sky) |
+| texture 4 | — | diffuse irradiance map (32x16 rgba16Float, lat-long like the sky LUT) |
+
+### Shaders
+* MSL is stored as **Swift string literals** under `Sources/Lanternwright/Render/Shaders/*.swift` (for example `enum SkyShaders { static let source = """…""" }`). `ShaderLibrary.swift` concatenates `Common.source` with every other source and calls `device.makeLibrary(source:options:)` once.
+* **Never add `.metal` files.** This machine has no offline `metal` compiler (Command Line Tools only, no Xcode).
+* When compilation fails, print the full `error.localizedDescription` (it contains line numbers) and `exit(1)`.
+
+### Swift
+* The language mode is Swift 5 (set in Package.swift) to avoid strict-concurrency friction with Metal/AppKit delegates. Mark AppKit-facing classes `@MainActor`.
+* No third-party dependencies. Frameworks are AppKit, Metal, MetalKit, simd, AVFoundation and ImageIO.
+* World generation must be **deterministic**. Use the seeded `Noise` from `Core/Noise.swift`, never `Float.random`.
+
+### World layout constants (`World/Layout.swift`)
+All landmark positions live here. Terrain *flattens pads* at these points so props sit on solid ground.
+
+| Name | Position (x, y, z) | Pad radius | Notes |
+|---|---|---|---|
+| `dockEnd` | (175, 0.8, 205) | — | Spawn point. The dock runs from here to the shore at about (150, 1.5, 172). Spawn faces yaw ≈ −0.75 (northwest, toward the lighthouse). |
+| `tideStone` | (118, 3, 118) | 6 | Near the eastern shore. |
+| `windStone` | (40, 34, 55) | 6 | On the ridge. |
+| `summitStone` | (−5, 66, −18) | 6 | Just below the lighthouse. |
+| `lighthouse` | (−30, 68, −48) | 14 | The tallest landmark (tower about 28 m). |
+| `causewayStart` | (−35, 1.5, −225) | 8 | North shore. |
+| `isletCenter` | (−40, 5, −320) | 30 | Islet radius is about 40 m. |
+| `lanternPath` | polyline: dockShore → tideStone → windStone → summitStone → lighthouse | — | Stone lanterns every 18 m. |
+
+Island main radius is about 250 m, with an irregular, noise-warped coastline. The summit is about 70 m high.
+
+### Named viewpoints (for screenshots and acceptance)
+`--view <name>` sets the camera. Defined in `Config.swift`:
+`dock` (spawn), `overview` (high aerial from the SE: pos (320, 140, 320) looking at the lighthouse), `summit` (standing at the lighthouse door looking south), `shore` (low near the water at the tide stone looking out to sea), `islet` (at the causeway start looking north).
+
+### Verification commands
+```bash
+swift build -c release 2>&1 | tail -20                     # must end with "Build complete!"
+.build/release/Lanternwright --screenshot shots/<task>.png --view overview --size 1600x900
+scripts/bundle.sh && open Lanternwright.app                # interactive check (human)
+```
+Agents must **look at** the PNG with the Read tool after every visual task. Do not launch the windowed app from an agent shell unless you use `run_in_background`. A window will block the shell.
+
+---
+
+## M0: Scaffold (proves the toolchain)
+
+- [x] **T0.1 Package and entry point.** Write `Package.swift` (exec target, macOS 15, Swift 5 mode) and `main.swift` that parses `LaunchOptions` (`--screenshot <path>`, `--view <name>`, `--camera x,y,z,yaw,pitch`, `--size WxH`, `--frames N` (default 3), `--sun <elevationDeg>,<azimuthDeg>`). With no `--screenshot`, it starts the AppKit app. *Accept:* `swift build -c release` is clean and `--help` prints the usage.
+  > done: 2026-10-23. Deployment target raised to macOS 15 (`MTLCompileOptions.mathMode` needs it). `Viewpoints` in Config.swift has placeholder cameras; refine them in T1.18.
+- [x] **T0.2 Window and MTKView.** `App/AppDelegate.swift` creates a 1600×900 titled, resizable window with a `GameView: MTKView` (`colorPixelFormat = .bgra8Unorm_srgb`, `preferredFramesPerSecond = 120`). Calls `setActivationPolicy(.regular)` and `activate(ignoringOtherApps:)`. Caps `drawableSize` at 2560 px wide (the user's display is 6720 px, so render scale is driven by the cap). *Accept:* the window opens and shows a clear color.
+  > done: 2026-10-23. Input handling is not implemented yet (that is M2). Cmd-Q comes from a minimal menu in AppDelegate.
+- [x] **T0.3 Shader library.** `Render/ShaderLibrary.swift` plus `Shaders/Common.swift` (shared structs, `fullscreenVertex` emitting a single oversized triangle). It compiles at startup and prints errors. *Accept:* a deliberate syntax error prints a line-numbered message and exits 1.
+  > done: 2026-10-23. On failure the concatenated source is dumped to `$TMPDIR/lanternwright-shaders.metal` so error line numbers can be found. The error path was not exercised with a real syntax error.
+- [x] **T0.4 GPU types with stride asserts.** `Render/GPUTypes.swift` with the three structs from §0 and `precondition(MemoryLayout<T>.stride == T.expectedStride)`, run once at launch.
+  > done: 2026-10-23. Also covered by `--selftest layout`.
+- [x] **T0.5 Renderer skeleton and headless screenshot.** `Renderer` owns the device and queue and has `render(to target: MTLTexture, camera: Camera, commandBuffer:)`. `Render/Screenshot.swift` renders N frames into a `.shared` `bgra8Unorm_srgb` texture, waits until completed, then writes a PNG via `CGImageDestination`. The test image is a fullscreen vertical gradient. *Accept:* `--screenshot shots/t05.png` writes a viewable gradient PNG with no window.
+  > done: 2026-10-23. `Renderer.encode(commandBuffer:target:camera:)` is the single entry point for both the window and screenshots. `Camera` lives in Core/Math.swift (minimal; T1.1 adds the matrices).
+- [x] **T0.6 Bundle script.** `scripts/bundle.sh` runs a release build, creates `Lanternwright.app/Contents/{MacOS,Info.plist}`, copies the binary and signs it ad hoc with `codesign --force -s -`. Info.plist sets `CFBundleIdentifier=io.supermanzer.lanternwright`, `LSMinimumSystemVersion=15.0` and `NSHighResolutionCapable=true`. *Accept:* `open Lanternwright.app` shows the window, and the Dock shows the app name.
+  > done: 2026-10-23. Verified that the app launches, the window titled 'Lanternwright' exists, and quit works.
+
+## M1: The look
+
+- [x] **T1.1 Math and camera.** `Core/Math.swift`: `perspective(fovY:aspect:near:far:)` (Metal 0..1 depth), `lookAt`, `orthographic`, `translation/rotation/scale`, `float3` helpers. `Camera` struct {position, yaw, pitch, fovY = 60°}, with `view`, `proj(aspect)` and `forward`. *Accept:* a unit test-like startup check that the point 10 m in front of the camera projects to NDC (0, 0, z in 0..1). Put it behind `--selftest`.
+  > done: 2026-10-23. Math.swift also defines typealiases float3/float4/float4x4, rotationX/Y/Z, scaling, translation, smoothstep, mix. Camera has near/far. `--selftest math` passes.
+- [x] **T1.2 Mesh and MeshBuilder.** `Render/Mesh.swift` (`Mesh { vertexBuffer, indexBuffer (UInt32), indexCount, bounds }`). `Render/MeshBuilder.swift` accumulates `[Vertex]` and `[UInt32]` with an optional transform, plus the primitives `box`, `cylinder(radiusTop, radiusBottom, height, segments)`, `cone`, `sphere(segments)`, `torus` and `plane(grid)`. All primitives have flat-shaded normals where faceted (stone) or smooth normals where round, chosen by parameter. *Accept:* `--selftest` builds each primitive and prints vertex counts.
+  > done: 2026-10-23. Primitives: box, cylinder(radiusTop,radiusBottom,height; stands on y=0), cone, sphere, torus, plane; all take a `Surface` (color, roughness, material) and a transform. Winding is CCW from outside (verified numerically in `--selftest mesh`); pipeline uses frontFacing .counterClockwise + cull back.
+- [x] **T1.3 Lit pass (unlit-ish first).** `Shaders/Lit.swift`: `lit_vertex`/`lit_fragment` with Lambert from `sunDir` plus constant ambient. The Renderer gets an HDR target (`rgba16Float`) plus `depth32Float` and draws `[DrawItem]` (`mesh`, `ObjectUniforms`). A temporary composite pass copies HDR to the drawable with simple Reinhard tonemapping. Draw one box and one sphere on a plane. *Accept:* the screenshot shows shaded shapes.
+  > done: 2026-10-23. Renderer now has opaque pass (rgba16Float + depth32Float) then composite pass (temporary Reinhard). `Scene`/`DrawItem` live in World/Scene.swift; `Scene.makeTestScene` is the temporary scene to delete in T1.6. Shaders: Lit.swift, Post.swift (Debug.swift removed). Sun direction from --sun via Renderer.sunDirection. Screenshots use fixedTime=12. lit_vertex assumes uniform scale for normals. Test shot: `--camera 0,3,9,0,-0.22` showed box and sphere correctly shaded, sun from the left.
+- [x] **T1.4 Noise (CPU).** `Core/Noise.swift`: seeded hash, 2D value noise, gradient (Perlin) noise, `fbm(octaves, lacunarity, gain)`, `ridged`, `domainWarp`. *Accept:* `--selftest` prints the same values across two runs.
+  > done: 2026-10-23. Core/Noise.swift: `Noise(seed:)` with hash/unit/value (0..1), perlin and fbm (about -0.65..0.65 in practice, NOT the full -1..1), ridged (0..1, mean about 0.35), warp. Deterministic: the checksum printed by `--selftest noise` is identical across runs.
+- [x] **T1.5 Terrain heightfield.** `World/Terrain.swift`: `Terrain.height(x:z:) -> Float` (a pure function), a cached 513×513 grid over 1024 m (2 m spacing), `sampleHeight` (bilinear from the cache) and `normal(x:z:)`. Shape: warped radial island mask × (fBm hills plus a summit bump toward `lighthouse`) minus an offshore drop to −25 m, plus the islet at `isletCenter`. Then **apply pads** (smoothstep-blend the height to the pad y within the radius) from `Layout`. *Accept:* `--selftest` prints the height at each landmark within ±1 m of the Layout y.
+  > done: 2026-10-23. World/Layout.swift holds landmarks AND terrain-shape constants (hillCenter (-15,-35), spineEnd (125,125), radii, seaFloor -24); added a `dockShore` landmark (150,1.5,172) with a pad radius 5, because the dock-side shore did not fit a single radial hill, so the island is the max() of a hill, a low shelf along the spine to the SE, and the islet. Terrain: `Terrain()` builds the 513x513 cache (about 0.1 s); `height` (analytic), `sampleHeight`, `normal`, `Terrain.pathDistance`, `Terrain.padBlend = 30` (not 18: pads on slopes need a wide ring). Hill profile is a PCHIP with a bench at the wind stone's radius so the lantern path peaks at about 0.80 rise/run (selftest asserts < 1.0). Detail noise is calmed near the path. `--selftest terrain-map` prints an ASCII map.
+- [x] **T1.6 Terrain mesh.** Build the mesh from the cache with smooth normals and material 1. Set `color.r` to the path weight (distance to the `lanternPath` polyline, 1 at the center falling to 0 at 2.5 m) and `color.g` to wetness (1 below y = 0.6, falling to 0 at 2 m). Also dip the terrain 0.15 m along the path. Split it into 8×8 chunks (one Mesh each) for later culling. *Accept:* the `overview` screenshot shows the island silhouette and the pads.
+  > done: 2026-10-23. World/TerrainMesh.swift: 64 chunks (8x8) as DrawItems named terrain_<cx>_<cz>; vertex color.r=path weight, .g=wetness, .a=roughness 0.9. Path weight: 1 within 1.2 m of the centreline, 0 at 3.5 m (soft edge so the 2 m mesh resolves it); the path is dipped 0.15 m inside Terrain.height. `Scene.makeWorld(device:)` replaced the test scene; `scene.terrain` is the Terrain for grounding. Sea floor is visible until the water pass (T1.16) because there is no water yet.
+- [x] **T1.7 Terrain material.** In `lit_fragment` for material 1: blend grass (moss green), dry grass, rock (slope > 0.55 or height noise) and sand (y < 2.5 or wetness), with per-pixel noise (3D value noise in MSL, triplanar on rock) for macro variation and detail normal perturbation. The path weight blends to packed earth. *Accept:* rock appears on cliffs, sand at the shore, and the path is visible in the `dock` view.
+  > done: 2026-10-23. Terrain material is `terrain_surface()` in Shaders/Lit.swift: lush/parched grass patches, strata rock (3D noise squashed along Y; no triplanar needed because the noise is 3D), sand with wet darkening, pebbled earth path, bump-perturbed normals. 3D noise helpers (hash13, vnoise3, fbm3) are in Shaders/Common.swift for reuse. T1.18 TODO: rock bump is too chunky/blotchy at a low sun (reduce strength, raise frequency), and the hill is a smooth cone with little visible cliff rock, so consider more crags.
+- [x] **T1.8 Atmosphere sky LUT.** `Shaders/Sky.swift`: `skylut_fragment` renders a 256×128 lat-long `rgba16Float` texture by single-scattering ray-march (Rayleigh plus Mie, earth radius 6360 km, atmosphere 6420 km, 16 primary and 6 light samples). Generate mips with a blit after each update. The update only needs to run when the sun moves. *Accept:* dump the LUT to `shots/lut.png` behind a flag. It shows a blue zenith and an orange horizon near the sun.
+  > done: 2026-10-23. Shaders/Sky.swift has the single-scattering atmosphere (Rayleigh+Mie, 16 primary/6 light samples, quadratic sample spacing, planet shadow, ground bounce). LUT is 256x128 rgba16Float mipmapped, rebaked only when the sun moves (Renderer.updateSkyLUT). Mapping: u=azimuth/2pi (0=north, clockwise), v=angle-from-zenith/pi. frame.sunColor.w = sun irradiance (22) for the atmosphere. `--dump-lut <png>` writes the tonemapped LUT. Verified: blue zenith, glow near azimuth 250.
+- [x] **T1.9 Sky background.** A fullscreen `sky_fragment` drawn at depth 1 with `depthCompare = .lessEqual`, after the opaque geometry. It reconstructs the view ray from `invViewProj`, samples the LUT, adds the sun disk (limb darkened, HDR value about 50) and a Mie halo. *Accept:* the `shore` view shows sky, horizon and sun. Default sun: elevation 9°, azimuth 250° (west-southwest, low and golden).
+  > done: 2026-10-23. sky_vertex/sky_fragment draw at depth 1 inside the opaque encoder (depth compare lessEqual, no write). Sun disk = 50 x limb darkening x sun_transmittance() (physical orange at low sun). `sun_transmittance(sunDir, h)` and `lut_uv(dir)` are reusable for T1.12/T1.14. The brown band at the far horizon is the LUT's below-horizon ground showing past the end of the terrain mesh; the water/fog passes must cover it.
+- [x] **T1.10 Clouds.** Add a 2D cloud layer to `sky_fragment`: intersect the ray with a plane at 2500 m, 5-octave fBm, coverage 0.45, slow drift by time. Light it using sun color × silver-lining (forward scattering by view·sun) plus ambient from the LUT zenith. Fade it near the horizon. *Accept:* soft, varied clouds, glowing near the sun.
+  > done: 2026-10-23. Cloud sheet at 2500 m in sky_fragment (cloud_density: 5-octave fbm, wind drift, smoothstep(0.43,0.66)), lit by sun transmittance with a Henyey-Greenstein silver lining and ambient from LUT mip 4; fades out below elevation 0.22. The sun disk is occluded by cloud density.
+- [x] **T1.11 ACES tonemap composite.** `Shaders/Post.swift`: `composite_fragment` with exposure (`fogParams.z`), the ACES fitted curve (Hill's RRT+ODT fit), a subtle vignette and blue-noise-ish grain (hash). It replaces Reinhard. *Accept:* highlights roll off without hue shift to white, and the image is not washed out.
+  > done: 2026-10-23. composite_fragment: exposure x 0.6 then Hill's ACES fit (row dot products, because MSL matrix constructors fill by column), vignette (down to 0.72 at the corners), +-1.5 % multiplicative grain. Exposure is frame.fogParams.z (default 1). After this the shadows looked too dark until IBL arrived in T1.12.
+- [x] **T1.12 Image-based ambient and specular.** Replace constant ambient with a LUT sample at the normal direction from a high mip (diffuse irradiance) and a reflection-vector sample with mip chosen by roughness (specular). Add GGX specular for the sun. *Accept:* shadow sides take on a sky-blue tint and stone shows soft highlights.
+  > done: 2026-10-23. Lit shader: direct sun = albedo/pi * E * NoL with E = sunColor.rgb (atmosphere transmittance, computed on the CPU in World/Atmosphere.swift) * sunColor.w (irradiance 22); GGX specular (F0 0.04); ambient = albedo * LUT mip 5 at the normal + roughness-selected LUT mip at the reflection vector with a Fresnel weight. sunDir.w is now unused (1).
+- [x] **T1.13 Shadow map.** A 4096² `depth32Float` shadow pass with a sun ortho projection fitted to a 700 m box around the island, depth bias plus slope bias in the pipeline state, and `shadow_vertex` (depth only). In `lit_fragment`, use 16-tap Poisson PCF with a hardware comparison sampler. *Accept:* the lighthouse casts a long evening shadow in the `overview` view, with no acne on the terrain.
+  > done: 2026-10-23. 4096^2 depth32Float sun shadow map, ortho box fitted to a sphere (centre (-15,30,-60), radius 340), rendered every frame (Renderer.shadowCenter/Radius). frame.misc.w = world size of one shadow texel. Lookups outside the box are lit. PCF: 16 rotated Poisson taps with hardware compare + normal-offset bias scaled by (1-NoL). No acne at a 9 degree sun. Props added later must be drawn into the shadow pass too (they will be, because it iterates scene.items).
+- [x] **T1.14 Aerial perspective fog.** In `lit_fragment`, height-exponential fog (density `fogParams.x` ≈ 0.0009, falloff `fogParams.y` ≈ 0.012) whose in-scatter color = LUT sample along the view ray + sun Mie glow toward the sun. Apply the same fog to the sky near the horizon so the two blend. *Accept:* the distant islet is hazy and warm, and the near ground is crisp.
+  > done: 2026-10-23. apply_fog() in Shaders/Sky.swift: analytic height-exponential optical depth, colour from LUT mip 1 along the view ray (clamped above the horizon). Defaults fogParams.x=0.0009, .y=0.012. Applied in lit_fragment and water_fragment. It is subtle at 250-500 m, so T1.18 should raise the density.
+- [x] **T1.15 Linear depth and scene copy.** The opaque pass writes a second color attachment (`r32Float`, linear view distance). After the opaque and sky passes, blit the HDR color into `sceneCopy`. These feed the water pass. *Accept:* behind a flag, write the depth visualization to `shots/depth.png`.
+  > done: 2026-10-23. Opaque and sky passes write colour attachment 1 (r32Float): straight-line camera distance, cleared to 1e5 (sky). Renderer exposes distanceTexture and sceneCopy (blit after opaque+sky, before water). `--debug depth` shows the distance buffer (0..1200 m black..white).
+- [x] **T1.16 Water surface.** `World/Ocean.swift`: a radial grid mesh centered on the camera's xz (snapped to 8 m to avoid swimming), radius 6000 m, rings denser near the center. `Shaders/Water.swift`: the vertex shader sums 4 Gerstner waves (amplitude ≤ 0.25 m) attenuated by `misc.y`. The fragment shader combines 3 scrolled analytic normal layers; Schlick Fresnel (F0 = 0.02) reflecting the LUT (plus sun GGX glint, roughness 0.05); refraction by sampling `sceneCopy` with a normal-offset UV, absorbed by `exp(-depth·(0.45, 0.09, 0.06))` toward a deep teal; shore foam where water depth < 0.6 m with noise; and fog applied. Draw it after the opaque and sky passes into the HDR target, with depth test on and depth write off. *Accept:* the `shore` view shows reflective, transparent water with sand visible underwater near the shore.
+  > done: 2026-10-23. World/Ocean.swift (disc mesh, 128 exponentially spaced rings x 256 segments, radius 7800, snapped to 8 m) + Shaders/Water.swift (4 Gerstner waves, 3 scrolling ripple layers, Fresnel, LUT reflection, refraction via sceneCopy + Beer-Lambert absorption (0.45,0.09,0.06), shore foam, GGX glint, fog). The water pass reloads the HDR + depth after the opaque pass. Sky rays below the horizon now clamp to just above it so no brown band shows past the sea's edge. Known: ripple shading is a bit busy/high-contrast near the camera, sand speckles near shore; tune in T1.18.
+- [x] **T1.17 Bloom.** Threshold at 1.0 HDR with a soft knee into half resolution, then 5 progressive downsamples (13-tap filter) and upsamples (tent filter, additive), composited with strength `fogParams.w` ≈ 0.06. *Accept:* the sun and emissive objects glow softly, with no blocky artifacts.
+  > done: 2026-10-23. Bloom: prefilter (soft knee at 1.0, clamp 64) into a half-res chain of 5 levels, 13-tap downsample, additive tent upsample; composite adds level 0 x frame.fogParams.w (0.06). Post.swift also has bloomSampler. Renderer.encodeBloom / postPass are reusable for other full-screen passes.
+- [x] **T1.18 Look-dev pass.** Tune the sun, fog, exposure and terrain colors until the `overview`, `dock` and `shore` screenshots read as a painting at golden hour. Record the final numbers in `Config.swift` as `LookDefaults`. *Accept:* save 3 screenshots in `shots/m1-*.png` and mention them in the done note.
+  > done: 2026-10-23. Final numbers are in `LookDefaults` (Config.swift): sun 8 deg elevation / 250 deg azimuth, exposure 1.15, bloom 0.06, fog 0.0016 density / 0.010 falloff. Reference shots: shots/m1-overview.png, m1-dock.png, m1-shore.png (1600x900). Changes made during look-dev: terrain detail amplitudes raised (rolling 9, crags 18) for a craggier summit; multiple-scattering fudge in the atmosphere (view-path extinction halved) because single scattering leaves a dark horizon stripe; an irradiance map (32x16, cosine-convolved from LUT mip 3, texture slot 4) replaced blurry-LUT-mip ambient, because lat-long lookups are singular at the pole and made flat ground flicker blocky; slope-scaled shadow bias (2.5 x tan(theta) / mapWidth); quintic noise fade; soil/sand bump almost off (0.006). New debug views: `--debug depth|shadow|albedo|ambient`. LESSON: when a pattern doesn't respond to the knob you think controls it, add a debug view of each term rather than tuning blind. Viewpoints updated: overview (330,150,330), shore (150,3.2,172) looking at the sun.
+
+## M2: Embodiment
+
+- [x] **T2.1 Input state.** `Core/Input.swift`: a key set (by keyCode), mouse delta accumulator and click edge flags. `GameView` overrides `keyDown/keyUp/flagsChanged/mouseDown/mouseMoved` (with `acceptsMouseMovedEvents`) and `acceptsFirstResponder`. *Accept:* key state is logged in debug.
+  > done: 2026-10-23. Core/Input.swift: `InputState` (move, run, look, click/journal/escape edges) is what the game consumes; `Input` accumulates raw events and `sample(captured:)` drains them. Diagonals are normalised. Key codes in `Input.Key`.
+- [x] **T2.2 Mouse capture.** Click the window to capture: `CGAssociateMouseAndMouseCursorPosition(0)` + `NSCursor.hide()`. Esc releases. Losing focus also releases. *Accept:* mouse look works without the cursor leaving the window.
+  > done: 2026-10-23. GameView owns capture: click captures (CGAssociateMouseAndMouseCursorPosition(0) + NSCursor.hide), Esc or losing focus releases and calls input.releaseAll(). `onCaptureChange` is the hook for the crosshair overlay (T3.7). Verified only by launching the app (no way to inject mouse events headlessly): it starts, titles 'click to look around' and quits cleanly.
+- [x] **T2.3 Game loop.** `Game/Game.swift`: a fixed 120 Hz update accumulator called from `draw(in:)`, which calls `player.update(dt)`, `world.update(dt)` and `audio.update`. Interpolation is not needed. *Accept:* movement speed is independent of frame rate.
+  > done: 2026-10-23. Game/Game.swift: fixed 120 Hz tick (`Game.tick`), look applied once per frame, dt clamped to 0.1 s. `--view/--camera` also set the starting pose in the windowed app. `--selftest player` shows the same 4 s of walking covers the same distance at 30/60/144 fps.
+- [x] **T2.4 Player controller.** `Game/Player.swift`: walk speed 3.2 m/s (Shift 6.5), acceleration smoothing, eye height 1.7 m, a gentle head bob (amplitude 0.03 m), ground following via `World.groundHeight(x,z)` (max of the terrain and walkable surfaces such as the dock and causeway). Step-up limit 0.5 m. *Accept:* you can walk from the dock to the summit.
+  > done: 2026-10-23. Game/Player.swift: feet position, eye 1.7 m, walk 3.2 / run 6.5, exponential velocity smoothing, vertical smoothing, head bob (0.03 m), footfall events. Rules: maxStep 0.5, maxSlope 1.19, minGround -0.4 (the sea is a wall; retreating is allowed). Spawn yaw changed to -0.65 so forward follows the dock.
+- [x] **T2.5 Colliders and bounds.** `World/Colliders.swift`: vertical cylinders and xz-AABBs with top heights. The player is a 0.35 m radius circle with slide-along-collision resolution. Water boundary: the player cannot enter where `groundHeight < -0.4` (it behaves like a soft wall). Very steep slopes (> 50°) block uphill movement. *Accept:* you cannot walk through the lighthouse or into the sea.
+  > done: 2026-10-23. World/Colliders.swift: `Colliders` (vertical cylinders, 2-pass push-out) and `Walkable` strips (dock, causeway; height lerps y0->y1; `enabled` flag for the causeway). `Scene.groundHeight` = max(terrain, walkables). The dock strip is `Layout.dockStrip()`, extended past the spawn because floating-point error at the exact end made the spawn 'off the dock'. Lighthouse collider radius 5.5 is registered in Scene.makeWorld (mesh must match in T3.4). Bot test walks the full lantern path.
+- [x] **T2.6 Audio ambience.** `Audio/AudioEngine.swift`: `AVAudioEngine` with `AVAudioSourceNode`s for wind (pink noise → one-pole lowpass, slow LFO gusts that get louder with player height) and surf (brown noise with amplitude swells at a 7–9 s period, louder near the shoreline from distance to `y = 0` terrain). Master gain 0.5. It starts in windowed mode only. *Accept:* a human confirms the ambience is pleasant (note it in the done line).
+  > done: 2026-10-23. Audio/AmbienceSynth.swift (pure DSP: pink-noise wind with gusts, brown-noise surf with an 8.3 s swell, footstep voices, tanh soft clip) + Audio/AudioEngine.swift (AVAudioSourceNode; drives wind from height and surf from Scene.shoreDistance; fails silent without a device). Windowed mode only. Offline checks in `--selftest audio`. HUMAN TODO: `afplay shots/ambience.wav` (from `--dump-audio shots/ambience.wav`) to confirm it is pleasant; the first 8 s are wind only, then surf joins at 8 s, then footsteps cycle through the surfaces from 12 s.
+- [x] **T2.7 Footsteps.** Synthesize short filtered-noise clicks per step from the head bob phase. Stone/wood surfaces are brighter and grass/sand duller (from the material under the player). *Accept:* step sounds match the surface.
+  > done: 2026-10-23. Footsteps use the same synth: Player emits a footfall each half stride; `Scene.surface(x,z)` picks grass/sand/earth(path)/rock/wood(dock)/stone; `Walkable.surface` sets the material of strips (set .stone for the causeway in T3.11).
+- [x] **T2.8 Performance check.** Add an `--fps` overlay (a title-bar update each second) and frustum culling of terrain chunks and props. Target ≥ 120 fps at 2560×1440 on M3 Max. *Accept:* record the fps in the done note.
+  > done: 2026-10-23. Frustum culling (Core/Math.swift `Frustum`) for the opaque pass and, against the sun's box, the shadow pass; `DrawItem.worldBounds`. `--fps` shows fps in the title; `--bench N --size WxH` measures GPU time offscreen. Measured at 2560x1440 on the M3 Max: 2.3-3.8 ms/frame (266-445 fps) on dock/overview/shore/summit with the terrain+water only. Re-run after M3 adds props.
+
+## M3: Vertical slice, "Isle of Varrow"
+
+- [x] **T3.1 Prop builders: stone.** `World/Props.swift`: `rock(seed, size)` (an icosphere with noise displacement, flat normals, gray-ochre, roughness 0.85), and `stoneLantern()` (base, post, cap and an emissive core with warm color and intensity 8). Scatter about 120 rocks deterministically on slopes, avoiding pads and the path. *Accept:* the `dock` screenshot shows lanterns lining the path.
+  > done: 2026-10-23. World/Props.swift (rock via MeshBuilder.icosphere + moss recolor, stoneLantern returning body+core) and World/Island.swift (deterministic jittered-grid scatter with exclusion zones; Batcher merges pieces into 120 m cells named rocks_x_z / trees_x_z for culling). Lanterns: every 18 m along the path alternating sides at 2.6 m offset, items `lanterns` + `lantern_cores` (emissive 8, warm). About 150 rocks (colliders for the big ones). `Scene.add/update/has` named-item API and `DrawItem.hidden` were added.
+- [x] **T3.2 Prop builders: trees.** `cypress(seed, height)` (stacked, slightly noisy cones, foliage material 3 with wrap lighting and a fake subsurface tint toward the sun) and `pine`. Scatter about 250 trees on gentle mid-altitude slopes using noise clustering. Exclude pads and path, and keep them out of colliders. Add cylinder colliders for trunks. *Accept:* the island has groves, and its silhouette is broken up nicely against the sky.
+  > done: 2026-10-23. Cypress and pine builders (foliage material 3 = wrap lighting + translucency branch in lit_fragment, no specular); up to 300 trees on moderate slopes, 2.5-48 m altitude, in noise-driven groves, 6 m clear of the path, trunk colliders r 0.3.
+- [x] **T3.3 Dock.** Wooden planks (boxes with per-plank color jitter), piles and two mooring posts, from `dockEnd` to the shore. Register a walkable surface. *Accept:* the player spawns on the dock and walks onto the beach.
+  > done: 2026-10-23. World/Landmarks.swift addDock: 0.24 m planks on a pitch of 0.275 m with per-plank tone, stringers, piles every 4 m (alternate ones stand above the deck). Item `dock`. Pad blend is now per pad (`Layout.Pad.blend`; dockShore uses 8 m instead of 30) because the 30 m blend held the beach dry for 27 m and the dock stood on land; the shoreline is now about 12 m along the dock.
+- [x] **T3.4 Lighthouse.** A tapered octagonal stone tower (about 28 m), a gallery ring, a lantern room with emissive-glass windows (material 2: fresnel plus emissive), a domed cap, and a door on the south face. The lens object is an emissive core, dark until the puzzle is solved (emissive intensity driven by flag `lighthouseLit`). Colliders: a tower cylinder. *Accept:* it is the dominant silhouette in `overview`.
+  > done: 2026-10-23. Lighthouse (items lighthouse, lighthouse_glass [material 2, emissive 0 until lit], lighthouse_lens [dark sphere at `Landmarks.lensPosition`]): banded white/red/white/red octagonal tower, base r 4.2 -> 2.8 over 24 m, gallery + rail, lantern room, red dome, door facing +Z. Collider r 5.5 matches the plinth. Visible from the dock as the landmark.
+- [x] **T3.5 Resonance stones.** `World/ResonanceStone.swift`: a basalt monolith (about 3.2 m) with a glyph inset (3 glyph shapes from small boxes: tide = 3 horizontal waves, wind = 2 diagonal strokes, stone = filled square) and a hovering capstone. State: `idle`, `lit` (glyph emissive cyan, capstone rises 0.3 m, slow bob), `dimming`. Animate with the Animator in T3.8. *Accept:* the three stones are placed at their Layout positions.
+  > done: 2026-10-23. StoneID {tide, wind, summit} in Landmarks.swift (position, colour, approachFrom). Each stone: item `stone_<name>`, `glyph_<name>` (emissive 0.3 idle; tide = 3 wave bars, wind = 2 diagonal strokes, stone = solid square), `cap_<name>` (hovering icosahedron at `Landmarks.capstoneBase`). Stones face the previous waypoint so the glyph is seen on arrival. Collider r 0.85.
+- [x] **T3.6 Interaction raycast.** `Game/Interaction.swift`: `Interactable { id, bounds (AABB in world), prompt, onActivate }`. Each update, cast a ray from the eye along `forward`, with max distance 3.5 m and slab test, and take the nearest hit. Hover sets `hoveredId`. Click calls `onActivate`. *Accept:* the debug log names the stone under the crosshair.
+  > done: 2026-10-23. Game/Interaction.swift: slab-method `Interaction.rayBox` and `pick` (nearest enabled box within its reach, default 3.5 m). `Game.updateHover` runs per frame; hover is suppressed while the journal is open or fading out. Click path verified through `Game.advance`.
+- [x] **T3.7 Overlay: crosshair.** `App/Overlay.swift`: a transparent `NSView` subview on top of `GameView` (it must pass mouse events through: `hitTest` returns nil). It draws a 3 px dot that animates into a 14 px ring when `hoveredId != nil`. *Accept:* the ring appears when looking at a stone.
+  > done: 2026-10-23. App/Overlay.swift `OverlayView`: drawn in draw(_:) (not CALayers) so it can be snapshotted headlessly: `--dump-overlay shots/overlay` writes -crosshair/-journal/-journal-empty/-end PNGs. Dot eases to a ring (r 2 -> 8) with the prompt text below when something is hovered. hitTest returns nil except while the journal is open, so mouse events pass through to the game.
+- [x] **T3.8 Animator and world state.** `Game/PuzzleState.swift`: a flag store `[String: Bool]` plus `[String: Float]`, with change observers. `Game/Animator.swift`: a tween list (value, from, to, duration, ease in/out cubic) that drives `ObjectUniforms` of named draw items each frame. *Accept:* clicking a stone toggles its lit state with a smooth tween.
+  > done: 2026-10-23. Game/Animator.swift (tweens with delay, ease, completion; `after(_:)`; driven by the 120 Hz fixed step so tests are deterministic), Game/PuzzleState.swift (flag set + `GameEvent` enum). The game emits events (chime, pageCollected, journal open/close, whiteout) and AppDelegate forwards them to audio/UI, so game logic never touches either.
+- [x] **T3.9 Chime synth.** Add `AudioEngine.chime(tone:)`: additive synthesis (fundamental plus inharmonic partials 2.76, 5.40, 8.93) with exponential decay of about 3 s and a touch of feedback-delay reverb. Tones: tide = D4, wind = A4, stone = D5. Add `failChime` (a descending minor third, softer). *Accept:* each stone has a distinct, lovely tone.
+  > done: 2026-10-23. AmbienceSynth chimes: inharmonic partials (1, 2.76, 5.40, 8.93) with faster-dying highs, tide D4 / wind A4 / stone D5, soft falling-third fail, ignite chord, lens shimmer, causeway rumble, plus a damped cross-fed delay as reverb. `AudioEngine.handle(event)`. Pitches verified with a Goertzel filter in `--selftest chimes`. HUMAN TODO: listen in the app.
+- [x] **T3.10 Puzzle logic: "As the keeper climbed".** In `Game/Puzzles/LighthousePuzzle.swift`, track the activation sequence. The correct order is tide → wind → stone. A wrong step plays `failChime`, dims all stones after 0.8 s and clears the sequence. When the third correct stone sounds: each lit stone emits a beam (a thin emissive cylinder from the capstone toward the lighthouse lantern, grown over 1.5 s), then the lens ignites (emissive 0 → 40 over 3 s, set `lighthouseLit`), then the causeway rises (T3.11). It is idempotent once solved: the stones stay lit and further clicks only chime. *Accept:* scripted test `--selftest puzzle` simulates the sequences and asserts the flags.
+  > done: 2026-10-23. Game/LighthousePuzzle.swift. Order tide -> wind -> summit. A wrong or repeated strike: fail chime, 0.8 s later everything dims and resets; strikes during that delay are ignored; after solving the stones only ring. Solve timeline (LighthousePuzzle.Timing, about 12 s): ignition chord, beams grow staggered from 0.4 s, lens ignites at 3.2 s, causeway rises from 6.5 s. 17 checks in `--selftest puzzle`. `--state solved|tide|tidewind` photographs states.
+- [x] **T3.11 Causeway.** 14 stone slabs from `causewayStart` to the islet shore, starting at y = −3 (submerged). On `lighthouseLit` they rise to y = 1.2, staggered by 0.25 s each, with a low rumble (filtered brown noise burst). Register them as walkable surfaces only after rising. *Accept:* you can walk to the islet after solving the puzzle.
+  > done: 2026-10-23. World/PuzzleProps.swift: 14 slabs (pitch 4 m) from causewayStart toward the islet, hidden until the rumble, rising 4.6 m from the sea 0.25 s apart; the Walkable (stone) is enabled when the last slab lands. The causeway ramps from y 1.2 up to the islet terrain height (a flat one would meet a 3 m cliff). Verified: before solving the player stops 60 m short; after solving walks onto the islet at y 5.
+- [x] **T3.12 The Lens (slice ending).** On the islet: a ring of 5 short pillars and a floating, slowly rotating torus of emissive glass with a bright core. Clicking it fades to white over 2 s, then shows the overlay text "The light folds… (end of the vertical slice)". *Accept:* the end state can be reached.
+  > done: 2026-10-23. Islet: pedestal, 5 tilted pillars (colliders), floating ring + core (`lens_ring`, `lens_core`; bob and turn in Game.fixedStep). Touching the lens (only after causewayUp) starts a 2 s whiteout; the overlay then shows 'The light folds… (end of the vertical slice)'.
+- [x] **T3.13 Journal pages in world.** `Game/Journal.swift`: 4 pages (text in §J below). Each page is a small paper quad prop (off-white, slight emissive 0.3 so it reads in shadow) at a fixed location: the dock (page 1), the tide stone (page 2), the wind stone (page 3) and inside the lighthouse door (page 4, visible but meant as a story beat). Clicking a page collects it and opens the reader. *Accept:* pages collect and the J key lists the collected pages.
+  > done: 2026-10-23. 4 pages as small emissive paper quads (page_1 dock, page_2 tide plinth, page_3 wind plinth, page_4 lighthouse doorstep), glowing faintly (0.25 +- 0.15 pulse) until collected; collecting hides the page, opens the journal on it, emits pageCollected. J reopens the journal at any time.
+- [x] **T3.14 Journal reader overlay.** An AppKit panel view centered over the game: a parchment-colored rounded rect, a serif font (`NSFont(name: "Baskerville", size: 20)`, falling back to the system serif), the page text, and a "‹ ›" control to flip between collected pages. Esc or J closes it. The mouse is released while it is open, and the game does not process movement. *Accept:* the page is readable at 1600×900.
+  > done: 2026-10-23. Journal reader in the overlay: parchment panel, Baskerville 24, page dots, arrows (click or <- ->), Esc/J close. The mouse is released while it is open and recaptured on close (AppDelegate.syncOverlay). With no pages it says the journal is empty.
+- [x] **T3.15 Guidance pass.** Apply the design pillar "fair mystery". Make sure (a) the lighthouse is visible from the dock, (b) the lantern path leads past all three stones in climbing order, and (c) interactables show a faint emissive pulse (sin of time, 0.15 amplitude) until first use. Run a full play-through as the human. *Accept:* a human solves the puzzle without reading this file.
+  > done: 2026-10-23. Guidance review. (a) the lighthouse is the dominant landmark from the dock (shots/t33-dock.png); (b) the lantern path passes tide -> wind -> summit stone in climbing order and the bot walks it; (c) unused glyphs and pages pulse faintly. The stones face the previous waypoint so the glyph is seen on arrival, and journal page 3 states the order. HUMAN TODO: play it cold and see whether the order is deducible without reading TASKS.md.
+- [x] **T3.16 Slice wrap-up.** Update the README with controls and the build steps, refresh the screenshots in `docs/shots/`, and record known issues. *Accept:* `scripts/bundle.sh` produces an app that a fresh user can run.
+  > done: 2026-10-23. README rewritten (controls, build, flags), reference shots in docs/shots/. Final state: 124 selftest checks pass; bundle launches; 182-264 fps at 2560x1440 (GPU time 3.8-5.5 ms) with the full island.
+
+### §J Journal text (vertical slice)
+1. *"Day one of the last season. The lamp has gone quiet again. Oren says I fuss over it like a child. Perhaps. But a lighthouse that does not answer is only a tower."*
+2. *"The stones remember the sea best. I strike the tide-stone first, always: everything on this island begins at the water."*
+3. *"I tune the lamp each evening the way I first climbed this island: from the water, through the wind, to the stone. Out of order, they only argue."*
+4. *"Oren has asked again for the lens. He says light that can fold can also carry. Carry what, brother? He did not answer, and I did not like the silence."*
+
+## M4: Polish (planned; refine each task before starting)
+
+- [ ] **T4.1** Instanced grass: a GPU-generated blade grid around the camera (radius 40 m), with wind sway and density from the terrain grass weight.
+- [ ] **T4.2** Cascaded shadow maps (3 cascades) to replace the single map, with near-detail texel size ≤ 3 cm.
+- [ ] **T4.3** Screen-space god rays (radial blur of the sky mask from the sun position).
+- [ ] **T4.4** SSAO (half resolution, 8 samples plus bilateral blur) applied to ambient only.
+- [ ] **T4.5** Save/load of the PuzzleState flags plus player transform to `~/Library/Application Support/Lanternwright/save.json`.
+- [ ] **T4.6** Pause menu (Esc while the mouse is released): Resume, mouse sensitivity, invert Y, volume, render scale, Quit.
+- [ ] **T4.7** Title screen: a slow camera drift over the island with the title in AppKit and "Click to begin".
+- [ ] **T4.8** Drifting mist sheets at sea level (camera-facing soft particles, depth-faded).
+- [ ] **T4.9** Birds: a few boids-style gulls circling the lighthouse (low-poly, distant).
+- [ ] **T4.10** Performance and settings: render scale with bilinear upscale and an optional TAA. Fullscreen toggle (Cmd-Ctrl-F).
+
+## M5: First Refraction, "The Glass Wood" (planned)
+
+- [ ] **T5.1** `Scene` abstraction: World becomes one of several scenes, and linking (the lens) swaps the scene with a white-fold transition.
+- [ ] **T5.2** Scene parameters: sky (twin moons, night LUT variant), terrain function, palette and fog.
+- [ ] **T5.3** Glass-tree props (emissive-veined crystalline trunks that refract via the scene copy).
+- [ ] **T5.4** Puzzle 1: light routing. Rotate three mirror stands so a moonbeam passes through tinted glass in the order shown on a mural.
+- [ ] **T5.5** Puzzle 2: a resonance chord using the tide/wind/stone tones learned on Varrow, played on glass chimes.
+- [ ] **T5.6** Return link and story beat: Oren's first journal and the sibling-choice setup.
+
+## M6+: Full game (outline)
+More Refractions (3–4 total), the ending choice, credits, an app icon, notarization (requires an Apple Developer ID), and a settings persistence and accessibility pass (subtitle captions for chimes, color-blind-safe glyph cues).
