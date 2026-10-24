@@ -212,27 +212,59 @@ enum Island {
                            accept: { treeAllowed(terrain: terrain, x: $0.x, z: $0.y) }, seed: 0x7EE5)
     }
 
+    /// The three level-of-detail batches of every tree cell, and the trunk colliders: deterministic, so built once per run and shared by
+    /// every scene (the selftests build dozens).
+    private static var treeCache: (cells: [[String: MeshBuilder]], colliders: [(c: SIMD2<Float>, y: Float, h: Float)])?
+    static let treeCell: Float = 60
+
     static func addTrees(_ scene: Scene, device: MTLDevice) {
-        let sites = treeSites(terrain: scene.terrain)
-        var batch = Batcher()
-        var count = 0
-        for p in sites.prefix(420) {
-            let r1 = noise.unit(Int32(count), 11), r2 = noise.unit(Int32(count), 29), r3 = noise.unit(Int32(count), 47), r4 = noise.unit(Int32(count), 83)
-            let y = scene.terrain.sampleHeight(x: p.x, z: p.y)
-            let height = (6 + 7.5 * r1) * (0.7 + 0.6 * r2) / 1.0
-            let seed = UInt32(truncatingIfNeeded: count &* 104729 &+ 5)
-            let dead = r4 < 0.04, fallen = r4 > 0.985
-            var tree: MeshBuilder
-            if dead || fallen { tree = Props.deadTree(seed: seed, height: height * 0.8) }
-            else { tree = ((y > 24 || r3 > 0.55) ? Props.pine(seed: seed, height: height) : Props.cypress(seed: seed, height: height))
-                .tinted(SIMD3(repeating: 0.8 + 0.4 * noise.unit(Int32(count), 61)) * SIMD3(1, 1 + 0.15 * (r2 - 0.5), 1 - 0.1 * (r1 - 0.5))) }
-            let lean = (1 + 2 * noise.unit(Int32(count), 71)) * .pi / 180            // 1-3 degrees
-            let la = noise.unit(Int32(count), 73) * 2 * .pi
-            let tilt = fallen ? SIMD2<Float>(0, .pi / 2 - 0.05) : SIMD2(lean * cos(la), lean * sin(la))
-            batch.add(tree, at: SIMD3(p.x, y - (fallen ? -0.25 : 0.15), p.y), yaw: r3 * 6.28, prefix: "trees", scale: SIMD3(repeating: 1), tilt: tilt)
-            if !fallen { scene.colliders.addCylinder(center: SIMD2(p.x, p.y), radius: 0.3, minY: y - 1, maxY: y + height) }
-            count += 1
+        let terrain = scene.terrain!
+        if treeCache == nil {
+            let sites = treeSites(terrain: terrain)
+            var cells = [[String: MeshBuilder]](repeating: [:], count: 3)
+            var colliders: [(c: SIMD2<Float>, y: Float, h: Float)] = []
+            for (count, p) in sites.prefix(420).enumerated() {
+                let r1 = noise.unit(Int32(count), 11), r2 = noise.unit(Int32(count), 29), r3 = noise.unit(Int32(count), 47), r4 = noise.unit(Int32(count), 83)
+                let y = terrain.sampleHeight(x: p.x, z: p.y)
+                let height = (6 + 7.5 * r1) * (0.7 + 0.6 * r2)
+                let dead = r4 < 0.04, fallen = r4 > 0.985
+                let pine = y > 24 || r3 > 0.55
+                let variantIndex = Int(noise.unit(Int32(count), 5) * Float(Trees.variantCount)) % Trees.variantCount
+                let h = height / Trees.nominalHeight
+                let width = h * (0.85 + 0.3 * noise.unit(Int32(count), 13))
+                let lean = (1 + 2 * noise.unit(Int32(count), 71)) * .pi / 180
+                let la = noise.unit(Int32(count), 73) * 2 * .pi
+                let tilt = fallen ? SIMD2<Float>(0, .pi / 2 - 0.05) : SIMD2(lean * cos(la), lean * sin(la))
+                let shade = SIMD3(repeating: 0.8 + 0.4 * noise.unit(Int32(count), 61)) * SIMD3<Float>(1, 1 + 0.15 * (r2 - 0.5), 1 - 0.1 * (r1 - 0.5))
+                let at = SIMD3(p.x, y - (fallen ? -0.25 : 0.15), p.y)
+                let yaw = r3 * 6.28
+                let i = Int(floor(p.x / treeCell)), j = Int(floor(p.y / treeCell))
+                for lod in 0..<3 {
+                    let mesh: MeshBuilder = (dead || fallen) ? Trees.snagVariant(variantIndex, lod: min(lod, 1)).tinted(SIMD3(repeating: 1))
+                        : Trees.variant(pine ? .pine : .cypress, variantIndex, lod: lod).tinted(shade)
+                    let m = translation(at) * rotationY(yaw) * rotationX(tilt.x) * rotationZ(tilt.y) * scaling(SIMD3(width, h, width))
+                    cells[lod]["trees_L\(lod)_\(i)_\(j)", default: MeshBuilder()].append(mesh, transform: m)
+                }
+                if !fallen { colliders.append((SIMD2(p.x, p.y), y, height)) }
+            }
+            treeCache = (cells, colliders)
         }
-        batch.commit(scene, device: device)
+        let cache = treeCache!
+        for c in cache.colliders { scene.colliders.addCylinder(center: c.c, radius: 0.3, minY: c.y - 1, maxY: c.y + c.h) }
+        for name in cache.cells[0].keys.sorted() {
+            let suffix = String(name.dropFirst("trees_L0".count))
+            var names: [String] = []
+            for lod in 0..<3 {
+                let n = "trees_L\(lod)\(suffix)"
+                guard let mb = cache.cells[lod][n], !mb.isEmpty else { continue }
+                scene.add(n, mesh: mb.build(device: device, label: n), uniforms: ObjectUniforms(), hidden: lod != 0)
+                names.append(n)
+            }
+            let parts = suffix.split(separator: "_").compactMap { Int($0) }
+            if parts.count == 2 {
+                let lo = SIMD2(Float(parts[0]) * treeCell, Float(parts[1]) * treeCell)
+                scene.lodGroups.append(Scene.LODGroup(names: names, min: lo, max: lo + SIMD2(treeCell, treeCell)))
+            }
+        }
     }
 }

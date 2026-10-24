@@ -5,6 +5,60 @@ import simd
 /// Self-tests: world.
 extension SelfTestRunner {
     func runWorld() {
+        if name == "all" || name == "trees" {
+            func tris(_ b: MeshBuilder) -> Int { b.indices.count / 3 }
+            func mat(_ b: MeshBuilder, _ m: MaterialID) -> Int { b.vertices.filter { abs($0.normal.w - m.rawValue) < 0.01 }.count }
+            let pine0 = Trees.variant(.pine, 0, lod: 0), pine1 = Trees.variant(.pine, 0, lod: 1), pine2 = Trees.variant(.pine, 0, lod: 2)
+            let cyp0 = Trees.variant(.cypress, 0, lod: 0)
+            check(tris(pine0) > 1500 && tris(pine0) < 12000 && tris(cyp0) > 1500 && tris(cyp0) < 12000, "a full-detail conifer is a few thousand triangles (pine \(tris(pine0)), cypress \(tris(cyp0)))")
+            check(tris(pine1) > 100 && tris(pine1) < tris(pine0) / 2 && tris(pine2) > 0, "the mid level is far cheaper (\(tris(pine1)) triangles) and a far level exists (\(tris(pine2)))")
+            check(mat(pine0, .bark) > 100 && mat(pine0, .foliage) > 500 && mat(pine1, .bark) == 0 && mat(pine1, .foliage) > 50, "full detail has bark and foliage materials; the mid level skips the bark pattern")
+            // Structure: a trunk that flares at the root and tapers, a crown that is a mass of clumps wider than the trunk by an order of magnitude.
+            // The trunk is the first tube built: 9 rings of 8 vertices, base to top (see Trees.conifer).
+            func ringR(_ k: Int) -> Float {
+                let ring = pine0.vertices[(k * 8)..<(k * 8 + 8)]
+                let cx = ring.map(\.position.x).reduce(0, +) / 8, cz = ring.map(\.position.z).reduce(0, +) / 8
+                return ring.map { simd_length(SIMD2($0.position.x - cx, $0.position.z - cz)) }.reduce(0, +) / 8
+            }
+            let rootR = ringR(0), midR = ringR(4), topR = ringR(8)
+            check(rootR > 0.3 && rootR > midR * 1.5 && midR > topR * 1.5 && topR > 0.02 && abs(pine0.vertices[0].position.y) < 0.1, "the trunk flares at the root and tapers to a slender top (rings: root \(rootR) m, mid \(midR) m, top \(topR) m)")
+            let crownW = pine0.vertices.filter { abs($0.normal.w - MaterialID.foliage.rawValue) < 0.01 }.map { simd_length(SIMD2($0.position.x, $0.position.z)) }.max() ?? 0
+            let height = pine0.vertices.map(\.position.y).max() ?? 0
+            check(crownW > 1.2 && crownW < 4.5 && height > 8 && height < 11.5, "the crown is a wide mass of boughs on a tall tree (crown radius \(crownW) m, height \(height) m)")
+            check(pine0.vertices.allSatisfy { $0.position.x.isFinite && $0.position.y.isFinite && $0.position.z.isFinite && abs(simd_length(SIMD3($0.normal.x, $0.normal.y, $0.normal.z)) - 1) < 1e-2 }, "all vertices finite, all normals unit (including the bent foliage normals)")
+            // Foliage normals are bent outward from the crown centre (soft volume shading), and shaded dark inside, light at the tips.
+            let foliage = pine0.vertices.filter { abs($0.normal.w - MaterialID.foliage.rawValue) < 0.01 }
+            let outward = foliage.filter { simd_length(SIMD2($0.position.x, $0.position.z)) > 1.5 }
+            let facing = outward.filter { simd_dot(SIMD2($0.normal.x, $0.normal.z), simd_normalize(SIMD2($0.position.x, $0.position.z))) > 0 }.count
+            check(!outward.isEmpty && Float(facing) / Float(outward.count) > 0.85, "foliage normals point away from the trunk (\(facing) of \(outward.count) outer vertices)")
+            let lum = { (v: Vertex) in v.color.x + v.color.y + v.color.z }
+            let inner = foliage.filter { simd_length(SIMD2($0.position.x, $0.position.z)) < 0.9 }.map(lum), tips = foliage.filter { simd_length(SIMD2($0.position.x, $0.position.z)) > 2.0 }.map(lum)
+            check(!inner.isEmpty && !tips.isEmpty && tips.reduce(0, +) / Float(tips.count) > inner.reduce(0, +) / Float(inner.count) * 1.15, "baked shading: the crown is darker inside and lighter at the tips")
+            // Variation: sixteen seeds give clearly different trees.
+            let sigs = Set((0..<Trees.variantCount).map { i -> Int in let m = Trees.variant(.pine, i, lod: 0); return m.vertices.count * 31 + Int((m.vertices.map(\.position.x).reduce(0, +)) * 100) })
+            check(sigs.count >= 14, "16 pine variants are genuinely different shapes (\(sigs.count) distinct)")
+            check(tris(Trees.snagVariant(0, lod: 0)) > 100 && mat(Trees.snagVariant(0, lod: 0), .bark) > 50 && mat(Trees.snagVariant(0, lod: 0), .foliage) == 0, "a dead snag is bare bark with broken limbs")
+            // LOD selection in a real scene: exactly one level of each group is visible, chosen by distance to its footprint.
+            let sc = Scene.makeWorld(device: device)
+            check(sc.lodGroups.count > 10 && sc.lodGroups.allSatisfy { $0.names.count == 3 }, "tree cells have three levels each (\(sc.lodGroups.count) cells)")
+            let g0 = sc.lodGroups[sc.lodGroups.count / 2]
+            func visibleLevel(_ eye: SIMD3<Float>) -> [Int] {
+                sc.applyLOD(eye: eye)
+                return g0.names.enumerated().filter { n in !(sc.items.first { $0.name == n.element }?.hidden ?? true) }.map(\.offset)
+            }
+            let c = (g0.min + g0.max) / 2
+            check(visibleLevel(SIMD3(c.x, 0, c.y)) == [0], "standing in a cell shows its full-detail trees")
+            check(visibleLevel(SIMD3(c.x + 60 + 80, 0, c.y)) == [1], "80 m beyond a cell's edge shows the mid level")
+            check(visibleLevel(SIMD3(c.x + 60 + 400, 0, c.y)) == [2], "far away shows the cone silhouettes")
+            var oneEach = true
+            for k in 0..<40 {
+                let eye = SIMD3<Float>(-300 + Float(k) * 17, 0, -300 + Float(k * k % 600))
+                sc.applyLOD(eye: eye)
+                for grp in sc.lodGroups { if grp.names.filter({ n in !(sc.items.first { $0.name == n }?.hidden ?? true) }).count != 1 { oneEach = false } }
+            }
+            check(oneEach, "from any eye position exactly one level of every tree cell is visible")
+            sc.applyLOD(eye: SIMD3(0, 0, 0))
+        }
         if name == "all" || name == "terrain" || name == "terrain-map" {
             let t = Terrain()
             for (label, p) in [("tideStone", Layout.tideStone), ("windStone", Layout.windStone), ("summitStone", Layout.summitStone),

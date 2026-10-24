@@ -309,6 +309,7 @@ final class Renderer {
 
     /// Encode a full frame that ends by writing `target` (format `outputFormat`).
     func encode(commandBuffer: MTLCommandBuffer, target: MTLTexture, camera: Camera) {
+        scene.applyLOD(eye: camera.position)
         ensureTargets(width: target.width, height: target.height)
         updateFrame(camera: camera, width: target.width, height: target.height)
 

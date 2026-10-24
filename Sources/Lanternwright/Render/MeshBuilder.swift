@@ -93,6 +93,11 @@ struct MeshBuilder {
     // MARK: Post-processing
 
     /// Rewrite vertex colours (e.g. moss on upward faces). The closure gets position, normal and colour.
+    /// Edit vertices from `start` in place (bent normals, baked shading).
+    mutating func adjust(from start: Int = 0, _ f: (inout Vertex) -> Void) {
+        for i in start..<vertices.count { f(&vertices[i]) }
+    }
+
     mutating func recolor(from start: Int = 0, _ f: (SIMD3<Float>, SIMD3<Float>, SIMD4<Float>) -> SIMD4<Float>) {
         for i in start..<vertices.count {
             let v = vertices[i]

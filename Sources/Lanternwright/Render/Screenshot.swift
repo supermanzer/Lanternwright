@@ -102,6 +102,7 @@ enum Screenshot {
         if let w = options.world { renderer.world = w } else if options.viewName?.hasPrefix("gw-") == true { renderer.world = .glassWood }
         if let g = applyState(options.state, scenes: renderer.scenes) { renderer.mistScale = g.mistScale; renderer.beamIntensity = g.beamAmount }
         let camera = options.camera
+            ?? (options.viewName == "tree-close" ? Viewpoints.treeClose(terrain: renderer.scene.terrain) : nil)
             ?? options.viewName.flatMap(Viewpoints.named)
             ?? Viewpoints.named("overview")!
 

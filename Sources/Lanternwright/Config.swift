@@ -134,6 +134,20 @@ struct LaunchOptions {
 /// Named viewpoints used for screenshots and acceptance checks (see docs/TASKS.md §0).
 /// Positions are placeholders until the terrain exists (T1.5); refine them in T1.18.
 enum Viewpoints {
+    /// `tree-close`: eye height, 4.5 m from a real conifer on the lower slope (the nearest site to the dock that is at least 25 m inland),
+    /// looking at its crown. Needs the terrain, so it is not a fixed viewpoint.
+    static func treeClose(terrain: Terrain) -> Camera {
+        let sites = Island.treeSites(terrain: terrain).prefix(420).filter { terrain.sampleHeight(x: $0.x, z: $0.y) > 6 && terrain.sampleHeight(x: $0.x, z: $0.y) < 26 }
+        let from = SIMD2(Layout.dockShore.x, Layout.dockShore.z)
+        let tree = sites.filter { simd_length($0 - from) > 25 }.min { simd_length($0 - from) < simd_length($1 - from) } ?? SIMD2(Layout.tideStone.x, Layout.tideStone.z)
+        let toward = simd_normalize(from - tree)                     // stand on the dock side of the tree so the light reaches the crown
+        let cam = tree + toward * 5.5
+        let g = terrain.sampleHeight(x: cam.x, z: cam.y)
+        let d = SIMD2(tree.x - cam.x, tree.y - cam.y)
+        let cam3 = Camera(position: SIMD3(cam.x, g + 1.7, cam.y), yaw: atan2(d.x, -d.y), pitch: 0.55)
+        return cam3
+    }
+
     static func named(_ name: String) -> Camera? {
         switch name {
         case "dock":     return Camera(position: SIMD3(175, 2.5, 205), yaw: -0.75, pitch: 0.02)

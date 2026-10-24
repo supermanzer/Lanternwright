@@ -46,6 +46,19 @@ final class Scene {
         change(&items[i])
     }
 
+    /// Level-of-detail groups: items that are alternatives of each other (near, mid, far versions of the same trees). Exactly one is
+    /// visible per group, chosen from the eye's distance to the group's footprint. Applied by the renderer each frame.
+    struct LODGroup { var names: [String]; var min: SIMD2<Float>; var max: SIMD2<Float> }
+    var lodGroups: [LODGroup] = []
+    static let lodDistances: [Float] = [45, 130]
+    func applyLOD(eye: SIMD3<Float>) {
+        for g in lodGroups {
+            let dx = max(g.min.x - eye.x, 0, eye.x - g.max.x), dz = max(g.min.y - eye.z, 0, eye.z - g.max.y)
+            let d = (dx * dx + dz * dz).squareRoot()
+            let level = d < Scene.lodDistances[0] ? 0 : (d < Scene.lodDistances[1] ? 1 : 2)
+            for (i, name) in g.names.enumerated() { update(name) { $0.hidden = (i != min(level, g.names.count - 1)) } }
+        }
+    }
     var terrain: Terrain!
     var colliders = Colliders()
     var walkables: [Walkable] = []
