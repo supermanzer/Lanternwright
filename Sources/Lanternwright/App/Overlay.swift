@@ -10,6 +10,10 @@ final class OverlayView: NSView {
     var prompt: String?
     var journalOpen = false
     var pages: [JournalPage] = []
+    var journalTab: JournalTab = .pages
+    /// Notebook: per stone, whether its glyph has been seen / struck.
+    var notebookSeen = [false, false, false]
+    var notebookStruck = [false, false, false]
     var pageIndex = 0
     var whiteout: CGFloat = 0
     /// Text shown while the screen is white ("The light folds…").
@@ -44,6 +48,8 @@ final class OverlayView: NSView {
 
     var onFlip: ((Int) -> Void)?
     var onClose: (() -> Void)?
+    var onTab: (() -> Void)?
+    var onNotebookTone: ((Int) -> Void)?
 
     private var ring: CGFloat = 0           // 0 = dot, 1 = ring; eased toward the target
 
@@ -73,10 +79,24 @@ final class OverlayView: NSView {
     private var leftArrow: NSRect { NSRect(x: panel.minX + 24, y: panel.maxY - 66, width: 56, height: 36) }
     private var rightArrow: NSRect { NSRect(x: panel.maxX - 80, y: panel.maxY - 66, width: 56, height: 36) }
 
+    private var pagesTabRect: NSRect { NSRect(x: panel.minX + 24, y: panel.minY + 20, width: 90, height: 24) }
+    private var notebookTabRect: NSRect { NSRect(x: panel.minX + 118, y: panel.minY + 20, width: 100, height: 24) }
+    /// The three notebook cells, side by side.
+    func notebookCell(_ i: Int) -> NSRect {
+        let w = (panel.width - 96 - 2 * 24) / 3
+        return NSRect(x: panel.minX + 48 + CGFloat(i) * (w + 24), y: panel.minY + 130, width: w, height: 250)
+    }
+
     override func mouseDown(with event: NSEvent) {
         if titleOpen { onBegin?(); return }
         guard journalOpen else { return }
         let p = convert(event.locationInWindow, from: nil)
+        if (pagesTabRect.contains(p) && journalTab == .notebook) || (notebookTabRect.contains(p) && journalTab == .pages) { onTab?(); return }
+        if journalTab == .notebook {
+            for i in 0..<3 where notebookCell(i).contains(p) { onNotebookTone?(i); return }
+            if !panel.contains(p) { onClose?() }
+            return
+        }
         if leftArrow.contains(p) { onFlip?(-1) }
         else if rightArrow.contains(p) { onFlip?(1) }
         else if !panel.contains(p) { onClose?() }
@@ -140,7 +160,16 @@ final class OverlayView: NSView {
             (s as NSString).draw(in: rect, withAttributes: [.font: font, .foregroundColor: color, .paragraphStyle: para])
         }
 
-        if pages.isEmpty {
+        // Tabs (top-left): the active one is inked, the other faded.
+        text("Pages", font: serif(16), color: journalTab == .pages ? ink : faded, in: pagesTabRect, align: .center)
+        text("Notebook", font: serif(16), color: journalTab == .notebook ? ink : faded, in: notebookTabRect, align: .center)
+        ink.withAlphaComponent(0.6).setFill()
+        let activeTab = journalTab == .pages ? pagesTabRect : notebookTabRect
+        NSRect(x: activeTab.minX + 8, y: activeTab.maxY, width: activeTab.width - 16, height: 1.5).fill()
+
+        if journalTab == .notebook {
+            drawNotebook(ink: ink, faded: faded, text: text)
+        } else if pages.isEmpty {
             text("The journal is empty.", font: serif(26), color: ink, in: NSRect(x: p.minX + 48, y: p.minY + 70, width: p.width - 96, height: 40), align: .center)
             text("Pages you find on the island are kept here, so you can read them again.", font: serif(19), color: faded,
                  in: NSRect(x: p.minX + 60, y: p.minY + 130, width: p.width - 120, height: 120), align: .center, spacing: 6)
@@ -160,8 +189,62 @@ final class OverlayView: NSView {
             text("‹", font: serif(34), color: pageIndex > 0 ? ink : faded.withAlphaComponent(0.2), in: leftArrow, align: .center)
             text("›", font: serif(34), color: pageIndex < pages.count - 1 ? ink : faded.withAlphaComponent(0.2), in: rightArrow, align: .center)
         }
-        text("← →  turn pages     Esc or J  close", font: .systemFont(ofSize: 11), color: faded,
-             in: NSRect(x: p.minX, y: p.maxY - 26, width: p.width, height: 16), align: .center)
+        if journalTab == .pages {
+            text("← →  turn pages     Esc or J  close", font: .systemFont(ofSize: 11), color: faded,
+                 in: NSRect(x: p.minX, y: p.maxY - 26, width: p.width, height: 16), align: .center)
+        }
+    }
+
+    /// The notebook: one rubbing per stone, drawn once its glyph has been seen; struck stones can be tapped to hear them again.
+    private func drawNotebook(ink: NSColor, faded: NSColor, text: (String, NSFont, NSColor, NSRect, NSTextAlignment, CGFloat) -> Void) {
+        let p = panel
+        text("Rubbings of the stones", serif(20), ink, NSRect(x: p.minX + 48, y: p.minY + 70, width: p.width - 96, height: 28), .center, 0)
+        let names = ["the first stone", "the second stone", "the third stone"]
+        for i in 0..<3 {
+            let c = notebookCell(i)
+            let seen = notebookSeen[i], struck = notebookStruck[i]
+            // The leaf: a slightly darker square of paper with a ragged-looking edge.
+            NSColor(calibratedRed: 0.88, green: 0.82, blue: 0.68, alpha: 1).setFill()
+            NSBezierPath(roundedRect: c.insetBy(dx: 4, dy: 4), xRadius: 4, yRadius: 4).fill()
+            faded.withAlphaComponent(0.35).setStroke()
+            let edge = NSBezierPath(roundedRect: c.insetBy(dx: 4, dy: 4), xRadius: 4, yRadius: 4); edge.lineWidth = 1; edge.stroke()
+            let mid = NSPoint(x: c.midX, y: c.minY + 100)
+            if seen {
+                drawRubbing(i, at: mid, color: ink.withAlphaComponent(0.82))
+                text(names[i], serif(15), ink, NSRect(x: c.minX, y: c.minY + 180, width: c.width, height: 20), .center, 0)
+                text(struck ? "tap to hear" : "not yet struck", .systemFont(ofSize: 11), faded, NSRect(x: c.minX, y: c.minY + 206, width: c.width, height: 16), .center, 0)
+                if struck {          // a small sound-wave mark
+                    ink.withAlphaComponent(0.5).setStroke()
+                    for r in [6.0, 11.0, 16.0] as [CGFloat] {
+                        let arc = NSBezierPath(); arc.appendArc(withCenter: NSPoint(x: c.midX - 52 + r * 0.2, y: c.minY + 214), radius: r, startAngle: -50, endAngle: 50)
+                        arc.lineWidth = 1.2; arc.stroke()
+                    }
+                }
+            } else {
+                text("?", serif(54), faded.withAlphaComponent(0.3), NSRect(x: c.minX, y: c.minY + 70, width: c.width, height: 70), .center, 0)
+                text("not yet found", .systemFont(ofSize: 11), faded, NSRect(x: c.minX, y: c.minY + 206, width: c.width, height: 16), .center, 0)
+            }
+        }
+        text("Tab  back to the pages     Esc or J  close", .systemFont(ofSize: 11), faded, NSRect(x: p.minX, y: p.maxY - 26, width: p.width, height: 16), .center, 0)
+    }
+
+    /// A graphite-rubbing look of each glyph: the stone's carved shape, drawn with a rough stroke.
+    private func drawRubbing(_ i: Int, at c: NSPoint, color: NSColor) {
+        color.setFill(); color.setStroke()
+        func bar(_ rect: NSRect, angle: CGFloat = 0) {
+            let path = NSBezierPath(roundedRect: rect, xRadius: 2, yRadius: 2)
+            var t = AffineTransform(translationByX: rect.midX, byY: rect.midY); t.rotate(byRadians: angle); t.translate(x: -rect.midX, y: -rect.midY)
+            path.transform(using: t); path.fill()
+        }
+        switch i {
+        case 0:      // waves: three offset bars
+            let offsets: [CGFloat] = [-8, 8, -8]
+            for (k, dx) in offsets.enumerated() { bar(NSRect(x: c.x - 36 + dx, y: c.y - 28 + CGFloat(k) * 28, width: 72, height: 9)) }
+        case 1:      // wind: two diagonals
+            for dx: CGFloat in [-17, 17] { bar(NSRect(x: c.x + dx - 4.5, y: c.y - 42, width: 9, height: 84), angle: 0.6) }
+        default:     // stone: a square
+            bar(NSRect(x: c.x - 31, y: c.y - 31, width: 62, height: 62))
+        }
     }
 
     // MARK: Title
@@ -397,6 +480,8 @@ enum OverlayDump {
         try v.snapshot(to: base + "-journal.png")
         v = make(); v.journalOpen = true
         try v.snapshot(to: base + "-journal-empty.png")
+        v = make(); v.journalOpen = true; v.journalTab = .notebook; v.notebookSeen = [true, true, false]; v.notebookStruck = [true, false, false]
+        try v.snapshot(to: base + "-notebook.png")
         v = make(); v.whiteout = 1; v.whiteoutCaption = "The light folds…"
         try v.snapshot(to: base + "-end.png")
         v = make(); v.titleOpen = true; v.titleHasSave = true

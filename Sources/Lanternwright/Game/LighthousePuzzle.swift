@@ -48,6 +48,7 @@ final class LighthousePuzzle {
     // MARK: Interaction
 
     func strike(_ id: StoneID) {
+        state.set(Notebook.struckFlag(id)); state.set(Notebook.seenFlag(id))      // heard it: it goes in the notebook
         emit(.chime(chimeFor(id)))
         guard !isSolved, !resetting else { return }              // after solving, stones just ring
         if id == LighthousePuzzle.order[sequence.count] {

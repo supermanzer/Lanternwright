@@ -44,7 +44,7 @@ enum SaveStore {
 
 extension Game {
     /// Flags that make sense to restore directly.
-    static let persistentFlags = ["solved", "lighthouseLit", "causewayUp", "lensTouched", "gw_mirrors", "gw_chimes", "gw_altar", "gw_ilse_heard", "gw_oren_heard", "gw_end"]
+    static let persistentFlags = ["solved", "lighthouseLit", "causewayUp", "lensTouched", "gw_mirrors", "gw_chimes", "gw_altar", "gw_ilse_heard", "gw_oren_heard", "gw_end"] + Notebook.flags
 
     func makeSave() -> SaveData {
         SaveData(flags: Game.persistentFlags.filter { state.has($0) },
@@ -61,6 +61,7 @@ extension Game {
         if s.flags.contains("gw_chimes") { glass?.forceChimesSolved() }
         if s.flags.contains("gw_altar") { glass?.forceAltar() }
         for f in ["gw_ilse_heard", "gw_oren_heard", "gw_end"] where s.flags.contains(f) { state.set(f) }
+        for f in Notebook.flags where s.flags.contains(f) { state.set(f) }
         for n in s.pages { restorePage(n) }
         if let w = s.world.flatMap(WorldKind.init(rawValue:)), w != world { travel(to: w) }
         let p = SIMD3(s.position[0], s.position[1], s.position[2])

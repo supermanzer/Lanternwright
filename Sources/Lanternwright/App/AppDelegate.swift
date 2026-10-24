@@ -70,6 +70,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, MTKViewDelegate {
         overlay = OverlayView(frame: view.bounds)
         overlay.autoresizingMask = [.width, .height]
         overlay.onFlip = { [weak self] d in self?.game.journal.flip(d) }
+        overlay.onTab = { [weak self] in self?.game.journal.tab = (self?.game.journal.tab == .pages) ? .notebook : .pages }
+        overlay.onNotebookTone = { [weak self] i in self?.game.playNotebookTone(i) }
         overlay.onClose = { [weak self] in self?.game.journal.isOpen = false }
         overlay.settings = settings
         overlay.onBegin = { [weak self] in self?.beginPlaying() }
@@ -240,6 +242,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, MTKViewDelegate {
         set(&overlay.prompt, game.hovered?.prompt)
         set(&overlay.journalOpen, journal.isOpen)
         set(&overlay.pageIndex, journal.current)
+        set(&overlay.journalTab, journal.tab)
+        set(&overlay.notebookSeen, StoneID.allCases.map { game.state.has(Notebook.seenFlag($0)) })
+        set(&overlay.notebookStruck, StoneID.allCases.map { game.state.has(Notebook.struckFlag($0)) })
         set(&overlay.whiteout, CGFloat(game.whiteout))
         set(&overlay.whiteoutCaption, game.whiteCaption)
         set(&overlay.bannerText, game.banner)

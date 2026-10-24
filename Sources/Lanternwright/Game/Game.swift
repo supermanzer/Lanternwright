@@ -212,6 +212,21 @@ final class Game {
         return c
     }
 
+    /// Tapping a struck glyph in the notebook plays that stone's tone again. Unstruck glyphs stay silent.
+    func playNotebookTone(_ index: Int) {
+        guard let id = StoneID(rawValue: index), state.has(Notebook.struckFlag(id)) else { return }
+        pending.append(.chime([ChimeKind.tide, .wind, .stone][index]))
+    }
+
+    /// Walking up to a stone is enough to have seen its glyph.
+    private func updateDiscoveries() {
+        guard world == .varrow else { return }
+        for id in StoneID.allCases where !state.has(Notebook.seenFlag(id)) {
+            let d = id.position - player.position
+            if (d.x * d.x + d.z * d.z).squareRoot() < Notebook.seenRadius && abs(d.y) < 6 { state.set(Notebook.seenFlag(id)) }
+        }
+    }
+
     func toggleJournal() {
         journal.isOpen.toggle()
         pending.append(journal.isOpen ? .journalOpened : .journalClosed)
@@ -225,6 +240,7 @@ final class Game {
         animator.update(Game.tick)
         time += Game.tick
         puzzle.updateVisuals(time: time)
+        updateDiscoveries()
         Birds.update(scene, time: time)
         // Uncollected pages glow faintly so they read as "pick me up", even in shadow.
         for n in (world == .varrow ? 1...4 : 5...8) where !state.has("page_\(n)") {
@@ -246,6 +262,7 @@ final class Game {
         if input.feedbackPressed { pending.append(.feedbackRequested) }
         if input.journalPressed { toggleJournal() }
         if input.escapePressed && journal.isOpen { journal.isOpen = false; pending.append(.journalClosed) }
+        if journal.isOpen && input.tabPressed { journal.tab = journal.tab == .pages ? .notebook : .pages }
         if journal.isOpen && input.pageFlip != 0 { journal.flip(input.pageFlip) }
 
         player.applyLook(input.look)

@@ -515,6 +515,29 @@ enum SelfTest {
             let droneRms = rmsOf(zip(bOn, bOff).map { $0 - $1 })     // the synth noise is seeded, so the difference is the drone alone
             check(droneRms > 0.02 && (bOn.map { abs($0) }.max() ?? 2) < 1.0, "the drone is clearly audible and the mix never clips (drone rms \(String(format: "%.4f", droneRms)) over a bed of \(String(format: "%.4f", rmsOf(bOff))))")
 
+            // 3c. The notebook: stones are *seen* by walking up to them, *struck* by striking, and only struck ones can be tapped to hear.
+            g = freshGame()
+            check(Notebook.flags.allSatisfy { !g.state.has($0) }, "a new game has an empty notebook")
+            g.player = Player(position: StoneID.wind.position + SIMD3(0, 0, 5), yaw: 0)
+            g.simulate(seconds: 0.2)
+            check(g.state.has("seen_wind") && !g.state.has("seen_tide") && !g.state.has("struck_wind"), "walking up to the wind stone notes its glyph as seen (not struck)")
+            _ = g.drainEvents(); g.playNotebookTone(1)
+            check(g.drainEvents().isEmpty, "a seen-but-unstruck glyph makes no sound when tapped")
+            g.puzzle.strike(.tide)
+            check(g.state.has("struck_tide") && g.state.has("seen_tide"), "striking a stone enters it in the notebook")
+            _ = g.drainEvents(); g.playNotebookTone(0)
+            check(chimes(g.drainEvents()) == [.tide], "tapping a struck glyph plays that stone's tone")
+            var tabIn = InputState(); tabIn.tabPressed = true
+            g.journal.isOpen = true
+            g.advance(now: 100, input: tabIn)
+            check(g.journal.tab == .notebook, "Tab switches the journal to the notebook")
+            g.advance(now: 100.1, input: tabIn)
+            check(g.journal.tab == .pages, "Tab switches back to the pages")
+            g.journal.isOpen = false
+            let nbSave = g.makeSave()
+            let nbGame = freshGame(); nbGame.restore(nbSave)
+            check(nbGame.state.has("struck_tide") && nbGame.state.has("seen_wind") && !nbGame.state.has("struck_wind"), "the notebook survives a save and restore")
+
             // 4. The right order solves it and runs the whole sequence.
             g = freshGame()
             for id in LighthousePuzzle.order { g.puzzle.strike(id); g.simulate(seconds: 0.7) }
