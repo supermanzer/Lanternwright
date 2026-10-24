@@ -84,25 +84,34 @@ enum Trees {
         let fStart = b.vertices.count
         let hue = r(3, 1)
         let leaf = Surface(color: SIMD3(0.044 + 0.02 * hue, 0.108 + 0.04 * hue, 0.048 + 0.012 * r(3, 2)), roughness: 0.9, material: .foliage)
-        func clump(at p: SIMD3<Float>, radius rc: Float, ang: Float, salt: Int) {
-            let off = r(salt, 11) * 9
-            b.icosphere(subdivisions: lod == 0 ? 1 : 0, smooth: true,
-                        radius: { d in 0.78 + 0.5 * n.fbm(d.x * 2.3 + off, d.y * 2.1 + d.z * 1.7 + off, octaves: 2) },
-                        surface: leaf,
-                        transform: translation(p) * rotationY(-ang) * rotationZ((r(salt, 12) - 0.5) * 0.5) * scaling(SIMD3(1.1, 0.72, 0.95) * rc))
+        // Sprays: each is a flattened, pointed, serrated, drooping fan along its branch. Conifer foliage is layered, drooping and ragged,
+        // not rounded blobs. 60-140 of them near the camera, a few large ones at mid range.
+        var sprayId = 0
+        func spray(at p: SIMD3<Float>, dir: SIMD3<Float>, length: Float, width: Float, droop: Float, detail: Int? = nil) {
+            sprayId += 1
+            Trees.addSpray(&b, origin: p, dir: dir, length: length, width: width, droop: droop, seed: Int(seed) &+ sprayId * 31, detail: detail ?? lod, surface: leaf, noise: n)
         }
         for (i, br) in branches.enumerated() {
-            let rc = max(br.len * (pine ? 0.36 : 0.42), 0.4)
+            let out = SIMD3<Float>(cos(br.ang), 0, sin(br.ang))
+            let side = SIMD3<Float>(-out.z, 0, out.x)
+            let sl = max(br.len * 0.55, 0.9)
             if lod == 0 {
-                clump(at: br.base + (br.tip - br.base) * 0.84, radius: rc * 1.05, ang: br.ang, salt: i * 3)
-                clump(at: br.base + (br.mid - br.base) * 1.0, radius: rc * 0.78, ang: br.ang + 0.25, salt: i * 3 + 1)
-                if pine && i % 3 == 0 { clump(at: br.base + (br.tip - br.base) * 0.45 + SIMD3(0, 0.12, 0), radius: rc * 0.6, ang: br.ang - 0.3, salt: i * 3 + 2) }
+                let fr: [Float] = pine ? [0.45, 0.72, 1.0] : [0.55, 1.0]
+                for (k, f) in fr.enumerated() {
+                    let at = br.base + (br.mid - br.base) * min(f * 2, 1) + (br.tip - br.mid) * max(f * 2 - 1, 0)
+                    let yaw = (r(i * 5 + k, 21) - 0.5) * 0.7
+                    spray(at: at, dir: simd_normalize(out + side * yaw), length: sl * (1.05 - 0.2 * Float(k) / 2), width: sl * 0.31, droop: droop * 1.6 + 0.12 * r(i, k + 40))
+                    if k > 0 { for sgn: Float in [-1, 1] where r(i * 5 + k, 25 + Int(sgn + 1)) > 0.35 {
+                        spray(at: at, dir: simd_normalize(out + side * sgn * (0.55 + 0.3 * r(i, 50 + k))), length: sl * 0.62, width: sl * 0.22, droop: droop * 1.8, detail: 1)
+                    } }
+                }
             } else {
-                clump(at: br.base + (br.tip - br.base) * 0.7, radius: rc * 1.5, ang: br.ang, salt: i * 3)
+                spray(at: br.base + (br.tip - br.base) * 0.55, dir: out, length: br.len * 1.0 + 0.4, width: br.len * 0.42 + 0.2, droop: droop * 1.4)
             }
         }
         let top = trunkAt(0.985)
-        clump(at: top + SIMD3(0, 0.15, 0), radius: crownR * 0.32 + 0.3, ang: 0, salt: 9001)
+        spray(at: top, dir: SIMD3(0.05, 1, 0.04), length: crownR * 0.55 + 0.5, width: crownR * 0.13 + 0.12, droop: 0)
+        if lod == 0 { spray(at: top - SIMD3(0, 0.5, 0), dir: SIMD3(0.4, 0.7, -0.3), length: crownR * 0.4 + 0.3, width: crownR * 0.11 + 0.1, droop: 0.1) }
         let centre = trunkAt(tStart + (1 - tStart) * 0.45)
         b.adjust(from: fStart) { v in
             let p = SIMD3(v.position.x, v.position.y, v.position.z)
@@ -115,6 +124,58 @@ enum Trees {
             v.color = SIMD4(v.color.x * lightness, v.color.y * lightness, v.color.z * lightness, v.color.w)
         }
         return b
+    }
+
+    /// One conifer spray: a flattened lens that starts at `origin`, runs along `dir` (curving down by `droop`), widens then tapers to a point,
+    /// with a serrated edge (every other station is narrower), a ridge on top, and edges that hang lower than the middle. Four vertices per
+    /// station (left, right, top spine, bottom spine); smooth normals; `detail` 0 = 9 stations, otherwise 5.
+    static func addSpray(_ b: inout MeshBuilder, origin: SIMD3<Float>, dir: SIMD3<Float>, length: Float, width: Float, droop: Float, seed: Int,
+                         detail: Int, surface: Surface, noise n: Noise) {
+        let up = SIMD3<Float>(0, 1, 0)
+        let d = simd_normalize(dir)
+        var side = simd_cross(d, up)
+        side = simd_length(side) < 1e-3 ? SIMD3(1, 0, 0) : simd_normalize(side)
+        let ns = detail == 0 ? 7 : 5
+        var pos: [SIMD3<Float>] = [], spine: [SIMD3<Float>] = []
+        for i in 0..<ns {
+            let t = Float(i) / Float(ns - 1)
+            let sp = origin + d * length * t + SIMD3(0, -droop * length * t * t * 0.9, 0)
+            let jitter = 0.78 + 0.44 * n.unit(Int32(i), Int32(seed & 0xFFFF))
+            var w = width * pow(max(t, 0.001), 0.55) * pow(max(1 - t, 0), 0.7) * 2.1 * jitter
+            if detail == 0 && i % 2 == 1 { w *= 0.62 }                                    // serrated edge
+            let thick = 0.16 * w + 0.012
+            let hang = 0.28 * w
+            pos.append(sp - side * w - SIMD3(0, hang, 0)); pos.append(sp + side * w - SIMD3(0, hang, 0))
+            pos.append(sp + up * thick); pos.append(sp - up * thick * 0.5)
+            spine.append(sp)
+        }
+        var tris: [UInt32] = []
+        func tri(_ a: Int, _ b2: Int, _ c: Int, _ st: Int) {
+            var (i1, i2) = (b2, c)
+            let n0 = simd_cross(pos[i2] - pos[a], pos[i1] - pos[a])
+            _ = n0
+            let nrm = simd_cross(pos[b2] - pos[a], pos[c] - pos[a])
+            let centroid = (pos[a] + pos[b2] + pos[c]) / 3
+            if simd_dot(nrm, centroid - spine[st]) < 0 { swap(&i1, &i2) }
+            tris.append(contentsOf: [UInt32(a), UInt32(i1), UInt32(i2)])
+        }
+        for i in 0..<(ns - 1) {
+            let (L0, R0, T0, B0) = (i * 4, i * 4 + 1, i * 4 + 2, i * 4 + 3)
+            let (L1, R1, T1, B1) = (L0 + 4, R0 + 4, T0 + 4, B0 + 4)
+            tri(L0, T0, L1, i); tri(T0, T1, L1, i); tri(T0, R0, T1, i); tri(R0, R1, T1, i)          // top surface
+            tri(L0, B0, L1, i); tri(B0, B1, L1, i); tri(B0, R0, B1, i); tri(R0, R1, B1, i)          // bottom surface
+        }
+        var nrm = [SIMD3<Float>](repeating: .zero, count: pos.count)
+        for t in stride(from: 0, to: tris.count, by: 3) {
+            let (a, b2, c) = (Int(tris[t]), Int(tris[t + 1]), Int(tris[t + 2]))
+            let fn = simd_cross(pos[b2] - pos[a], pos[c] - pos[a])
+            nrm[a] += fn; nrm[b2] += fn; nrm[c] += fn
+        }
+        let normals = nrm.map { simd_length($0) > 1e-9 ? simd_normalize($0) : SIMD3<Float>(0, 1, 0) }
+        var s = surface
+        let jitter = 0.86 + 0.28 * n.unit(Int32(seed & 0x7FFF), 7)
+        s.color = surface.color * jitter
+        b.addIndexed(positions: pos, indices: tris, smoothNormals: normals, surface: s, transform: matrix_identity_float4x4)
     }
 
     /// A dead snag: a bare trunk broken off short, with a few broken limbs and stubs.

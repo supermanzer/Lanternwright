@@ -10,7 +10,7 @@ extension SelfTestRunner {
             func mat(_ b: MeshBuilder, _ m: MaterialID) -> Int { b.vertices.filter { abs($0.normal.w - m.rawValue) < 0.01 }.count }
             let pine0 = Trees.variant(.pine, 0, lod: 0), pine1 = Trees.variant(.pine, 0, lod: 1), pine2 = Trees.variant(.pine, 0, lod: 2)
             let cyp0 = Trees.variant(.cypress, 0, lod: 0)
-            check(tris(pine0) > 1500 && tris(pine0) < 12000 && tris(cyp0) > 1500 && tris(cyp0) < 12000, "a full-detail conifer is a few thousand triangles (pine \(tris(pine0)), cypress \(tris(cyp0)))")
+            check(tris(pine0) > 1500 && tris(pine0) < 14000 && tris(cyp0) > 1500 && tris(cyp0) < 14000, "a full-detail conifer is a few thousand triangles (pine \(tris(pine0)), cypress \(tris(cyp0)))")
             check(tris(pine1) > 100 && tris(pine1) < tris(pine0) / 2 && tris(pine2) > 0, "the mid level is far cheaper (\(tris(pine1)) triangles) and a far level exists (\(tris(pine2)))")
             check(mat(pine0, .bark) > 100 && mat(pine0, .foliage) > 500 && mat(pine1, .bark) == 0 && mat(pine1, .foliage) > 50, "full detail has bark and foliage materials; the mid level skips the bark pattern")
             // Structure: a trunk that flares at the root and tapers, a crown that is a mass of clumps wider than the trunk by an order of magnitude.
