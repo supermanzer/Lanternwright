@@ -23,9 +23,9 @@ enum Screenshot {
     }
 
     /// `--state`: put the world into a puzzle state so it can be photographed.
-    static func applyState(_ name: String?, scene: Scene) {
+    static func applyState(_ name: String?, scenes scenesForState: [WorldKind: Scene]) {
         guard let name else { return }
-        let g = Game(scene: scene)
+        let g = Game(scenes: scenesForState)
         switch name {
         case "solved": g.puzzle.forceSolved()
         case "tide": g.puzzle.strike(.tide)
@@ -85,7 +85,8 @@ enum Screenshot {
         guard let target = renderer.device.makeTexture(descriptor: desc) else { throw Failure.texture }
 
         renderer.fixedTime = 12
-        applyState(options.state, scene: renderer.scene)
+        if let w = options.world { renderer.world = w } else if options.viewName?.hasPrefix("gw-") == true { renderer.world = .glassWood }
+        applyState(options.state, scenes: renderer.scenes)
         let camera = options.camera
             ?? options.viewName.flatMap(Viewpoints.named)
             ?? Viewpoints.named("overview")!

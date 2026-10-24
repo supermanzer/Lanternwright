@@ -17,8 +17,8 @@ enum Island {
     // MARK: Placement rules
 
     /// True if (x, z) is clear of the path, the landmark pads, the dock and the islet's lens ring.
-    static func isClear(x: Float, z: Float, pathMargin: Float, padMargin: Float) -> Bool {
-        if Terrain.pathDistance(x: x, z: z) < pathMargin { return false }
+    static func isClear(terrain: Terrain, x: Float, z: Float, pathMargin: Float, padMargin: Float) -> Bool {
+        if terrain.pathDistance(x: x, z: z) < pathMargin { return false }
         let p = SIMD2(x, z)
         for pad in Layout.pads where length(p - SIMD2(pad.center.x, pad.center.z)) < pad.radius + padMargin { return false }
         let dock = Layout.dockStrip()
@@ -107,7 +107,7 @@ enum Island {
 
     static func addRocks(_ scene: Scene, device: MTLDevice) {
         let spots = scatter(spacing: 15, salt: 101, accept: { x, z, h, ny, r in
-            guard h > 0.4, isClear(x: x, z: z, pathMargin: 4, padMargin: 5) else { return false }
+            guard h > 0.4, isClear(terrain: scene.terrain, x: x, z: z, pathMargin: 4, padMargin: 5) else { return false }
             let steep = ny < 0.92
             let shore = h < 3
             return r < (steep ? 0.42 : shore ? 0.22 : 0.06)
@@ -131,7 +131,7 @@ enum Island {
 
     static func addTrees(_ scene: Scene, device: MTLDevice) {
         let spots = scatter(spacing: 10, salt: 211, accept: { x, z, h, ny, r in
-            guard h > 2.5, h < 48, ny > 0.86, isClear(x: x, z: z, pathMargin: 6, padMargin: 9) else { return false }
+            guard h > 2.5, h < 48, ny > 0.86, isClear(terrain: scene.terrain, x: x, z: z, pathMargin: 6, padMargin: 9) else { return false }
             let grove = noise.fbm(x * 0.012 + 30, z * 0.012 - 7, octaves: 3)       // low-frequency clusters
             return r < 0.2 + 0.9 * max(0, grove + 0.05)
         }, terrain: scene.terrain)

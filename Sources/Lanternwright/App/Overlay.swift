@@ -12,6 +12,8 @@ final class OverlayView: NSView {
     var pages: [JournalPage] = []
     var pageIndex = 0
     var whiteout: CGFloat = 0
+    /// Text shown while the screen is white ("The light folds…").
+    var whiteoutCaption: String?
     /// Draws a stand-in scene behind the overlay (only used by the headless snapshot).
     var debugBackdrop: NSColor?
 
@@ -341,14 +343,11 @@ final class OverlayView: NSView {
 
     private func drawWhiteout() {
         NSColor.white.withAlphaComponent(min(1, whiteout)).setFill(); bounds.fill()
-        if whiteout > 0.97 {
-            let ink = NSColor(calibratedWhite: 0.25, alpha: 1)
-            let big: [NSAttributedString.Key: Any] = [.font: serif(46), .foregroundColor: ink]
-            let small: [NSAttributedString.Key: Any] = [.font: serif(17), .foregroundColor: ink.withAlphaComponent(0.6)]
-            let s1 = "The light folds…" as NSString, s2 = "(end of the vertical slice)" as NSString
-            let z1 = s1.size(withAttributes: big), z2 = s2.size(withAttributes: small)
-            s1.draw(at: NSPoint(x: bounds.midX - z1.width / 2, y: bounds.midY - 40), withAttributes: big)
-            s2.draw(at: NSPoint(x: bounds.midX - z2.width / 2, y: bounds.midY + 28), withAttributes: small)
+        if whiteout > 0.9, let caption = whiteoutCaption {
+            let ink = NSColor(calibratedWhite: 0.3, alpha: min(1, (whiteout - 0.9) * 10))
+            let attrs: [NSAttributedString.Key: Any] = [.font: serif(40), .foregroundColor: ink, .kern: 2]
+            let z = (caption as NSString).size(withAttributes: attrs)
+            (caption as NSString).draw(at: NSPoint(x: bounds.midX - z.width / 2, y: bounds.midY - z.height / 2), withAttributes: attrs)
         }
     }
 
@@ -383,7 +382,7 @@ enum OverlayDump {
         try v.snapshot(to: base + "-journal.png")
         v = make(); v.journalOpen = true
         try v.snapshot(to: base + "-journal-empty.png")
-        v = make(); v.whiteout = 1
+        v = make(); v.whiteout = 1; v.whiteoutCaption = "The light folds…"
         try v.snapshot(to: base + "-end.png")
         v = make(); v.titleOpen = true; v.titleHasSave = true
         try v.snapshot(to: base + "-title.png")

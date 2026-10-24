@@ -16,7 +16,11 @@ final class Renderer {
     static let depthFormat: MTLPixelFormat = .depth32Float
     static let distanceFormat: MTLPixelFormat = .r32Float
 
-    var scene: Scene
+    /// Every world's scene, built once. The renderer draws whichever `world` is current.
+    let scenes: [WorldKind: Scene]
+    var world: WorldKind = .varrow
+    var scene: Scene { scenes[world]! }
+    var params: WorldParams { WorldParams.make(world, options: options) }
     var options: LaunchOptions
     /// Fixed clock for deterministic screenshots; nil = wall clock.
     var fixedTime: Float?
@@ -34,7 +38,7 @@ final class Renderer {
     private let skyPipeline: MTLRenderPipelineState
     private let grassPipeline: MTLRenderPipelineState
     /// Terrain heights (r) and path weight (g) on a 513 x 513 grid, for the grass vertex shader.
-    private let terrainTexture: MTLTexture
+    private var terrainTextures: [WorldKind: MTLTexture] = [:]
     private var grassCellsPerSide: Int { Int((2 * LookDefaults.grassRadius / LookDefaults.grassCell).rounded()) }
     private let waterPipeline: MTLRenderPipelineState
     private let waterDepthState: MTLDepthStencilState
@@ -54,7 +58,8 @@ final class Renderer {
     private let skyDepthState: MTLDepthStencilState
     /// Lat-long sky radiance (see Shaders/Sky.swift). Mipmapped: high mips double as diffuse irradiance.
     let skyLUT: MTLTexture
-    private var lutSunDir = SIMD3<Float>(repeating: .nan)
+    /// What the sky LUT was baked for: sun direction and irradiance (it depends on nothing else).
+    private var lutKey = SIMD4<Float>(repeating: .nan)
     static let skyLUTSize = (width: 256, height: 128)
     private let startTime = Date()
 
@@ -88,7 +93,7 @@ final class Renderer {
         queue = q
         let lib = ShaderLibrary.make(device: device)
         library = lib
-        scene = Scene.makeWorld(device: device)
+        scenes = Dictionary(uniqueKeysWithValues: WorldKind.allCases.map { ($0, Scene.make($0, device: device)) })
         ocean = Ocean(device: device)
 
         let lit = MTLRenderPipelineDescriptor()
@@ -156,21 +161,23 @@ final class Renderer {
         gr.depthAttachmentPixelFormat = Renderer.depthFormat
         grassPipeline = try! device.makeRenderPipelineState(descriptor: gr)
 
-        let tDesc = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .rg32Float, width: Terrain.gridCount, height: Terrain.gridCount, mipmapped: false)
-        tDesc.usage = .shaderRead
-        terrainTexture = device.makeTexture(descriptor: tDesc)!
-        terrainTexture.label = "terrain heights"
-        do {
+        // Terrain heights (r) and path weight (g) per world, for the grass vertex shader.
+        for (kind, sc) in scenes {
+            let tDesc = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .rg32Float, width: Terrain.gridCount, height: Terrain.gridCount, mipmapped: false)
+            tDesc.usage = .shaderRead
+            let tex = device.makeTexture(descriptor: tDesc)!
+            tex.label = "terrain heights \(kind.rawValue)"
             let n = Terrain.gridCount
             var texels = [Float](repeating: 0, count: n * n * 2)
             for j in 0..<n {
                 for i in 0..<n {
                     let x = Terrain.origin + Float(i) * Terrain.spacing, z = Terrain.origin + Float(j) * Terrain.spacing
-                    texels[(j * n + i) * 2] = scene.terrain.sampleHeight(x: x, z: z)
-                    texels[(j * n + i) * 2 + 1] = Terrain.pathWeight(x: x, z: z)
+                    texels[(j * n + i) * 2] = sc.terrain.sampleHeight(x: x, z: z)
+                    texels[(j * n + i) * 2 + 1] = sc.terrain.pathWeight(x: x, z: z)
                 }
             }
-            terrainTexture.replace(region: MTLRegionMake2D(0, 0, n, n), mipmapLevel: 0, withBytes: texels, bytesPerRow: n * 8)
+            tex.replace(region: MTLRegionMake2D(0, 0, n, n), mipmapLevel: 0, withBytes: texels, bytesPerRow: n * 8)
+            terrainTextures[kind] = tex
         }
 
         let mist = MTLRenderPipelineDescriptor()
@@ -288,7 +295,7 @@ final class Renderer {
     /// Bake the LUT for the current options and return it (used by --dump-lut).
     func bakeSkyLUTForDebug(commandBuffer: MTLCommandBuffer, camera: Camera) {
         updateFrame(camera: camera, width: 16, height: 9)
-        lutSunDir = SIMD3(repeating: .nan)
+        lutKey = SIMD4(repeating: .nan)
         updateSkyLUT(commandBuffer: commandBuffer)
     }
 
@@ -333,10 +340,20 @@ final class Renderer {
         frame.invViewProj = viewProj.inverse
         let t = fixedTime ?? Float(Date().timeIntervalSince(startTime))
         frame.cameraPos = SIMD4(camera.position, t)
-        let sun = Renderer.sunDirection(elevationDeg: options.sunElevation, azimuthDeg: options.sunAzimuth)
+        let wp = params
+        let sun = Renderer.sunDirection(elevationDeg: wp.sunElevation, azimuthDeg: wp.sunAzimuth)
         frame.sunDir = SIMD4(sun, 1)
-        let sunT = Atmosphere.sunTransmittance(elevationDeg: options.sunElevation)
-        frame.sunColor = SIMD4(sunT, Atmosphere.sunIrradiance)   // rgb = transmittance, w = irradiance
+        let sunT = wp.lightTint ?? Atmosphere.sunTransmittance(elevationDeg: wp.sunElevation)
+        frame.sunColor = SIMD4(sunT, wp.sunIrradiance)   // rgb = transmittance (or a fixed tint), w = irradiance
+        frame.fogParams = SIMD4(wp.fogDensity, wp.fogFalloff, wp.exposure, wp.bloom)
+        frame.worldA = SIMD4(wp.starAmount, wp.lightDiskScale, wp.secondMoon?.radius ?? 0, wp.lightDiskRadius)
+        if let m = wp.secondMoon {
+            let d = Renderer.sunDirection(elevationDeg: m.elevation, azimuthDeg: m.azimuth)
+            frame.moonB = SIMD4(d, 0)
+        } else {
+            frame.moonB = SIMD4(0, 1, 0, 0)
+        }
+        frame.worldB = SIMD4(wp.palette, 0, 0, 0)
         // Sun camera: eye one radius from the centre along the sun direction, box = the bounding sphere.
         let R = Renderer.shadowRadius
         let eye = Renderer.shadowCenter + sun * R
@@ -350,18 +367,19 @@ final class Renderer {
         frame.sunViewProj1 = mid.viewProj
         frame.casTexel = SIMD4(near.texel, mid.texel, 2 * R / Float(Renderer.shadowSize), 0)
         frame.casRange = SIMD4(near.range, mid.range, 2 * R, 0)
-        frame.casRadius = SIMD4(Renderer.nearRadius, Renderer.midRadius, R, LookDefaults.godRayStrength)
+        frame.casRadius = SIMD4(Renderer.nearRadius, Renderer.midRadius, R, wp.godRays)
         frame.casTexel.w = LookDefaults.aoRadius       // SSAO radius (m)
         frame.casRange.w = options.debugView == "noao" ? 0 : LookDefaults.aoStrength   // SSAO strength
         let (w, h) = (Float(width), Float(height))
         frame.screen = SIMD4(w, h, 1 / w, 1 / h)
     }
 
-    /// Re-bake the sky LUT only when the sun has moved (it depends on nothing else).
+    /// Re-bake the sky LUT only when the light has changed (it depends on nothing else): a different direction or
+    /// strength, which happens when the sun moves or when you travel to another world.
     private func updateSkyLUT(commandBuffer: MTLCommandBuffer) {
-        let sun = SIMD3(frame.sunDir.x, frame.sunDir.y, frame.sunDir.z)
-        if simd_distance(sun, lutSunDir) < 1e-5 { return }
-        lutSunDir = sun
+        let key = SIMD4(frame.sunDir.x, frame.sunDir.y, frame.sunDir.z, frame.sunColor.w)
+        if simd_distance(key, lutKey) < 1e-5 { return }
+        lutKey = key
         let pass = MTLRenderPassDescriptor()
         pass.colorAttachments[0].texture = skyLUT
         pass.colorAttachments[0].loadAction = .dontCare
@@ -522,7 +540,7 @@ final class Renderer {
             var gp = SIMD4<Float>(LookDefaults.grassCell, Float(grassCellsPerSide), LookDefaults.grassRadius, 0)
             enc.setVertexBytes(&frame, length: MemoryLayout<FrameUniforms>.stride, index: 1)
             enc.setVertexBytes(&gp, length: MemoryLayout<SIMD4<Float>>.stride, index: 3)
-            enc.setVertexTexture(terrainTexture, index: 5)
+            enc.setVertexTexture(terrainTextures[world], index: 5)
             var identity = ObjectUniforms()
             enc.setFragmentBytes(&identity, length: MemoryLayout<ObjectUniforms>.stride, index: 2)
             enc.drawPrimitives(type: .triangleStrip, vertexStart: 0, vertexCount: 7, instanceCount: grassCellsPerSide * grassCellsPerSide)

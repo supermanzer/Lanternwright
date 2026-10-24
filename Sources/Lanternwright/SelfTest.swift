@@ -16,7 +16,7 @@ enum SelfTest {
         }
         if name == "all" || name == "layout" {
             check(MemoryLayout<Vertex>.stride == 48, "Vertex stride 48")
-            check(MemoryLayout<FrameUniforms>.stride == 464, "FrameUniforms stride 464")
+            check(MemoryLayout<FrameUniforms>.stride == 512, "FrameUniforms stride 512")
             check(MemoryLayout<ObjectUniforms>.stride == 96, "ObjectUniforms stride 96")
         }
         if name == "all" || name == "math" {
@@ -553,12 +553,10 @@ enum SelfTest {
             g.updateHover(); check(g.hovered == nil, "nothing is hoverable while the journal is open")
             g.toggleJournal(); check(!g.journal.isOpen, "J closes the journal")
 
-            // The lens does nothing until the causeway is up, then starts the fade to white.
+            // The lens does nothing until the causeway is up (the full world-travel tests are in `worlds`).
             g = freshGame()
             g.activate("lens"); g.simulate(seconds: 2.5)
-            check(!g.state.has("lensTouched") && g.whiteout == 0, "the lens is inert before the puzzle is solved")
-            g.puzzle.forceSolved(); g.activate("lens"); g.simulate(seconds: 2.2)
-            check(g.state.has("lensTouched") && g.whiteout == 1, "touching the lens fades the world to white over 2 s")
+            check(!g.state.has("lensTouched") && g.whiteout == 0 && g.world == .varrow, "the lens is inert before the puzzle is solved")
 
             // Page positions are on the ground and reachable.
             g = freshGame()
@@ -658,6 +656,84 @@ enum SelfTest {
             let before = scene.items.first { $0.name == "bird_0" }!.uniforms.model
             g.simulate(seconds: 2)
             check(scene.items.first { $0.name == "bird_0" }!.uniforms.model != before, "gulls move as the game runs")
+        }
+        if name == "all" || name == "worlds" {
+            let scenes = Dictionary(uniqueKeysWithValues: WorldKind.allCases.map { ($0, Scene.make($0, device: device)) })
+            check(scenes.count == WorldKind.allCases.count && scenes.values.allSatisfy { !$0.items.isEmpty }, "every world builds a non-empty scene")
+            let glass = scenes[.glassWood]!
+
+            // The Glass Wood's ground.
+            let arrival = GlassLayout.arrival
+            check(abs(glass.terrain.sampleHeight(x: arrival.x, z: arrival.z) - arrival.y) < 0.6 && arrival.y > 2, "the arrival pad is dry land at its layout height (\(String(format: "%.1f", arrival.y)) m)")
+            let poolDepth = glass.terrain.sampleHeight(x: GlassTerrain.pool.x, z: GlassTerrain.pool.y)
+            check(poolDepth < -1, "the pool in the middle is a water-filled hollow (\(String(format: "%.1f", poolDepth)) m)")
+            var lowestOnPath: Float = 99, steepest: Float = 0
+            for k in 0..<(GlassLayout.path.count - 1) {
+                let a = GlassLayout.path[k], b = GlassLayout.path[k + 1]
+                let len = length(SIMD2(b.x - a.x, b.z - a.z))
+                var prev = glass.terrain.sampleHeight(x: a.x, z: a.z)
+                for i in 1...80 {
+                    let q = a + (b - a) * (Float(i) / 80)
+                    let h = glass.terrain.sampleHeight(x: q.x, z: q.z)
+                    lowestOnPath = min(lowestOnPath, h)
+                    steepest = max(steepest, abs(h - prev) / (len / 80)); prev = h
+                }
+            }
+            check(lowestOnPath > 1.0, "the whole route stays on dry land (lowest \(String(format: "%.1f", lowestOnPath)) m)")
+            check(steepest < 1.0, "the route is walkable (steepest \(String(format: "%.2f", steepest)) rise/run)")
+            for (label, pad) in [("mirror court", GlassLayout.mirrorCourt), ("chime ring", GlassLayout.chimeRing), ("altar", GlassLayout.altar), ("junction", GlassLayout.junction)] {
+                check(abs(glass.terrain.sampleHeight(x: pad.x, z: pad.z) - pad.y) < 0.6 && pad.y > 1.5, "\(label) sits on level dry ground at \(String(format: "%.1f", pad.y)) m")
+            }
+
+            // Travelling: lens -> Glass Wood -> return -> Varrow.
+            let g = Game(scenes: scenes)
+            g.puzzle.forceSolved()
+            check(g.world == .varrow && g.interactables.contains { $0.id == "lens" }, "the game starts in Varrow with its own interactables")
+            g.activate("lens")
+            check(g.isTraveling && g.world == .varrow, "touching the lens starts the fade, still in Varrow")
+            var input = InputState(); input.move = SIMD2(0, 1)
+            let startPos = g.player.position
+            g.simulate(seconds: 0.5, input: input)
+            check(distance(g.player.position, startPos) < 0.05, "the player stands still while the world folds")
+            g.simulate(seconds: Game.fadeOutSeconds - 0.4)
+            check(g.world == .glassWood && g.whiteout > 0.99, "at full white the world has changed to the Glass Wood (whiteout \(String(format: "%.2f", g.whiteout)))")
+            check(distance(SIMD2(g.player.position.x, g.player.position.z), SIMD2(arrival.x, arrival.z)) < 0.01 && abs(g.player.position.y - arrival.y) < 0.6, "you arrive on the arrival pad")
+            check(g.interactables.map(\.id) == ["gw_return"] && g.drainEvents().contains(.worldChanged(.glassWood)), "the Glass Wood has its own interactables and a worldChanged event was emitted")
+            g.simulate(seconds: Game.holdSeconds + Game.fadeInSeconds + 0.2)
+            check(g.whiteout == 0 && !g.isTraveling && g.whiteCaption == nil, "the white fades away and control returns")
+            g.simulate(seconds: 2, input: input)
+            check(distance(g.player.position, arrival) > 3, "you can walk in the Glass Wood")
+
+            g.player = Player(position: GlassLayout.returnLens - SIMD3(0, 2.3, 0) + SIMD3(0, 0, 3), yaw: 0)     // 3 m south of the ring, facing it
+            g.player.pitch = 0.0
+            g.player.position.y = g.scene.groundHeight(x: g.player.position.x, z: g.player.position.z)
+            g.updateHover()
+            check(g.hovered?.id == "gw_return", "standing before the return ring, it is hoverable (\(g.hovered?.id ?? "nothing"))")
+            g.activate("gw_return")
+            g.simulate(seconds: Game.fadeOutSeconds + 0.1)
+            check(g.world == .varrow && distance(SIMD2(g.player.position.x, g.player.position.z), SIMD2(Layout.isletCenter.x, Layout.isletCenter.z + 5)) < 0.1, "the return ring takes you back to the islet in Varrow")
+            g.simulate(seconds: 3)
+            check(g.state.has("solved") && g.whiteout == 0, "Varrow's progress is intact after the round trip")
+
+            // Without the Glass Wood scene (Varrow-only games) the lens simply does nothing.
+            let lone = Game(scene: scenes[.varrow]!)
+            lone.puzzle.forceSolved(); lone.activate("lens"); lone.simulate(seconds: 3)
+            check(lone.world == .varrow && lone.whiteout == 0, "a Varrow-only game ignores the lens rather than breaking")
+
+            // Saving in the second world.
+            let tmp = NSTemporaryDirectory() + "lw-worlds-\(getpid())"
+            setenv("LANTERNWRIGHT_SAVE_DIR", tmp, 1)
+            defer { try? FileManager.default.removeItem(atPath: tmp); unsetenv("LANTERNWRIGHT_SAVE_DIR") }
+            let h = Game(scenes: scenes); h.puzzle.forceSolved(); h.travel(to: .glassWood)
+            h.player = Player(position: GlassLayout.point(-20, 120), yaw: 0.7)
+            h.player.position.y = h.scene.groundHeight(x: -20, z: 120)
+            try? SaveStore.save(h.makeSave())
+            let k = Game(scenes: scenes)
+            if let save = SaveStore.load() { k.restore(save) }
+            check(k.world == .glassWood && abs(k.player.position.x + 20) < 0.01 && k.state.has("solved"), "a save made in the Glass Wood resumes there")
+            let old = SaveData(flags: ["solved"], pages: [], position: [175, 0.8, 205], yaw: 0, pitch: 0, playTime: 1, world: nil)
+            let m = Game(scenes: scenes); m.restore(old)
+            check(m.world == .varrow, "a save without a world field (from before the second world) resumes in Varrow")
         }
         return ok
     }

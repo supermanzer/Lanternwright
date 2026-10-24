@@ -34,6 +34,7 @@ struct LaunchOptions {
     var dumpAudioPath: String?
     var showFPS = false
     var state: String?
+    var world: WorldKind?
     var newGame = false
     var showFeedback = false
     var showFeedbackDir = false
@@ -52,6 +53,7 @@ struct LaunchOptions {
       --sun elevDeg,azimuthDeg     Sun position (default 8,250)
       --debug <name>               Debug view: depth, shadow, albedo, ambient
       --dump-audio <path.wav>      Render 24 s of the soundscape to a WAV (play with afplay) and exit
+      --world <name>               World to render: varrow, glass (views named gw-* imply glass)
       --state <name>               World state for screenshots: solved, tide, tidewind
       --dump-overlay <base>        Render crosshair/journal/end overlays to <base>-*.png and exit
       --feedback                   Print all saved player feedback and exit
@@ -94,6 +96,10 @@ struct LaunchOptions {
             case "--debug": o.debugView = next()
             case "--dump-audio": o.dumpAudioPath = next()
             case "--state": o.state = next()
+            case "--world":
+                let w = next()
+                guard let k = (w == "glass" ? WorldKind.glassWood : WorldKind(rawValue: w)) else { fail("--world expects varrow or glass") }
+                o.world = k
             case "--new": o.newGame = true
             case "--feedback": o.showFeedback = true
             case "--feedback-dir": o.showFeedbackDir = true
@@ -131,6 +137,11 @@ enum Viewpoints {
         case "summit":   return Camera(position: SIMD3(-30, 70, -32), yaw: .pi, pitch: -0.05)
         case "shore":    return Camera(position: SIMD3(150, 3.2, 172), yaw: -1.95, pitch: 0.03)
         case "islet":    return Camera(position: SIMD3(-35, 3.5, -222), yaw: 0.0, pitch: 0.0)
+        case "gw-arrival":  return Camera(position: GlassLayout.arrival + SIMD3(0, Player.eyeHeight, 4), yaw: 0, pitch: 0.06)
+        case "gw-overview": return Camera(position: SIMD3(0, 70, 330), yaw: 0, pitch: -0.2)
+        case "gw-court":    return Camera(position: GlassLayout.mirrorCourt + SIMD3(26, 3.0, 30), yaw: -0.8, pitch: -0.05)
+        case "gw-chimes":   return Camera(position: GlassLayout.chimeRing + SIMD3(-22, 3.0, 24), yaw: 0.75, pitch: -0.04)
+        case "gw-altar":    return Camera(position: GlassLayout.altar + SIMD3(0, 3.0, 28), yaw: 0, pitch: 0.05)
         default:         return nil
         }
     }

@@ -12,6 +12,7 @@ struct SaveData: Codable, Equatable {
     var yaw: Float
     var pitch: Float
     var playTime: Float
+    var world: String? = nil            // absent in saves from before the second world: means Varrow
 }
 
 enum SaveStore {
@@ -49,7 +50,7 @@ extension Game {
         SaveData(flags: Game.persistentFlags.filter { state.has($0) },
                  pages: journal.collectedPages.map(\.number),
                  position: [player.position.x, player.position.y, player.position.z],
-                 yaw: player.yaw, pitch: player.pitch, playTime: time)
+                 yaw: player.yaw, pitch: player.pitch, playTime: time, world: world.rawValue)
     }
 
     /// Bring a freshly created game to the saved state.
@@ -57,8 +58,9 @@ extension Game {
         if s.flags.contains("solved") { puzzle.forceSolved() }
         if s.flags.contains("lensTouched") { state.set("lensTouched") }
         for n in s.pages { restorePage(n) }
+        if let w = s.world.flatMap(WorldKind.init(rawValue:)), w != world { travel(to: w) }
         let p = SIMD3(s.position[0], s.position[1], s.position[2])
-        // A save from an older world layout could put you in the sea or inside a hill: fall back to the spawn.
+        // A save from an older world layout could put you in the sea or inside a hill: fall back to the world's arrival point.
         if scene.groundHeight(x: p.x, z: p.z) > Player.minGround && abs(p.y - scene.groundHeight(x: p.x, z: p.z)) < 3 {
             player = Player(position: p, yaw: s.yaw)
             player.pitch = s.pitch

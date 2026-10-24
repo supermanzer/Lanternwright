@@ -26,3 +26,9 @@ How to play: `scripts/bundle.sh && open Lanternwright.app`. Headless views: `.bu
 | needs-inspection | T4.4 | SSAO | Look at tree bases, rock clusters, the lighthouse door | Subtle contact darkening; deliberately faint on open ground |
 | needs-inspection | T4.8 | Mist sheets | Dock and shallows at eye level | A faint drifting haze over the water/beach; tell me if you want it thicker |
 | needs-inspection | T4.9 | Gulls | Look up near the lighthouse (and out over the sea to the east) | Small white gulls circling, wings flapping, facing the way they fly |
+
+## M5 (the Glass Wood)
+
+| Status | Task | What changed | How to see / hear it | What to look for |
+|---|---|---|---|---|
+| needs-inspection | T5.1 | Travel between worlds through the lens; the Glass Wood exists as a (still bare) second world | Fast route: `open -n Lanternwright.app --args --state solved` (Varrow already solved; walk the causeway to the islet and click the floating lens). Or skip ahead: `--args --world glass`. Headless: `.build/release/Lanternwright --screenshot shots/gw.png --view gw-arrival` | Click the lens: screen fades to white with "The light folds…", you arrive on a round pad in the Glass Wood facing a glowing ring; walking is frozen during the fade; clicking the ring ("Return through the lens") takes you back to the islet. Debug launches never touch your real save |

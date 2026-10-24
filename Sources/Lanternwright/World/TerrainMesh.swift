@@ -21,7 +21,7 @@ enum TerrainMesh {
                         let z = Terrain.origin + Float(cz * per + j) * Terrain.spacing
                         let y = terrain.sampleHeight(x: x, z: z)
                         let n = terrain.normal(x: x, z: z)
-                        let path = Terrain.pathWeight(x: x, z: z)
+                        let path = terrain.pathWeight(x: x, z: z)
                         let wet = 1 - smoothstep(0.6, 2.0, y)
                         verts.append(Vertex(position: SIMD4(x, y, z, 1),
                                             normal: SIMD4(n, MaterialID.terrain.rawValue),

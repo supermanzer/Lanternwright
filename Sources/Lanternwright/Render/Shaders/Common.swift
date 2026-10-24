@@ -25,6 +25,9 @@ struct FrameUniforms {
     float4 casTexel;
     float4 casRange;
     float4 casRadius;
+    float4 worldA;
+    float4 moonB;
+    float4 worldB;
 };
 
 struct ObjectUniforms {

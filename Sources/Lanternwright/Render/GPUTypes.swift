@@ -26,7 +26,11 @@ struct FrameUniforms {
     var casTexel = SIMD4<Float>(0, 0, 0, 0)         // world size of one shadow texel for cascades 0, 1, 2
     var casRange = SIMD4<Float>(1, 1, 1, 0)         // depth range (m) of cascades 0, 1, 2
     var casRadius = SIMD4<Float>(14, 70, 340, 0)    // radius (m) of cascades 0, 1, 2
-    static let expectedStride = 464
+    // Per-world sky: x = star amount, y = main-light disc brightness, z = second moon's angular radius, w = main disc radius.
+    var worldA = SIMD4<Float>(0, 1, 0, 0.00465)
+    var moonB = SIMD4<Float>(0, 1, 0, 0)            // xyz = direction toward the second moon
+    var worldB = SIMD4<Float>(0, 0, 0, 0)           // x = terrain palette (0 Varrow, 1 Glass Wood)
+    static let expectedStride = 512
 }
 
 struct ObjectUniforms {

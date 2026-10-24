@@ -29,11 +29,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, MTKViewDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         renderer = Renderer(device: device, options: options)
-        game = Game(scene: renderer.scene)
+        game = Game(scenes: renderer.scenes)
         let engine = AudioEngine()
         if engine.start() { audio = engine }
         // Resume from the last save (unless --new, --view or --camera ask for something specific).
-        if !options.newGame, options.camera == nil, options.viewName == nil, let save = SaveStore.load() { game.restore(save) }
+        let debugLaunch = options.state != nil || options.world != nil
+        if !options.newGame, !debugLaunch, options.camera == nil, options.viewName == nil, let save = SaveStore.load() { game.restore(save) }
+        // `--state solved` / `--world glass` jump straight to the interesting place for inspection. They never touch the save.
+        if options.state == "solved" { game.puzzle.forceSolved(); game.simulate(seconds: 0.1); _ = game.drainEvents() }
+        if options.world == .glassWood { game.travel(to: .glassWood); _ = game.drainEvents() }
         game.state.onChange = { [weak self] _, _ in self?.saveDirty = true }
         NotificationCenter.default.addObserver(forName: NSApplication.willTerminateNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.writeSave() }
@@ -116,6 +120,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, MTKViewDelegate {
         // Esc while the pause menu is showing resumes (the Esc that opened the menu never reaches here: see GameView).
         if sampled.escapePressed && overlay.menuOpen { resumePlaying() }
         game.advance(now: now, input: sampled)
+        renderer.world = game.world                                        // draw the world the player is in
         syncOverlay(now: now)
         if now - lastSave > 15 { lastSave = now; writeSave() }          // autosave (position changes constantly)
         if saveDirty { writeSave() }                                    // progress events save immediately
@@ -162,10 +167,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, MTKViewDelegate {
     /// Camera for the title screen: a slow circle around the island, rising and falling a little, always looking at the lighthouse hill.
     private func titleCamera() -> Camera {
         let t = titleClock * 0.035
-        let radius: Float = 330, height: Float = 70 + 25 * sin(t * 1.7)
-        let center = SIMD3<Float>(-10, 0, -40)
+        let glass = game.world == .glassWood
+        let radius: Float = glass ? 290 : 330, height: Float = (glass ? 55 : 70) + 25 * sin(t * 1.7)
+        let center = glass ? SIMD3<Float>(0, 0, 20) : SIMD3<Float>(-10, 0, -40)
         let pos = center + SIMD3(radius * cos(t + 0.9), height, radius * sin(t + 0.9))
-        let look = SIMD3<Float>(-20, 38, -45)
+        let look = glass ? SIMD3<Float>(0, 12, -20) : SIMD3<Float>(-20, 38, -45)
         let d = look - pos
         var cam = Camera(position: pos, yaw: atan2(d.x, -d.z), pitch: asin(d.y / length(d)))
         cam.fovY = 52 * .pi / 180
@@ -175,7 +181,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, MTKViewDelegate {
     // MARK: Saving
 
     private func writeSave() {
-        guard options.viewName == nil, options.camera == nil, game != nil else { return }
+        guard options.viewName == nil, options.camera == nil, options.state == nil, options.world == nil, game != nil else { return }
         do { try SaveStore.save(game.makeSave()); saveDirty = false } catch { FileHandle.standardError.write(Data("save failed: \(error)\n".utf8)) }
     }
 
@@ -231,6 +237,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, MTKViewDelegate {
         set(&overlay.journalOpen, journal.isOpen)
         set(&overlay.pageIndex, journal.current)
         set(&overlay.whiteout, CGFloat(game.whiteout))
+        set(&overlay.whiteoutCaption, game.whiteCaption)
         if overlay.pages.map(\.number) != journal.collectedPages.map(\.number) { overlay.pages = journal.collectedPages; dirty = true }
         if overlay.step(dt: dt) { dirty = true }
         if dirty { overlay.needsDisplay = true }

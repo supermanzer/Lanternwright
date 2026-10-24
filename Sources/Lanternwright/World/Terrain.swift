@@ -1,5 +1,25 @@
 import simd
 
+/// Everything that makes one world's ground different from another's. The `Terrain` machinery (grid cache, normals,
+/// pad flattening, path wear, detail noise) is shared; a world supplies its large-scale shape and its landmarks.
+struct TerrainSpec {
+    var pads: [Layout.Pad]
+    /// The walking route: calms the detail noise, gets worn 15 cm into the ground and coloured as a path.
+    var path: [SIMD3<Float>]
+    var seaFloor: Float
+    /// Large-scale shape (coast, hills) before detail, path and pads are applied.
+    var baseHeight: (_ noise: Noise, _ x: Float, _ z: Float) -> Float
+    var rollingAmplitude: Float = 9
+    var cragAmplitude: Float = 18
+}
+
+/// Distance from p to the segment ab.
+func segmentDistance(_ p: SIMD2<Float>, _ a: SIMD2<Float>, _ b: SIMD2<Float>) -> Float {
+    let ab = b - a
+    let t = min(max(dot(p - a, ab) / dot(ab, ab), 0), 1)
+    return length(p - (a + ab * t))
+}
+
 /// Procedural island heightfield.
 ///
 /// `height(x:z:)` is the analytic, deterministic definition (slow: several octaves of noise).
@@ -12,10 +32,12 @@ final class Terrain {
     static let padBlend: Float = 30
 
     let noise: Noise
+    let spec: TerrainSpec
     private(set) var heights: [Float]
 
-    init(seed: UInt32 = 20_26) {
+    init(seed: UInt32 = 20_26, spec: TerrainSpec = .varrow) {
         noise = Noise(seed: seed)
+        self.spec = spec
         heights = []
         let n = Terrain.gridCount
         var h = [Float](repeating: 0, count: n * n)
@@ -30,22 +52,17 @@ final class Terrain {
 
     // MARK: Analytic definition
 
-    private func segmentDistance(_ p: SIMD2<Float>, _ a: SIMD2<Float>, _ b: SIMD2<Float>) -> Float {
-        let ab = b - a
-        let t = min(max(dot(p - a, ab) / dot(ab, ab), 0), 1)
-        return length(p - (a + ab * t))
-    }
-
     /// 1 on the path centreline, 0 beyond 3.5 m. The soft 1.2...3.5 m edge is wide enough for the 2 m mesh to resolve.
-    static func pathWeight(x: Float, z: Float) -> Float {
+    func pathWeight(x: Float, z: Float) -> Float {
         1 - smoothstep(1.2, 3.5, pathDistance(x: x, z: z))
     }
 
     /// Horizontal distance from (x, z) to the lantern-path polyline.
-    static func pathDistance(x: Float, z: Float) -> Float {
+    func pathDistance(x: Float, z: Float) -> Float {
         let p = SIMD2(x, z)
         var best = Float.infinity
-        let pts = Layout.lanternPath
+        let pts = spec.path
+        if pts.count < 2 { return .infinity }
         for k in 0..<(pts.count - 1) {
             let a = SIMD2(pts[k].x, pts[k].z), b = SIMD2(pts[k + 1].x, pts[k + 1].z)
             let ab = b - a
@@ -82,42 +99,20 @@ final class Terrain {
 
     func height(x: Float, z: Float) -> Float {
         let p = SIMD2(x, z)
-        let sea = Layout.seaFloor
-
-        // Hill: warp the radius so the coastline is irregular (about +-6 %).
-        let wobble = noise.fbm(x * 0.006, z * 0.006, octaves: 4)
-        let dh = length(p - Layout.hillCenter) * (1 + 0.10 * wobble)
-        let hill: Float = dh < Layout.hillRadius
-            ? Terrain.hillProfile(dh)
-            : sea * smoothstep(Layout.hillRadius, Layout.hillRadius + 115, dh)
-
-        // Shelf along the spine to the south-east.
-        let ds = segmentDistance(p, Layout.hillCenter, Layout.spineEnd) * (1 + 0.12 * wobble)
-        let shelf: Float = ds < Layout.shelfRadius
-            ? Layout.shelfHeight * (1 - smoothstep(0, Layout.shelfRadius, ds))
-            : sea * smoothstep(Layout.shelfRadius, Layout.shelfRadius + 95, ds)
-
-        // Islet to the north.
-        let isletWobble = noise.fbm(x * 0.02 + 40, z * 0.02 - 17, octaves: 3)
-        let di = length(p - SIMD2(Layout.isletCenter.x, Layout.isletCenter.z)) * (1 + 0.12 * isletWobble)
-        let islet: Float = di < Layout.isletRadius
-            ? Layout.isletPeak * pow(1 - smoothstep(0, Layout.isletRadius, di), 0.9)
-            : sea * smoothstep(Layout.isletRadius, Layout.isletRadius + 80, di)
-
-        var h = max(hill, max(shelf, islet))
+        var h = spec.baseHeight(noise, x, z)
 
         // Detail: rolling fBm everywhere (gentle on the sea floor), craggy ridges on the high ground.
         // Detail is calmed near the lantern path so the route stays walkable (slope limit, T2.5).
-        let calm = 0.2 + 0.8 * smoothstep(4, 35, Terrain.pathDistance(x: x, z: z))
-        let rolling = noise.fbm(x * 0.012, z * 0.012, octaves: 5) * 9 * (0.2 + 0.8 * smoothstep(0, 40, h))
-        let crags = (noise.ridged(x * 0.02 + 90, z * 0.02 - 40, octaves: 5) - 0.35) * 18 * smoothstep(20, 50, h)
+        let calm = 0.2 + 0.8 * smoothstep(4, 35, pathDistance(x: x, z: z))
+        let rolling = noise.fbm(x * 0.012, z * 0.012, octaves: 5) * spec.rollingAmplitude * (0.2 + 0.8 * smoothstep(0, 40, h))
+        let crags = (noise.ridged(x * 0.02 + 90, z * 0.02 - 40, octaves: 5) - 0.35) * spec.cragAmplitude * smoothstep(20, 50, h)
         h += (rolling + crags) * calm
 
         // The path is worn 15 cm into the ground (also visible as a darker colour in the terrain material).
-        h -= 0.15 * Terrain.pathWeight(x: x, z: z)
+        h -= 0.15 * pathWeight(x: x, z: z)
 
         // Flatten pads so landmarks sit on solid, level ground.
-        for pad in Layout.pads {
+        for pad in spec.pads {
             let d = length(p - SIMD2(pad.center.x, pad.center.z))
             let w = 1 - smoothstep(pad.radius, pad.radius + pad.blend, d)
             h = mix(h, pad.center.y, w)
@@ -145,5 +140,31 @@ final class Terrain {
         let dhdx = (sampleHeight(x: x + d, z: z) - sampleHeight(x: x - d, z: z)) / (2 * d)
         let dhdz = (sampleHeight(x: x, z: z + d) - sampleHeight(x: x, z: z - d)) / (2 * d)
         return normalize(SIMD3(-dhdx, 1, -dhdz))
+    }
+}
+
+extension TerrainSpec {
+    /// The Isle of Varrow: a hill with a bench at the wind stone, a low shelf running south-east to the dock, and the islet.
+    static let varrow = TerrainSpec(pads: Layout.pads, path: Layout.lanternPath, seaFloor: Layout.seaFloor) { noise, x, z in
+        let p = SIMD2(x, z)
+        let sea = Layout.seaFloor
+        // Hill: warp the radius so the coastline is irregular (about +-6 %).
+        let wobble = noise.fbm(x * 0.006, z * 0.006, octaves: 4)
+        let dh = length(p - Layout.hillCenter) * (1 + 0.10 * wobble)
+        let hill: Float = dh < Layout.hillRadius
+            ? Terrain.hillProfile(dh)
+            : sea * smoothstep(Layout.hillRadius, Layout.hillRadius + 115, dh)
+        // Shelf along the spine to the south-east.
+        let ds = segmentDistance(p, Layout.hillCenter, Layout.spineEnd) * (1 + 0.12 * wobble)
+        let shelf: Float = ds < Layout.shelfRadius
+            ? Layout.shelfHeight * (1 - smoothstep(0, Layout.shelfRadius, ds))
+            : sea * smoothstep(Layout.shelfRadius, Layout.shelfRadius + 95, ds)
+        // Islet to the north.
+        let isletWobble = noise.fbm(x * 0.02 + 40, z * 0.02 - 17, octaves: 3)
+        let di = length(p - SIMD2(Layout.isletCenter.x, Layout.isletCenter.z)) * (1 + 0.12 * isletWobble)
+        let islet: Float = di < Layout.isletRadius
+            ? Layout.isletPeak * pow(1 - smoothstep(0, Layout.isletRadius, di), 0.9)
+            : sea * smoothstep(Layout.isletRadius, Layout.isletRadius + 80, di)
+        return max(hill, max(shelf, islet))
     }
 }

@@ -24,6 +24,9 @@ struct DrawItem {
 
 /// Everything the renderer draws. World-building code fills `items`.
 final class Scene {
+    let kind: WorldKind
+    init(kind: WorldKind = .varrow) { self.kind = kind }
+
     private(set) var items: [DrawItem] = []
     private var nameIndex: [String: Int] = [:]
 
@@ -53,7 +56,7 @@ final class Scene {
         let p = SIMD2(x, z)
         let terrainY = terrain.sampleHeight(x: x, z: z)
         for w in walkables { if let h = w.height(at: p), h > terrainY - 0.05 { return w.surface } }
-        if Terrain.pathWeight(x: x, z: z) > 0.5 { return .earth }
+        if terrain.pathWeight(x: x, z: z) > 0.5 { return .earth }
         if terrainY < 2.2 { return .sand }
         if terrain.normal(x: x, z: z).y < 0.8 || terrainY > 55 { return .rock }
         return .grass
@@ -82,6 +85,13 @@ final class Scene {
         let p = SIMD2(x, z)
         for w in walkables { if let wh = w.height(at: p) { h = max(h, wh) } }
         return h
+    }
+
+    static func make(_ kind: WorldKind, device: MTLDevice) -> Scene {
+        switch kind {
+        case .varrow: return makeWorld(device: device)
+        case .glassWood: return GlassWood.build(device: device)
+        }
     }
 
     static func makeWorld(device: MTLDevice) -> Scene {

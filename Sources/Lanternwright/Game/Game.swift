@@ -6,16 +6,24 @@ import simd
 final class Game {
     static let tick: Float = 1.0 / 120.0
 
-    let scene: Scene
+    /// Every world's scene. The player is in exactly one of them (`world`).
+    let scenes: [WorldKind: Scene]
+    private(set) var world: WorldKind = .varrow
+    var scene: Scene { scenes[world]! }
     var player: Player
     let state = PuzzleState()
     let animator = Animator()
     private(set) var puzzle: LighthousePuzzle!
-    private(set) var interactables: [Interactable] = []
+    private var worldInteractables: [WorldKind: [Interactable]] = [:]
+    var interactables: [Interactable] { worldInteractables[world] ?? [] }
     private(set) var hovered: Interactable?
     var journal = JournalState()
-    /// 0...1 white fade at the end of the slice.
+    /// 0...1 white fade used when stepping through a lens to another world.
     private(set) var whiteout: Float = 0
+    /// Text shown over the white (nil = none).
+    private(set) var whiteCaption: String?
+    /// True while a world change is in progress: the player stands still and nothing is hoverable.
+    private(set) var isTraveling = false
 
     private var accumulator: Float = 0
     private var lastTime: Double?
@@ -25,12 +33,16 @@ final class Game {
     private(set) var footfalls = 0
     private(set) var lastFootWasRun = false
 
-    init(scene: Scene) {
-        self.scene = scene
-        player = Player(position: SIMD3(Layout.dockEnd.x, Layout.dockEnd.y, Layout.dockEnd.z), yaw: Layout.spawnYaw)
-        puzzle = LighthousePuzzle(scene: scene, state: state, animator: animator) { [weak self] in self?.pending.append($0) }
+    init(scenes: [WorldKind: Scene]) {
+        precondition(scenes[.varrow] != nil, "the game always has Varrow")
+        self.scenes = scenes
+        player = Player(position: Layout.dockEnd, yaw: Layout.spawnYaw)
+        puzzle = LighthousePuzzle(scene: scenes[.varrow]!, state: state, animator: animator) { [weak self] in self?.pending.append($0) }
         buildInteractables()
     }
+
+    /// Varrow only (most tests need nothing else).
+    convenience init(scene: Scene) { self.init(scenes: [.varrow: scene]) }
 
     var camera: Camera { player.camera }
 
@@ -43,24 +55,40 @@ final class Game {
     // MARK: Interactables
 
     private func buildInteractables() {
+        let varrow = scenes[.varrow]!
+        var list: [Interactable] = []
         for id in StoneID.allCases {
             let p = id.position
-            interactables.append(Interactable(id: "stone_\(id.name)",
-                                              min: SIMD3(p.x - 0.95, p.y, p.z - 0.95), max: SIMD3(p.x + 0.95, p.y + StoneID.height + 1.4, p.z + 0.95),
-                                              prompt: "Touch the stone"))
+            list.append(Interactable(id: "stone_\(id.name)",
+                                     min: SIMD3(p.x - 0.95, p.y, p.z - 0.95), max: SIMD3(p.x + 0.95, p.y + StoneID.height + 1.4, p.z + 0.95),
+                                     prompt: "Touch the stone"))
         }
         for n in 1...4 {
-            let p = PuzzleProps.pagePosition(n, terrain: scene.terrain)
-            interactables.append(Interactable(id: "page_\(n)", min: p - SIMD3(0.35, 0.1, 0.35), max: p + SIMD3(0.35, 0.3, 0.35),
-                                              prompt: "Read the page", reach: 3.2))
+            let p = PuzzleProps.pagePosition(n, terrain: varrow.terrain)
+            list.append(Interactable(id: "page_\(n)", min: p - SIMD3(0.35, 0.1, 0.35), max: p + SIMD3(0.35, 0.3, 0.35),
+                                     prompt: "Read the page", reach: 3.2))
         }
         let l = PuzzleProps.lensRestPosition
-        interactables.append(Interactable(id: "lens", min: l - SIMD3(1.3, 1.3, 1.3), max: l + SIMD3(1.3, 1.3, 1.3), prompt: "Touch the lens", reach: 5))
+        list.append(Interactable(id: "lens", min: l - SIMD3(1.3, 1.3, 1.3), max: l + SIMD3(1.3, 1.3, 1.3), prompt: "Touch the lens", reach: 5))
+        worldInteractables[.varrow] = list
+
+        if scenes[.glassWood] != nil {
+            let r = GlassLayout.returnLens
+            worldInteractables[.glassWood] = [
+                Interactable(id: "gw_return", min: r - SIMD3(1.3, 1.3, 1.3), max: r + SIMD3(1.3, 1.3, 1.3), prompt: "Return through the lens", reach: 5),
+            ]
+        }
+    }
+
+    private func setInteractable(_ id: String, enabled: Bool) {
+        for kind in worldInteractables.keys {
+            if let i = worldInteractables[kind]?.firstIndex(where: { $0.id == id }) { worldInteractables[kind]![i].enabled = enabled }
+        }
     }
 
     /// What the crosshair is on right now (nil while reading or fading out).
     func updateHover() {
-        hovered = (journal.isOpen || whiteout > 0) ? nil : Interaction.pick(origin: camera.position, dir: camera.forward, in: interactables)
+        hovered = (journal.isOpen || whiteout > 0 || isTraveling) ? nil : Interaction.pick(origin: camera.position, dir: camera.forward, in: interactables)
     }
 
     func activate(_ id: String) {
@@ -70,6 +98,8 @@ final class Game {
             collectPage(n)
         } else if id == "lens" {
             touchLens()
+        } else if id == "gw_return" {
+            fadeThrough(to: .varrow)
         }
     }
 
@@ -78,7 +108,7 @@ final class Game {
         state.set("page_\(n)")
         journal.collect(n)
         scene.update("page_\(n)") { $0.hidden = true }
-        if let i = interactables.firstIndex(where: { $0.id == "page_\(n)" }) { interactables[i].enabled = false }
+        setInteractable("page_\(n)", enabled: false)
     }
 
     private func collectPage(_ n: Int) {
@@ -89,11 +119,43 @@ final class Game {
     }
 
     private func touchLens() {
-        guard !state.has("lensTouched"), state.has("causewayUp") else { return }
-        state.set("lensTouched")
+        guard state.has("causewayUp") else { return }
+        state.set("lensTouched")                      // "has travelled": kept in the save
         pending.append(.chime(.lens))
+        fadeThrough(to: .glassWood)
+    }
+
+    // MARK: Travel between worlds
+
+    static let fadeOutSeconds: Float = 1.2, holdSeconds: Float = 0.4, fadeInSeconds: Float = 2.0
+
+    /// Step through a lens: fade to white, swap worlds while nothing can be seen, fade back in.
+    func fadeThrough(to kind: WorldKind) {
+        guard !isTraveling, scenes[kind] != nil, kind != world else { return }
+        isTraveling = true
+        whiteCaption = "The light folds…"
         pending.append(.whiteoutStarted)
-        animator.tween(duration: 2.0, ease: .inOutCubic) { [weak self] t in self?.whiteout = t }
+        animator.tween(duration: Game.fadeOutSeconds, ease: .inOutCubic, apply: { [weak self] t in self?.whiteout = t }, completion: { [weak self] in
+            guard let self else { return }
+            self.travel(to: kind)
+            self.animator.tween(delay: Game.holdSeconds, duration: Game.fadeInSeconds, ease: .inOutCubic, apply: { [weak self] t in self?.whiteout = 1 - t },
+                                completion: { [weak self] in self?.isTraveling = false; self?.whiteCaption = nil })
+        })
+    }
+
+    /// Put the player in `kind` at its arrival point. (Instant; `fadeThrough` hides it behind white.)
+    func travel(to kind: WorldKind) {
+        guard scenes[kind] != nil else { return }
+        world = kind
+        let pose: (position: SIMD3<Float>, yaw: Float)
+        switch kind {
+        case .varrow: pose = (Layout.isletCenter + SIMD3(0, 0, 5), 0)          // beside the lens, facing it
+        case .glassWood: pose = (GlassLayout.arrival, 0)
+        }
+        player = Player(position: pose.position, yaw: pose.yaw)
+        player.position.y = scene.groundHeight(x: pose.position.x, z: pose.position.z)
+        hovered = nil
+        pending.append(.worldChanged(kind))
     }
 
     /// Where the player is and what they have done, attached to every piece of feedback.
@@ -124,7 +186,7 @@ final class Game {
 
     /// One fixed 1/120 s step of everything that moves.
     func fixedStep(input: InputState) {
-        if player.step(dt: Game.tick, input: input, scene: scene) { footfalls += 1; lastFootWasRun = player.lastStepWasRun }
+        if player.step(dt: Game.tick, input: isTraveling ? InputState() : input, scene: scene) { footfalls += 1; lastFootWasRun = player.lastStepWasRun }
         animator.update(Game.tick)
         time += Game.tick
         puzzle.updateVisuals(time: time)
