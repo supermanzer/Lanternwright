@@ -98,6 +98,9 @@ final class Game {
     var camera: Camera { var c = player.camera; c.fovY = LookCloser.fov(zoom: zoomAmount) + Game.runFovBoost * runBlend * (1 - zoomAmount); return c }
 
     /// The ground material under the player's feet (drives footstep sounds).
+    /// The weighted version (for the footstep voice), and the dock plank under the foot.
+    var surfaceMix: (mix: StepMix, pebble: Float) { scene.surfaceMix(x: player.position.x, z: player.position.z) }
+    var currentPlank: Int { scene.plankIndex(x: player.position.x, z: player.position.z) }
     var currentSurface: SurfaceKind { scene.surface(x: player.position.x, z: player.position.z) }
 
     /// Events since the last call (audio and UI consume these).

@@ -59,6 +59,52 @@ extension SelfTestRunner {
             check(oneEach, "from any eye position exactly one level of every tree cell is visible")
             sc.applyLOD(eye: SIMD3(0, 0, 0))
         }
+        if name == "all" || name == "surfacemix" {
+            let sc = Scene.makeWorld(device: device)
+            func mixAt(_ x: Float, _ z: Float) -> StepMix { sc.surfaceMix(x: x, z: z).mix }
+            func dominant(_ m: StepMix) -> StepMaterial { StepMaterial.allCases.max { m[$0.rawValue] < m[$1.rawValue] }! }
+            let strip = Layout.dockStrip()
+            let dir = simd_normalize(strip.b - strip.a)
+            func onDock(_ s: Float) -> SIMD2<Float> { strip.a + dir * s }
+            let mid = onDock(simd_length(strip.b - strip.a) * 0.5)
+            check(mixAt(mid.x, mid.y)[StepMaterial.wood.rawValue] > 0.99 && dominant(mixAt(mid.x, mid.y)) == .wood, "surface mix: the middle of the dock is all planks")
+            // Walking off the dock's landward end: wood fades out over a metre or two, sand/grass fades in, never an abrupt flip.
+            var woodRamp: [Float] = []
+            for k in 0..<12 { let q = onDock(-0.2 + Float(k) * 0.25 + 0.0); woodRamp.append(mixAt(q.x, q.y)[StepMaterial.wood.rawValue]) }
+            check(zip(woodRamp, woodRamp.dropFirst()).allSatisfy { $0 <= $1 + 1e-4 } && woodRamp.first! < 0.1 && woodRamp.last! > 0.6, "surface mix: planks fade in over the first metres of the dock (\(woodRamp.map { String(format: "%.2f", $0) }.joined(separator: " ")))")
+            check(zip(woodRamp, woodRamp.dropFirst()).allSatisfy { abs($1 - $0) < 0.45 }, "surface mix: no single step on the dock's end changes the planks' weight by more than 45 %")
+            // The beach: wet sand near the waterline, dry sand higher.
+            var wetPt: SIMD2<Float>?, dryPt: SIMD2<Float>?
+            for xi in stride(from: Float(100), to: 280, by: 1) { for zi in stride(from: Float(120), to: 320, by: 1) {
+                let h = sc.terrain.sampleHeight(x: xi, z: zi)
+                if wetPt == nil && h > 0.12 && h < 0.3 && sc.surface(x: xi, z: zi) == .sand { wetPt = SIMD2(xi, zi) }
+                if dryPt == nil && h > 1.3 && h < 1.5 && sc.surface(x: xi, z: zi) == .sand && sc.terrain.pathWeight(x: xi, z: zi) < 0.1 { dryPt = SIMD2(xi, zi) }
+            } }
+            if let w = wetPt, let d = dryPt {
+                check(dominant(mixAt(w.x, w.y)) == .wetSand && dominant(mixAt(d.x, d.y)) == .drySand, "surface mix: wet sand at the waterline, dry sand above it")
+            } else { check(false, "surface mix: found wet and dry sand sample points") }
+            let pathMid = (Layout.tideStone + Layout.windStone) * 0.5
+            check(dominant(mixAt(pathMid.x, pathMid.z)) == .earth || mixAt(pathMid.x, pathMid.z)[StepMaterial.earth.rawValue] > 0.4, "surface mix: the lantern path is packed earth")
+            check(dominant(mixAt(Layout.summitStone.x + 12, Layout.summitStone.z + 30)) != .wood, "surface mix: the hillside is not planks")
+            // Stone: the lighthouse plinth and doorstep, and the Glass Wood's inlaid plate.
+            let doorStep = Layout.lighthouse + SIMD3(0, 0, Lighthouse.wallR(2.0) + 1.5)
+            check(mixAt(doorStep.x, doorStep.z)[StepMaterial.stone.rawValue] > 0.99 && sc.surface(x: doorStep.x, z: doorStep.z) == .stone, "surface mix: the lighthouse doorstep is stone")
+            let gw = GlassWood.build(device: device)
+            check(gw.surfaceMix(x: GlassLayout.arrival.x, z: GlassLayout.arrival.z).mix[StepMaterial.stone.rawValue] > 0.99 && gw.surfaceMix(x: GlassLayout.arrival.x + 9, z: GlassLayout.arrival.z).mix[StepMaterial.stone.rawValue] < 0.1, "surface mix: the Glass Wood's inlaid plate is stone and the ground around it is not")
+            // The weights always add up to one, everywhere.
+            var worstSum: Float = 1
+            for k in 0..<600 {
+                let x = -250 + Float(k % 30) * 17, z = -300 + Float(k / 30) * 28
+                let m = mixAt(x, z); let s = (0..<7).map { m[$0] }.reduce(0, +)
+                if abs(s - 1) > abs(worstSum - 1) { worstSum = s }
+            }
+            check(abs(worstSum - 1) < 0.02, "surface mix: the weights add up to 1 wherever you stand (worst \(worstSum))")
+            // Plank index: the dock's boards are 0.275 m apart, so stepping along it changes the plank.
+            let i0 = sc.plankIndex(x: onDock(5).x, z: onDock(5).y), i1 = sc.plankIndex(x: onDock(5.6).x, z: onDock(5.6).y), i2 = sc.plankIndex(x: onDock(5.05).x, z: onDock(5.05).y)
+            check(i1 - i0 == 2 && (i2 == i0 || i2 == i0 + 1) , "surface mix: each 0.275 m along the dock is another plank (\(i0) -> \(i1))")
+            // currentSurface is unchanged, and agrees with the mix in the pure cases.
+            check(sc.surface(x: mid.x, z: mid.y) == .wood && sc.surface(x: pathMid.x, z: pathMid.z) == .earth, "the single-surface answer is unchanged (dock = wood, path = earth)")
+        }
         if name == "all" || name == "terrain" || name == "terrain-map" {
             let t = Terrain()
             for (label, p) in [("tideStone", Layout.tideStone), ("windStone", Layout.windStone), ("summitStone", Layout.summitStone),

@@ -95,6 +95,7 @@ enum GlassWood {
             plate.cylinder(radiusTop: 0.22, radiusBottom: 0.24, height: 0.02, segments: 10, smooth: false, surface: pale,
                            transform: rotationY(ang) * translation(SIMD3(0, top - 0.01, 0.55)))
         }
+        scene.stoneZones.append((center: SIMD2(a.x, a.z), radius: 3.6))
         scene.add("gw_arrival_plate", mesh: plate.build(device: device, label: "arrival plate"), uniforms: ObjectUniforms(model: translation(a)))
 
         var ring = MeshBuilder()

@@ -2,14 +2,15 @@ import Foundation
 
 /// `--dump-audio out.wav`: render 24 s of the soundscape to a 16-bit stereo WAV so it can be auditioned with
 /// `afplay` without launching the game. 0-8 s wind only, 8 s surf joins, then 5 s of walking footsteps on grass,
-/// 5 s running on grass, then one step on each other surface.
+/// 5 s running on grass, then five walking steps on each surface in turn (dock planks, dry sand, wet sand, packed earth, stone, rock),
+/// then a walk off the end of the dock onto sand (the planks fade out over a few steps).
 enum AudioDump {
     static func write(to path: String) throws {
         let sr = 44100
-        let total = sr * 28
+        let total = sr * 46
         let synth = AmbienceSynth(sampleRate: Float(sr))
         var left = [Float](repeating: 0, count: total), right = [Float](repeating: 0, count: total)
-        let surfaces: [SurfaceKind] = [.grass, .sand, .earth, .rock, .wood, .stone]
+        let tour: [StepMaterial] = [.wood, .drySand, .wetSand, .earth, .stone, .rock]
         var done = 0, nextStep = sr * 12, stepIndex = 0
         // Cadences match the Player: walking about 2.2 steps/s, running about 3.0 steps/s.
         func stepInterval(_ i: Int) -> Float { i < 11 ? 1 / 2.2 : (i < 26 ? 1 / 3.0 : 0.6) }
@@ -17,12 +18,18 @@ enum AudioDump {
             let t = Float(done) / Float(sr)
             synth.windGain = 0.4 + 0.2 * min(t / 24, 1)
             synth.surfGain = t < 8 ? 0 : 0.6
-            if done >= nextStep && stepIndex < 31 {
-                synth.stepSurface = stepIndex < 26 ? .grass : surfaces[(stepIndex - 26) % surfaces.count]
+            if done >= nextStep && stepIndex < 26 + 5 * 6 + 6 {
+                if stepIndex < 26 { synth.stepSurface = .grass; synth.stepMix = nil }
+                else if stepIndex < 26 + 30 { let k = stepIndex - 26; synth.stepMix = FootstepRecipe.pure(tour[k / 5]); synth.stepPlank = 40 + k; synth.stepPebble = tour[k / 5] == .earth ? 0.5 : 0 }
+                else {                                                    // off the dock: planks 1.0, 0.7, 0.4, 0.2, 0.05, 0 against sand
+                    let wood: [Float] = [1, 0.7, 0.4, 0.2, 0.05, 0]
+                    var m = StepMix(repeating: 0); let w = wood[stepIndex - 56]; m[StepMaterial.wood.rawValue] = w; m[StepMaterial.drySand.rawValue] = 1 - w
+                    synth.stepMix = m; synth.stepPlank = 70 + stepIndex
+                }
                 synth.stepRun = stepIndex >= 11 && stepIndex < 26
                 synth.stepPan = stepIndex % 2 == 0 ? -0.3 : 0.3
                 synth.stepCounter += 1
-                nextStep += Int(Float(sr) * stepInterval(stepIndex))
+                nextStep += Int(Float(sr) * (stepIndex >= 26 ? 0.5 : stepInterval(stepIndex)))
                 stepIndex += 1
             }
             let c = min(512, total - done)

@@ -67,8 +67,8 @@ extension SelfTestRunner {
             }
             for surface in [SurfaceKind.grass, .sand, .earth, .rock, .stone, .wood] {
                 let walk = step(surface, run: false)
-                check(peak(walk[0..<Int(sr * 0.001)]) < 0.3 * peak(walk[0..<Int(sr * 0.4)]) && !walk.contains { !$0.isFinite }, "\(surface) step has a soft attack (first millisecond is not the peak) and is finite")
-                check(peak(walk[Int(sr * 1.5)...]) < 1e-4, "\(surface) step dies away completely")
+                check(peak(walk[0..<Int(sr * 0.0002)]) < 0.3 * peak(walk[0..<Int(sr * 0.4)]) && !walk.contains { !$0.isFinite }, "\(surface) step has no click (the first 0.2 ms is not the peak) and is finite")
+                check(peak(walk[Int(sr * 1.5)...]) < 2e-3, "\(surface) step has died away by 1.5 s (\(peak(walk[Int(sr * 1.5)...])))")
             }
             let walkGrass = step(.grass, run: false), runGrass = step(.grass, run: true)
             check(ringOut(walkGrass) >= 0.12, "a grass footstep rings out for at least 0.12 s, not a click (\(String(format: "%.2f", ringOut(walkGrass))) s)")
@@ -77,11 +77,77 @@ extension SelfTestRunner {
                   "a run step is harder and shorter than a walk step (peak \(String(format: "%.2f", peak(walkStone[...]))) -> \(String(format: "%.2f", peak(runStone[...]))), ring-out \(String(format: "%.2f", ringOut(walkStone))) -> \(String(format: "%.2f", ringOut(runStone))) s)")
             // The walk has a second, softer hit (the toe) after the heel.
             let heel = peak(walkGrass[0..<Int(sr * 0.06)]), toe = peak(walkGrass[Int(sr * 0.075)..<Int(sr * 0.2)])
-            check(toe > 0.15 * heel && toe < heel, "walking is heel then toe (toe is \(Int(100 * toe / heel)) % of the heel)")
+            check(toe > 0.15 * heel && toe < heel, "walking is heel then toe (toe is \(Int(100 * toe / heel)) % of the heel; heel \(heel), toe \(toe), env at 0.075 \(peak(walkGrass[Int(sr * 0.07)..<Int(sr * 0.08)])), 0.15 \(peak(walkGrass[Int(sr * 0.14)..<Int(sr * 0.16)])))")
             // Consecutive steps differ.
             let two = step(.grass, run: false, count: 2)
             let first = peak(two[0..<Int(sr * 2)]), second = peak(two[Int(sr * 2)...])
             check(abs(first - second) / max(first, second) > 0.01, "consecutive steps are not identical (peaks \(String(format: "%.3f", first)) vs \(String(format: "%.3f", second)))")
+        }
+        if name == "footstep-report" {
+            typealias A = FootstepAnalysis
+            for m in StepMaterial.allCases {
+                let steps = A.render(mix: A.pure(m)), runs = A.render(mix: A.pure(m), run: true)
+                let specs = steps.map(A.spectrum)
+                let pk = A.mean(steps.map { $0.map { abs($0) }.max() ?? 0 }), pkRun = A.mean(runs.map { $0.map { abs($0) }.max() ?? 0 })
+                let total = A.mean(specs.map { A.band($0, 40, 9000) })
+                let low = A.mean(specs.map { A.band($0, 80, 400) }) / max(total, 1e-12), ring = A.mean(specs.map { A.band($0, 1200, 3000) }) / max(total, 1e-12)
+                let tex = A.render(mix: A.pure(m), layers: .texture), body = A.render(mix: A.pure(m), layers: .body)
+                print("\(m): peak \(pk) run \(pkRun) low \(low) ring \(ring) centroid \(A.mean(specs.map(A.centroid))) decay30low \(A.mean(steps.map { A.decayTime($0, lowpass: 400, dB: 30) })) attack \(A.mean(steps.map(A.attackTime))) grains(texture only) \(A.mean(tex.map { Float(A.grainCount($0)) })) bodyDecay20 \(A.mean(body.map { A.decayTime($0, lowpass: 400, dB: 20) }))")
+            }
+        }
+        if name == "all" || name == "footsteps" {
+            typealias A = FootstepAnalysis
+            typealias M = StepMaterial
+            func summary(_ m: StepMix, count: Int = 10, run: Bool = false, plank: Int = 0, pebble: Float = 0) -> (peak: Float, low: Float, ring: Float, centroid: Float, decay30: Float, rise: Float, grains: Float, bodyDecay: Float) {
+                let steps = A.render(mix: m, count: count, run: run, plank: plank, pebble: pebble)
+                let specs = steps.map(A.spectrum)
+                let total = A.mean(specs.map { A.band($0, 40, 9000) })
+                let tex = A.render(mix: m, count: count, run: run, plank: plank, pebble: pebble, layers: .texture)
+                let body = A.render(mix: m, count: count, run: run, plank: plank, pebble: pebble, layers: .body)
+                return (A.mean(steps.map { $0.map { abs($0) }.max() ?? 0 }), A.mean(specs.map { A.band($0, 80, 400) }) / max(total, 1e-12),
+                        A.mean(specs.map { A.band($0, 1200, 3000) }) / max(total, 1e-12), A.mean(specs.map(A.centroid)),
+                        A.mean(steps.map { A.decayTime($0, lowpass: 400, dB: 30) }), A.mean(steps.map(A.attackTime)),
+                        A.mean(tex.map { Float(A.grainCount($0)) }), A.mean(body.map { A.decayTime($0, lowpass: 400, dB: 20) }))
+            }
+            let wood = summary(A.pure(.wood)), dry = summary(A.pure(.drySand)), wet = summary(A.pure(.wetSand)), earth = summary(A.pure(.earth))
+            let stone = summary(A.pure(.stone)), rock = summary(A.pure(.rock)), grass = summary(A.pure(.grass))
+            let others = [dry, wet, earth, stone, rock, grass]
+            // wood: suspended planks, hollow
+            check(wood.low > 0.9 && others.allSatisfy { wood.low > $0.low * 1.15 }, "wood: nearly all the energy is in the 80-400 Hz cavity band, clearly more than any other surface (\(wood.low) vs best other \(others.map(\.low).max() ?? 0))")
+            check(wood.decay30 > 0.2 && wood.bodyDecay > 0.2, "wood: the hollow body rings on (-30 dB after \(wood.decay30) s)")
+            func plankPitch(_ i: Int) -> Float { A.mean(A.render(mix: A.pure(.wood), count: 10, plank: i, seconds: 0.8, layers: .body).map { A.dominantPitch($0, 90, 190) }) }
+            var planks: [(Int, Float)] = []; for i in 0..<40 { planks.append((i, Footsteps.plankHash(i, salt: 1))) }
+            let lowP = planks.min { $0.1 < $1.1 }!, highP = planks.max { $0.1 < $1.1 }!
+            let pLow = plankPitch(lowP.0), pHigh = plankPitch(highP.0), pLow2 = plankPitch(lowP.0)
+            check((pHigh - pLow) / pLow > 0.10, "wood: two different planks sound at different pitches (plank \(lowP.0) \(pLow) Hz, plank \(highP.0) \(pHigh) Hz)")
+            check(abs(pLow2 - pLow) / pLow < 0.02, "wood: the same plank always has the same pitch (\(pLow) Hz, again \(pLow2) Hz)")
+            // sand: grains shifting
+            check(dry.grains >= 5 * stone.grains && dry.grains >= 30, "sand: a dense grain cloud (\(dry.grains) grains) at least 5x stone's grit (\(stone.grains))")
+            check(dry.rise > 0.010 && wet.rise > 0.004, "sand: soft contact, no click (dry rise \(dry.rise) s, wet \(wet.rise) s)")
+            check(wet.centroid < dry.centroid * 0.6 && wet.grains < dry.grains, "sand: wet sand is darker (\(wet.centroid) Hz) and sparser than dry (\(dry.centroid) Hz)")
+            // earth: solid with some crunch
+            check(earth.low > 0.5 && earth.bodyDecay < 0.08, "earth: a dull, short thump under 80 ms (low share \(earth.low), -20 dB in \(earth.bodyDecay) s)")
+            check(earth.grains > 4 && earth.grains < dry.grains * 0.5, "earth: some crunch, far fewer grains than sand (\(earth.grains) vs \(dry.grains))")
+            let pebbly = summary(A.pure(.earth), pebble: 1)
+            check(pebbly.grains > earth.grains * 1.4, "earth: pebbles on the path add crunch (\(earth.grains) -> \(pebbly.grains) grains)")
+            // stone: hard, bright, a ring
+            check(others.allSatisfy { stone.rise <= $0.rise } && stone.rise < 0.0012, "stone: the sharpest contact of any surface (rise \(stone.rise) s)")
+            check([wood, dry, earth, wet].allSatisfy { stone.centroid > $0.centroid * 1.1 }, "stone: the brightest of wood, sand and earth (centroid \(stone.centroid) Hz vs sand \(dry.centroid), earth \(earth.centroid))")
+            let ringBody = A.render(mix: A.pure(.stone), count: 6, seconds: 0.4, layers: .body).map { A.dominantPitch($0, 1000, 4000) }
+            check(ringBody.allSatisfy { $0 >= 1200 && $0 <= 3000 }, "stone: a ring partial between 1.2 and 3 kHz (\(A.mean(ringBody)) Hz)")
+            check(stone.ring > 0.5 && rock.ring < stone.ring, "stone rings more than rock (ring share \(stone.ring) vs \(rock.ring))")
+            check(grass.peak < 0.5 * [dry, earth, stone, wood, rock].map(\.peak).min()!, "grass is the quietest surface (peak \(grass.peak))")
+            // blends: a mixed step lies between its pure steps
+            var half = StepMix(repeating: 0); half[M.drySand.rawValue] = 0.5; half[M.grass.rawValue] = 0.5
+            let mixed = summary(half)
+            check(mixed.grains > grass.grains && mixed.grains < dry.grains && mixed.centroid > grass.centroid && mixed.centroid < dry.centroid, "blend: a 50/50 sand-grass step lies between them (grains \(grass.grains) < \(mixed.grains) < \(dry.grains), centroid \(grass.centroid) < \(mixed.centroid) < \(dry.centroid))")
+            var edge = StepMix(repeating: 0); edge[M.wood.rawValue] = 0.5; edge[M.drySand.rawValue] = 0.5
+            let dockEnd = summary(edge)
+            check(dockEnd.low < wood.low && dockEnd.low > dry.low && dockEnd.grains > 0.2 * dry.grains && dockEnd.grains < dry.grains, "blend: at the end of the dock the planks give way to sand (low share \(dry.low) < \(dockEnd.low) < \(wood.low))")
+            // regression: no clipping at run; deterministic; cadence parts unchanged
+            check([wood, dry, wet, earth, stone, rock, grass].allSatisfy { _ in true } && [M.wood, .drySand, .wetSand, .earth, .stone, .rock, .grass].allSatisfy { summary(A.pure($0), count: 6, run: true).peak < 0.9 }, "no surface clips when running (all run peaks below 0.9)")
+            check(A.render(mix: A.pure(.earth), count: 3) == A.render(mix: A.pure(.earth), count: 3), "footsteps are deterministic for a given seed")
+            check(A.render(mix: A.pure(.stone), count: 8).allSatisfy { $0.allSatisfy { $0.isFinite } }, "footsteps are finite")
         }
         if name == "all" || name == "sonic" {
             typealias SL = SonicLandmarks

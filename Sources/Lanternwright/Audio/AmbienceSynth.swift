@@ -30,6 +30,11 @@ final class AmbienceSynth {
     /// Footstep requests: the main thread bumps `stepCounter` and sets `stepSurface`.
     var stepCounter = 0
     var stepSurface: SurfaceKind = .grass
+    /// Weighted surface mix at the foot (when set, it replaces `stepSurface`), the dock plank index and the pebble level underfoot.
+    var stepMix: StepMix?
+    var stepPlank = 0
+    var stepPebble: Float = 0
+    let feet: Footsteps
     var stepRun = false
     var stepPan: Float = 0
     private var seenSteps = 0
@@ -110,23 +115,11 @@ final class AmbienceSynth {
     private var fizzB: [Float] = [0, 0]
     private var stepRng: UInt32 = 0x2468ACE
 
-    private struct StepVoice {
-        var age: Float                 // starts negative for a delayed voice (the toe after the heel)
-        var attack: Float
-        var decay: Float
-        var gain: Float
-        var cutoff: Float
-        var toneHz: Float
-        var toneGain: Float
-        var pan: Float
-        var lp: Float = 0
-        var seed: UInt32
-    }
-    private var steps: [StepVoice] = []
 
     init(sampleRate: Float = 44100) {
         self.sampleRate = sampleRate
         reverb = FDNReverb(sampleRate: sampleRate)
+        feet = Footsteps(sampleRate: sampleRate)
     }
 
     /// Inharmonic partials (ratios 2.76, 5.40, 8.93) are what make a struck bell or glass sound like metal and not a
@@ -193,38 +186,9 @@ final class AmbienceSynth {
         return Float(stepRng >> 8) / Float(1 << 24)
     }
 
-    /// A footstep. Per surface: (decay s, gain, low-pass Hz, thump Hz, thump gain). Decays are long enough (0.1-0.2 s)
-    /// and the 5 ms attack soft enough that a step reads as a footfall, not a click. Walking is two hits, heel then toe
-    /// 75 ms later (about 40 % as loud and brighter); running is one harder, shorter impact plus a low thump, because
-    /// a runner lands on the ball of the foot with more force and spends less time in contact.
-    private func startStep(_ kind: SurfaceKind, run: Bool, pan: Float) {
-        let (decay, gain, cutoff, tone, toneGain): (Float, Float, Float, Float, Float)
-        switch kind {
-        case .grass: (decay, gain, cutoff, tone, toneGain) = (0.17, 0.22, 650, 0, 0)
-        case .sand:  (decay, gain, cutoff, tone, toneGain) = (0.21, 0.20, 850, 0, 0)
-        case .earth: (decay, gain, cutoff, tone, toneGain) = (0.10, 0.30, 2100, 0, 0)
-        case .rock:  (decay, gain, cutoff, tone, toneGain) = (0.08, 0.34, 3400, 170, 0.18)
-        case .stone: (decay, gain, cutoff, tone, toneGain) = (0.09, 0.34, 2900, 140, 0.25)
-        case .wood:  (decay, gain, cutoff, tone, toneGain) = (0.15, 0.36, 1500, 215, 0.40)
-        }
-        let vary = 0.85 + 0.3 * stepRandom()          // no two steps identical: repetition is what sounds mechanical
-        let bright = 0.9 + 0.2 * stepRandom()
-        let seed = UInt32(truncatingIfNeeded: Int(stepRandom() * 1e6) &+ 1)
-        if run {
-            steps.append(StepVoice(age: 0, attack: 0.003, decay: decay * 0.7, gain: gain * 1.55 * vary, cutoff: cutoff * 1.5 * bright,
-                                   toneHz: tone > 0 ? tone : 95, toneGain: max(toneGain, 0.30) * vary, pan: pan, seed: seed))
-        } else {
-            steps.append(StepVoice(age: 0, attack: 0.006, decay: decay, gain: gain * vary, cutoff: cutoff * bright,
-                                   toneHz: tone, toneGain: toneGain * vary, pan: pan, seed: seed))
-            steps.append(StepVoice(age: -0.075, attack: 0.008, decay: decay * 0.8, gain: gain * 0.26 * vary, cutoff: cutoff * 1.25 * bright,
-                                   toneHz: 0, toneGain: 0, pan: pan, seed: seed &+ 7))
-        }
-        if steps.count > 8 { steps.removeFirst(steps.count - 8) }
-    }
-
     /// Render `frames` stereo samples (one-pole filters are cheap, so this is far under the audio deadline).
     func render(frames: Int, left: UnsafeMutablePointer<Float>, right: UnsafeMutablePointer<Float>) {
-        if stepCounter != seenSteps { seenSteps = stepCounter; startStep(stepSurface, run: stepRun, pan: stepPan) }
+        if stepCounter != seenSteps { seenSteps = stepCounter; feet.start(mix: stepMix ?? FootstepRecipe.pure(FootstepRecipe.material(for: stepSurface)), run: stepRun, pan: stepPan, plank: stepPlank, pebble: stepPebble) }
         if chimeLock.try() {
             let queued = pendingChimes
             pendingChimes.removeAll()
@@ -294,28 +258,8 @@ final class AmbienceSynth {
                 out[ch] = windOut + surfOut
             }
 
-            // --- footsteps (panned per foot)
-            var stepL: Float = 0, stepR: Float = 0
-            for k in 0..<steps.count {
-                var v = steps[k]
-                if v.age >= 0 {
-                    let env = (1 - exp(-v.age / v.attack)) * exp(-v.age / v.decay)    // soft attack, then ring out
-                    if env > 0.002 {
-                        v.seed ^= v.seed << 13; v.seed ^= v.seed >> 17; v.seed ^= v.seed << 5
-                        let n = Float(Int32(bitPattern: v.seed)) / Float(Int32.max)
-                        let a = 1 - exp(-2 * .pi * v.cutoff / sampleRate)
-                        v.lp += a * (n - v.lp)
-                        var smp = v.lp * v.gain
-                        if v.toneHz > 0 { smp += sin(2 * .pi * v.toneHz * v.age) * v.toneGain * 0.5 }
-                        smp *= env
-                        stepL += smp * (0.5 - 0.5 * v.pan); stepR += smp * (0.5 + 0.5 * v.pan)
-                    }
-                }
-                v.age += dt
-                steps[k] = v
-            }
-            steps.removeAll { $0.age > $0.decay * 8 }
-            let stepOut = (stepL + stepR) * 0.5
+            // --- footsteps: impact + body + grains per surface (see Footsteps.swift)
+            let (stepL, stepR) = feet.render(dt: dt)
             // --- stone drone (mono, centred, quiet): two slightly detuned sines + a soft octave per voice
             var drone: Float = 0
             if droneGain[0] > 1e-4 || droneGain[1] > 1e-4 || droneGain[2] > 1e-4 || droneThirdGain > 1e-4 || droneTarget[0] + droneTarget[1] + droneTarget[2] > 0 {
@@ -381,7 +325,7 @@ final class AmbienceSynth {
                 chimes[k] = v
             }
             chimes.removeAll { $0.delay <= 0 && $0.age > $0.partials[0].decay * 3 }
-            let (rl, rr) = reverb.process(left: bellL, right: bellR)
+            let (rl, rr) = reverb.process(left: bellL + feet.sendL * 1.4, right: bellR + feet.sendR * 1.4)
             // Ducking: while a chime rings, the wind and surf (and the drone, hums) make way for it by up to 35 %.
             let level = max(abs(bellL), abs(bellR))
             chimeFollow += (level > chimeFollow ? 0.01 : 0.00006) * (level - chimeFollow)       // fast attack, ~0.4 s release

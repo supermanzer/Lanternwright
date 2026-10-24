@@ -55,6 +55,8 @@ final class AudioEngine {
         if game.footfalls != lastFootfalls {
             lastFootfalls = game.footfalls
             synth.stepSurface = game.currentSurface
+            let under = game.surfaceMix
+            synth.stepMix = under.mix; synth.stepPebble = under.pebble; synth.stepPlank = game.currentPlank
             synth.stepRun = game.lastFootWasRun
             synth.stepPan = game.footfalls % 2 == 0 ? -0.3 : 0.3      // alternate feet
             synth.stepCounter += 1
