@@ -6,6 +6,7 @@ struct Settings: Codable, Equatable {
     var invertY = false
     var volume: Float = 0.5              // master volume 0...1
     var renderScale: Float = 1.0         // 0.5...1: fraction of the (already capped) native resolution
+    var slipOnSteep = false              // the optional soft slip on slopes steeper than ~40 degrees (default off)
     var introSeen = false                // the controls screen has been shown on a new game (reset by "New game")
 
     init() {}
@@ -17,6 +18,7 @@ struct Settings: Codable, Equatable {
         volume = try c.decodeIfPresent(Float.self, forKey: .volume) ?? volume
         renderScale = try c.decodeIfPresent(Float.self, forKey: .renderScale) ?? renderScale
         introSeen = try c.decodeIfPresent(Bool.self, forKey: .introSeen) ?? introSeen
+        slipOnSteep = try c.decodeIfPresent(Bool.self, forKey: .slipOnSteep) ?? slipOnSteep
     }
 
     static let key = "lanternwright.settings"

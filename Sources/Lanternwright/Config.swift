@@ -44,6 +44,7 @@ struct LaunchOptions {
     var benchFrames: Int?
     var auditPropsOut: String?
     var auditProps = false
+    var auditSlopes = false
     var approachTarget: String?
     var approachRange: (start: Float, min: Float, factor: Float)?
     var hardLOD = false
@@ -119,6 +120,7 @@ struct LaunchOptions {
             case "--feedback": o.showFeedback = true
             case "--feedback-dir": o.showFeedbackDir = true
             case "--dump-overlay": o.dumpOverlayBase = next()
+            case "--audit-slopes": o.auditSlopes = true
             case "--audit-props": o.auditProps = true; if i + 1 < args.count, !args[i + 1].hasPrefix("--") { o.auditPropsOut = next() }
             case "--approach": o.approachTarget = next(); o.approachOut = next()
             case "--approach-range": o.approachRange = (Float(next()) ?? 80, Float(next()) ?? 30, Float(next()) ?? 0.97)

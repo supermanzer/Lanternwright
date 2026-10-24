@@ -7,18 +7,22 @@ struct Player {
     static let walkSpeed: Float = 3.2
     static let runSpeed: Float = 6.5
     /// Highest ledge that can be stepped onto in one move (dock edge, kerb), and the steepest walkable slope
-    /// (rise/run; 1.19 is about 50 degrees).
+    /// (rise/run; 0.84 is about 40 degrees).
     static let maxStep: Float = 0.5
-    static let maxSlope: Float = 1.19
+    static let maxSlope: Float = 0.84
+    /// F01 W5.4: an OPTIONAL soft slip (the user's idea, default off, a setting): on ground steeper than `maxSlope` you slide gently downhill, never any harm.
+    nonisolated(unsafe) static var slipEnabled = false
+    static let slipSpeed: Float = 1.6
     /// The sea is a soft wall: you may not wade where the ground is deeper than this below the surface.
     static let minGround: Float = -0.4
 
     /// Walking pace by slope (rise over run in the direction of travel): steep climbs slow you toward 55 % of your pace, a gentle
     /// descent speeds you up by a little (8 %), and the ground you can walk (see `maxSlope`) never stops you. Cadence follows
     /// because the step length is a function of speed.
-    static let minPace: Float = 0.55
+    static let minPace: Float = 0.40
     static func paceFactor(slope: Float) -> Float {
-        if slope >= 0 { return 1 - (1 - minPace) * min(slope / 0.8, 1) }
+        // Full pace up to ~25 degrees (0.47), then a smooth taper to ~40 % at ~38 degrees (0.78): steep ground guides you without a gimmick (F01 W5.3).
+        if slope >= 0 { return max(minPace, (1 - 0.45 * min(slope / 0.8, 1)) * (1 - 0.45 * smoothstep(0.47, 0.78, slope))) }
         return 1 + 0.08 * min(-slope / 0.5, 1)
     }
 
@@ -117,6 +121,10 @@ struct Player {
         }
         for candidate in [from + delta, from + slide, from + SIMD2(delta.x, 0), from + SIMD2(0, delta.y)] where candidate != from {
             if canMove(from: from, to: candidate, scene: scene) { pos = candidate; break }
+        }
+        if Player.slipEnabled, length(grad) > Player.maxSlope {                      // too steep to stand on: slide down the fall line (a metre or two, no inertia)
+            let down = -normalize(grad) * Player.slipSpeed * dt
+            if canMove(from: pos, to: pos + down, scene: scene) || scene.groundHeight(x: pos.x + down.x, z: pos.y + down.y) < scene.groundHeight(x: pos.x, z: pos.y) { pos += down }
         }
         scene.colliders.resolve(position: &pos, radius: Player.radius, feetY: position.y, height: Player.eyeHeight)
         // The push-out must not shove us into the sea or up a cliff either.

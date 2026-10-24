@@ -30,6 +30,11 @@ if options.benchFrames != nil {
 }
 
 Scene.hardLOD = options.hardLOD
+if options.auditSlopes {
+    let renderer = Renderer(device: device, options: options)
+    print(SlopeAudit.report(terrain: renderer.scenes[.varrow]!.terrain)); exit(0)
+}
+
 if options.auditProps {
     let renderer = Renderer(device: device, options: options)
     do { try PropAudit.run(renderer: renderer, out: options.auditPropsOut); exit(0) }

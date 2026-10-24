@@ -82,6 +82,27 @@ final class Terrain {
         1 - smoothstep(1.2, 3.5, pathDistance(x: x, z: z))
     }
 
+    /// Height of the graded route under (x, z): the waypoints' heights interpolated along the nearest leg (nil on a world without a path).
+    func pathGradedHeight(x: Float, z: Float) -> Float? {
+        let pts = spec.path
+        if pts.count < 2 { return nil }
+        let p = SIMD2(x, z)
+        var best = Float.infinity, hBest: Float = 0
+        for k in 0..<(pts.count - 1) {
+            let a = SIMD2(pts[k].x, pts[k].z), b = SIMD2(pts[k + 1].x, pts[k + 1].z)
+            let ab = b - a
+            let t = min(max(dot(p - a, ab) / dot(ab, ab), 0), 1)
+            let d = length(p - (a + ab * t))
+            if d < best {
+                best = d
+                let len = length(ab), m: Float = min(7, len * 0.3)                    // flat within m of each waypoint
+                let s = min(max((t * len - m) / max(len - 2 * m, 1e-3), 0), 1)
+                hBest = pts[k].y + (pts[k + 1].y - pts[k].y) * s
+            }
+        }
+        return hBest
+    }
+
     /// Horizontal distance from (x, z) to the lantern-path polyline.
     func pathDistance(x: Float, z: Float) -> Float {
         let p = SIMD2(x, z)
@@ -142,6 +163,13 @@ final class Terrain {
             let w = 1 - smoothstep(pad.radius, pad.radius + pad.blend, d)
             h = mix(h, pad.center.y, w)
         }
+        // F01 W5.2: a graded BENCH along the route (after the pads, which otherwise steepen the ground just outside them): between two waypoints the path runs at
+        // the straight-line grade instead of following the hill's relief (some 10 m stretches were 0.5-0.7), cut and filled into the hillside over a few metres and
+        // blended out over about 14 m. The graded profile is flat within 7 m of each waypoint (the pads) and runs straight between.
+        let bw = 1 - smoothstep(3.0, 14.0, pathDistance(x: x, z: z))
+        if bw > 0.001, let gh = pathGradedHeight(x: x, z: z) {
+            h = mix(h, gh - 0.15 * pathWeight(x: x, z: z), bw)
+        }
         return h
     }
 
@@ -183,7 +211,7 @@ final class Terrain {
 
 extension TerrainSpec {
     /// The Isle of Varrow: a hill with a bench at the wind stone, a low shelf running south-east to the dock, and the islet.
-    static let varrow = TerrainSpec(pads: Layout.pads, path: Layout.lanternPath, seaFloor: Layout.seaFloor) { noise, x, z in
+    static let varrow = TerrainSpec(pads: Layout.pads, path: Layout.route, seaFloor: Layout.seaFloor) { noise, x, z in
         let p = SIMD2(x, z)
         let sea = Layout.seaFloor
         // Hill: warp the radius so the coastline is irregular (about +-6 %).

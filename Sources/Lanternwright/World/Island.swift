@@ -160,7 +160,7 @@ enum Island {
         let (bodyProto, coreProto) = Props.stoneLantern()
         var body = MeshBuilder(), core = MeshBuilder()
         var side: Float = 1
-        let pts = Layout.lanternPath.map { SIMD2($0.x, $0.z) }
+        let pts = Layout.route.map { SIMD2($0.x, $0.z) }
         var carried: Float = 9           // start the first lantern 9 m along so none sits on the dock pad
         for k in 0..<(pts.count - 1) {
             let a = pts[k], b = pts[k + 1]

@@ -45,6 +45,9 @@ enum Layout {
 
     /// Lantern path, in walking order.
     static let lanternPath: [SIMD3<Float>] = [dockShore, tideStone, windStone, summitStone, lighthouse]
+    /// The lit route the player is led along (F01 W5): the stones' path plus a graded descent from the lighthouse to the causeway's start on the north shore, whose
+    /// hillside is a cliff (a 1.0 grade) that the 40 degree walking limit no longer lets anyone climb. The terrain cuts a graded bench along it and lanterns follow it.
+    static let route: [SIMD3<Float>] = lanternPath + [causewayStart]
 
     // Terrain shape. The island is the union of three lobes (see Terrain.height):
     //  - a hill: radial profile about `hillCenter` out to `hillRadius`;

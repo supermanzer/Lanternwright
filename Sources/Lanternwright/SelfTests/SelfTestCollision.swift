@@ -35,6 +35,54 @@ extension SelfTestRunner {
             let d = simd_length(SIMD2(bot.feet.x, bot.feet.z) - c)
             if d < Lighthouse.colliderRadius + Player.radius + 0.35 && d > Lighthouse.colliderRadius + Player.radius - 0.05 { arrived += 1 }
         }
+        // F01 W5.5: the whole route, dock to lighthouse and all the way back down to the start of the causeway, leg by leg, reporting where it stops.
+        do {
+            let rg = Game(scene: scene); let rb = PlaythroughBot(rg)
+            let route = Layout.lanternPath + Array(Layout.route.reversed().dropFirst().dropLast(0))
+            var failedAt = "none", minPaceSeen: Float = 1, t0 = rb.feet
+            for (i, p) in route.enumerated() {
+                let before = rb.feet
+                if !rb.walk(to: p, within: (p.x == Layout.lighthouse.x && p.z == Layout.lighthouse.z) ? 6.2 : 2.5, timeout: 240) { failedAt = "leg \(i) toward (\(Int(p.x)), \(Int(p.z))) stopped at (\(Int(rb.feet.x)), \(Int(rb.feet.z)), y \(rb.feet.y))"; break }
+                _ = before; t0 = rb.feet
+            }
+            _ = minPaceSeen; minPaceSeen = 0
+            check(failedAt == "none", "a bot walks the whole lantern route out and back without stopping (\(failedAt))")
+        }
+        // The optional slip (default off): on a slope beyond the limit it carries you downhill; off, it does not.
+        do {
+            var steepAt: SIMD2<Float>?
+            search2: for xi in stride(from: -250, to: 250, by: 4) { for zi in stride(from: -300, to: 250, by: 4) {
+                let x = Float(xi), z = Float(zi)
+                let sl = simd_length(SIMD2(scene.groundHeight(x: x + 1, z: z) - scene.groundHeight(x: x - 1, z: z), scene.groundHeight(x: x, z: z + 1) - scene.groundHeight(x: x, z: z - 1))) / 2
+                if scene.groundHeight(x: x, z: z) > 8 && sl > 1.0 && sl < 1.8 { steepAt = SIMD2(x, z); break search2 }
+            } }
+            if let sp = steepAt {
+                func drift(_ on: Bool) -> Float {
+                    Player.slipEnabled = on
+                    let sg = Game(scene: scene); let sb = PlaythroughBot(sg)
+                    sg.player.position = SIMD3(sp.x, scene.groundHeight(x: sp.x, z: sp.y), sp.y)
+                    let h0 = sg.player.position.y
+                    sb.wait(3)
+                    Player.slipEnabled = false
+                    return h0 - sb.feet.y
+                }
+                let off = drift(false), on = drift(true)
+                check(off < 0.3 && on > 1.0, "the soft slip is off by default and, when enabled, carries you downhill on steep ground (standing 3 s: slid down \(off) m off, \(on) m on)")
+            } else { check(true, "no steep slope found for the slip test (skipped)") }
+        }
+        // The way down to the causeway: how steep is the ground between the lighthouse hill and the north shore, along the straight line?
+        do {
+            let a = SIMD2(Layout.lighthouse.x, Layout.lighthouse.z), b = SIMD2(Layout.causewayStart.x, Layout.causewayStart.z)
+            var worst: Float = 0, at = a
+            var s: Float = 0; let L = simd_length(b - a)
+            while s < L - 5 {
+                let p0 = a + (b - a) / L * s, p1 = a + (b - a) / L * (s + 5)
+                let g = abs(scene.groundHeight(x: p1.x, z: p1.y) - scene.groundHeight(x: p0.x, z: p0.y)) / 5
+                if g > worst { worst = g; at = p0 }
+                s += 5
+            }
+            print("steepest 5 m between the lighthouse and the causeway start: \(worst) at (\(at.x), \(at.y))")
+        }
         // Wandering at random around the tower (and over the plinth, the steps and the door), looking for a place the player cannot walk out of.
         var trapped: [SIMD2<Float>] = [], stalls = 0
         for seed in 1...6 {

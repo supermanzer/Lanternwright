@@ -240,8 +240,8 @@ extension SelfTestRunner {
                 check(worstNormal > 0.9999, "faceNormal equals the mesh triangle's normal (worst dot \(worstNormal))")
             }
             var maxSlopeOnPath: Float = 0, worstAt = ""
-            for k in 0..<(Layout.lanternPath.count - 1) {
-                let a = Layout.lanternPath[k], b = Layout.lanternPath[k + 1]
+            for k in 0..<(Layout.route.count - 1) {
+                let a = Layout.route[k], b = Layout.route[k + 1]
                 var prev = t.sampleHeight(x: a.x, z: a.z)
                 for s in 1...100 {
                     let q = a + (b - a) * (Float(s) / 100)

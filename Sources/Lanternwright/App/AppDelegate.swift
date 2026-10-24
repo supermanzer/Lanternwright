@@ -147,6 +147,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, MTKViewDelegate {
         s.save()
         view.input.sensitivity = s.sensitivity
         view.input.invertY = s.invertY
+        Player.slipEnabled = s.slipOnSteep
         view.renderScale = CGFloat(s.renderScale)
         audio?.synth.master = s.volume
     }

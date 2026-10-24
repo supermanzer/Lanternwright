@@ -316,7 +316,7 @@ extension SelfTestRunner {
         }
         if name == "all" || name == "pace" {
             check(Player.paceFactor(slope: 0) == 1 && Player.paceFactor(slope: 0.3) < 1 && Player.paceFactor(slope: 0.3) > Player.paceFactor(slope: 0.6) && Player.paceFactor(slope: -0.2) > 1 && Player.paceFactor(slope: -0.2) < 1.09, "pace: uphill slower than flat slower than gentle downhill (flat 1, +0.3 \(Player.paceFactor(slope: 0.3)), -0.2 \(Player.paceFactor(slope: -0.2)))")
-            check((-3...3).map { Player.paceFactor(slope: Float($0) * 0.5) }.allSatisfy { $0 >= Player.minPace - 1e-6 && $0 <= 1.081 }, "pace never drops below 55 % nor exceeds 108 %")
+            check((-3...3).map { Player.paceFactor(slope: Float($0) * 0.5) }.allSatisfy { $0 >= Player.minPace - 1e-6 && $0 <= 1.081 }, "pace never drops below 40 % nor exceeds 108 %")
             // On the real hill: walk straight uphill and straight downhill from the same spot and compare distances in 3 s.
             let sc = Scene.makeWorld(device: device)
             func walked(from p: SIMD3<Float>, yaw: Float, run: Bool) -> Float {

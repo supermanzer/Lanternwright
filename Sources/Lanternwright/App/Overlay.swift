@@ -331,18 +331,23 @@ final class OverlayView: NSView {
         invert.attributedTitle = NSAttributedString(string: "Invert vertical look", attributes: [.foregroundColor: NSColor.white.withAlphaComponent(0.85), .font: NSFont.systemFont(ofSize: 14)])
         let newGame = NSButton(title: "New game…", target: self, action: #selector(menuNewGame))
         newGame.frame = NSRect(x: c.minX + 36, y: c.maxY - 62, width: 150, height: 32); newGame.bezelStyle = .rounded; newGame.identifier = NSUserInterfaceItemIdentifier("newgame")
+        let slip = NSButton(checkboxWithTitle: "Slide on very steep slopes (try it)", target: self, action: #selector(menuSlip))
+        slip.state = settings.slipOnSteep ? .on : .off
+        slip.frame = NSRect(x: c.minX + 36, y: c.minY + 298, width: 330, height: 22)
+        slip.attributedTitle = NSAttributedString(string: "Slide on very steep slopes (try it)", attributes: [.foregroundColor: NSColor.white.withAlphaComponent(0.85), .font: NSFont.systemFont(ofSize: 14)])
         let controls = NSButton(title: "Controls…", target: self, action: #selector(menuControls))
-        controls.frame = NSRect(x: c.minX + 36, y: c.minY + 318, width: c.width - 72, height: 32); controls.bezelStyle = .rounded
+        controls.frame = NSRect(x: c.minX + 36, y: c.minY + 336, width: c.width - 72, height: 32); controls.bezelStyle = .rounded
         let quit = NSButton(title: "Quit", target: self, action: #selector(menuQuit))
         quit.frame = NSRect(x: c.maxX - 36 - 110, y: c.maxY - 62, width: 110, height: 32); quit.bezelStyle = .rounded
         menuViews = [resume, label("Mouse sensitivity", y: c.minY + 152), sens, label("Volume", y: c.minY + 192), vol,
-                     label("Render resolution", y: c.minY + 232), scale, invert, controls, newGame, quit]
+                     label("Render resolution", y: c.minY + 232), scale, invert, slip, controls, newGame, quit]
         for v in menuViews { v.appearance = NSAppearance(named: .darkAqua); addSubview(v) }
     }
 
     @objc private func menuResume() { onResume?() }
     @objc private func menuQuit() { onQuit?() }
     @objc private func menuControls() { onShowControls?() }
+    @objc private func menuSlip(_ b: NSButton) { settings.slipOnSteep = b.state == .on; onSettingsChanged?(settings) }
     @objc private func menuSensitivity(_ s: NSSlider) { settings.sensitivity = Float(s.doubleValue); onSettingsChanged?(settings) }
     @objc private func menuVolume(_ s: NSSlider) { settings.volume = Float(s.doubleValue); onSettingsChanged?(settings) }
     @objc private func menuScale(_ s: NSSlider) { settings.renderScale = Float(s.doubleValue); onSettingsChanged?(settings) }

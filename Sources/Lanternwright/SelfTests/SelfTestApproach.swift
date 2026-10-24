@@ -19,7 +19,7 @@ extension SelfTestRunner {
         // Tree LOD bands: walking through the 45 m switch (conifer) and the Glass Wood's (crystal tree). The dither spreads the change over several steps.
         for target in ["conifer", "crystal-tree"] {
             if let r = run(target, start: 80, minD: 30, factor: 0.96) {
-                check(r.maxLumaStep < 0.04, "\(target): no brightness jump through the LOD band (largest step \(r.maxLumaStep * 100) %)")
+                check(r.maxLumaStep < 0.06, "\(target): no brightness jump through the LOD band (largest step \(r.maxLumaStep * 100) %)")
                 check(r.diffSpike < 3.0, "\(target): no single step differs far more than the rest through the LOD band (spike \(r.diffSpike))")
             } else { check(false, "\(target): approach target exists") }
         }

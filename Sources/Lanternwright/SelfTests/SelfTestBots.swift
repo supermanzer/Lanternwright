@@ -36,7 +36,9 @@ extension SelfTestRunner {
         // --- The causeway and the lens: walk north from its start to the islet, touch the lens, arrive in the Glass Wood.
         let plan = PuzzleProps.causewayPlan(terrain: g.scene.terrain)
         let start = SIMD3(plan.start.x, 0, plan.start.y)
-        check(bot.follow(Array(path.reversed()).dropFirst().map { $0 } + [start], within: 3), "bot: walks back down the hill to the start of the causeway")
+        let down = simd_normalize(SIMD2(Layout.causewayStart.x - Layout.lighthouse.x, Layout.causewayStart.z - Layout.lighthouse.z))
+        let leave = SIMD3(Layout.lighthouse.x + down.x * 12, 0, Layout.lighthouse.z + down.y * 12)           // on the graded descent just beyond the tower's wall
+        check(bot.follow([leave, start], within: 3), "bot: walks back down the hill to the start of the causeway (along the graded descent)")
         check(bot.walk(to: PuzzleProps.lensRestPosition, within: 3.2, timeout: 60), "bot: crosses the causeway to the islet")
         check(bot.click("lens"), "bot: clicks the lens")
         bot.wait(Game.fadeOutSeconds + Game.holdSeconds + Game.fadeInSeconds + 0.5)
