@@ -39,7 +39,13 @@ final class AudioEngine {
 
     /// React to a game event (a chime, the causeway rumble).
     func handle(_ event: GameEvent) {
-        if case .chime(let kind) = event { synth.play(kind) }
+        switch event {
+        case .chime(let kind): synth.play(kind)
+        case .drone(let i, let on): synth.setDrone(i, on: on)
+        case .droneSour: synth.sourDrone()
+        case .droneBloom: synth.bloomDrone()
+        default: break
+        }
     }
 
     /// Called every frame; does real work about 8 times a second.

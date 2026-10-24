@@ -10,6 +10,10 @@ enum GameEvent: Equatable {
     case whiteoutStarted
     case feedbackRequested
     case worldChanged(WorldKind)
+    /// Sustained voice for stone i (a drone made of the stones' own tones) switched on/off.
+    case drone(Int, Bool)
+    case droneSour       // a wrong strike: the drone detunes and fades
+    case droneBloom      // the puzzle is solved: the full chord blooms
 }
 
 /// The world's memory: named flags (a "blackboard"). Puzzles read and write these, and rendering reads them,

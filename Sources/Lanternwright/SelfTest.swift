@@ -488,6 +488,33 @@ enum SelfTest {
             g.puzzle.strike(.tide); g.puzzle.strike(.tide)
             check(g.puzzle.sequence == [.tide] && chimes(g.drainEvents()).suffix(1) == [.fail], "striking the same stone twice fails")
 
+            // 3b. The stone drone: each right strike adds a voice, a wrong strike sours it, the solution blooms.
+            func drones(_ events: [GameEvent]) -> [String] { events.compactMap {
+                switch $0 { case .drone(let i, let on): return "d\(i)\(on ? "+" : "-")"; case .droneSour: return "sour"; case .droneBloom: return "bloom"; default: return nil } } }
+            g = freshGame()
+            g.puzzle.strike(.tide); g.puzzle.strike(.wind)
+            check(drones(g.drainEvents()) == ["d0+", "d1+"], "each correct strike switches on its drone voice")
+            g.puzzle.strike(.tide)
+            check(drones(g.drainEvents()) == ["sour"], "a wrong strike sours the drone")
+            g = freshGame()
+            for id in LighthousePuzzle.order { g.puzzle.strike(id); g.simulate(seconds: 0.7) }
+            check(drones(g.drainEvents()) == ["d0+", "d1+", "d2+", "bloom"], "the full order builds the chord and blooms it")
+            // the synth renders the drone: it adds audible energy when on, and the mix never clips
+            func droneBlock(_ on: Bool) -> [Float] {
+                let synth = AmbienceSynth(sampleRate: 44100)
+                if on { for i in 0..<3 { synth.setDrone(i, on: true) } }
+                var l = [Float](repeating: 0, count: 44100 * 3), r = l
+                l.withUnsafeMutableBufferPointer { lp in r.withUnsafeMutableBufferPointer { rp in
+                    var done = 0
+                    while done < 44100 * 3 { synth.render(frames: 512, left: lp.baseAddress! + done, right: rp.baseAddress! + done); done += 512 }
+                } }
+                return Array(l[(44100 * 2)...])
+            }
+            func rmsOf(_ a: [Float]) -> Float { (a.reduce(0) { $0 + $1 * $1 } / Float(a.count)).squareRoot() }
+            let bOff = droneBlock(false), bOn = droneBlock(true)
+            let droneRms = rmsOf(zip(bOn, bOff).map { $0 - $1 })     // the synth noise is seeded, so the difference is the drone alone
+            check(droneRms > 0.02 && (bOn.map { abs($0) }.max() ?? 2) < 1.0, "the drone is clearly audible and the mix never clips (drone rms \(String(format: "%.4f", droneRms)) over a bed of \(String(format: "%.4f", rmsOf(bOff))))")
+
             // 4. The right order solves it and runs the whole sequence.
             g = freshGame()
             for id in LighthousePuzzle.order { g.puzzle.strike(id); g.simulate(seconds: 0.7) }

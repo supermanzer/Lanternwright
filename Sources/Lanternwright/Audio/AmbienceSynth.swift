@@ -52,6 +52,21 @@ final class AmbienceSynth {
     private var rumbleLP: Float = 0
     private var rumbleBrown: Float = 0
 
+    // The stone drone: one sustained voice per Varrow stone, tuned an octave below the stone's own tone in just intonation
+    // (D3 : A3 : D4 = 1 : 3/2 : 2), so the puzzle's progress is audible as a chord that builds. A wrong strike detunes the
+    // voices and fades them; the solved puzzle blooms a major third on top (F#4 = 5/4 over D3... a D major chord).
+    static let droneHz: [Float] = [146.83, 220.25, 293.66]
+    static let droneThirdHz: Float = 367.08          // F#4: 5/4 x D4 in just intonation
+    private var droneTarget: [Float] = [0, 0, 0]
+    private var droneGain: [Float] = [0, 0, 0]
+    private var droneSour: Float = 0
+    private var droneBloomLeft: Float = 0
+    private var droneThirdGain: Float = 0
+    private let droneLock = NSLock()
+    func setDrone(_ index: Int, on: Bool) { droneLock.lock(); droneTarget[index] = on ? 1 : 0; droneLock.unlock() }
+    func sourDrone() { droneLock.lock(); droneTarget = [0, 0, 0]; droneSour = 1; droneBloomLeft = 0; droneLock.unlock() }
+    func bloomDrone() { droneLock.lock(); droneTarget = [1, 1, 1]; droneBloomLeft = 9; droneLock.unlock() }
+
     // A simple stereo feedback-delay "reverb" for the chime bus: two taps with damped feedback.
     private var revL: [Float] = []
     private var revR: [Float] = []
@@ -271,6 +286,30 @@ final class AmbienceSynth {
             }
             steps.removeAll { $0.age > $0.decay * 8 }
             let stepOut = (stepL + stepR) * 0.5
+            // --- stone drone (mono, centred, quiet): two slightly detuned sines + a soft octave per voice
+            var drone: Float = 0
+            if droneGain[0] > 1e-4 || droneGain[1] > 1e-4 || droneGain[2] > 1e-4 || droneThirdGain > 1e-4 || droneTarget[0] + droneTarget[1] + droneTarget[2] > 0 {
+                let bloomOn: Float = droneBloomLeft > 0 ? 1 : 0
+                for v in 0..<3 {
+                    let rate: Float = droneTarget[v] > droneGain[v] ? 0.00006 : 0.00012           // slow in (~0.4 s), slower out
+                    droneGain[v] += (droneTarget[v] * (droneBloomLeft > 0 ? 1.5 : 1) - droneGain[v]) * (droneSour > 0 ? 0.0004 : rate)
+                    if droneGain[v] > 1e-5 {
+                        let f = AmbienceSynth.droneHz[v] * (1 - 0.018 * droneSour)               // sour = sliding flat
+                        let ph = 2 * Float.pi * f * t
+                        let s1 = sin(ph) + sin(ph * 1.0007 + 0.4) + 0.25 * sin(2 * ph)
+                        drone += s1 * 0.5 * droneGain[v] * 0.12
+                    }
+                }
+                droneThirdGain += (bloomOn - droneThirdGain) * 0.00005
+                if droneThirdGain > 1e-5 { drone += sin(2 * Float.pi * AmbienceSynth.droneThirdHz * t) * droneThirdGain * 0.08 }
+                if droneSour > 0 { droneSour = max(0, droneSour - dt / 1.6) }
+                if droneBloomLeft > 0 {
+                    droneBloomLeft -= dt
+                    if droneBloomLeft <= 0 { droneLock.lock(); droneTarget = [0, 0, 0]; droneLock.unlock() }   // release after the bloom
+                }
+            }
+            out[0] += drone; out[1] += drone
+
             // --- chimes (through the reverb) and the causeway rumble
             var bellL: Float = 0, bellR: Float = 0
             for k in 0..<chimes.count {

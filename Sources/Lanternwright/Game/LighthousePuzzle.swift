@@ -53,11 +53,13 @@ final class LighthousePuzzle {
         if id == LighthousePuzzle.order[sequence.count] {
             sequence.append(id)
             state.set("lit_\(id.name)")
+            emit(.drone(id.rawValue, true))
             fade(stone: id, to: 1)
             if sequence.count == LighthousePuzzle.order.count { solve() }
         } else {
             resetting = true
             emit(.chime(.fail))
+            emit(.droneSour)
             animator.after(Timing.wrongResetDelay) { [weak self] in self?.reset() }
         }
     }
@@ -87,6 +89,7 @@ final class LighthousePuzzle {
     private func solve() {
         state.set("solved")
         emit(.chime(.ignite))
+        emit(.droneBloom)
         // 1. Beams grow from each capstone to the lens, one after another.
         for id in StoneID.allCases {
             let i = id.rawValue

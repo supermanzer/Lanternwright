@@ -10,7 +10,7 @@ enum JournalContent {
     static let pages: [JournalPage] = [
         JournalPage(number: 1, text: "Day one of the last season. The lamp has gone quiet again. Oren says I fuss over it like a child. Perhaps. But a lighthouse that does not answer is only a tower."),
         JournalPage(number: 2, text: "The stones remember the sea best. I strike the tide-stone first, always: everything on this island begins at the water."),
-        JournalPage(number: 3, text: "I tune the lamp each evening the way I first climbed this island: from the water, through the wind, to the stone. Out of order, they only argue."),
+        JournalPage(number: 3, text: "I tune the lamp each evening the way I first climbed this island: from the shingle up into the gusts, and on until the ground ran out. Each stone sits a little nearer the sky than the last. Out of order, they only argue."),
         JournalPage(number: 4, text: "Oren has asked again for the lens. He says light that can fold can also carry. Carry what, brother? He did not answer, and I did not like the silence."),
         // The Glass Wood: Oren's journal.
         JournalPage(number: 5, text: "I went through the lens first. Ilse will say I stole it, and she will be right about the lens and wrong about the reason. The wood on this side is made of glass, and it hums. I wrote down what the stones taught us: water, wind, stone. They mean something here too."),
