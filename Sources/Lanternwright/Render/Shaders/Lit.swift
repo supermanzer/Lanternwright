@@ -41,12 +41,16 @@ vertex LitOut lit_vertex(uint vid [[vertex_id]],
 
 // Terrain material: grass (lush/parched patches), rock (steep or high, with horizontal strata),
 // sand (shore, darker where wet), packed earth on the path. Also perturbs the normal for close-up detail.
-float3 terrain_surface(float3 P, float3 Ng, float pathW, float wet, float palette, thread float3& N, thread float& rough) {
+float3 terrain_surface(float3 P, float3 Ng, float pathW, float wet, float palette, float fpix, thread float3& N, thread float& rough) {
     bool glass = palette > 0.5;                       // the Glass Wood: teal and violet instead of green and gold
     float slope = Ng.y;
     float macro = fbm3(P * 0.012);                 // large patches
-    float meso = fbm3(P * 0.35);                   // clumps
-    float micro = vnoise3(P * 9.0);                // grain (about 11 cm cells)
+    // Band-limiting: `fpix` is the world size of one pixel (metres). Noise finer than a pixel aliases into hard blocks, so each
+    // octave fades to its mean as its cell size approaches the pixel size, and thresholds widen by the footprint.
+    float mesoW = 1.0 - smoothstep(0.5, 2.0, fpix);
+    float meso = mix(0.5, fbm3(P * 0.35), mesoW);          // clumps
+    float microW = 1.0 - smoothstep(0.03, 0.11, fpix);
+    float micro = mix(0.5, vnoise3(P * 9.0), microW);      // grain (about 11 cm cells)
 
     float dry = smoothstep(0.38, 0.62, macro + (P.y - 20.0) * 0.004);
     float3 lush = glass ? float3(0.045, 0.15, 0.18) : float3(0.060, 0.165, 0.030);
@@ -68,7 +72,9 @@ float3 terrain_surface(float3 P, float3 Ng, float pathW, float wet, float palett
     float sandMask = smoothstep(0.30, 0.70, wet * (1.0 - 0.7 * rockMask) + (micro - 0.5) * 0.30);
     albedo = mix(albedo, sand, sandMask);
 
-    float pebble = smoothstep(0.72, 0.82, vnoise3(P * 6.0));
+    float pfp = fpix * 6.0;                                                 // pixel size in this noise's cell units
+    float pebHalf = 0.05 + pfp * 0.9;
+    float pebble = mix(smoothstep(0.77 - pebHalf, 0.77 + pebHalf, vnoise3(P * 6.0)), 0.12, smoothstep(0.25, 0.9, pfp));
     float3 earth = mix(glass ? float3(0.20, 0.20, 0.30) : float3(0.23, 0.165, 0.10), glass ? float3(0.46, 0.50, 0.62) : float3(0.38, 0.32, 0.25), pebble) * (0.85 + 0.3 * meso);
     float pm = smoothstep(0.25, 0.75, pathW + (meso - 0.5) * 0.5);
     albedo = mix(albedo, earth, pm);
@@ -87,7 +93,7 @@ float3 terrain_surface(float3 P, float3 Ng, float pathW, float wet, float palett
                       vnoise3(q + float3(0, e, 0)) * 0.6 + vnoise3((q + float3(0, e, 0)) * 3.1) * 0.4 - b0,
                       vnoise3(q + float3(0, 0, e)) * 0.6 + vnoise3((q + float3(0, 0, e)) * 3.1) * 0.4 - b0) / e;
     g -= dot(g, Ng) * Ng;
-    float bumpStrength = mix(0.006, 0.15, rockiness) * (1.0 - 0.5 * sandMask);   // sand stays smooth: pits read as noise at a grazing sun
+    float bumpStrength = mix(0.006, 0.15, rockiness) * (1.0 - 0.5 * sandMask) * (1.0 - smoothstep(0.04, 0.25, fpix));   // sand stays smooth: pits read as noise at a grazing sun
     N = normalize(Ng - g * bumpStrength);
 
     rough = mix(mix(0.92, 0.85, rockMask), mix(0.95, 0.45, wetSand), sandMask);
@@ -169,11 +175,12 @@ fragment LitFragOut lit_fragment(LitOut in [[stage_in]],
                              depth2d<float> shadowNear [[texture(6)]],
                              depth2d<float> shadowMid [[texture(7)]]) {
     float3 n = normalize(in.normal);
+    float fpix = max(length(dfdx(in.worldPos)), length(dfdy(in.worldPos)));     // metres per pixel (for band-limited noise)
     float3 albedo = in.color.rgb;
     float rough = in.color.a;
     if (in.material > 0.5 && in.material < 1.5) {
         float3 Ng = n;
-        albedo = terrain_surface(in.worldPos, Ng, in.color.r, in.color.g, frame.worldB.x, n, rough);
+        albedo = terrain_surface(in.worldPos, Ng, in.color.r, in.color.g, frame.worldB.x, fpix, n, rough);
     }
 
     float3 V = normalize(frame.cameraPos.xyz - in.worldPos);
