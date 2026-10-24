@@ -13,6 +13,9 @@ A Myst-like exploration and puzzle game for macOS, built in Swift with a custom 
 4. Tick the box and add the `> done:` note in TASKS.md. Record anything that later tasks need to know.
 5. Stop. Report what changed and what you saw in the screenshot.
 
+## Player feedback
+Playtest feedback is saved by the game (press **F**) to `~/Library/Application Support/Lanternwright/feedback/`. At the start of a session run `.build/release/Lanternwright --feedback` to read it (text, context, screenshot path; open the PNGs with Read). Turn anything actionable into a task in `docs/TASKS.md`, citing the entry id, and do not delete entries.
+
 ## Hard rules
 - **No `.metal` files.** Put MSL in Swift string literals under `Render/Shaders/` and register each new source in `ShaderLibrary.sources`. This machine has only Command Line Tools: there is no `metal` compiler and no Xcode.
 - Shared Swift⇄MSL structs use only `float4` and `float4x4`. If you change one, update `GPUTypes.swift`, `Shaders/Common.swift`, `expectedStride`, the selftest, and TASKS.md §0 together.

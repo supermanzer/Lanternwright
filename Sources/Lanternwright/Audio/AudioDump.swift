@@ -1,24 +1,29 @@
 import Foundation
 
 /// `--dump-audio out.wav`: render 24 s of the soundscape to a 16-bit stereo WAV so it can be auditioned with
-/// `afplay` without launching the game. Seconds 0-8: wind only, then surf joins, then footsteps on each surface.
+/// `afplay` without launching the game. 0-8 s wind only, 8 s surf joins, then 5 s of walking footsteps on grass,
+/// 5 s running on grass, then one step on each other surface.
 enum AudioDump {
     static func write(to path: String) throws {
         let sr = 44100
-        let total = sr * 24
+        let total = sr * 28
         let synth = AmbienceSynth(sampleRate: Float(sr))
         var left = [Float](repeating: 0, count: total), right = [Float](repeating: 0, count: total)
         let surfaces: [SurfaceKind] = [.grass, .sand, .earth, .rock, .wood, .stone]
         var done = 0, nextStep = sr * 12, stepIndex = 0
+        // Cadences match the Player: walking about 2.2 steps/s, running about 3.0 steps/s.
+        func stepInterval(_ i: Int) -> Float { i < 11 ? 1 / 2.2 : (i < 26 ? 1 / 3.0 : 0.6) }
         while done < total {
             let t = Float(done) / Float(sr)
             synth.windGain = 0.4 + 0.2 * min(t / 24, 1)
             synth.surfGain = t < 8 ? 0 : 0.6
-            if done >= nextStep && stepIndex < 12 {
-                synth.stepSurface = surfaces[stepIndex % surfaces.count]
+            if done >= nextStep && stepIndex < 31 {
+                synth.stepSurface = stepIndex < 26 ? .grass : surfaces[(stepIndex - 26) % surfaces.count]
+                synth.stepRun = stepIndex >= 11 && stepIndex < 26
+                synth.stepPan = stepIndex % 2 == 0 ? -0.3 : 0.3
                 synth.stepCounter += 1
+                nextStep += Int(Float(sr) * stepInterval(stepIndex))
                 stepIndex += 1
-                nextStep += Int(Float(sr) * 0.55)
             }
             let c = min(512, total - done)
             left.withUnsafeMutableBufferPointer { l in right.withUnsafeMutableBufferPointer { r in

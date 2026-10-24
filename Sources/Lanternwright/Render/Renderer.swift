@@ -32,6 +32,10 @@ final class Renderer {
     /// Cosine-convolved sky (32x16): diffuse ambient light for any normal. Rebuilt whenever the LUT is.
     let irradianceMap: MTLTexture
     private let skyPipeline: MTLRenderPipelineState
+    private let grassPipeline: MTLRenderPipelineState
+    /// Terrain heights (r) and path weight (g) on a 513 x 513 grid, for the grass vertex shader.
+    private let terrainTexture: MTLTexture
+    private var grassCellsPerSide: Int { Int((2 * LookDefaults.grassRadius / LookDefaults.grassCell).rounded()) }
     private let waterPipeline: MTLRenderPipelineState
     private let waterDepthState: MTLDepthStencilState
     let ocean: Ocean
@@ -39,6 +43,11 @@ final class Renderer {
     /// Sun shadow map. The sun camera is orthographic and fitted to a sphere around the island.
     let shadowMap: MTLTexture
     static let shadowSize = 4096
+    /// Two nearer cascades that follow the camera (see `fitCascade`).
+    let shadowNear: MTLTexture
+    let shadowMid: MTLTexture
+    static let nearSize = 2048, midSize = 2048
+    static let nearRadius: Float = 14, midRadius: Float = 70
     static let shadowCenter = SIMD3<Float>(-15, 30, -60)
     static let shadowRadius: Float = 340
     private let depthState: MTLDepthStencilState
@@ -57,6 +66,14 @@ final class Renderer {
     private(set) var sceneCopy: MTLTexture?
     private let depthVizPipeline: MTLRenderPipelineState
     private let bloomPrefilterPipeline: MTLRenderPipelineState
+    private let godRaysPipeline: MTLRenderPipelineState
+    private let mistPipeline: MTLRenderPipelineState
+    private let aoPipeline: MTLRenderPipelineState
+    private let aoBlurPipeline: MTLRenderPipelineState
+    private let aoApplyPipeline: MTLRenderPipelineState
+    private var aoTexture: MTLTexture?
+    private var aoBlurred: MTLTexture?
+    private var raysTexture: MTLTexture?
     private let bloomDownPipeline: MTLRenderPipelineState
     private let bloomUpPipeline: MTLRenderPipelineState
     /// Half-resolution bloom chain; level i is (w, h) / 2^(i+1).
@@ -108,6 +125,15 @@ final class Renderer {
         shDesc.storageMode = .private
         shadowMap = device.makeTexture(descriptor: shDesc)!
         shadowMap.label = "shadowMap"
+        func cascadeTexture(_ size: Int, _ label: String) -> MTLTexture {
+            let d = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: Renderer.depthFormat, width: size, height: size, mipmapped: false)
+            d.usage = [.renderTarget, .shaderRead]; d.storageMode = .private
+            let t = device.makeTexture(descriptor: d)!
+            t.label = label
+            return t
+        }
+        shadowNear = cascadeTexture(Renderer.nearSize, "shadowNear")
+        shadowMid = cascadeTexture(Renderer.midSize, "shadowMid")
 
         let wp = MTLRenderPipelineDescriptor()
         wp.label = "water"
@@ -120,6 +146,45 @@ final class Renderer {
         wds.depthCompareFunction = .less
         wds.isDepthWriteEnabled = false
         waterDepthState = device.makeDepthStencilState(descriptor: wds)!
+
+        let gr = MTLRenderPipelineDescriptor()
+        gr.label = "grass"
+        gr.vertexFunction = ShaderLibrary.function(lib, "grass_vertex")
+        gr.fragmentFunction = ShaderLibrary.function(lib, "lit_fragment")
+        gr.colorAttachments[0].pixelFormat = Renderer.hdrFormat
+        gr.colorAttachments[1].pixelFormat = Renderer.distanceFormat
+        gr.depthAttachmentPixelFormat = Renderer.depthFormat
+        grassPipeline = try! device.makeRenderPipelineState(descriptor: gr)
+
+        let tDesc = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .rg32Float, width: Terrain.gridCount, height: Terrain.gridCount, mipmapped: false)
+        tDesc.usage = .shaderRead
+        terrainTexture = device.makeTexture(descriptor: tDesc)!
+        terrainTexture.label = "terrain heights"
+        do {
+            let n = Terrain.gridCount
+            var texels = [Float](repeating: 0, count: n * n * 2)
+            for j in 0..<n {
+                for i in 0..<n {
+                    let x = Terrain.origin + Float(i) * Terrain.spacing, z = Terrain.origin + Float(j) * Terrain.spacing
+                    texels[(j * n + i) * 2] = scene.terrain.sampleHeight(x: x, z: z)
+                    texels[(j * n + i) * 2 + 1] = Terrain.pathWeight(x: x, z: z)
+                }
+            }
+            terrainTexture.replace(region: MTLRegionMake2D(0, 0, n, n), mipmapLevel: 0, withBytes: texels, bytesPerRow: n * 8)
+        }
+
+        let mist = MTLRenderPipelineDescriptor()
+        mist.label = "mist"
+        mist.vertexFunction = ShaderLibrary.function(lib, "mist_vertex")
+        mist.fragmentFunction = ShaderLibrary.function(lib, "mist_fragment")
+        mist.colorAttachments[0].pixelFormat = Renderer.hdrFormat
+        mist.colorAttachments[0].isBlendingEnabled = true
+        mist.colorAttachments[0].sourceRGBBlendFactor = .sourceAlpha
+        mist.colorAttachments[0].destinationRGBBlendFactor = .oneMinusSourceAlpha
+        mist.colorAttachments[0].sourceAlphaBlendFactor = .zero
+        mist.colorAttachments[0].destinationAlphaBlendFactor = .one
+        mist.depthAttachmentPixelFormat = Renderer.depthFormat
+        mistPipeline = try! device.makeRenderPipelineState(descriptor: mist)
 
         let skyBG = MTLRenderPipelineDescriptor()
         skyBG.label = "sky"
@@ -171,6 +236,18 @@ final class Renderer {
             }
             return try! device.makeRenderPipelineState(descriptor: d)
         }
+        func monoPipeline(_ label: String, _ fragment: String, format: MTLPixelFormat) -> MTLRenderPipelineState {
+            let d = MTLRenderPipelineDescriptor()
+            d.label = label
+            d.vertexFunction = ShaderLibrary.function(lib, "fullscreen_vertex")
+            d.fragmentFunction = ShaderLibrary.function(lib, fragment)
+            d.colorAttachments[0].pixelFormat = format
+            return try! device.makeRenderPipelineState(descriptor: d)
+        }
+        aoPipeline = monoPipeline("ssao", "ssao_fragment", format: .r16Float)
+        aoBlurPipeline = monoPipeline("ssao blur", "ssao_blur_fragment", format: .r16Float)
+        aoApplyPipeline = monoPipeline("ssao apply", "ssao_apply_fragment", format: Renderer.hdrFormat)
+        godRaysPipeline = postPipeline("god rays", "godrays_fragment")
         bloomPrefilterPipeline = postPipeline("bloom prefilter", "bloom_prefilter_fragment")
         bloomDownPipeline = postPipeline("bloom down", "bloom_down_fragment")
         bloomUpPipeline = postPipeline("bloom up", "bloom_up_fragment", additive: true)
@@ -202,6 +279,7 @@ final class Renderer {
         enc.setRenderPipelineState(compositePipeline)
         enc.setFragmentTexture(source, index: 0)
         enc.setFragmentTexture(blackTexture, index: 1)
+        enc.setFragmentTexture(blackTexture, index: 2)
         enc.setFragmentBytes(&frame, length: MemoryLayout<FrameUniforms>.stride, index: 1)
         enc.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
         enc.endEncoding()
@@ -222,8 +300,8 @@ final class Renderer {
 
     private func ensureTargets(width: Int, height: Int) {
         if let h = hdrTexture, h.width == width, h.height == height { return }
-        func make(_ format: MTLPixelFormat, _ label: String) -> MTLTexture {
-            let d = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: format, width: width, height: height, mipmapped: false)
+        func make(_ format: MTLPixelFormat, _ label: String, _ w: Int? = nil, _ h: Int? = nil) -> MTLTexture {
+            let d = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: format, width: w ?? width, height: h ?? height, mipmapped: false)
             d.usage = [.renderTarget, .shaderRead]
             d.storageMode = .private
             let t = device.makeTexture(descriptor: d)!
@@ -233,6 +311,9 @@ final class Renderer {
         hdrTexture = make(Renderer.hdrFormat, "hdr")
         sceneCopy = make(Renderer.hdrFormat, "sceneCopy")
         distanceTexture = make(Renderer.distanceFormat, "distance")
+        raysTexture = make(Renderer.hdrFormat, "rays", width / 2, height / 2)
+        aoTexture = make(.r16Float, "ao", width / 2, height / 2)
+        aoBlurred = make(.r16Float, "ao blurred", width / 2, height / 2)
         bloomChain = (0..<Renderer.bloomLevels).map { i in
             let w = max(1, width >> (i + 1)), h = max(1, height >> (i + 1))
             let d = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: Renderer.hdrFormat, width: w, height: h, mipmapped: false)
@@ -261,8 +342,17 @@ final class Renderer {
         let eye = Renderer.shadowCenter + sun * R
         let sunView = lookAt(eye: eye, target: Renderer.shadowCenter, up: SIMD3(0, 1, 0))
         frame.sunViewProj = orthographic(left: -R, right: R, bottom: -R, top: R, near: 0, far: 2 * R) * sunView
-        frame.misc.z = ["shadow": 1, "albedo": 2, "ambient": 3][options.debugView ?? ""] ?? 0
+        frame.misc.z = ["shadow": 1, "albedo": 2, "ambient": 3, "cascade": 4, "ao": 5][options.debugView ?? ""] ?? 0
         frame.misc.w = 2 * R / Float(Renderer.shadowSize)                     // world size of one shadow texel
+        let near = fitCascade(center: camera.position, radius: Renderer.nearRadius, size: Renderer.nearSize, sun: sun)
+        let mid = fitCascade(center: camera.position, radius: Renderer.midRadius, size: Renderer.midSize, sun: sun)
+        frame.sunViewProj0 = near.viewProj
+        frame.sunViewProj1 = mid.viewProj
+        frame.casTexel = SIMD4(near.texel, mid.texel, 2 * R / Float(Renderer.shadowSize), 0)
+        frame.casRange = SIMD4(near.range, mid.range, 2 * R, 0)
+        frame.casRadius = SIMD4(Renderer.nearRadius, Renderer.midRadius, R, LookDefaults.godRayStrength)
+        frame.casTexel.w = LookDefaults.aoRadius       // SSAO radius (m)
+        frame.casRange.w = options.debugView == "noao" ? 0 : LookDefaults.aoStrength   // SSAO strength
         let (w, h) = (Float(width), Float(height))
         frame.screen = SIMD4(w, h, 1 / w, 1 / h)
     }
@@ -327,6 +417,24 @@ final class Renderer {
         }
     }
 
+    /// Fit an orthographic sun camera to a sphere around `center`. The centre is snapped to whole shadow texels in light
+    /// space, so as the camera moves the shadow map's sampling grid stays fixed relative to the world and shadow edges
+    /// don't crawl or shimmer. Casters up to 300 m toward the sun are included (a hill can shadow your feet).
+    private func fitCascade(center c: SIMD3<Float>, radius R: Float, size: Int, sun: SIMD3<Float>)
+        -> (viewProj: float4x4, texel: Float, range: Float) {
+        let casterRange: Float = 300
+        let worldUp = SIMD3<Float>(0, 1, 0)
+        let fwd = -sun
+        let right = normalize(cross(fwd, worldUp)), up = cross(right, fwd)
+        let texel = 2 * R / Float(size)
+        let cx = dot(c, right), cy = dot(c, up)
+        let snapped = c + right * ((cx / texel).rounded(.down) * texel - cx) + up * ((cy / texel).rounded(.down) * texel - cy)
+        let eye = snapped + sun * (R + casterRange)
+        let far = 2 * R + casterRange
+        let vp = orthographic(left: -R, right: R, bottom: -R, top: R, near: 0, far: far) * lookAt(eye: eye, target: snapped, up: worldUp)
+        return (vp, texel, far)
+    }
+
     /// Encode a full frame that ends by writing `target` (format `outputFormat`).
     func encode(commandBuffer: MTLCommandBuffer, target: MTLTexture, camera: Camera) {
         ensureTargets(width: target.width, height: target.height)
@@ -334,23 +442,27 @@ final class Renderer {
 
         updateSkyLUT(commandBuffer: commandBuffer)
 
-        // 0. Shadow map: scene depth as seen from the sun.
-        let sp = MTLRenderPassDescriptor()
-        sp.depthAttachment.texture = shadowMap
-        sp.depthAttachment.loadAction = .clear
-        sp.depthAttachment.clearDepth = 1
-        sp.depthAttachment.storeAction = .store
-        if let enc = commandBuffer.makeRenderCommandEncoder(descriptor: sp) {
-            enc.label = "shadow"
+        // 0. Shadow maps: scene depth as seen from the sun, once per cascade (far, mid, near).
+        lastShadowDraws = 0
+        let cascades: [(MTLTexture, float4x4)] = [(shadowMap, frame.sunViewProj), (shadowMid, frame.sunViewProj1), (shadowNear, frame.sunViewProj0)]
+        for (texture, matrix) in cascades {
+            let sp = MTLRenderPassDescriptor()
+            sp.depthAttachment.texture = texture
+            sp.depthAttachment.loadAction = .clear
+            sp.depthAttachment.clearDepth = 1
+            sp.depthAttachment.storeAction = .store
+            guard let enc = commandBuffer.makeRenderCommandEncoder(descriptor: sp) else { continue }
+            enc.label = "shadow \(texture.width)"
             enc.setRenderPipelineState(shadowPipeline)
             enc.setDepthStencilState(depthState)
             enc.setFrontFacing(.counterClockwise)
             enc.setCullMode(.none)               // terrain is a single-sided sheet; normal-offset bias handles acne
             enc.setDepthBias(1.0, slopeScale: 1.5, clamp: 0)
-            enc.setVertexBytes(&frame, length: MemoryLayout<FrameUniforms>.stride, index: 1)
+            var f = frame
+            f.sunViewProj = matrix               // shadow_vertex reads sunViewProj: point it at this cascade
+            enc.setVertexBytes(&f, length: MemoryLayout<FrameUniforms>.stride, index: 1)
             // Cull against the SUN's box, not the camera's: things behind you can still shadow what you see.
-            let sunFrustum = Frustum(viewProj: frame.sunViewProj)
-            lastShadowDraws = 0
+            let sunFrustum = Frustum(viewProj: matrix)
             for item in scene.items {
                 let b = item.worldBounds
                 guard !item.hidden, sunFrustum.intersects(min: b.min, max: b.max) else { continue }
@@ -387,6 +499,8 @@ final class Renderer {
             enc.setVertexBytes(&frame, length: MemoryLayout<FrameUniforms>.stride, index: 1)
             enc.setFragmentBytes(&frame, length: MemoryLayout<FrameUniforms>.stride, index: 1)
             enc.setFragmentTexture(shadowMap, index: 0)
+            enc.setFragmentTexture(shadowNear, index: 6)
+            enc.setFragmentTexture(shadowMid, index: 7)
             enc.setFragmentTexture(skyLUT, index: 1)
             enc.setFragmentTexture(irradianceMap, index: 4)
             let camFrustum = Frustum(viewProj: frame.viewProj)
@@ -402,6 +516,18 @@ final class Renderer {
                 enc.drawIndexedPrimitives(type: .triangle, indexCount: item.mesh.indexCount, indexType: .uint32,
                                           indexBuffer: item.mesh.indexBuffer, indexBufferOffset: 0)
             }
+            // Grass: one instanced draw, 7 vertices per blade, positions generated in the vertex shader.
+            enc.setRenderPipelineState(grassPipeline)
+            enc.setCullMode(.none)
+            var gp = SIMD4<Float>(LookDefaults.grassCell, Float(grassCellsPerSide), LookDefaults.grassRadius, 0)
+            enc.setVertexBytes(&frame, length: MemoryLayout<FrameUniforms>.stride, index: 1)
+            enc.setVertexBytes(&gp, length: MemoryLayout<SIMD4<Float>>.stride, index: 3)
+            enc.setVertexTexture(terrainTexture, index: 5)
+            var identity = ObjectUniforms()
+            enc.setFragmentBytes(&identity, length: MemoryLayout<ObjectUniforms>.stride, index: 2)
+            enc.drawPrimitives(type: .triangleStrip, vertexStart: 0, vertexCount: 7, instanceCount: grassCellsPerSide * grassCellsPerSide)
+            enc.setCullMode(.back)
+
             // Sky last, so the depth test rejects it everywhere geometry was drawn (saves shading those pixels).
             enc.label = "opaque + sky"
             enc.setRenderPipelineState(skyPipeline)
@@ -442,10 +568,60 @@ final class Renderer {
             enc.setFragmentTexture(distanceTexture, index: 3)
             enc.drawIndexedPrimitives(type: .triangle, indexCount: ocean.mesh.indexCount, indexType: .uint32,
                                       indexBuffer: ocean.mesh.indexBuffer, indexBufferOffset: 0)
+            // Mist sheets: same disc, alpha-blended, two layers at different heights with different noise.
+            enc.setRenderPipelineState(mistPipeline)
+            for (height, strength, seed) in [(Float(1.6), Float(0.85), Float(0.0)), (Float(6.5), Float(0.5), Float(0.37))] {
+                var mu = ocean.uniforms(camera: camera, level: height)
+                mu.tint = SIMD4(strength, 0, 0, seed)
+                enc.setVertexBytes(&mu, length: MemoryLayout<ObjectUniforms>.stride, index: 2)
+                enc.setFragmentBytes(&mu, length: MemoryLayout<ObjectUniforms>.stride, index: 2)
+                enc.drawIndexedPrimitives(type: .triangle, indexCount: ocean.mesh.indexCount, indexType: .uint32,
+                                          indexBuffer: ocean.mesh.indexBuffer, indexBufferOffset: 0)
+            }
             enc.endEncoding()
         }
 
-        // 1d. Bloom chain.
+        // 1c'. SSAO: occlusion from the distance buffer (half res), blurred, multiplied into the scene.
+        if let ao = aoTexture, let blurred = aoBlurred, let dist = distanceTexture, let hdr = hdrTexture, let copy = sceneCopy {
+            if let blit = commandBuffer.makeBlitCommandEncoder() {
+                blit.label = "scene copy for AO"
+                blit.copy(from: hdr, to: copy)
+                blit.endEncoding()
+            }
+            func run(_ label: String, _ pipeline: MTLRenderPipelineState, target: MTLTexture, textures: [MTLTexture], needsFrame: Bool) {
+                let pd = MTLRenderPassDescriptor()
+                pd.colorAttachments[0].texture = target
+                pd.colorAttachments[0].loadAction = .dontCare
+                pd.colorAttachments[0].storeAction = .store
+                guard let enc = commandBuffer.makeRenderCommandEncoder(descriptor: pd) else { return }
+                enc.label = label
+                enc.setRenderPipelineState(pipeline)
+                for (i, t) in textures.enumerated() { enc.setFragmentTexture(t, index: i) }
+                if needsFrame { enc.setFragmentBytes(&frame, length: MemoryLayout<FrameUniforms>.stride, index: 1) }
+                enc.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
+                enc.endEncoding()
+            }
+            run("ssao", aoPipeline, target: ao, textures: [dist], needsFrame: true)
+            run("ssao blur", aoBlurPipeline, target: blurred, textures: [ao, dist], needsFrame: false)
+            run("ssao apply", aoApplyPipeline, target: hdr, textures: [copy, blurred], needsFrame: true)
+        }
+
+        // 1d. God rays (half resolution), then the bloom chain.
+        if let rays = raysTexture, let hdr = hdrTexture, let dist = distanceTexture {
+            let rp = MTLRenderPassDescriptor()
+            rp.colorAttachments[0].texture = rays
+            rp.colorAttachments[0].loadAction = .dontCare
+            rp.colorAttachments[0].storeAction = .store
+            if let enc = commandBuffer.makeRenderCommandEncoder(descriptor: rp) {
+                enc.label = "god rays"
+                enc.setRenderPipelineState(godRaysPipeline)
+                enc.setFragmentTexture(hdr, index: 0)
+                enc.setFragmentTexture(dist, index: 1)
+                enc.setFragmentBytes(&frame, length: MemoryLayout<FrameUniforms>.stride, index: 1)
+                enc.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
+                enc.endEncoding()
+            }
+        }
         encodeBloom(commandBuffer)
 
         // 2. Composite (tonemap) into the target.
@@ -462,6 +638,7 @@ final class Renderer {
                 enc.setRenderPipelineState(compositePipeline)
                 enc.setFragmentTexture(hdrTexture, index: 0)
                 enc.setFragmentTexture(bloomChain.first, index: 1)
+                enc.setFragmentTexture(raysTexture, index: 2)
             }
             enc.setFragmentBytes(&frame, length: MemoryLayout<FrameUniforms>.stride, index: 1)
             enc.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)

@@ -17,10 +17,19 @@ struct Player {
     var yaw: Float
     var pitch: Float = 0
     private(set) var velocity = SIMD2<Float>(0, 0)
-    private(set) var bobPhase: Float = 0
+    /// Gait phase: +1 per footfall (left, right, left...). Bob and sway are functions of it.
+    private(set) var stepPhase: Float = 0
     private var bobAmount: Float = 0
     /// Increments once per footfall; audio watches it.
     private(set) var stepCount = 0
+    /// Whether the latest footfall was a run step (a harder, shorter impact).
+    private(set) var lastStepWasRun = false
+
+    /// Distance between footfalls. Walking at 3.2 m/s with 1.45 m steps is about 2.2 steps/s, a brisk natural
+    /// cadence; running lengthens the step (2.2 m at 6.5 m/s, about 3 steps/s) instead of just stepping twice as
+    /// fast, which is what makes a run read as a different gait and not as walking on fast-forward.
+    static func stepLength(speed: Float) -> Float { 1.45 + 0.75 * runFactor(speed: speed) }
+    static func runFactor(speed: Float) -> Float { min(max((speed - walkSpeed) / (runSpeed - walkSpeed), 0), 1) }
 
     init(position: SIMD3<Float>, yaw: Float) {
         self.position = position
@@ -30,8 +39,13 @@ struct Player {
     var speed: Float { length(velocity) }
 
     var camera: Camera {
-        let bob = sin(bobPhase * 2) * 0.03 * bobAmount
-        return Camera(position: position + SIMD3(0, Player.eyeHeight + bob, 0), yaw: yaw, pitch: pitch)
+        // The head dips as each foot lands (phase = whole number) and rises between; it also sways side to side
+        // as weight shifts from foot to foot. Both grow when running.
+        let run = Player.runFactor(speed: speed)
+        let bob = -cos(stepPhase * 2 * .pi) * (0.026 + 0.04 * run) * bobAmount
+        let sway = sin(stepPhase * .pi) * (0.012 + 0.016 * run) * bobAmount
+        let right = SIMD3<Float>(cos(yaw), 0, sin(yaw))
+        return Camera(position: position + SIMD3(0, Player.eyeHeight + bob, 0) + right * sway, yaw: yaw, pitch: pitch)
     }
 
     /// Mouse look is applied once per rendered frame, not per fixed step, so it feels immediate.
@@ -82,14 +96,18 @@ struct Player {
         position.y += (ground - position.y) * min(1, dt * 18)
         if abs(ground - position.y) < 0.001 { position.y = ground }
 
-        // Head bob and footfalls: one stride (two steps) per 1.5 m walked.
+        // Gait: advance the step phase by distance walked / step length; a footfall happens at each whole number.
         let moving = speed > 0.3
-        bobAmount += ((moving ? min(speed / Player.walkSpeed, 1.6) : 0) - bobAmount) * min(1, dt * 8)
+        bobAmount += ((moving ? min(speed / Player.walkSpeed, 1.0) : 0) - bobAmount) * min(1, dt * 8)
         var footfall = false
         if moving {
-            let before = Int(floor(bobPhase / .pi))
-            bobPhase += speed * dt / 1.5 * 2 * .pi
-            if Int(floor(bobPhase / .pi)) != before { footfall = true; stepCount += 1 }
+            let before = Int(floor(stepPhase))
+            stepPhase += speed * dt / Player.stepLength(speed: speed)
+            if Int(floor(stepPhase)) != before {
+                footfall = true
+                stepCount += 1
+                lastStepWasRun = Player.runFactor(speed: speed) > 0.5
+            }
         }
         return footfall
     }

@@ -9,6 +9,19 @@ import UniformTypeIdentifiers
 enum Screenshot {
     enum Failure: Error { case texture, image, write(String) }
 
+    /// Render one frame at `camera` and write it as a PNG (used by the in-game feedback panel).
+    static func snapshot(renderer: Renderer, camera: Camera, width: Int, height: Int, to url: URL) throws {
+        let desc = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: Renderer.outputFormat, width: width, height: height, mipmapped: false)
+        desc.usage = [.renderTarget, .shaderRead]
+        desc.storageMode = .shared
+        guard let target = renderer.device.makeTexture(descriptor: desc), let cb = renderer.queue.makeCommandBuffer() else { throw Failure.texture }
+        renderer.encode(commandBuffer: cb, target: target, camera: camera)
+        cb.commit(); cb.waitUntilCompleted()
+        if let err = cb.error { throw Failure.write("GPU error: \(err)") }
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try writePNG(texture: target, to: url.path)
+    }
+
     /// `--state`: put the world into a puzzle state so it can be photographed.
     static func applyState(_ name: String?, scene: Scene) {
         guard let name else { return }

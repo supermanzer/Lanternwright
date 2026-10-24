@@ -8,6 +8,7 @@ enum GameEvent: Equatable {
     case journalOpened
     case journalClosed
     case whiteoutStarted
+    case feedbackRequested
 }
 
 /// The world's memory: named flags (a "blackboard"). Puzzles read and write these, and rendering reads them,

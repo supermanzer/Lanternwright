@@ -2,6 +2,9 @@ import AppKit
 import Metal
 
 let options = LaunchOptions.parse(CommandLine.arguments)
+
+if options.showFeedbackDir { print(FeedbackStore.directory.path); exit(0) }
+if options.showFeedback { print(FeedbackStore.formatted(FeedbackStore.loadAll())); exit(0) }
 GPUTypes.validateLayouts()
 
 guard let device = MTLCreateSystemDefaultDevice() else {

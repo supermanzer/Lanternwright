@@ -4,9 +4,11 @@ import Foundation
 /// so it can be rendered offline and tested; `AudioEngine` just feeds it to the speakers.
 ///
 /// - Wind: pink noise (equal energy per octave, like real wind) through a low-pass whose cutoff rides a slow "gust".
-/// - Surf: brown noise (rumble) whose loudness and brightness swell and decay every ~8 s, like a wave arriving
+/// - Surf: three overlapping swells of low-passed brown noise (a soft wash and a rumble) with only a faint foam fizz
+///   as the water drains, since real surf is mostly low-mid energy and white-ish noise sounds like TV static.
 ///   and draining away.
-/// - Footsteps: short decaying bursts of filtered noise, tuned per surface.
+/// - Footsteps: softly attacked, varied bursts of filtered noise tuned per surface; walking is a heel-then-toe pair,
+///   running a single harder impact with a low thump.
 ///
 /// Parameters are plain Floats written from the main thread and read on the audio thread. A torn read of an aligned
 /// Float is harmless here (it can only produce a momentarily slightly wrong volume).
@@ -23,6 +25,8 @@ final class AmbienceSynth {
     /// Footstep requests: the main thread bumps `stepCounter` and sets `stepSurface`.
     var stepCounter = 0
     var stepSurface: SurfaceKind = .grass
+    var stepRun = false
+    var stepPan: Float = 0
     private var seenSteps = 0
 
     // Chimes come from the main thread through a small locked queue (try-lock on the audio side, so it never blocks).
@@ -58,15 +62,22 @@ final class AmbienceSynth {
     private var pink = [[Float]](repeating: [0, 0, 0], count: 2)
     private var windLP: [Float] = [0, 0]
     private var brown: [Float] = [0, 0]
-    private var surfLP: [Float] = [0, 0]
+    private var surfLP1: [Float] = [0, 0]
+    private var surfLP2: [Float] = [0, 0]
+    private var surfRumble: [Float] = [0, 0]
+    private var fizzA: [Float] = [0, 0]
+    private var fizzB: [Float] = [0, 0]
+    private var stepRng: UInt32 = 0x2468ACE
 
     private struct StepVoice {
-        var age: Float = 0
+        var age: Float                 // starts negative for a delayed voice (the toe after the heel)
+        var attack: Float
         var decay: Float
         var gain: Float
         var cutoff: Float
         var toneHz: Float
         var toneGain: Float
+        var pan: Float
         var lp: Float = 0
         var seed: UInt32
     }
@@ -119,23 +130,43 @@ final class AmbienceSynth {
         return Float(Int32(bitPattern: x)) / Float(Int32.max)
     }
 
-    private func startStep(_ kind: SurfaceKind) {
-        let v: StepVoice
+    private func stepRandom() -> Float {      // 0...1
+        stepRng ^= stepRng << 13; stepRng ^= stepRng >> 17; stepRng ^= stepRng << 5
+        return Float(stepRng >> 8) / Float(1 << 24)
+    }
+
+    /// A footstep. Per surface: (decay s, gain, low-pass Hz, thump Hz, thump gain). Decays are long enough (0.1-0.2 s)
+    /// and the 5 ms attack soft enough that a step reads as a footfall, not a click. Walking is two hits, heel then toe
+    /// 75 ms later (about 40 % as loud and brighter); running is one harder, shorter impact plus a low thump, because
+    /// a runner lands on the ball of the foot with more force and spends less time in contact.
+    private func startStep(_ kind: SurfaceKind, run: Bool, pan: Float) {
+        let (decay, gain, cutoff, tone, toneGain): (Float, Float, Float, Float, Float)
         switch kind {
-        case .grass: v = StepVoice(decay: 0.09, gain: 0.30, cutoff: 700,  toneHz: 0,   toneGain: 0,    seed: 11)
-        case .sand:  v = StepVoice(decay: 0.13, gain: 0.26, cutoff: 1100, toneHz: 0,   toneGain: 0,    seed: 23)
-        case .earth: v = StepVoice(decay: 0.06, gain: 0.38, cutoff: 2600, toneHz: 0,   toneGain: 0,    seed: 37)
-        case .rock:  v = StepVoice(decay: 0.045, gain: 0.45, cutoff: 4200, toneHz: 170, toneGain: 0.25, seed: 41)
-        case .stone: v = StepVoice(decay: 0.05, gain: 0.45, cutoff: 3800, toneHz: 140, toneGain: 0.35, seed: 53)
-        case .wood:  v = StepVoice(decay: 0.10, gain: 0.45, cutoff: 1800, toneHz: 215, toneGain: 0.55, seed: 67)
+        case .grass: (decay, gain, cutoff, tone, toneGain) = (0.17, 0.22, 650, 0, 0)
+        case .sand:  (decay, gain, cutoff, tone, toneGain) = (0.21, 0.20, 850, 0, 0)
+        case .earth: (decay, gain, cutoff, tone, toneGain) = (0.10, 0.30, 2100, 0, 0)
+        case .rock:  (decay, gain, cutoff, tone, toneGain) = (0.08, 0.34, 3400, 170, 0.18)
+        case .stone: (decay, gain, cutoff, tone, toneGain) = (0.09, 0.34, 2900, 140, 0.25)
+        case .wood:  (decay, gain, cutoff, tone, toneGain) = (0.15, 0.36, 1500, 215, 0.40)
         }
-        steps.append(v)
-        if steps.count > 6 { steps.removeFirst() }
+        let vary = 0.85 + 0.3 * stepRandom()          // no two steps identical: repetition is what sounds mechanical
+        let bright = 0.9 + 0.2 * stepRandom()
+        let seed = UInt32(truncatingIfNeeded: Int(stepRandom() * 1e6) &+ 1)
+        if run {
+            steps.append(StepVoice(age: 0, attack: 0.003, decay: decay * 0.7, gain: gain * 1.55 * vary, cutoff: cutoff * 1.5 * bright,
+                                   toneHz: tone > 0 ? tone : 95, toneGain: max(toneGain, 0.30) * vary, pan: pan, seed: seed))
+        } else {
+            steps.append(StepVoice(age: 0, attack: 0.006, decay: decay, gain: gain * vary, cutoff: cutoff * bright,
+                                   toneHz: tone, toneGain: toneGain * vary, pan: pan, seed: seed))
+            steps.append(StepVoice(age: -0.075, attack: 0.008, decay: decay * 0.8, gain: gain * 0.26 * vary, cutoff: cutoff * 1.25 * bright,
+                                   toneHz: 0, toneGain: 0, pan: pan, seed: seed &+ 7))
+        }
+        if steps.count > 8 { steps.removeFirst(steps.count - 8) }
     }
 
     /// Render `frames` stereo samples (one-pole filters are cheap, so this is far under the audio deadline).
     func render(frames: Int, left: UnsafeMutablePointer<Float>, right: UnsafeMutablePointer<Float>) {
-        if stepCounter != seenSteps { seenSteps = stepCounter; startStep(stepSurface) }
+        if stepCounter != seenSteps { seenSteps = stepCounter; startStep(stepSurface, run: stepRun, pan: stepPan) }
         if chimeLock.try() {
             let queued = pendingChimes
             pendingChimes.removeAll()
@@ -149,10 +180,12 @@ final class AmbienceSynth {
             let t = time
             // Gust: slow, irregular 0...1 built from three incommensurate sines.
             let gust = 0.5 + 0.5 * (0.55 * sin(t * 0.43) + 0.3 * sin(t * 0.81 + 1.3) + 0.15 * sin(t * 1.9 + 2.1))
-            // Surf: x walks 0...1 once per swell. Fast rise as the wave arrives, slow exponential drain.
-            let swell: (Float) -> Float = { phase in
-                let x = phase - floor(phase)
-                return x < 0.3 ? smoothstep(0, 0.3, x) : exp(-(x - 0.3) * 3.2)
+            // Surf: three swells of different periods drift in and out of phase, so the sea never repeats audibly.
+            // Each swell takes ~40 % of its period to build, then drains slowly.
+            let swell: (Float, Float) -> Float = { period, phase in
+                let x = t / period + phase
+                let f = x - floor(x)
+                return smoothstep(0, 0.42, f) * exp(-max(f - 0.42, 0) * 2.6)
             }
             var out = [Float](repeating: 0, count: 2)
             for ch in 0..<2 {
@@ -167,35 +200,56 @@ final class AmbienceSynth {
                 windLP[ch] += a * (p - windLP[ch])
                 let windOut = windLP[ch] * (0.25 + 0.75 * gust) * wind * 3.2
 
-                // --- surf (right channel's wave is 0.45 s late)
-                let env = swell(t / 8.3 + (ch == 1 ? 0.0 : 0.054))
-                brown[ch] = 0.995 * brown[ch] + 0.05 * white(ch)
-                let sc = 500 + 3500 * env
+                // --- surf. Right channel's swells are offset in phase for width.
+                let o: Float = ch == 1 ? 0.07 : 0
+                let e1 = swell(7.3, 0.00 + o), e2 = swell(10.1, 0.37 + o), e3 = swell(13.7, 0.71 + o)
+                let env = min(1, 0.12 + 0.55 * e1 + 0.40 * e2 + 0.30 * e3)
+                func drainOf(_ period: Float, _ phase: Float, _ e: Float) -> Float {
+                    let x = t / period + phase + o
+                    return e * smoothstep(0.45, 0.7, x - floor(x))
+                }
+                let drain = 0.5 * (drainOf(7.3, 0, e1) + drainOf(10.1, 0.37, e2))
+                brown[ch] = 0.997 * brown[ch] + 0.03 * white(ch)
+                // Body: two cascaded one-pole low-passes (12 dB/oct). The cutoff stays under 1 kHz: real surf is a
+                // low-mid wash, and the bright hiss of a high cutoff is exactly what sounds like static.
+                let sc = 260 + 700 * env
                 let sa = 1 - exp(-2 * .pi * sc / sampleRate)
-                surfLP[ch] += sa * (brown[ch] * 1.4 - surfLP[ch])
-                let surfOut = surfLP[ch] * (0.08 + 0.92 * env) * surf * 1.8
+                surfLP1[ch] += sa * (brown[ch] * 2.2 - surfLP1[ch])
+                surfLP2[ch] += sa * (surfLP1[ch] - surfLP2[ch])
+                // Rumble: the sub-bass of mass moving.
+                surfRumble[ch] += 0.012 * (brown[ch] * 3.0 - surfRumble[ch])
+                // Foam fizz: a narrow, quiet band (about 1.2-3 kHz), only while the water drains back.
+                let fw = white(ch)
+                fizzA[ch] += 0.35 * (fw - fizzA[ch]); fizzB[ch] += 0.15 * (fw - fizzB[ch])
+                let fizz = (fizzA[ch] - fizzB[ch]) * drain * 0.10
+                let body = surfLP2[ch] * (0.15 + 0.85 * env) * 2.6
+                let rumble = surfRumble[ch] * env * env * 1.1
+                let surfOut = (body + rumble + fizz) * surf * 0.42
                 out[ch] = windOut + surfOut
             }
 
-            // --- footsteps (mono, centred)
-            var stepOut: Float = 0
+            // --- footsteps (panned per foot)
+            var stepL: Float = 0, stepR: Float = 0
             for k in 0..<steps.count {
                 var v = steps[k]
-                let env = exp(-v.age / v.decay)
-                if env > 0.002 {
-                    v.seed ^= v.seed << 13; v.seed ^= v.seed >> 17; v.seed ^= v.seed << 5
-                    let n = Float(Int32(bitPattern: v.seed)) / Float(Int32.max)
-                    let a = 1 - exp(-2 * .pi * v.cutoff / sampleRate)
-                    v.lp += a * (n - v.lp)
-                    var s = v.lp * v.gain
-                    if v.toneHz > 0 { s += sin(2 * .pi * v.toneHz * v.age) * v.toneGain * 0.5 }
-                    stepOut += s * env
+                if v.age >= 0 {
+                    let env = (1 - exp(-v.age / v.attack)) * exp(-v.age / v.decay)    // soft attack, then ring out
+                    if env > 0.002 {
+                        v.seed ^= v.seed << 13; v.seed ^= v.seed >> 17; v.seed ^= v.seed << 5
+                        let n = Float(Int32(bitPattern: v.seed)) / Float(Int32.max)
+                        let a = 1 - exp(-2 * .pi * v.cutoff / sampleRate)
+                        v.lp += a * (n - v.lp)
+                        var smp = v.lp * v.gain
+                        if v.toneHz > 0 { smp += sin(2 * .pi * v.toneHz * v.age) * v.toneGain * 0.5 }
+                        smp *= env
+                        stepL += smp * (0.5 - 0.5 * v.pan); stepR += smp * (0.5 + 0.5 * v.pan)
+                    }
                 }
                 v.age += dt
                 steps[k] = v
             }
             steps.removeAll { $0.age > $0.decay * 8 }
-
+            let stepOut = (stepL + stepR) * 0.5
             // --- chimes (through the reverb) and the causeway rumble
             var bellL: Float = 0, bellR: Float = 0
             for k in 0..<chimes.count {
@@ -229,8 +283,8 @@ final class AmbienceSynth {
             out[1] += bellR + rr * 0.35 + rumble
 
             // Soft clip: tanh keeps any pile-up of sounds from ever hard-clipping the speakers.
-            left[i] = tanh((out[0] + stepOut) * m)
-            right[i] = tanh((out[1] + stepOut) * m)
+            left[i] = tanh((out[0] + stepL * 1.4) * m)
+            right[i] = tanh((out[1] + stepR * 1.4) * m)
             time += dt
         }
     }

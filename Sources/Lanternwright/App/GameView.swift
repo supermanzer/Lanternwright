@@ -8,6 +8,8 @@ final class GameView: MTKView {
     static let maxDrawableWidth: CGFloat = 2560
 
     let input = Input()
+    /// Fraction of the capped drawable size actually rendered (Settings.renderScale).
+    var renderScale: CGFloat = 1 { didSet { updateDrawableSize() } }
     /// While captured the pointer is hidden and frozen, and mouse movement turns the camera.
     private(set) var isCaptured = false
     /// Called when capture changes (the overlay shows/hides the crosshair).
@@ -54,7 +56,7 @@ final class GameView: MTKView {
     // MARK: Events
 
     override func mouseDown(with event: NSEvent) {
-        if isCaptured { input.click() } else { captureMouse() }
+        if isCaptured { input.click() }          // when released, the overlay (menu / title / journal) handles clicks
     }
     override func mouseMoved(with event: NSEvent) { addDelta(event) }
     override func mouseDragged(with event: NSEvent) { addDelta(event) }
@@ -66,7 +68,8 @@ final class GameView: MTKView {
 
     override func keyDown(with event: NSEvent) {
         if event.isARepeat { return }
-        if event.keyCode == Input.Key.escape && isCaptured { releaseMouse() }
+        // The Esc that RELEASES the mouse (opening the pause menu) must not also count as the Esc that closes it.
+        if event.keyCode == Input.Key.escape && isCaptured { releaseMouse(); return }
         input.keyDown(event.keyCode)
     }
     override func keyUp(with event: NSEvent) { input.keyUp(event.keyCode) }
@@ -77,7 +80,7 @@ final class GameView: MTKView {
     func updateDrawableSize() {
         let backing = convertToBacking(bounds.size)
         guard backing.width > 0, backing.height > 0 else { return }
-        let scale = min(1, GameView.maxDrawableWidth / backing.width)
+        let scale = min(1, GameView.maxDrawableWidth / backing.width) * renderScale
         drawableSize = CGSize(width: (backing.width * scale).rounded(), height: (backing.height * scale).rounded())
     }
 

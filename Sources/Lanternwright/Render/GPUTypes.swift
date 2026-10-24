@@ -20,7 +20,13 @@ struct FrameUniforms {
     var fogParams = SIMD4<Float>(LookDefaults.fogDensity, LookDefaults.fogHeightFalloff, LookDefaults.exposure, LookDefaults.bloomStrength)
     var screen = SIMD4<Float>(1, 1, 1, 1)
     var misc = SIMD4<Float>(0, LookDefaults.waveStrength, 0, 0)
-    static let expectedStride = 288
+    // Cascaded shadows: sunViewProj above is the FAR cascade (whole island); these are the two nearer ones.
+    var sunViewProj0 = matrix_identity_float4x4     // near (about 14 m radius around the camera)
+    var sunViewProj1 = matrix_identity_float4x4     // mid (about 70 m)
+    var casTexel = SIMD4<Float>(0, 0, 0, 0)         // world size of one shadow texel for cascades 0, 1, 2
+    var casRange = SIMD4<Float>(1, 1, 1, 0)         // depth range (m) of cascades 0, 1, 2
+    var casRadius = SIMD4<Float>(14, 70, 340, 0)    // radius (m) of cascades 0, 1, 2
+    static let expectedStride = 464
 }
 
 struct ObjectUniforms {
@@ -31,7 +37,7 @@ struct ObjectUniforms {
 }
 
 enum MaterialID: Float {
-    case standard = 0, terrain = 1, emissiveGlass = 2, foliage = 3
+    case standard = 0, terrain = 1, emissiveGlass = 2, foliage = 3, bird = 4
 }
 
 enum GPUTypes {

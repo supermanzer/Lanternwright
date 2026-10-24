@@ -1,0 +1,28 @@
+# Things to inspect personally
+
+Everything here was verified by self-tests or by looking at rendered frames, but cannot be judged without a person: feel, sound, and "does this look good". Status is **needs-inspection** until you have tried it, then change it to **inspected** (and press **F** in the game to leave a note; `Lanternwright --feedback` reads them back).
+
+How to play: `scripts/bundle.sh && open Lanternwright.app`. Headless views: `.build/release/Lanternwright --screenshot shots/x.png --view dock` (see README for flags).
+
+## M2-M4 (earlier work)
+
+| Status | Task | What changed | How to see / hear it | What to look for |
+|---|---|---|---|---|
+| needs-inspection | T2.2 | Mouse capture | Launch, click "Click to begin", move the mouse; press Esc; click Resume | Pointer hides and stays put, look speed feels right (sensitivity slider in the menu), Esc gives the pointer back, Cmd-Tab away and back releases/restores sanely |
+| needs-inspection | T4.A1 | Surf redesigned (soft wash, three overlapping swells, no static) | Stand on the beach near the dock, or `afplay shots/ambience.wav` (surf joins at 8 s) | Waves sound like water washing, not TV static; swells rise and drain slowly |
+| needs-inspection | T4.A2 | Footsteps: natural cadence, soft, heel-toe, varied | Walk (W) on grass, sand, the dock, the stone path | Not staccato; no two steps identical; dock sounds wooden, path crunchy |
+| needs-inspection | T4.A3 | Distinct run gait | Hold Shift while walking; or WAV at 17-22 s | Run is a longer, harder stride (not walking at 2x); camera bobs and sways more |
+| needs-inspection | T2.6 | Wind, gusts, surf level by location | Walk uphill to the lighthouse, then back to the shore | Wind rises with height, surf fades inland |
+| needs-inspection | T3.9 | Chimes for the stones, fail chime, ignition chord, rumble | Strike the stones (tide, wind, stone), then a wrong order | Tide/wind/stone are distinct rising pitches; fail is soft and falling; causeway rumble |
+| needs-inspection | T3.15 | Puzzle fairness | Play the island cold without reading the docs | Can you deduce tide -> wind -> stone from the journal pages, glyphs and path order? |
+| needs-inspection | T4.F1 | In-game feedback | Press **F** in the game, type, press Send (or Cmd-Return) | Panel is readable and typeable; toast "Thank you. Saved as ..."; then run `.build/release/Lanternwright --feedback` and confirm the note and a screenshot are there |
+| needs-inspection | T4.6 | Pause menu + settings | Press Esc while playing | Menu shows; sliders (sensitivity, volume, render resolution) and Invert Y work live; Esc or Resume continues; settings persist after relaunch; "New game..." asks for a second click |
+| needs-inspection | T4.7 | Title screen | Launch the app | Camera slowly circles the island under the title; "CLICK TO BEGIN" (or CONTINUE with a save); the world waits behind it |
+| needs-inspection | T4.5 | Autosave / resume | Solve part of the island or collect a page, quit (Cmd-Q), relaunch | Title says "CLICK TO CONTINUE"; you resume where you stood with pages and puzzle progress kept; `--new` or "New game..." starts over |
+| needs-inspection | T4.10 | Fullscreen | Ctrl-Cmd-F (or View menu) | Enters/leaves fullscreen cleanly; render resolution slider lowers/raises sharpness |
+| needs-inspection | T4.1 | Instanced grass | Walk the slopes near the lantern path | Lush blades swaying in wind, none on sand/path; no shimmering or popping as you walk |
+| needs-inspection | T4.2 | Cascaded shadows | Walk past a lantern/stone/tree at low sun | Crisp near shadows, no shimmer as you move, no visible seam where shadow detail changes |
+| needs-inspection | T4.3 | God rays | Face the sun (west-south-west) past trees or the hill | Soft shafts, not a washed-out glare (tell me if too strong: `LookDefaults.godRayStrength`) |
+| needs-inspection | T4.4 | SSAO | Look at tree bases, rock clusters, the lighthouse door | Subtle contact darkening; deliberately faint on open ground |
+| needs-inspection | T4.8 | Mist sheets | Dock and shallows at eye level | A faint drifting haze over the water/beach; tell me if you want it thicker |
+| needs-inspection | T4.9 | Gulls | Look up near the lighthouse (and out over the sea to the east) | Small white gulls circling, wings flapping, facing the way they fly |

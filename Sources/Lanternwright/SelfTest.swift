@@ -16,7 +16,7 @@ enum SelfTest {
         }
         if name == "all" || name == "layout" {
             check(MemoryLayout<Vertex>.stride == 48, "Vertex stride 48")
-            check(MemoryLayout<FrameUniforms>.stride == 288, "FrameUniforms stride 288")
+            check(MemoryLayout<FrameUniforms>.stride == 464, "FrameUniforms stride 464")
             check(MemoryLayout<ObjectUniforms>.stride == 96, "ObjectUniforms stride 96")
         }
         if name == "all" || name == "math" {
@@ -225,6 +225,27 @@ enum SelfTest {
             for _ in 0..<(3 * 120) { p.step(dt: dt, input: r, scene: scene) }
             check(abs(walk - 3.2) < 0.4 && abs(p.speed - 6.5) < 0.8, "walk \(String(format: "%.2f", walk)) m/s, run \(String(format: "%.2f", p.speed)) m/s (on a slope)")
 
+            // 5b. Gait: walking is a natural ~2.2 steps/s; running lengthens the stride so cadence rises only ~1.4x, not 2x.
+            func cadence(run: Bool) -> Float {
+                let q = Player(position: SIMD3(Layout.dockShore.x, Layout.dockShore.y, Layout.dockShore.z), yaw: 3.0)
+                var pl = q
+                var input = InputState(); input.move = SIMD2(0, 1); input.run = run
+                pl.position.y = scene.groundHeight(x: pl.position.x, z: pl.position.z)
+                for _ in 0..<(2 * 120) { pl.step(dt: dt, input: input, scene: scene) }          // settle to full speed
+                let start = pl.stepCount
+                var travelled: Float = 0, last = SIMD2(pl.position.x, pl.position.z)
+                for _ in 0..<(6 * 120) {
+                    pl.step(dt: dt, input: input, scene: scene)
+                    let now = SIMD2(pl.position.x, pl.position.z); travelled += distance(now, last); last = now
+                }
+                _ = travelled
+                return Float(pl.stepCount - start) / 6
+            }
+            let walkCadence = cadence(run: false), runCadence = cadence(run: true)
+            check(walkCadence > 1.8 && walkCadence < 2.6, "walking cadence is natural (\(String(format: "%.2f", walkCadence)) steps/s)")
+            check(runCadence / walkCadence > 1.2 && runCadence / walkCadence < 1.6, "running is a different gait, not 2x walking (\(String(format: "%.2f", runCadence)) vs \(String(format: "%.2f", walkCadence)) steps/s = \(String(format: "%.2f", runCadence / walkCadence))x)")
+            check(Player.stepLength(speed: Player.runSpeed) > 1.4 * Player.stepLength(speed: Player.walkSpeed), "the run stride is much longer than the walk stride")
+
             // 6. Frame-rate independence: the same 4 s of "walk forward" at 30, 60 and 144 fps covers the same ground.
             var distances: [Float] = []
             for fps in [30.0, 60.0, 144.0] {
@@ -266,10 +287,55 @@ enum SelfTest {
             check((everything.map { abs($0) }.max() ?? 2) < 1.0, "everything at full volume never clips (peak \(String(format: "%.2f", everything.map { abs($0) }.max() ?? 0)))")
             // Surf should swell: compare the loudest and quietest second.
             let secs = (0..<10).map { rms(surf[($0 * Int(sr))..<(($0 + 1) * Int(sr))]) }
-            check(secs.max()! > 2 * secs.min()!, "surf swells and recedes (loudest second \(String(format: "%.3f", secs.max()!)) vs quietest \(String(format: "%.3f", secs.min()!)))")
-            // A footstep adds a transient on top of silence.
-            let step = renderSeconds { $0.windGain = 0; $0.surfGain = 0; $0.stepSurface = .stone; $0.stepCounter = 1 }
-            check(rms(step[0..<2000]) > 0.01 && rms(step[Int(sr)...]) < 1e-4, "a footstep is a short burst that dies away (first 45 ms rms \(String(format: "%.3f", rms(step[0..<2000]))))")
+            check(secs.max()! > 1.5 * secs.min()!, "surf swells and recedes (loudest second \(String(format: "%.3f", secs.max()!)) vs quietest \(String(format: "%.3f", secs.min()!)))")
+            // Surf must not sound like static. White noise has |x[n]-x[n-1]| / |x[n]| of about 1.41; a signal whose energy
+            // sits under ~1 kHz has about 0.14. (The old surf, with a cutoff up to 4 kHz, was far hissier.)
+            let surfTone = renderSeconds { $0.windGain = 0; $0.surfGain = 0.8 }
+            var dSq: Float = 0, xSq: Float = 0
+            for i in 1..<surfTone.count { let d = surfTone[i] - surfTone[i - 1]; dSq += d * d; xSq += surfTone[i] * surfTone[i] }
+            let hiss = (dSq / xSq).squareRoot()
+            check(hiss < 0.35, "surf is a low wash, not static (hissiness \(String(format: "%.2f", hiss)); white noise is about 1.41)")
+
+            // Footsteps.
+            func step(_ surface: SurfaceKind, run: Bool, count: Int = 1) -> [Float] {
+                let synth = AmbienceSynth(sampleRate: sr)
+                synth.windGain = 0; synth.surfGain = 0; synth.master = 1
+                var l = [Float](repeating: 0, count: Int(sr) * 2 * count), r = l
+                l.withUnsafeMutableBufferPointer { lp in r.withUnsafeMutableBufferPointer { rp in
+                    for k in 0..<count {
+                        synth.stepSurface = surface; synth.stepRun = run; synth.stepCounter += 1
+                        synth.render(frames: Int(sr) * 2, left: lp.baseAddress! + k * Int(sr) * 2, right: rp.baseAddress! + k * Int(sr) * 2)
+                    }
+                } }
+                return l
+            }
+            func peak(_ x: ArraySlice<Float>) -> Float { x.map { abs($0) }.max() ?? 0 }
+            /// Seconds until the envelope (peak per 5 ms window) falls below 15 % of the loudest window.
+            func ringOut(_ x: [Float]) -> Float {
+                let w = Int(sr * 0.005)
+                let env = stride(from: 0, to: x.count - w, by: w).map { peak(x[$0..<$0 + w]) }
+                let top = env.max() ?? 1
+                let iTop = env.firstIndex(of: top) ?? 0
+                let end = (iTop..<env.count).first { env[$0] < 0.15 * top } ?? env.count
+                return Float(end) * 0.005
+            }
+            for surface in [SurfaceKind.grass, .sand, .earth, .rock, .stone, .wood] {
+                let walk = step(surface, run: false)
+                check(peak(walk[0..<Int(sr * 0.001)]) < 0.3 * peak(walk[0..<Int(sr * 0.4)]) && !walk.contains { !$0.isFinite }, "\(surface) step has a soft attack (first millisecond is not the peak) and is finite")
+                check(peak(walk[Int(sr * 1.5)...]) < 1e-4, "\(surface) step dies away completely")
+            }
+            let walkGrass = step(.grass, run: false), runGrass = step(.grass, run: true)
+            check(ringOut(walkGrass) >= 0.12, "a grass footstep rings out for at least 0.12 s, not a click (\(String(format: "%.2f", ringOut(walkGrass))) s)")
+            let walkStone = step(.stone, run: false), runStone = step(.stone, run: true)
+            check(peak(runStone[...]) > 1.2 * peak(walkStone[...]) && ringOut(runStone) < ringOut(walkStone),
+                  "a run step is harder and shorter than a walk step (peak \(String(format: "%.2f", peak(walkStone[...]))) -> \(String(format: "%.2f", peak(runStone[...]))), ring-out \(String(format: "%.2f", ringOut(walkStone))) -> \(String(format: "%.2f", ringOut(runStone))) s)")
+            // The walk has a second, softer hit (the toe) after the heel.
+            let heel = peak(walkGrass[0..<Int(sr * 0.06)]), toe = peak(walkGrass[Int(sr * 0.075)..<Int(sr * 0.2)])
+            check(toe > 0.15 * heel && toe < heel, "walking is heel then toe (toe is \(Int(100 * toe / heel)) % of the heel)")
+            // Consecutive steps differ.
+            let two = step(.grass, run: false, count: 2)
+            let first = peak(two[0..<Int(sr * 2)]), second = peak(two[Int(sr * 2)...])
+            check(abs(first - second) / max(first, second) > 0.01, "consecutive steps are not identical (peaks \(String(format: "%.3f", first)) vs \(String(format: "%.3f", second)))")
         }
         if name == "all" || name == "surface" {
             let scene = Scene.makeWorld(device: device)
@@ -501,6 +567,97 @@ enum SelfTest {
                 let gnd = g.scene.groundHeight(x: p.x, z: p.z)
                 check(p.y >= gnd - 0.01 && p.y - gnd < 0.7, "page \(n) lies on the ground (\(String(format: "%.2f", p.y - gnd)) m above it)")
             }
+        }
+        if name == "all" || name == "feedback" {
+            let tmp = NSTemporaryDirectory() + "lw-feedback-\(getpid())"
+            setenv("LANTERNWRIGHT_FEEDBACK_DIR", tmp, 1)
+            defer { try? FileManager.default.removeItem(atPath: tmp); unsetenv("LANTERNWRIGHT_FEEDBACK_DIR") }
+            check(FeedbackStore.loadAll().isEmpty, "feedback store starts empty")
+            try? FileManager.default.createDirectory(atPath: tmp, withIntermediateDirectories: true)
+            try? Data([1, 2, 3]).write(to: FeedbackStore.pendingScreenshotURL)
+            let game = Game(scene: Scene.makeWorld(device: device))
+            game.puzzle.strike(.tide)
+            let first = try? FeedbackStore.save(text: "  The surf is much better!  ", context: game.feedbackContext(extra: ["note": "test"]))
+            let second = try? FeedbackStore.save(text: "second, \"quoted\" and\nmultiline", context: ["k": "v"])
+            let all = FeedbackStore.loadAll()
+            check(all.count == 2 && all[0].text == "The surf is much better!" && all[1].text.contains("\"quoted\"") && all[1].text.contains("\n"), "entries round-trip through the JSONL file (trimmed, quotes and newlines intact)")
+            check(first?.screenshot != nil && FileManager.default.fileExists(atPath: FeedbackStore.screenshotURL(id: first!.id).path) && second?.screenshot == nil, "the pending screenshot is attached to the next entry only")
+            check(all[0].context["puzzle flags"]?.contains("lit_tide") == true && all[0].context["position"] != nil && all[0].context["note"] == "test", "context carries position and puzzle flags")
+            check(first?.id != second?.id, "entries saved in the same second still get distinct ids")
+            let listing = FeedbackStore.formatted(all)
+            check(listing.contains("The surf is much better!") && listing.contains("puzzle flags") && listing.contains(".png"), "--feedback listing shows text, context and screenshot path")
+            check(!game.drainEvents().contains(.feedbackRequested), "no feedback event unless F is pressed")
+            var pressF = InputState(); pressF.feedbackPressed = true
+            game.advance(now: 5, input: InputState()); game.advance(now: 5.01, input: pressF)
+            check(game.drainEvents().contains(.feedbackRequested), "pressing F emits feedbackRequested")
+        }
+        if name == "all" || name == "save" {
+            let tmp = NSTemporaryDirectory() + "lw-save-\(getpid())"
+            setenv("LANTERNWRIGHT_SAVE_DIR", tmp, 1)
+            defer { try? FileManager.default.removeItem(atPath: tmp); unsetenv("LANTERNWRIGHT_SAVE_DIR") }
+            check(SaveStore.load() == nil, "no save at first")
+            let g = Game(scene: Scene.makeWorld(device: device))
+            g.activate("page_1"); g.activate("page_3"); g.toggleJournal()
+            g.puzzle.forceSolved(); g.state.set("lensTouched")
+            g.player = Player(position: SIMD3(Layout.tideStone.x + 3, Layout.tideStone.y, Layout.tideStone.z + 3), yaw: 1.25)
+            g.player.position.y = g.scene.groundHeight(x: g.player.position.x, z: g.player.position.z)
+            g.player.pitch = -0.2
+            try? SaveStore.save(g.makeSave())
+            check(FileManager.default.fileExists(atPath: SaveStore.url.path) && !FileManager.default.fileExists(atPath: SaveStore.directory.appendingPathComponent("save.json.tmp").path), "saving writes save.json and leaves no temp file")
+
+            let h = Game(scene: Scene.makeWorld(device: device))
+            if let s = SaveStore.load() { h.restore(s) }
+            check(h.state.has("solved") && h.state.has("lighthouseLit") && h.state.has("causewayUp") && h.state.has("lensTouched"), "puzzle progress is restored")
+            check(h.journal.collectedPages.map(\.number) == [1, 3], "collected pages are restored")
+            check(h.scene.items.first { $0.name == "page_1" }?.hidden == true && h.scene.items.first { $0.name == "page_2" }?.hidden == false, "collected pages are gone from the world, others remain")
+            check(distance(h.player.position, g.player.position) < 0.05 && abs(h.player.yaw - 1.25) < 1e-4 && abs(h.player.pitch + 0.2) < 1e-4, "position and view direction are restored")
+            check(!h.journal.isOpen && h.whiteout == 0, "loading does not reopen the journal or replay the ending")
+            check(h.scene.walkables[h.scene.causewayIndex!].enabled, "the causeway is walkable again after loading a solved game")
+            check((h.scene.items.first { $0.name == "lighthouse_lens" }?.uniforms.emissive.w ?? 0) > 39, "the lens is blazing after loading")
+
+            // Robustness: corrupt, future-version and out-of-world saves must never crash or strand the player.
+            try? "{ not json".write(to: SaveStore.url, atomically: true, encoding: .utf8)
+            check(SaveStore.load() == nil, "a corrupt save is ignored")
+            var future = g.makeSave(); future.version = 99
+            try? SaveStore.save(future)
+            check(SaveStore.load() == nil, "a save from a newer version is ignored")
+            var sea = g.makeSave(); sea.position = [175, 0.8, 330]       // open sea
+            let k = Game(scene: Scene.makeWorld(device: device)); k.restore(sea)
+            check(distance(SIMD2(k.player.position.x, k.player.position.z), SIMD2(Layout.dockEnd.x, Layout.dockEnd.z)) < 1, "a saved position in the open sea falls back to the spawn")
+            SaveStore.delete(); check(SaveStore.load() == nil, "delete removes the save")
+        }
+        if name == "all" || name == "settings" {
+            var bad = Settings()
+            bad.sensitivity = .nan; bad.volume = 7; bad.renderScale = 0.01
+            let c = bad.clamped()
+            check(c.sensitivity == 0.0022 && c.volume == 1 && c.renderScale == 0.5, "non-finite and out-of-range settings are clamped to legal values")
+            var s = Settings(); s.sensitivity = 0.004; s.invertY = true; s.volume = 0.25; s.renderScale = 0.75
+            let back = (try? JSONDecoder().decode(Settings.self, from: JSONEncoder().encode(s)))
+            check(back == s, "settings round-trip through JSON")
+            check(Settings().clamped() == Settings(), "the defaults are already within range")
+        }
+        if name == "all" || name == "birds" {
+            let scene = Scene.makeWorld(device: device)
+            check((0..<Birds.count).allSatisfy { scene.has("bird_\($0)") }, "all \(Birds.count) gulls exist in the scene")
+            var lowest: Float = 1e9, worstHeading: Float = 0
+            for k in 0..<Birds.count {
+                for step in 0..<400 {
+                    let t = Float(step) * 0.5
+                    let p = Birds.pose(k, time: t), q = Birds.pose(k, time: t + 0.05)
+                    lowest = min(lowest, p.position.y - scene.groundHeight(x: p.position.x, z: p.position.z))
+                    let v = SIMD2(q.position.x - p.position.x, q.position.z - p.position.z)
+                    var diff = abs(atan2(v.x, v.y) - p.heading)
+                    if diff > .pi { diff = 2 * .pi - diff }
+                    worstHeading = max(worstHeading, diff)
+                }
+            }
+            check(lowest > 6, "no gull ever flies lower than 6 m above ground or sea (lowest \(String(format: "%.1f", lowest)) m)")
+            check(worstHeading < 0.12, "every gull faces the way it flies (worst heading error \(String(format: "%.3f", worstHeading)) rad)")
+            check(Birds.pose(3, time: 17.5).position == Birds.pose(3, time: 17.5).position, "flight paths are deterministic")
+            let g = Game(scene: scene)
+            let before = scene.items.first { $0.name == "bird_0" }!.uniforms.model
+            g.simulate(seconds: 2)
+            check(scene.items.first { $0.name == "bird_0" }!.uniforms.model != before, "gulls move as the game runs")
         }
         return ok
     }

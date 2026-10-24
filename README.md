@@ -2,7 +2,7 @@
 
 An original first-person exploration and puzzle game for macOS, in the spirit of *Myst*. Swift, with a hand-built Metal renderer and procedural everything: no engine, no asset files.
 
-**Status:** the vertical slice, *The Isle of Varrow*, is playable end to end. Wake on a dock at golden hour, follow the lantern path past three resonance stones, read the keeper's journal, strike the stones in the right order, and walk the causeway that rises from the sea to the islet. See `docs/DESIGN.md` for the vision and `docs/TASKS.md` for the work queue (M4 polish and M5 the second world are planned).
+**Status:** the vertical slice, *The Isle of Varrow*, is playable end to end. Wake on a dock at golden hour, follow the lantern path past three resonance stones, read the keeper's journal, strike the stones in the right order, and walk the causeway that rises from the sea to the islet. See `docs/DESIGN.md` for the vision and `docs/TASKS.md` for the work queue (M4 polish is done; M5 the second world is planned).
 
 ![overview](docs/shots/m1-overview.png)
 
@@ -18,7 +18,9 @@ Requires macOS 15+ and the Swift toolchain (Command Line Tools are enough; Xcode
 | W A S D (or arrows to turn) | move; **Shift** runs |
 | Mouse | look |
 | J | journal (← → turn pages) |
-| Esc | release the mouse / close the journal |
+| Esc | release the mouse (opens the pause menu) / close the journal / resume |
+| Ctrl-Cmd-F | full screen |
+| F | send feedback (saves your note, a screenshot and where you were) |
 
 ## Developer tools
 ```bash
@@ -31,7 +33,12 @@ swift build -c release
 .build/release/Lanternwright --dump-overlay shots/overlay     # journal / crosshair layouts
 .build/release/Lanternwright --help
 ```
+Feedback you send in-game is read back with `.build/release/Lanternwright --feedback`.
+
 Debug views for the renderer: `--debug depth|shadow|albedo|ambient`.
 
+## Settings and saves
+The pause menu (Esc) has mouse sensitivity, volume, render resolution and invert-Y. Progress autosaves to `~/Library/Application Support/Lanternwright/save.json`; start fresh with `--new` or the menu's *New game…*.
+
 ## Not yet verified by a human
-Mouse capture feel, whether the ambient sound is pleasant (`afplay shots/ambience.wav`), and whether the puzzle can be deduced without hints. Everything else is covered by the self-tests or by looking at rendered frames.
+Mouse capture feel, the new surf and footstep/run sounds (`afplay shots/ambience.wav`), the pause menu and title screen in the real window, and whether the puzzle can be deduced without hints. Everything else is covered by the self-tests or by looking at rendered frames.

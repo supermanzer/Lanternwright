@@ -8,6 +8,7 @@ enum Island {
     static func populate(_ scene: Scene, device: MTLDevice) {
         Landmarks.populate(scene, device: device)
         PuzzleProps.populate(scene, device: device)
+        Birds.populate(scene, device: device)
         addLanterns(scene, device: device)
         addRocks(scene, device: device)
         addTrees(scene, device: device)

@@ -23,6 +23,7 @@ final class Game {
     private var pending: [GameEvent] = []
     /// Footfalls since start; audio compares against the last value it saw.
     private(set) var footfalls = 0
+    private(set) var lastFootWasRun = false
 
     init(scene: Scene) {
         self.scene = scene
@@ -72,12 +73,17 @@ final class Game {
         }
     }
 
-    private func collectPage(_ n: Int) {
+    /// Mark a page as already collected (loading a save): hides it and disables it, without opening the journal.
+    func restorePage(_ n: Int) {
         state.set("page_\(n)")
         journal.collect(n)
-        journal.isOpen = true
         scene.update("page_\(n)") { $0.hidden = true }
         if let i = interactables.firstIndex(where: { $0.id == "page_\(n)" }) { interactables[i].enabled = false }
+    }
+
+    private func collectPage(_ n: Int) {
+        restorePage(n)
+        journal.isOpen = true
         pending.append(.pageCollected(n))
         pending.append(.journalOpened)
     }
@@ -90,6 +96,25 @@ final class Game {
         animator.tween(duration: 2.0, ease: .inOutCubic) { [weak self] t in self?.whiteout = t }
     }
 
+    /// Where the player is and what they have done, attached to every piece of feedback.
+    func feedbackContext(extra: [String: String] = [:]) -> [String: String] {
+        func f(_ v: Float) -> String { String(format: "%.1f", v) }
+        let p = player.position
+        var c: [String: String] = [
+            "position": "\(f(p.x)), \(f(p.y)), \(f(p.z))",
+            "yaw/pitch": "\(String(format: "%.2f", player.yaw)) / \(String(format: "%.2f", player.pitch))",
+            "surface": "\(currentSurface)",
+            "looking at": hovered?.id ?? "nothing interactive",
+            "puzzle flags": state.flags.sorted().joined(separator: ", ").isEmpty ? "none" : state.flags.sorted().joined(separator: ", "),
+            "journal pages": journal.collectedPages.map { String($0.number) }.joined(separator: ", ").isEmpty ? "none" : journal.collectedPages.map { String($0.number) }.joined(separator: ", "),
+            "play time": "\(Int(time)) s",
+            "build": "0.1.0",
+            "macOS": ProcessInfo.processInfo.operatingSystemVersionString,
+        ]
+        for (k, v) in extra { c[k] = v }
+        return c
+    }
+
     func toggleJournal() {
         journal.isOpen.toggle()
         pending.append(journal.isOpen ? .journalOpened : .journalClosed)
@@ -99,10 +124,11 @@ final class Game {
 
     /// One fixed 1/120 s step of everything that moves.
     func fixedStep(input: InputState) {
-        if player.step(dt: Game.tick, input: input, scene: scene) { footfalls += 1 }
+        if player.step(dt: Game.tick, input: input, scene: scene) { footfalls += 1; lastFootWasRun = player.lastStepWasRun }
         animator.update(Game.tick)
         time += Game.tick
         puzzle.updateVisuals(time: time)
+        Birds.update(scene, time: time)
         // Uncollected pages glow faintly so they read as "pick me up", even in shadow.
         for n in 1...4 where !state.has("page_\(n)") {
             scene.update("page_\(n)") { $0.uniforms.emissive.w = 0.25 + 0.15 * sin(self.time * 2.4 + Float(n)) }
@@ -119,6 +145,7 @@ final class Game {
         lastTime = now
 
         // UI-level input first: the journal is modal (the mouse is released while it is open).
+        if input.feedbackPressed { pending.append(.feedbackRequested) }
         if input.journalPressed { toggleJournal() }
         if input.escapePressed && journal.isOpen { journal.isOpen = false; pending.append(.journalClosed) }
         if journal.isOpen && input.pageFlip != 0 { journal.flip(input.pageFlip) }

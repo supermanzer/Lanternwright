@@ -10,6 +10,11 @@ enum LookDefaults {
     static let fogDensity: Float = 0.0016
     static let fogHeightFalloff: Float = 0.010
     static let waveStrength: Float = 1.0
+    static let grassRadius: Float = 42
+    static let godRayStrength: Float = 0.32
+    static let aoStrength: Float = 0.9
+    static let aoRadius: Float = 1.6
+    static let grassCell: Float = 0.26
 }
 
 /// Command-line options. Parsed once in main.swift.
@@ -29,6 +34,9 @@ struct LaunchOptions {
     var dumpAudioPath: String?
     var showFPS = false
     var state: String?
+    var newGame = false
+    var showFeedback = false
+    var showFeedbackDir = false
     var dumpOverlayBase: String?
     var benchFrames: Int?
 
@@ -46,6 +54,9 @@ struct LaunchOptions {
       --dump-audio <path.wav>      Render 24 s of the soundscape to a WAV (play with afplay) and exit
       --state <name>               World state for screenshots: solved, tide, tidewind
       --dump-overlay <base>        Render crosshair/journal/end overlays to <base>-*.png and exit
+      --feedback                   Print all saved player feedback and exit
+      --feedback-dir               Print the feedback folder and exit
+      --new                        Start a new game, ignoring (and later overwriting) the save
       --fps                        Show frames per second in the window title
       --bench N                    Render N offscreen frames at --size and report GPU time
       --dump-lut <path.png>        Write the baked sky LUT (256x128) to a PNG and exit
@@ -83,6 +94,9 @@ struct LaunchOptions {
             case "--debug": o.debugView = next()
             case "--dump-audio": o.dumpAudioPath = next()
             case "--state": o.state = next()
+            case "--new": o.newGame = true
+            case "--feedback": o.showFeedback = true
+            case "--feedback-dir": o.showFeedbackDir = true
             case "--dump-overlay": o.dumpOverlayBase = next()
             case "--fps": o.showFPS = true
             case "--bench":

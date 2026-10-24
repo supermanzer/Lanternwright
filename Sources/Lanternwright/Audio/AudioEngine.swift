@@ -47,6 +47,8 @@ final class AudioEngine {
         if game.footfalls != lastFootfalls {
             lastFootfalls = game.footfalls
             synth.stepSurface = game.currentSurface
+            synth.stepRun = game.lastFootWasRun
+            synth.stepPan = game.footfalls % 2 == 0 ? -0.3 : 0.3      // alternate feet
             synth.stepCounter += 1
         }
         guard now - lastUpdate > 0.125 else { return }

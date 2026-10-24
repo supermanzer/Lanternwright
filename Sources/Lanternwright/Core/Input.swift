@@ -8,6 +8,7 @@ struct InputState {
     var click = false                  // primary click edge (one frame)
     var journalPressed = false         // J edge
     var escapePressed = false          // Esc edge
+    var feedbackPressed = false        // F edge
     var pageFlip = 0                   // -1 / +1 when left / right arrow was pressed (journal navigation)
 }
 
@@ -15,7 +16,7 @@ struct InputState {
 final class Input {
     enum Key {
         static let a: UInt16 = 0, s: UInt16 = 1, d: UInt16 = 2, w: UInt16 = 13
-        static let e: UInt16 = 14, j: UInt16 = 38, escape: UInt16 = 53, space: UInt16 = 49
+        static let e: UInt16 = 14, f: UInt16 = 3, j: UInt16 = 38, escape: UInt16 = 53, space: UInt16 = 49
         static let left: UInt16 = 123, right: UInt16 = 124, down: UInt16 = 125, up: UInt16 = 126
     }
 
@@ -26,6 +27,7 @@ final class Input {
     private var journalEdge = false
     private var escapeEdge = false
     private var flipEdge = 0
+    private var feedbackEdge = false
 
     /// Radians of turn per mouse count. 0.0022 is a comfortable default for a 6720-px-wide display's pointer speed.
     var sensitivity: Float = 0.0022
@@ -35,6 +37,7 @@ final class Input {
         down.insert(code)
         if code == Key.j { journalEdge = true }
         if code == Key.escape { escapeEdge = true }
+        if code == Key.f { feedbackEdge = true }
         if code == Key.left { flipEdge -= 1 }
         if code == Key.right { flipEdge += 1 }
     }
@@ -68,7 +71,8 @@ final class Input {
         s.journalPressed = journalEdge
         s.escapePressed = escapeEdge
         s.pageFlip = flipEdge
-        mouse = .zero; clickEdge = false; journalEdge = false; escapeEdge = false; flipEdge = 0
+        s.feedbackPressed = feedbackEdge
+        mouse = .zero; clickEdge = false; journalEdge = false; escapeEdge = false; flipEdge = 0; feedbackEdge = false
         return s
     }
 }

@@ -20,6 +20,11 @@ struct FrameUniforms {
     float4 fogParams;
     float4 screen;
     float4 misc;
+    float4x4 sunViewProj0;
+    float4x4 sunViewProj1;
+    float4 casTexel;
+    float4 casRange;
+    float4 casRadius;
 };
 
 struct ObjectUniforms {

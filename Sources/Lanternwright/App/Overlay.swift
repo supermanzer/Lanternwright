@@ -15,6 +15,29 @@ final class OverlayView: NSView {
     /// Draws a stand-in scene behind the overlay (only used by the headless snapshot).
     var debugBackdrop: NSColor?
 
+    // Feedback panel (F). The text view and buttons are real AppKit controls so editing, selection and paste just work.
+    private(set) var feedbackOpen = false
+    var onFeedbackSubmit: ((String) -> Void)?
+    var onFeedbackCancel: (() -> Void)?
+    private var feedbackText: NSTextView?
+    private var feedbackViews: [NSView] = []
+    // Title screen and pause menu.
+    var titleOpen = false
+    var titleHasSave = false
+    private(set) var menuOpen = false
+    var settings = Settings()
+    var onBegin: (() -> Void)?
+    var onResume: (() -> Void)?
+    var onQuit: (() -> Void)?
+    var onNewGame: (() -> Void)?
+    var onSettingsChanged: ((Settings) -> Void)?
+    private var menuViews: [NSView] = []
+    private var newGameArmed = false
+    private var titleTime: CGFloat = 0
+
+    /// Brief confirmation shown after sending ("Thank you: saved").
+    var toast: String?
+
     var onFlip: ((Int) -> Void)?
     var onClose: (() -> Void)?
 
@@ -24,16 +47,17 @@ final class OverlayView: NSView {
     override var isOpaque: Bool { false }
 
     /// Pass mouse events through to the game, except while the journal is open.
-    override func hitTest(_ point: NSPoint) -> NSView? { journalOpen ? self : nil }
+    override func hitTest(_ point: NSPoint) -> NSView? { (feedbackOpen || menuOpen) ? super.hitTest(point) : ((journalOpen || titleOpen) ? self : nil) }
 
     /// Ease the crosshair toward its target shape; returns true if anything needs redrawing.
     @discardableResult
     func step(dt: CGFloat) -> Bool {
+        if titleOpen { titleTime += dt }
         let target: CGFloat = prompt != nil ? 1 : 0
         let before = ring
         ring += (target - ring) * min(1, dt * 16)
         if abs(ring - target) < 0.01 { ring = target }
-        return ring != before
+        return ring != before || titleOpen
     }
 
     // MARK: Journal geometry (shared by drawing and clicking)
@@ -46,6 +70,7 @@ final class OverlayView: NSView {
     private var rightArrow: NSRect { NSRect(x: panel.maxX - 80, y: panel.maxY - 66, width: 56, height: 36) }
 
     override func mouseDown(with event: NSEvent) {
+        if titleOpen { onBegin?(); return }
         guard journalOpen else { return }
         let p = convert(event.locationInWindow, from: nil)
         if leftArrow.contains(p) { onFlip?(-1) }
@@ -60,8 +85,12 @@ final class OverlayView: NSView {
     override func draw(_ dirtyRect: NSRect) {
         if let b = debugBackdrop { b.setFill(); bounds.fill() }
 
-        if captured && !journalOpen && whiteout < 0.5 { drawCrosshair() }
+        if captured && !journalOpen && !feedbackOpen && !menuOpen && whiteout < 0.5 { drawCrosshair() }
+        if titleOpen { drawTitle() }
+        if menuOpen { drawMenuCard() }
         if journalOpen { drawJournal() }
+        if feedbackOpen { drawFeedbackCard() }
+        if let toast { drawToast(toast) }
         if whiteout > 0 { drawWhiteout() }
     }
 
@@ -130,6 +159,186 @@ final class OverlayView: NSView {
              in: NSRect(x: p.minX, y: p.maxY - 26, width: p.width, height: 16), align: .center)
     }
 
+    // MARK: Title
+
+    private func drawTitle() {
+        // A soft vignette keeps the title legible over any part of the island.
+        let grad = NSGradient(colors: [NSColor.black.withAlphaComponent(0.0), NSColor.black.withAlphaComponent(0.45)])
+        grad?.draw(in: bounds, relativeCenterPosition: NSPoint(x: 0, y: 0))
+        let shadow = NSShadow(); shadow.shadowColor = NSColor.black.withAlphaComponent(0.7); shadow.shadowBlurRadius = 14; shadow.shadowOffset = .zero
+        let title: [NSAttributedString.Key: Any] = [.font: serif(78), .foregroundColor: NSColor.white, .kern: 14, .shadow: shadow]
+        let sub: [NSAttributedString.Key: Any] = [.font: serif(22), .foregroundColor: NSColor.white.withAlphaComponent(0.85), .kern: 3, .shadow: shadow]
+        let pulse = 0.55 + 0.45 * sin(titleTime * 2.2)
+        let hint: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 17, weight: .medium), .foregroundColor: NSColor.white.withAlphaComponent(pulse), .kern: 2, .shadow: shadow]
+        func centred(_ s: String, _ attrs: [NSAttributedString.Key: Any], y: CGFloat) {
+            let z = (s as NSString).size(withAttributes: attrs)
+            (s as NSString).draw(at: NSPoint(x: bounds.midX - z.width / 2, y: y), withAttributes: attrs)
+        }
+        centred("LANTERNWRIGHT", title, y: bounds.midY - 150)
+        centred("THE ISLE OF VARROW", sub, y: bounds.midY - 50)
+        centred(titleHasSave ? "CLICK TO CONTINUE" : "CLICK TO BEGIN", hint, y: bounds.maxY - 150)
+    }
+
+    // MARK: Pause menu
+
+    private var menuCard: NSRect {
+        let w = min(520, bounds.width * 0.86), h: CGFloat = 470
+        return NSRect(x: bounds.midX - w / 2, y: bounds.midY - h / 2, width: w, height: h)
+    }
+
+    func showMenu() {
+        guard !menuOpen else { return }
+        menuOpen = true
+        newGameArmed = false
+        buildMenuControls()
+        needsDisplay = true
+    }
+
+    func hideMenu() {
+        guard menuOpen else { return }
+        menuOpen = false
+        menuViews.forEach { $0.removeFromSuperview() }
+        menuViews = []
+        needsDisplay = true
+    }
+
+    private func buildMenuControls() {
+        menuViews.forEach { $0.removeFromSuperview() }
+        menuViews = []
+        let c = menuCard
+        func label(_ text: String, y: CGFloat) -> NSTextField {
+            let l = NSTextField(labelWithString: text)
+            l.textColor = NSColor.white.withAlphaComponent(0.85); l.font = .systemFont(ofSize: 14)
+            l.frame = NSRect(x: c.minX + 36, y: y, width: 170, height: 20)
+            return l
+        }
+        func slider(_ value: Float, min lo: Double, max hi: Double, y: CGFloat, action: Selector) -> NSSlider {
+            let s = NSSlider(value: Double(value), minValue: lo, maxValue: hi, target: self, action: action)
+            s.frame = NSRect(x: c.minX + 210, y: y, width: c.width - 246, height: 22)
+            return s
+        }
+        let resume = NSButton(title: "Resume", target: self, action: #selector(menuResume))
+        resume.frame = NSRect(x: c.minX + 36, y: c.minY + 86, width: c.width - 72, height: 36); resume.bezelStyle = .rounded; resume.keyEquivalent = "\r"
+        let sens = slider(settings.sensitivity, min: 0.0005, max: 0.006, y: c.minY + 150, action: #selector(menuSensitivity))
+        let vol = slider(settings.volume, min: 0, max: 1, y: c.minY + 190, action: #selector(menuVolume))
+        let scale = slider(settings.renderScale, min: 0.5, max: 1, y: c.minY + 230, action: #selector(menuScale))
+        let invert = NSButton(checkboxWithTitle: "Invert vertical look", target: self, action: #selector(menuInvert))
+        invert.state = settings.invertY ? .on : .off
+        invert.frame = NSRect(x: c.minX + 36, y: c.minY + 272, width: 260, height: 22)
+        invert.attributedTitle = NSAttributedString(string: "Invert vertical look", attributes: [.foregroundColor: NSColor.white.withAlphaComponent(0.85), .font: NSFont.systemFont(ofSize: 14)])
+        let newGame = NSButton(title: "New game…", target: self, action: #selector(menuNewGame))
+        newGame.frame = NSRect(x: c.minX + 36, y: c.maxY - 62, width: 150, height: 32); newGame.bezelStyle = .rounded; newGame.identifier = NSUserInterfaceItemIdentifier("newgame")
+        let quit = NSButton(title: "Quit", target: self, action: #selector(menuQuit))
+        quit.frame = NSRect(x: c.maxX - 36 - 110, y: c.maxY - 62, width: 110, height: 32); quit.bezelStyle = .rounded
+        menuViews = [resume, label("Mouse sensitivity", y: c.minY + 152), sens, label("Volume", y: c.minY + 192), vol,
+                     label("Render resolution", y: c.minY + 232), scale, invert, newGame, quit]
+        for v in menuViews { v.appearance = NSAppearance(named: .darkAqua); addSubview(v) }
+    }
+
+    @objc private func menuResume() { onResume?() }
+    @objc private func menuQuit() { onQuit?() }
+    @objc private func menuSensitivity(_ s: NSSlider) { settings.sensitivity = Float(s.doubleValue); onSettingsChanged?(settings) }
+    @objc private func menuVolume(_ s: NSSlider) { settings.volume = Float(s.doubleValue); onSettingsChanged?(settings) }
+    @objc private func menuScale(_ s: NSSlider) { settings.renderScale = Float(s.doubleValue); onSettingsChanged?(settings) }
+    @objc private func menuInvert(_ b: NSButton) { settings.invertY = b.state == .on; onSettingsChanged?(settings) }
+    @objc private func menuNewGame(_ b: NSButton) {
+        if newGameArmed { onNewGame?() } else { newGameArmed = true; b.title = "Erase save and restart?"; b.frame.size.width = 210 }
+    }
+
+    private func drawMenuCard() {
+        NSColor.black.withAlphaComponent(0.5).setFill(); bounds.fill()
+        let c = menuCard
+        NSGraphicsContext.saveGraphicsState()
+        let shadow = NSShadow(); shadow.shadowColor = NSColor.black.withAlphaComponent(0.6); shadow.shadowBlurRadius = 30; shadow.shadowOffset = NSSize(width: 0, height: -8)
+        shadow.set()
+        NSColor(calibratedRed: 0.13, green: 0.17, blue: 0.22, alpha: 1).setFill()
+        NSBezierPath(roundedRect: c, xRadius: 14, yRadius: 14).fill()
+        NSGraphicsContext.restoreGraphicsState()
+        let title: [NSAttributedString.Key: Any] = [.font: serif(30), .foregroundColor: NSColor.white]
+        let hint: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 12), .foregroundColor: NSColor.white.withAlphaComponent(0.55)]
+        ("Paused" as NSString).draw(at: NSPoint(x: c.minX + 36, y: c.minY + 28), withAttributes: title)
+        ("Esc resumes.  F sends feedback.  J opens the journal." as NSString).draw(at: NSPoint(x: c.minX + 36, y: c.minY + 62), withAttributes: hint)
+    }
+
+    // MARK: Feedback panel
+
+    private var feedbackCard: NSRect {
+        let w = min(660, bounds.width * 0.88), h: CGFloat = 330
+        return NSRect(x: bounds.midX - w / 2, y: bounds.midY - h / 2, width: w, height: h)
+    }
+
+    func showFeedback() {
+        guard !feedbackOpen else { return }
+        feedbackOpen = true
+        let c = feedbackCard
+        let scroll = NSScrollView(frame: NSRect(x: c.minX + 28, y: c.minY + 92, width: c.width - 56, height: 150))
+        scroll.hasVerticalScroller = true; scroll.borderType = .noBorder; scroll.drawsBackground = true
+        scroll.backgroundColor = NSColor(calibratedWhite: 0.97, alpha: 1)
+        scroll.appearance = NSAppearance(named: .aqua)      // light field regardless of the system theme
+        let tv = NSTextView(frame: NSRect(x: 0, y: 0, width: scroll.contentSize.width, height: scroll.contentSize.height))
+        tv.isRichText = false; tv.font = .systemFont(ofSize: 16); tv.textContainerInset = NSSize(width: 8, height: 8)
+        tv.isVerticallyResizable = true; tv.autoresizingMask = [.width]
+        tv.drawsBackground = true; tv.backgroundColor = NSColor(calibratedWhite: 0.97, alpha: 1)
+        tv.textColor = NSColor(calibratedWhite: 0.1, alpha: 1); tv.insertionPointColor = .black
+        tv.appearance = NSAppearance(named: .aqua)
+        tv.textContainer?.widthTracksTextView = true
+        scroll.documentView = tv
+        feedbackText = tv
+        let send = NSButton(title: "Send", target: self, action: #selector(sendFeedback))
+        send.frame = NSRect(x: c.maxX - 28 - 90, y: c.minY + 262, width: 90, height: 32)
+        send.bezelStyle = .rounded; send.keyEquivalent = "\r"; send.keyEquivalentModifierMask = .command
+        let cancel = NSButton(title: "Cancel", target: self, action: #selector(cancelFeedback))
+        cancel.frame = NSRect(x: c.maxX - 28 - 90 - 100, y: c.minY + 262, width: 90, height: 32)
+        cancel.bezelStyle = .rounded; cancel.keyEquivalent = "\u{1b}"
+        feedbackViews = [scroll, send, cancel]
+        feedbackViews.forEach(addSubview)
+        window?.makeFirstResponder(tv)
+        needsDisplay = true
+    }
+
+    func hideFeedback() {
+        guard feedbackOpen else { return }
+        feedbackOpen = false
+        feedbackViews.forEach { $0.removeFromSuperview() }
+        feedbackViews = []; feedbackText = nil
+        needsDisplay = true
+    }
+
+    /// Text typed so far (used by tests and by Send).
+    var feedbackString: String { feedbackText?.string ?? "" }
+    func setFeedbackString(_ s: String) { feedbackText?.string = s }
+
+    @objc private func sendFeedback() {
+        let t = feedbackString.trimmingCharacters(in: .whitespacesAndNewlines)
+        if t.isEmpty { onFeedbackCancel?() } else { onFeedbackSubmit?(t) }
+    }
+    @objc private func cancelFeedback() { onFeedbackCancel?() }
+
+    private func drawFeedbackCard() {
+        NSColor.black.withAlphaComponent(0.55).setFill(); bounds.fill()
+        let c = feedbackCard
+        NSGraphicsContext.saveGraphicsState()
+        let shadow = NSShadow(); shadow.shadowColor = NSColor.black.withAlphaComponent(0.6); shadow.shadowBlurRadius = 30; shadow.shadowOffset = NSSize(width: 0, height: -8)
+        shadow.set()
+        NSColor(calibratedRed: 0.13, green: 0.17, blue: 0.22, alpha: 1).setFill()
+        NSBezierPath(roundedRect: c, xRadius: 14, yRadius: 14).fill()
+        NSGraphicsContext.restoreGraphicsState()
+        let title: [NSAttributedString.Key: Any] = [.font: serif(24), .foregroundColor: NSColor.white]
+        let hint: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 13), .foregroundColor: NSColor.white.withAlphaComponent(0.65)]
+        ("Tell me how it feels" as NSString).draw(at: NSPoint(x: c.minX + 28, y: c.minY + 24), withAttributes: title)
+        ("What felt wrong, or right? A screenshot of this moment is saved with it." as NSString).draw(at: NSPoint(x: c.minX + 28, y: c.minY + 58), withAttributes: hint)
+        ("⌘↩ send     Esc cancel" as NSString).draw(at: NSPoint(x: c.minX + 28, y: c.maxY - 34), withAttributes: hint)
+    }
+
+    private func drawToast(_ text: String) {
+        let attrs: [NSAttributedString.Key: Any] = [.font: serif(17), .foregroundColor: NSColor.white]
+        let size = (text as NSString).size(withAttributes: attrs)
+        let r = NSRect(x: bounds.midX - size.width / 2 - 18, y: bounds.maxY - 90, width: size.width + 36, height: size.height + 18)
+        NSColor.black.withAlphaComponent(0.6).setFill()
+        NSBezierPath(roundedRect: r, xRadius: 10, yRadius: 10).fill()
+        (text as NSString).draw(at: NSPoint(x: r.minX + 18, y: r.minY + 9), withAttributes: attrs)
+    }
+
     private func drawWhiteout() {
         NSColor.white.withAlphaComponent(min(1, whiteout)).setFill(); bounds.fill()
         if whiteout > 0.97 {
@@ -157,7 +366,7 @@ final class OverlayView: NSView {
     }
 }
 
-/// `--dump-overlay base`: writes base-crosshair.png, base-journal.png, base-journal-empty.png and base-end.png.
+/// `--dump-overlay base`: writes base-crosshair.png, -journal.png, -journal-empty.png, -end.png and -feedback.png.
 @MainActor
 enum OverlayDump {
     static func write(base: String) throws {
@@ -176,5 +385,11 @@ enum OverlayDump {
         try v.snapshot(to: base + "-journal-empty.png")
         v = make(); v.whiteout = 1
         try v.snapshot(to: base + "-end.png")
+        v = make(); v.titleOpen = true; v.titleHasSave = true
+        try v.snapshot(to: base + "-title.png")
+        v = make(); v.showMenu()
+        try v.snapshot(to: base + "-menu.png")
+        v = make(); v.showFeedback(); v.setFeedbackString("The surf sounds much better, but the dock feels a bit narrow.")
+        try v.snapshot(to: base + "-feedback.png")
     }
 }

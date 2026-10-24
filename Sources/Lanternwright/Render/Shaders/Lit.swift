@@ -23,7 +23,13 @@ vertex LitOut lit_vertex(uint vid [[vertex_id]],
                          constant FrameUniforms& frame [[buffer(1)]],
                          constant ObjectUniforms& obj [[buffer(2)]]) {
     Vertex v = verts[vid];
-    float4 wp = obj.model * float4(v.position.xyz, 1.0);
+    float3 localPos = v.position.xyz;
+    if (v.normal.w > 3.5 && v.normal.w < 4.5) {
+        // Birds: flap the wings. Vertices farther from the body (|x|) move more; obj.tint.w is the bird's own phase.
+        float wing = abs(localPos.x);
+        localPos.y += sin(frame.cameraPos.w * 9.0 + obj.tint.w) * wing * 0.32;
+    }
+    float4 wp = obj.model * float4(localPos, 1.0);
     LitOut o;
     o.position = frame.viewProj * wp;
     o.worldPos = wp.xyz;
@@ -93,24 +99,17 @@ constant float2 POISSON16[16] = {
 
 // Percentage-closer filtering: compare against the shadow map at 16 jittered taps and average the
 // yes/no answers, which turns a hard aliased edge into a soft one. The taps are rotated per pixel so the
-// leftover banding becomes fine noise. Normal-offset bias pushes the lookup off the surface in proportion
-// to how grazing the light is (the main cause of "shadow acne" at a low sun).
-float sun_shadow(float3 P, float3 N, float NoL, float2 pixel,
-                 constant FrameUniforms& frame, depth2d<float> tex) {
-    float texelWorld = frame.misc.w;
+// leftover banding becomes fine noise. Bias: normal offset (pushes the lookup off the surface) plus a
+// slope-scaled depth bias covering the whole PCF kernel (~2.5 texels of slope at a grazing sun).
+float shadow_lookup(depth2d<float> tex, float4x4 vp, float texelWorld, float range,
+                    float3 P, float3 N, float NoL, float2 pixel) {
     float3 Po = P + N * (texelWorld * (0.5 + 1.0 * (1.0 - NoL)));
-    float4 sp = frame.sunViewProj * float4(Po, 1.0);
+    float4 sp = vp * float4(Po, 1.0);
     float2 uv = float2(sp.x * 0.5 + 0.5, 0.5 - sp.y * 0.5);
     if (any(uv < 0.0) || any(uv > 1.0) || sp.z > 1.0) return 1.0;
-    // Slope-scaled depth bias. On a receiver tilted tan(theta) from the light's view, one shadow texel spans
-    // texelWorld * tan(theta) of depth, so that is how much "wrongness" the depth test must forgive. Moving the
-    // lookup along the normal cannot do this at a grazing sun (it barely changes depth along the light ray).
-    // Depth is normalised over the box depth (2R = texelWorld * width), hence the division by the map width.
     float cosT = max(NoL, 0.05);
     float tanT = min(sqrt(1.0 - cosT * cosT) / cosT, 12.0);
-    // The PCF kernel reaches about 1.6 texels from the centre (+0.5 for the bilinear compare), so the bias must
-    // cover ~2.5 texels of slope, not one.
-    float z = sp.z - (0.0002 + 2.5 * tanT / float(tex.get_width()));
+    float z = sp.z - (0.0002 + 2.5 * tanT * texelWorld / range);       // world-space bias -> depth units
     float ang = 6.2831853 * fract(sin(dot(pixel, float2(12.9898, 78.233))) * 43758.5453);
     float2x2 rot = float2x2(float2(cos(ang), sin(ang)), float2(-sin(ang), cos(ang)));
     float texel = 1.0 / float(tex.get_width());
@@ -119,6 +118,27 @@ float sun_shadow(float3 P, float3 N, float NoL, float2 pixel,
         sum += tex.sample_compare(shadowSampler, uv + (rot * POISSON16[i]) * texel * 1.6, z);
     }
     return sum / 16.0;
+}
+
+// Cascaded shadow maps. Resolution is spent where the eye is: cascade 0 (a few metres around you) is razor sharp,
+// cascade 1 covers the neighbourhood, cascade 2 the whole island. The cascade is picked by distance from the
+// camera, with a short cross-fade so the seams don't show. `cascade` reports which one was used (debug view).
+float sun_shadow(float3 P, float3 N, float NoL, float2 pixel, constant FrameUniforms& frame,
+                 depth2d<float> far2, depth2d<float> near0, depth2d<float> mid1, thread int& cascade) {
+    float d = length(P - frame.cameraPos.xyz);
+    float r0 = frame.casRadius.x * 0.9, r1 = frame.casRadius.y * 0.9;
+    float sFar = 1.0;
+    if (d >= r1 * 0.85)
+        sFar = shadow_lookup(far2, frame.sunViewProj, frame.casTexel.z, frame.casRange.z, P, N, NoL, pixel);
+    if (d >= r1) { cascade = 2; return sFar; }
+    float sMid = shadow_lookup(mid1, frame.sunViewProj1, frame.casTexel.y, frame.casRange.y, P, N, NoL, pixel);
+    if (d >= r0) {
+        cascade = 1;
+        return mix(sMid, sFar, smoothstep(r1 * 0.85, r1, d));
+    }
+    float sNear = shadow_lookup(near0, frame.sunViewProj0, frame.casTexel.x, frame.casRange.x, P, N, NoL, pixel);
+    cascade = 0;
+    return mix(sNear, sMid, smoothstep(r0 * 0.85, r0, d));
 }
 
 // Two outputs: HDR colour, and the straight-line distance from the camera (consumed by the water pass).
@@ -132,7 +152,9 @@ fragment LitFragOut lit_fragment(LitOut in [[stage_in]],
                              constant ObjectUniforms& obj [[buffer(2)]],
                              depth2d<float> shadowMap [[texture(0)]],
                              texture2d<float> skyLUT [[texture(1)]],
-                             texture2d<float> irradianceMap [[texture(4)]]) {
+                             texture2d<float> irradianceMap [[texture(4)]],
+                             depth2d<float> shadowNear [[texture(6)]],
+                             depth2d<float> shadowMid [[texture(7)]]) {
     float3 n = normalize(in.normal);
     float3 albedo = in.color.rgb;
     float rough = in.color.a;
@@ -148,7 +170,8 @@ fragment LitFragOut lit_fragment(LitOut in [[stage_in]],
     const float F0 = 0.04;                                       // dielectrics
 
     // Sun: E is irradiance (the sun's colour after the atmosphere took its share).
-    float shadow = sun_shadow(in.worldPos, normalize(in.normal), NoL, in.position.xy, frame, shadowMap);
+    int cascade = 2;
+    float shadow = sun_shadow(in.worldPos, normalize(in.normal), NoL, in.position.xy, frame, shadowMap, shadowNear, shadowMid, cascade);
     float3 E = frame.sunColor.rgb * frame.sunColor.w * shadow;
     float3 diffuse = albedo / M_PI_F * E * NoL;
 
@@ -187,7 +210,8 @@ fragment LitFragOut lit_fragment(LitOut in [[stage_in]],
     // Debug views (--debug shadow|albedo|ambient).
     if (frame.misc.z > 0.5 && frame.misc.z < 1.5) col = float3(shadow, NoL * 4.0, 0.0);   // r = shadow factor, g = 4 x N.L
     if (frame.misc.z > 1.5 && frame.misc.z < 2.5) col = albedo;
-    if (frame.misc.z > 2.5) col = ambient;
+    if (frame.misc.z > 2.5 && frame.misc.z < 3.5) col = ambient;
+    if (frame.misc.z > 3.5) col = (cascade == 0 ? float3(1, 0.2, 0.2) : (cascade == 1 ? float3(0.2, 1, 0.2) : float3(0.2, 0.3, 1))) * (0.25 + 0.75 * shadow);   // cascade tint
     LitFragOut o;
     o.color = float4(col, 1.0);
     o.dist = length(in.worldPos - frame.cameraPos.xyz);
