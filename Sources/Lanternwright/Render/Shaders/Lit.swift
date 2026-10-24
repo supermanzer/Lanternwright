@@ -265,6 +265,13 @@ fragment LitFragOut lit_fragment(LitOut in [[stage_in]],
     float3 envSpec = skyLUT.sample(skySampler, lut_uv(R), level(rough * 6.0)).rgb;
     float3 fEnv = F0 + (max(float3(1.0 - rough), F0) - F0) * pow(1.0 - NoV, 5.0);
     float3 ambient = (albedo * irradiance * (1.0 - metal) * (1.0 - dot(fEnv, float3(0.333))) + envSpec * fEnv) * matAO;
+    // Warm ground bounce: the sun-lit ground re-radiates into everything that faces down or sideways, so shade is warmer and
+    // lighter near the ground instead of lit only by cool sky. Irradiance of the sun on the ground (E cos(elevation)) times a ground
+    // albedo, spread over the lower hemisphere: full for surfaces facing down, half for walls, none for tops.
+    bool glassWorld = frame.worldB.x > 0.5;
+    float3 groundAlb = glassWorld ? float3(0.22, 0.24, 0.34) : float3(0.36, 0.28, 0.18);
+    float3 bounce = groundAlb * frame.sunColor.rgb * frame.sunColor.w * max(L.y, 0.10) / M_PI_F * 1.6;
+    ambient += albedo * (1.0 - metal) * bounce * saturate(0.5 - 0.5 * n.y) * matAO;
 
     float3 emissive = obj.emissive.rgb * obj.emissive.w;
     float3 col = diffuse + specular + ambient + emissive;
