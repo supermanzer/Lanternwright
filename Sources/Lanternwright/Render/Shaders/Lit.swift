@@ -57,7 +57,12 @@ float3 terrain_surface(float3 P, float3 Ng, float pathW, float wet, float palett
     float3 parched = glass ? float3(0.16, 0.10, 0.26) : float3(0.27, 0.205, 0.070);
     float3 grass = mix(lush, parched, dry) * (0.65 + 0.7 * meso) * (0.9 + 0.2 * micro);
 
-    float strata = fbm3(P * float3(0.12, 0.9, 0.12));      // squashed along Y: horizontal bands
+    // Strata are horizontal bands (noise squashed along Y). They only read as rock layers on steep faces: on flat or gently
+    // rolling ground the same bands trace elevation contours (concentric rings), so there the rock is isotropic, and the bands
+    // are warped by a slow horizontal noise so they never follow a height contour exactly.
+    float stratWarp = (vnoise3(P * 0.045) - 0.5) * 5.0;
+    float stratBands = fbm3(float3(P.x * 0.12, (P.y + stratWarp) * 0.55, P.z * 0.12));
+    float strata = mix(fbm3(P * 0.16), stratBands, smoothstep(0.93, 0.72, slope));
     float3 rock = mix(glass ? float3(0.10, 0.09, 0.18) : float3(0.20, 0.185, 0.165), glass ? float3(0.30, 0.26, 0.42) : float3(0.40, 0.355, 0.30), strata) * (0.85 + 0.3 * micro);
 
     float rockMask = 1.0 - smoothstep(0.72, 0.90, slope);
@@ -68,7 +73,7 @@ float3 terrain_surface(float3 P, float3 Ng, float pathW, float wet, float palett
     float3 albedo = mix(grass, rock, rockMask);
 
     float wetSand = 1.0 - smoothstep(-0.1, 0.5, P.y);
-    float3 sand = mix(glass ? float3(0.46, 0.48, 0.62) : float3(0.56, 0.47, 0.31), glass ? float3(0.20, 0.21, 0.32) : float3(0.30, 0.235, 0.15), wetSand) * (0.94 + 0.12 * micro);
+    float3 sand = mix(glass ? float3(0.46, 0.48, 0.62) : float3(0.56, 0.47, 0.31), glass ? float3(0.20, 0.21, 0.32) : float3(0.30, 0.235, 0.15), wetSand) * (0.94 + 0.12 * micro) * (0.86 + 0.28 * meso) * (0.92 + 0.16 * macro);
     float sandMask = smoothstep(0.30, 0.70, wet * (1.0 - 0.7 * rockMask) + (micro - 0.5) * 0.30);
     albedo = mix(albedo, sand, sandMask);
 
@@ -85,7 +90,9 @@ float3 terrain_surface(float3 P, float3 Ng, float pathW, float wet, float palett
 
     // Normal perturbation: gradient of a small bump field, projected onto the surface plane.
     float rockiness = max(rockMask, pm * 0.5);
-    float scale = mix(3.0, 1.5, rockMask);                 // finer grain on soil/sand, coarser on rock
+    // One fixed scale: varying it with the rock mask made the noise coordinate (P x scale, hundreds of cells away from the origin)
+    // sweep through many lattice cells inside a mask transition, which drew concentric contour rings.
+    const float scale = 2.2;
     float e = 0.12;
     float3 q = P * scale;
     float b0 = vnoise3(q) * 0.6 + vnoise3(q * 3.1) * 0.4;
@@ -93,8 +100,17 @@ float3 terrain_surface(float3 P, float3 Ng, float pathW, float wet, float palett
                       vnoise3(q + float3(0, e, 0)) * 0.6 + vnoise3((q + float3(0, e, 0)) * 3.1) * 0.4 - b0,
                       vnoise3(q + float3(0, 0, e)) * 0.6 + vnoise3((q + float3(0, 0, e)) * 3.1) * 0.4 - b0) / e;
     g -= dot(g, Ng) * Ng;
-    float bumpStrength = mix(0.006, 0.15, rockiness) * (1.0 - 0.5 * sandMask) * (1.0 - smoothstep(0.04, 0.25, fpix));   // sand stays smooth: pits read as noise at a grazing sun
+    float bumpStrength = mix(0.006, 0.09, rockiness) * (1.0 - 0.5 * sandMask) * (1.0 - smoothstep(0.04, 0.25, fpix));   // sand stays smooth: pits read as noise at a grazing sun
     N = normalize(Ng - g * bumpStrength);
+    // Sand and flat pale ground carry faint wind ripples (crests across the wind, bent by a slow noise) so open flats are not a
+    // smooth dome. They fade with the pixel footprint so distant sand does not shimmer.
+    float rippleFade = (1.0 - smoothstep(0.06, 0.4, fpix)) * max(sandMask, 0.0) * smoothstep(0.6, 0.95, Ng.y);
+    if (rippleFade > 0.001) {
+        float ph = dot(P.xz, float2(0.86, 0.5)) * 6.0 + (macro - 0.5) * 26.0 + (meso - 0.5) * 7.0;
+        float crest = cos(ph);
+        N = normalize(N + float3(0.86, 0.0, 0.5) * crest * 0.065 * rippleFade);
+        albedo *= 1.0 + 0.035 * crest * rippleFade;
+    }
 
     rough = mix(mix(0.92, 0.85, rockMask), mix(0.95, 0.45, wetSand), sandMask);
     // Gloss varies at three scales (patches, clumps, grain) so no surface has one uniform sheen; damp ground is glossier.

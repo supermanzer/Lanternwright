@@ -77,6 +77,24 @@ enum GlassWood {
         var plate = MeshBuilder()
         plate.cylinder(radiusTop: 3.6, radiusBottom: 3.9, height: 0.25, segments: 20, smooth: false,
                        surface: Surface(color: SIMD3(0.16, 0.17, 0.24), roughness: 0.4), transform: translation(SIMD3(0, -0.05, 0)))
+        // Inlay: concentric rings, radial tile seams and a roundel, so the plate you stand on reads as laid stone, not one smooth dome.
+        let pale = Surface(color: SIMD3(0.34, 0.36, 0.50), roughness: 0.35)
+        let seam = Surface(color: SIMD3(0.07, 0.07, 0.12), roughness: 0.6)
+        let top: Float = 0.205                  // the plate's top face: the cylinder is lifted -0.05 and 0.25 tall
+        for r: Float in [1.15, 2.2, 3.15] {
+            plate.torus(major: r, minor: 0.035, segments: 40, sides: 5, surface: pale, transform: translation(SIMD3(0, top, 0)))
+        }
+        for i in 0..<12 {
+            let ang = Float(i) / 12 * 2 * .pi + 0.13
+            // a groove from the inner ring to the rim at (sin, cos): boxes are centred, so offset by half the length
+            plate.box(size: SIMD3(0.04, 0.012, 2.3), surface: seam,
+                      transform: rotationY(ang) * translation(SIMD3(0, top, 2.3)))
+        }
+        for i in 0..<6 {                       // a six-petalled roundel in the middle
+            let ang = Float(i) / 6 * 2 * .pi
+            plate.cylinder(radiusTop: 0.22, radiusBottom: 0.24, height: 0.02, segments: 10, smooth: false, surface: pale,
+                           transform: rotationY(ang) * translation(SIMD3(0, top - 0.01, 0.55)))
+        }
         scene.add("gw_arrival_plate", mesh: plate.build(device: device, label: "arrival plate"), uniforms: ObjectUniforms(model: translation(a)))
 
         var ring = MeshBuilder()
