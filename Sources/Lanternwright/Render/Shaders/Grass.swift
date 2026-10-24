@@ -58,10 +58,10 @@ vertex LitOut grass_vertex(uint vid [[vertex_id]], uint iid [[instance_id]],
     float density = smoothstep(2.2, 4.0, y) * (1.0 - smoothstep(0.35, 0.9, ts.y)) * (1.0 - ts.z) * smoothstep(0.80, 0.90, ny) * (1.0 - smoothstep(52.0, 64.0, y));
     // Meadow structure at three scales: ~11 m clumps (with bare patches between them), ~2 m tufts, and per-blade variance.
     float3 cp = float3(xz.x, 3.0, xz.y) * 0.09;
-    float clump = 0.55 * vnoise3(cp) + 0.30 * vnoise3(cp * 2.1 + 5.0) + 0.12 * vnoise3(cp * 4.3 + 9.0);   // 3 octaves, mean ~0.47
-    float tuft = vnoise3(float3(xz.x, 9.0, xz.y) * 0.55);
+    float clump = 0.55 * vnoiseV(cp) + 0.30 * vnoiseV(cp * 2.1 + 5.0) + 0.12 * vnoiseV(cp * 4.3 + 9.0);   // 3 octaves, mean ~0.47
+    float tuft = vnoiseV(float3(xz.x, 9.0, xz.y) * 0.55);
     bool glassW = frame.worldB.x > 0.5;
-    float tall = glassW ? smoothstep(0.70, 0.88, vnoise3(float3(xz.x, 5.0, xz.y) * 0.42)) : 0.0;     // ~2.5 m tufts of tall blades
+    float tall = glassW ? smoothstep(0.70, 0.88, vnoiseV(float3(xz.x, 5.0, xz.y) * 0.42)) : 0.0;     // ~2.5 m tufts of tall blades
     // The Glass Wood gets deeper clumping: real bare patches between clumps, and (below) taller tufts, so it is not an even carpet.
     density *= mix(glassW ? 0.04 : 0.45, 1.0, glassW ? smoothstep(0.36, 0.56, clump) : smoothstep(0.28, 0.50, clump)) * (0.78 + 0.22 * tuft) * (1.0 - 0.9 * ts.w);     // thinner under conifers (needle litter)
     // Thin the field with distance so far blades (sub-pixel) are not drawn at all.
@@ -96,13 +96,19 @@ vertex LitOut grass_vertex(uint vid [[vertex_id]], uint iid [[instance_id]],
     wp.y += height * t - 0.4 * bend * bend * height * t * t;      // bending shortens the blade slightly
 
     // Colour: the terrain's lush/parched patches (same large-scale noise) with a dark root and a pale tip.
-    float macro = fbm3(float3(xz.x, 0.0, xz.y) * 0.012);
+    float macro = fbmV(float3(xz.x, 0.0, xz.y) * 0.012);
     float dry = 0.7 * smoothstep(0.44, 0.72, macro + (y - 20.0) * 0.004);       // mostly lush, with parched patches
     bool glass = glassW;
     float3 lush = glass ? float3(0.04, 0.17, 0.20) : float3(0.060, 0.165, 0.030);
     float3 parched = glass ? float3(0.15, 0.10, 0.28) : float3(0.27, 0.205, 0.070);
     float hue = clump - 0.47;                                                  // patches lean toward one colour or the other
     float3 col = mix(lush, parched, clamp(dry + hue * 0.9, 0.0, 1.0)) * (0.75 + 0.55 * hr) * (0.55 + 0.75 * t) * (0.85 + 0.3 * tuft);
+    // Each blade is its own plant (F01 W1.3): a darker, more saturated base where it leaves the ground, a per-blade hue shift, and about one in twelve is dead straw.
+    float lum = dot(col, float3(0.3333));
+    col = mix(col, mix(float3(lum), col, 1.6) * 0.6, (1.0 - t) * 0.7);
+    col *= float3(1.0 + 0.10 * (hr - 0.5), 1.0, 1.0 - 0.14 * (hr - 0.5));
+    bool straw = h11(rnd.x * 71.1 + rnd.y * 5.3) > 0.92;
+    if (straw && !seedHead) col = mix(col, glass ? float3(0.38, 0.34, 0.52) : float3(0.45, 0.38, 0.20), 0.85) * (0.8 + 0.4 * t);
     col = mix(col, float3(0.52, 0.46, 0.92), tall * smoothstep(0.35, 1.0, t) * 0.65);          // tall tufts fade to a pale violet tip
     if (seedHead) col = mix(col, glass ? float3(0.55, 0.62, 0.85) : float3(0.62, 0.55, 0.30), smoothstep(0.55, 1.0, t) * 0.8 * (1.0 - smoothstep(0.25 * radius, 0.8 * radius, dist)));     // pale tips fade with distance (they were single bright pixels)
 

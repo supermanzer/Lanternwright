@@ -49,27 +49,28 @@ vertex LitOut lit_vertex(uint vid [[vertex_id]],
 float3 terrain_surface(float3 P, float3 Ng, float pathW, float wet, float duff, float palette, float fpix, thread float3& N, thread float& rough) {
     bool glass = palette > 0.5;                       // the Glass Wood: teal and violet instead of green and gold
     float slope = Ng.y;
-    float macro = fbm3(P * 0.012);                 // large patches
+    float macro = fbmV(P * 0.012);                 // large patches
     // Band-limiting: `fpix` is the world size of one pixel (metres). Noise finer than a pixel aliases into hard blocks, so each
     // octave fades to its mean as its cell size approaches the pixel size, and thresholds widen by the footprint.
     float mesoW = featVis(2.5, fpix);
-    float meso = mix(0.5, fbm3(P * 0.35), mesoW);          // clumps (macro: 2.5 m)
+    float meso = mix(0.5, fbmV(P * 0.35), mesoW);          // clumps (macro: 2.5 m)
     float microW = featVis(0.11, fpix);
-    float micro = mix(0.5, vnoise3(P * 9.0), microW);      // grain (about 11 cm cells)
+    float micro = microW > 0.01 ? mix(0.5, vnoise3(P * 9.0), microW) : 0.5;      // grain (about 11 cm cells)
 
     float dry = smoothstep(0.38, 0.62, macro + (P.y - 20.0) * 0.004);
     float3 lush = glass ? float3(0.045, 0.15, 0.18) : float3(0.060, 0.165, 0.030);
     float3 parched = glass ? float3(0.16, 0.10, 0.26) : float3(0.27, 0.205, 0.070);
     // Blade-scale grain (3 cm) hints at the grass from afar: as the instanced blades thin out with distance, the ground already carries their texture.
-    float bladeGrain = mix(0.5, vnoise3(float3(P.x * 34.0, P.y * 6.0, P.z * 34.0)), featVis(0.03, fpix));
+    float bladeW = featVis(0.03, fpix);
+    float bladeGrain = bladeW > 0.01 ? mix(0.5, vnoise3(float3(P.x * 34.0, P.y * 6.0, P.z * 34.0)), bladeW) : 0.5;
     float3 grass = mix(lush, parched, dry) * (0.65 + 0.7 * meso) * (0.9 + 0.2 * micro) * (0.9 + 0.2 * bladeGrain);
 
     // Strata are horizontal bands (noise squashed along Y). They only read as rock layers on steep faces: on flat or gently
     // rolling ground the same bands trace elevation contours (concentric rings), so there the rock is isotropic, and the bands
     // are warped by a slow horizontal noise so they never follow a height contour exactly.
-    float stratWarp = (vnoise3(P * 0.045) - 0.5) * 5.0;
-    float stratBands = fbm3(float3(P.x * 0.12, (P.y + stratWarp) * 0.55, P.z * 0.12));
-    float strata = mix(fbm3(P * 0.16), stratBands, smoothstep(0.93, 0.72, slope));
+    float stratWarp = (vnoiseV(P * 0.045) - 0.5) * 5.0;
+    float stratBands = fbmV(float3(P.x * 0.12, (P.y + stratWarp) * 0.55, P.z * 0.12));
+    float strata = mix(fbmV(P * 0.16), stratBands, smoothstep(0.93, 0.72, slope));
     float3 rock = mix(glass ? float3(0.10, 0.09, 0.18) : float3(0.20, 0.185, 0.165), glass ? float3(0.30, 0.26, 0.42) : float3(0.40, 0.355, 0.30), strata) * (0.85 + 0.3 * micro);
 
     float rockMask = 1.0 - smoothstep(0.72, 0.90, slope);
@@ -77,12 +78,37 @@ float3 terrain_surface(float3 P, float3 Ng, float pathW, float wet, float duff, 
     // Height blending: let the layers' own grain decide where one gives way to the other, so a boundary is a crisp, ragged
     // edge (rock poking through grass) rather than a soft linear fade.
     rockMask = mix(rockMask, smoothstep(0.30, 0.70, rockMask + ((meso - 0.5) * 0.55 + (micro - 0.5) * 0.25) * min(rockMask * 4.0, 1.0)), 0.5);   // half-sharpened: grain acts only where rock is already likely
-    float3 albedo = mix(grass, rock, rockMask);
-
     float wetSand = 1.0 - smoothstep(-0.1, 0.5, P.y);
     float3 sand = mix(glass ? float3(0.46, 0.48, 0.62) : float3(0.56, 0.47, 0.31), glass ? float3(0.20, 0.21, 0.32) : float3(0.30, 0.235, 0.15), wetSand) * (0.94 + 0.12 * micro) * (0.86 + 0.28 * meso) * (0.92 + 0.16 * macro);
-    float sandMask = smoothstep(0.30, 0.70, wet * (1.0 - 0.7 * rockMask) + (micro - 0.5) * 0.30);
-    albedo = mix(albedo, sand, sandMask);
+    // The grass/sand boundary (F01 W0.2, note #3): a coarse mask from a warped fractal (the old threshold on 11 cm noise is what drew the pixel pattern), and
+    // at close range the boundary is decided by the layers' HEIGHTS, so sand drifts into the grass and grass tufts stand in the sand along irregular lines.
+    float sandCoarse = 0.0;
+    if (wet > 0.05) {                                                        // dry ground (wet = 0) cannot be sand: skip the noise there
+        float3 pwm = warp3(P, 0.45, 0.45);
+        sandCoarse = smoothstep(0.30, 0.70, wet * (1.0 - 0.7 * rockMask) + (rfbm3(pwm * 2.6, 3) - 0.5) * 0.45);
+    }
+    float sandMask = sandCoarse;
+    // Ground detail (Ground.swift): soil, moss, clover and straw under the grass; grains, grit and pebbles in the sand; scree on the slopes. Each layer
+    // fades to its mean colour (`grass`, `sand`, `rock` as computed above) with distance, so distant ground is unchanged.
+    GroundOut gm, gs, gr;
+    gm.albedo = grass; gm.h = 0.0; gm.rough = 0.95; gs.albedo = sand; gs.h = 0.0; gs.rough = 0.8; gr.albedo = rock; gr.h = 0.0; gr.rough = 0.9;
+    bool hasDetail = fpix < 0.10;                                            // the layers' coarsest feature (6 cm moss clumps) is gone by ~8 cm per pixel (80 m)
+    float pathProx = smoothstep(0.02, 0.4, pathW) * (1.0 - smoothstep(0.4, 0.95, pathW));
+    float hDetail = 0.0;
+    if (hasDetail) {
+        float wMeadow = (1.0 - sandCoarse) * (1.0 - rockMask);
+        float moisture = saturate(0.5 * fbmV(P * 0.045 + 3.0) + 0.45 * (1.0 - smoothstep(3.0, 24.0, P.y)) + 0.35 * pathProx - 0.05);
+        if (wMeadow > 0.01) gm = ground_meadow(P, fpix, grass, moisture, glass);
+        if (sandCoarse > 0.01) gs = ground_sand(P, fpix, sand, wetSand);
+        if (rockMask > 0.01) gr = ground_scree(P, Ng, fpix, rock);
+        if (wMeadow > 0.01 && sandCoarse > 0.01) {
+            float hg = saturate(gm.h * 80.0), hsd = saturate(0.35 + gs.h * 60.0);
+            sandMask = mix(sandCoarse, height_blend(hg, hsd, sandCoarse, 0.2), featVis(0.02, fpix));
+        }
+        hDetail = mix(mix(gm.h, gr.h, rockMask), gs.h, sandMask);
+    }
+    float3 albedo = mix(gm.albedo, gr.albedo, rockMask);
+    albedo = mix(albedo, gs.albedo, sandMask);
 
     // Path surface (R06): Worley cobbles, rounded pebbles of varied size with dark soil-and-sand gaps, a few large stones, a tone and
     // roughness per pebble. The dome heights feed the bump normal and darken the gaps (a little occlusion) below.
@@ -118,13 +144,17 @@ float3 terrain_surface(float3 P, float3 Ng, float pathW, float wet, float duff, 
     const float scale = 2.2;
     float e = 0.12;
     float3 q = P * scale;
-    float b0 = vnoise3(q) * 0.6 + vnoise3(q * 3.1) * 0.4;
-    float3 g = float3(vnoise3(q + float3(e, 0, 0)) * 0.6 + vnoise3((q + float3(e, 0, 0)) * 3.1) * 0.4 - b0,
-                      vnoise3(q + float3(0, e, 0)) * 0.6 + vnoise3((q + float3(0, e, 0)) * 3.1) * 0.4 - b0,
-                      vnoise3(q + float3(0, 0, e)) * 0.6 + vnoise3((q + float3(0, 0, e)) * 3.1) * 0.4 - b0) / e;
-    g -= dot(g, Ng) * Ng;
     float bumpStrength = mix(0.006, 0.09, rockiness) * (1.0 - 0.5 * sandMask) * featVis(0.09, fpix);   // sand stays smooth: pits read as noise at a grazing sun
+    float3 g = float3(0.0);
+    if (bumpStrength > 0.0015) {
+        float b0 = vnoiseV(q) * 0.6 + vnoiseV(q * 3.1) * 0.4;
+        g = float3(vnoiseV(q + float3(e, 0, 0)) * 0.6 + vnoiseV((q + float3(e, 0, 0)) * 3.1) * 0.4 - b0,
+                   vnoiseV(q + float3(0, e, 0)) * 0.6 + vnoiseV((q + float3(0, e, 0)) * 3.1) * 0.4 - b0,
+                   vnoiseV(q + float3(0, 0, e)) * 0.6 + vnoiseV((q + float3(0, 0, e)) * 3.1) * 0.4 - b0) / e;
+        g -= dot(g, Ng) * Ng;
+    }
     N = normalize(Ng - g * bumpStrength);
+    if (hasDetail) N = bump_normal(P, N, hDetail * (1.0 - smoothstep(0.25, 0.75, pathW)), 1.0);        // the layers' own relief: grit, moss, stones, grains
     N = normalize(mix(N, bump_normal(P, N, cob.x * (cob.w > 0.5 ? 0.04 : 0.022) * (cob.w > 0.5 ? featVis(0.30, fpix) : featVis(0.10, fpix)), 1.0), pm));
     // Sand and flat pale ground carry faint wind ripples (crests across the wind, bent by a slow noise) so open flats are not a
     // smooth dome. They fade with the pixel footprint so distant sand does not shimmer.
@@ -138,6 +168,7 @@ float3 terrain_surface(float3 P, float3 Ng, float pathW, float wet, float duff, 
 
     rough = mix(mix(0.92, 0.85, rockMask), mix(0.95, 0.45, wetSand), sandMask);
     rough = mix(rough, 1.0, duffW);
+    if (hasDetail) rough = mix(rough, mix(mix(gm.rough, gr.rough, rockMask), gs.rough, sandMask), 0.75 * (1.0 - smoothstep(0.25, 0.75, pathW)));
     rough = mix(rough, glass ? mix(0.5, 0.78, fract(cob.z * 5.1)) : mix(0.72, 0.95, fract(cob.z * 5.1)), pm * cob.y * 0.7);   // pebbles: a faint glassy sheen in the Glass Wood
     // Gloss varies at three scales (patches, clumps, grain) so no surface has one uniform sheen; damp ground is glossier.
     rough += ((macro - 0.5) * 0.16 + (meso - 0.5) * 0.20 + (micro - 0.5) * 0.12) * 0.6;

@@ -65,9 +65,9 @@ inline float ripple_height(float2 p, float t, float2 fade) {
     const float2x2 rot2 = float2x2(float2(0.574, -0.819), float2(0.819, 0.574));
     const float2x2 rot3 = float2x2(float2(0.766, 0.643), float2(-0.643, 0.766));
     float h = 0.0;
-    h += 0.50 * vnoise3(float3(p * 0.9 + float2(t * 0.35, t * 0.12), t * 0.15));
-    h += 0.30 * fade.x * vnoise3(float3((rot2 * p) * 2.3 + float2(-t * 0.22, t * 0.41), t * 0.23));
-    h += 0.20 * fade.y * vnoise3(float3((rot3 * p) * 5.7 + float2(t * 0.30, -t * 0.26), t * 0.37));
+    h += 0.50 * vnoiseV(float3(p * 0.9 + float2(t * 0.35, t * 0.12), t * 0.15));
+    h += 0.30 * fade.x * vnoiseV(float3((rot2 * p) * 2.3 + float2(-t * 0.22, t * 0.41), t * 0.23));
+    h += 0.20 * fade.y * vnoiseV(float3((rot3 * p) * 5.7 + float2(t * 0.30, -t * 0.26), t * 0.37));
     return h;
 }
 
@@ -88,7 +88,7 @@ fragment float4 water_fragment(WaterOut in [[stage_in]],
     float fpw = max(length(dfdx(P.xz)), length(dfdy(P.xz)));                      // metres per pixel on the water
     float2 fade = float2(1.0 - smoothstep(0.25, 0.8, fpw * 2.3), 1.0 - smoothstep(0.25, 0.8, fpw * 5.7));
     // Domain warp (once per pixel): a slow noise bends the whole ripple field so crests curve instead of running straight.
-    float2 warp = (float2(vnoise3(float3(P.xz * 0.23, t * 0.08)), vnoise3(float3(P.xz * 0.23 + 7.7, t * 0.08))) - 0.5) * 2.4;
+    float2 warp = (float2(vnoiseV(float3(P.xz * 0.23, t * 0.08)), vnoiseV(float3(P.xz * 0.23 + 7.7, t * 0.08))) - 0.5) * 2.4;
     float2 pw = P.xz + warp;
     float h0 = ripple_height(pw, t, fade);
     float hx = ripple_height(pw + float2(e, 0.0), t, fade);
@@ -139,8 +139,8 @@ fragment float4 water_fragment(WaterOut in [[stage_in]],
 
     // Shore foam: where the water is shallow (vertical depth = path length x cos of the view angle).
     float vDepth = thick * V.y;
-    float n1 = vnoise3(float3(P.xz * 1.3, t * 0.4));
-    float n2 = vnoise3(float3(P.xz * 4.1, -t * 0.6));
+    float n1 = vnoiseV(float3(P.xz * 1.3, t * 0.4));
+    float n2 = vnoiseV(float3(P.xz * 4.1, -t * 0.6));
     float surge = 0.5 + 0.5 * sin(t * 0.9 + n1 * 6.0);                // foam line advances and retreats
     float foam = smoothstep(0.55 + 0.25 * surge, 0.0, vDepth + (n1 - 0.5) * 0.3) * (0.55 + 0.45 * n2);
     foam *= smoothstep(0.0, 0.08, vDepth);                            // clean edge where water meets land
@@ -148,7 +148,7 @@ fragment float4 water_fragment(WaterOut in [[stage_in]],
     // Whitecaps: foam on crests that are folding (Jacobian below ~0.8). Fine, soft flecks (two noise octaves, wide threshold) in a
     // clearly white foam colour (the shore foam is dull at dusk), so it reads as spray and not as dirt on the water.
     float crest = smoothstep(0.78, 0.50, in.jac) * (1.0 - smoothstep(150.0, 600.0, waterDist));
-    float fleck = 0.5 * n2 + 0.3 * vnoise3(float3(P.xz * 7.0, t * 1.1)) + 0.2 * vnoise3(float3(P.xz * 17.0, -t * 1.3));
+    float fleck = 0.5 * n2 + 0.3 * vnoiseV(float3(P.xz * 7.0, t * 1.1)) + 0.2 * vnoiseV(float3(P.xz * 17.0, -t * 1.3));
     float whiteCap = crest * smoothstep(0.30, 0.80, fleck);
     float3 capColor = float3(0.78, 0.82, 0.84) * (0.35 + 0.65 * saturate(dot(lightUp, float3(0.33)) * 5.0));
     col = mix(col, capColor, whiteCap * 0.8);

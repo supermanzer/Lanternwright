@@ -77,10 +77,39 @@ inline float hash13(float3 p) {
     return fract((p.x + p.y) * p.z);
 }
 
-inline float vnoise3(float3 x) {
+// ---- Noise toolkit (F01 W0.1). The first noise here was value noise, whose axis-aligned lattice shows as blocks wherever it is thresholded (pits, flakes,
+// the path, then the ground). Everything now builds on GRADIENT noise (Perlin, 12 edge gradients, quintic fade) evaluated in a ROTATED frame, and
+// every octave of an fbm is rotated again, so no feature direction ever lines up with the world axes. `vnoise3` keeps its name and its 0..1 look
+// (mean 0.5, similar spread) so existing thresholds still mean what they did, but it is gradient noise now.
+// Perlin's improved gradient selection by bit tricks (16 gradients, 4 of them repeated): no table lookup, a handful of selects.
+inline float gdot3(float3 i, float3 d) {
+    uint h = uint(hash13(i) * 15.999);
+    float a = (h < 8u) ? d.x : d.y;
+    float b = (h < 4u) ? d.y : ((h == 12u || h == 14u) ? d.x : d.z);
+    return (((h & 1u) == 0u) ? a : -a) + (((h & 2u) == 0u) ? b : -b);
+}
+
+// Raw gradient noise, about -1...1. Needs no UVs and no texture, so it cannot stretch on steep slopes.
+inline float gnoise3(float3 x) {
     float3 i = floor(x);
     float3 f = fract(x);
-    f = f * f * f * (f * (f * 6.0 - 15.0) + 10.0);     // quintic fade: C2-continuous, so normals derived from it show no grid creases
+    float3 u = f * f * f * (f * (f * 6.0 - 15.0) + 10.0);        // quintic fade: C2-continuous, so normals derived from it show no creases
+    float a = gdot3(i, f),                          b = gdot3(i + float3(1, 0, 0), f - float3(1, 0, 0));
+    float c = gdot3(i + float3(0, 1, 0), f - float3(0, 1, 0)), d = gdot3(i + float3(1, 1, 0), f - float3(1, 1, 0));
+    float e = gdot3(i + float3(0, 0, 1), f - float3(0, 0, 1)), g = gdot3(i + float3(1, 0, 1), f - float3(1, 0, 1));
+    float h = gdot3(i + float3(0, 1, 1), f - float3(0, 1, 1)), k = gdot3(i + float3(1, 1, 1), f - float3(1, 1, 1));
+    return 0.70 * mix(mix(mix(a, b, u.x), mix(c, d, u.x), u.y), mix(mix(e, g, u.x), mix(h, k, u.x), u.y), u.z);
+}
+
+// A fixed rotation (rows are orthonormal): applied to every query, and again per octave.
+constant float3x3 NZ_ROT = float3x3(float3(0.80, -0.48, 0.36), float3(0.60, 0.64, -0.48), float3(0.00, 0.60, 0.80));
+
+// The cheap original, kept for LOW-FREQUENCY fields whose lattice can never be seen (cloud and water noise, the metre-scale patches of the terrain,
+// per-blade fields): half the cost of gradient noise, and these run on every pixel of the sky, the sea and the ground.
+inline float vnoiseV(float3 x) {
+    float3 i = floor(x);
+    float3 f = fract(x);
+    f = f * f * f * (f * (f * 6.0 - 15.0) + 10.0);
     float n000 = hash13(i);
     float n100 = hash13(i + float3(1, 0, 0));
     float n010 = hash13(i + float3(0, 1, 0));
@@ -92,15 +121,71 @@ inline float vnoise3(float3 x) {
     return mix(mix(mix(n000, n100, f.x), mix(n010, n110, f.x), f.y),
                mix(mix(n001, n101, f.x), mix(n011, n111, f.x), f.y), f.z);
 }
-
-inline float fbm3(float3 p) {            // 4 octaves, range about 0..0.94
+inline float fbmV(float3 p) {            // 4 octaves of value noise, range about 0..0.94
     float s = 0.0, a = 0.5;
     for (int i = 0; i < 4; i++) {
-        s += a * vnoise3(p);
+        s += a * vnoiseV(p);
         p = p * 2.03 + float3(11.7, 3.1, 7.3);
         a *= 0.5;
     }
     return s;
+}
+
+inline float vnoise3(float3 x) {
+    return clamp(0.5 + 0.72 * gnoise3(NZ_ROT * x + float3(17.3, 5.1, 9.7)), 0.0, 1.0);
+}
+
+inline float fbm3(float3 p) {            // 4 octaves, each rotated, range about 0.05..0.95
+    float s = 0.0, a = 0.5;
+    for (int i = 0; i < 4; i++) {
+        s += a * vnoise3(p);
+        p = NZ_ROT * p * 2.03 + float3(11.7, 3.1, 7.3);
+        a *= 0.5;
+    }
+    return s * 1.06;
+}
+// Fractal noise with a chosen octave count (rotated octaves), 0..1.
+inline float rfbm3(float3 p, int octaves) {
+    float s = 0.0, a = 0.5, norm = 0.0;
+    for (int i = 0; i < octaves; i++) {
+        s += a * vnoise3(p); norm += a;
+        p = NZ_ROT * p * 2.03 + float3(11.7, 3.1, 7.3);
+        a *= 0.5;
+    }
+    return s / norm;
+}
+// Domain warp: bends the coordinate by a slow noise so that shapes built on it curve instead of following a lattice.
+inline float3 warp3(float3 p, float amp, float freq) {
+    float3 q = p * freq;
+    return p + amp * (float3(vnoise3(q), vnoise3(q + 7.7), vnoise3(q + 13.1)) - 0.5);
+}
+// Ridged (sharp crests: cracks, strata, bark) and billow (rounded lumps: clumps, mounds) variants, 0..1.
+inline float ridged3(float3 p, int octaves) {
+    float s = 0.0, a = 0.5, norm = 0.0;
+    for (int i = 0; i < octaves; i++) {
+        float r = 1.0 - abs(2.0 * vnoise3(p) - 1.0);
+        s += a * r * r; norm += a;
+        p = NZ_ROT * p * 2.07 + float3(3.3, 8.1, 1.9);
+        a *= 0.5;
+    }
+    return s / norm;
+}
+inline float billow3(float3 p, int octaves) {
+    float s = 0.0, a = 0.5, norm = 0.0;
+    for (int i = 0; i < octaves; i++) {
+        s += a * abs(2.0 * vnoise3(p) - 1.0); norm += a;
+        p = NZ_ROT * p * 2.07 + float3(5.9, 2.3, 6.1);
+        a *= 0.5;
+    }
+    return s / norm;
+}
+// Height blend (F01 W0.2): choose between two layers by their HEIGHTS plus a mask, so the boundary follows the surface's own relief (moss creeping over
+// stones, sand drifting into grass) and is never a clean smoothstep of one noise. Returns the weight of layer B, 0..1; `c` is the contrast of the edge.
+inline float height_blend(float hA, float hB, float maskB, float c) {
+    float a = hA + (1.0 - maskB), b = hB + maskB;
+    float m = max(a, b) - c;
+    float wa = max(a - m, 0.0), wb = max(b - m, 0.0);
+    return wb / max(wa + wb, 1e-5);
 }
 """#
 }

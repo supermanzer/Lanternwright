@@ -222,6 +222,7 @@ final class Scene {
         let dock = Layout.dockStrip()
         scene.walkables.append(Walkable(a: dock.a, b: dock.b, halfWidth: 1.2, y0: dock.y0, y1: dock.y1))
         Island.populate(scene, device: device)
+        Props.addMaterialSheet(scene, device: device)
         return scene
     }
 }

@@ -53,7 +53,7 @@ fragment float4 crystal_fragment(LitOut in [[stage_in]],
 
     // Veins of light drifting through the crystal (3D noise, so they flow across facets without UV seams).
     float3 vp = P * 1.1 + float3(0.0, t * 0.08, t * 0.05);
-    float vein = 0.65 * vnoise3(vp) + 0.35 * vnoise3(vp * 2.3);        // two octaves are plenty for slow veins, and cheap
+    float vein = 0.65 * vnoiseV(vp) + 0.35 * vnoiseV(vp * 2.3);        // two octaves are plenty for slow veins, and cheap
     vein = smoothstep(0.58, 0.72, vein);
     float pulse = 0.75 + 0.25 * sin(t * 1.3 + P.x * 0.2 + P.z * 0.17);
     float core = step(0.5, in.color.a);                              // vertex alpha > 0.5 marks a self-lit vein (the crystal trees' trunk vein)

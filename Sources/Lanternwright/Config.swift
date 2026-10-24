@@ -181,6 +181,40 @@ enum Viewpoints {
         return Camera(position: SIMD3(cam.x, y, cam.y), yaw: atan2(d.x, -d.z), pitch: asin(d.y / simd_length(d)))
     }
 
+    /// `ground-grass`, `ground-sand`, `ground-edge` (the grass-sand interface), `ground-slope`, `ground-islet`, each optionally followed by `-1m` or `-5m`
+    /// (default: eye 0.3 m above the ground looking down). F01 W0/W1: the user lies close to things, so the ground is judged at 0.3, 1 and 5 m.
+    static func ground(_ name: String, terrain t: Terrain) -> Camera? {
+        guard name.hasPrefix("ground-") else { return nil }
+        var kind = String(name.dropFirst(7)), h: Float = 0.3, pitch: Float = -0.95
+        if kind.hasSuffix("-1m") { kind = String(kind.dropLast(3)); h = 1.0; pitch = -0.62 }
+        else if kind.hasSuffix("-5m") { kind = String(kind.dropLast(3)); h = 5.0; pitch = -0.30 }
+        func find(near: SIMD2<Float>, radius: Float, _ ok: (Float, Float, Float, Float) -> Bool) -> SIMD2<Float> {
+            var best = near, bestD = Float.infinity
+            var x = near.x - radius
+            while x <= near.x + radius {
+                var z = near.y - radius
+                while z <= near.y + radius {
+                    let d = simd_length(SIMD2(x, z) - near)
+                    if d < bestD, ok(x, z, t.sampleHeight(x: x, z: z), t.normal(x: x, z: z).y) { bestD = d; best = SIMD2(x, z) }
+                    z += 2
+                }
+                x += 2
+            }
+            return best
+        }
+        let p: SIMD2<Float>
+        switch kind {
+        case "grass": p = find(near: SIMD2(20, 40), radius: 150) { x, z, y, ny in y > 8 && y < 30 && ny > 0.96 && t.pathDistance(x: x, z: z) > 10 && t.duffAt(x: x, z: z) < 0.01 }
+        case "sand": p = find(near: SIMD2(Layout.dockShore.x - 25, Layout.dockShore.z - 12), radius: 80) { x, z, y, ny in y > 0.5 && y < 1.4 && ny > 0.985 && t.pathDistance(x: x, z: z) > 6 }
+        case "edge": p = find(near: SIMD2(Layout.dockShore.x - 30, Layout.dockShore.z - 25), radius: 90) { x, z, y, ny in y > 2.2 && y < 2.5 && ny > 0.97 && t.pathDistance(x: x, z: z) > 6 }
+        case "slope": p = find(near: SIMD2(-60, -10), radius: 200) { x, z, y, ny in y > 10 && ny > 0.55 && ny < 0.75 && t.pathDistance(x: x, z: z) > 6 }
+        case "islet": p = SIMD2(Layout.isletCenter.x + 6, Layout.isletCenter.z + 4)
+        default: return nil
+        }
+        let y = t.sampleHeight(x: p.x, z: p.y) + h
+        return Camera(position: SIMD3(p.x, y, p.y), yaw: 0.6, pitch: pitch)
+    }
+
     static func named(_ name: String) -> Camera? {
         switch name {
         case "dock":     return Camera(position: SIMD3(175, 2.5, 205), yaw: -0.75, pitch: 0.02)
@@ -193,6 +227,7 @@ enum Viewpoints {
         case "lh-glass": return Camera(position: SIMD3(-24, 95.5, -42), yaw: -0.785, pitch: -0.07)
         // A resonance stone seen from 3 m, at the height of its glyph (R04-7).
         case "stone-close": return Camera(position: Layout.tideStone + SIMD3(1.2, 1.9, 3.2), yaw: -0.3, pitch: -0.12)
+        case "material-sheet": return Camera(position: Props.sheetOrigin + SIMD3(10.5, 0.25, 12.5), yaw: 0, pitch: 0, fovY: 38 * .pi / 180)     // every material, a sphere and a slab (F01 W0)
         case "overview": return Camera(position: SIMD3(330, 150, 330), yaw: -0.76, pitch: -0.19)
         case "summit":   return Camera(position: SIMD3(-30, 70, -32), yaw: .pi, pitch: -0.05)
         case "shore":    return Camera(position: SIMD3(150, 3.2, 172), yaw: -1.95, pitch: 0.03)

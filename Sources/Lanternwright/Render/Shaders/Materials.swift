@@ -59,6 +59,21 @@ inline float worley(float3 x) {
     }
     return sqrt(d);
 }
+// Worley with F1, F2 and the nearest cell's id (3D, rotated lattice): x = F1, y = F2, z = id 0..1. The crevice distance F2 - F1 makes angular plates.
+inline float3 worley3F(float3 x) {
+    const float3x3 R = float3x3(float3(0.62, 0.74, -0.26), float3(-0.55, 0.63, 0.55), float3(0.56, -0.24, 0.79));
+    x = R * x;
+    float3 i = floor(x), f = fract(x);
+    float d1 = 1e9, d2 = 1e9, id = 0.0;
+    for (int k = 0; k < 27; k++) {
+        float3 g = float3(float(k % 3) - 1.0, float((k / 3) % 3) - 1.0, float(k / 9) - 1.0);
+        float3 h = hash33w(i + g);
+        float3 r = g + h - f;
+        float d = dot(r, r);
+        if (d < d1) { d2 = d1; d1 = d; id = h.x; } else if (d < d2) { d2 = d; }
+    }
+    return float3(sqrt(d1), sqrt(d2), id);
+}
 // Cobbles (R06): a 2D cellular pattern of rounded pebbles with dark gaps. Two scales (cells of about 12 cm and 36 cm); a third of the
 // large cells become stones that replace the small pebbles beneath them. x = dome height 0..1 (0 in the gaps), y = body mask
 // (1 on a pebble, 0 in a gap), z = per-pebble hash, w = 1 on a large stone. Band-limited by `fpix` to its mean.

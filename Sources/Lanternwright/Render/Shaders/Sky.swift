@@ -198,7 +198,7 @@ inline float cloud_fbm(float3 p, float lod) {
     for (int i = 0; i < 5; i++) {
         float w = 1.0 - saturate(lod - (4.0 - float(i)));          // the finest octave fades first
         if (w <= 0.0) break;                                          // and a faded octave costs nothing
-        s += a * w * vnoise3(p);
+        s += a * w * vnoiseV(p);
         norm += a * w;
         p = p * 2.07 + float3(5.3, 17.1, 9.7);
         a *= 0.5;
@@ -209,7 +209,7 @@ inline float cloud_fbm(float3 p, float lod) {
 // Returns density 0..1 at ground position `p` (metres, xz) at time t.
 inline float cloud_density(float2 p, float t, float lod) {
     float2 q = p * 0.00022 + float2(t * 0.0035, t * 0.0012);        // wind drift
-    float warp = vnoise3(float3(q * 2.3, 3.0)) - 0.5;                // warp so shapes aren't blobby
+    float warp = vnoiseV(float3(q * 2.3, 3.0)) - 0.5;                // warp so shapes aren't blobby
     float n = cloud_fbm(float3(q + warp * 0.35, t * 0.004), lod);    // z drifts slowly: clouds slowly evolve
     return smoothstep(0.43, 0.66, n);                                // threshold sets coverage
 }
@@ -273,7 +273,7 @@ fragment SkyOut sky_fragment(FullscreenOut in [[stage_in]],
             float3 r0 = normalize(cross(sunDir, float3(0.0, 1.0, 0.0)));
             float3 u0 = cross(r0, sunDir);
             float2 q = float2(dot(dir, r0), dot(dir, u0)) / R;
-            tex = 0.55 + 0.9 * fbm3(float3(q * 1.7, 3.0));
+            tex = 0.55 + 0.9 * fbmV(float3(q * 1.7, 3.0));
             col += sunT * 0.35 * lightScale * exp(-s / (R * 5.0)) * (1.0 - cloudA * 0.7);          // halo
         }
         col += disk * limb * 50.0 * lightScale * tex * sunT * (1.0 - cloudA);

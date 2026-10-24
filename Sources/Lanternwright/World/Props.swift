@@ -1,3 +1,4 @@
+import Metal
 import simd
 
 /// Hand-built props. Every builder returns geometry in local space standing on y = 0 (bases at the origin),
@@ -42,6 +43,29 @@ enum Props {
         core.box(size: SIMD3(0.24, 0.26, 0.24), surface: Surface(color: SIMD3(1.0, 0.78, 0.45), roughness: 0.4),
                  transform: translation(SIMD3(0, 1.42, 0)))
         return (body, core)
+    }
+
+    // MARK: Material sheet
+
+    /// A gallery of every procedural material (F01 W0): a sphere and a slab of each, in two rows, floating over the open sea north of the island, lit by the same
+    /// sun as everything else. `--view material-sheet` looks at it. Costs nothing in play (it is far outside the view frustum of every ordinary view).
+    static let sheetOrigin = SIMD3<Float>(-60, 95, -900)
+    static let sheetMaterials: [(String, MaterialID, SIMD3<Float>)] = [
+        ("masonry", .masonry, SIMD3(0.40, 0.38, 0.35)), ("paint white", .paint, SIMD3(0.82, 0.80, 0.74)), ("paint red", .paint, SIMD3(0.62, 0.22, 0.16)),
+        ("iron", .iron, SIMD3(0.05, 0.055, 0.07)), ("copper", .copper, SIMD3(0.5, 0.4, 0.3)), ("wood", .wood, SIMD3(0.30, 0.20, 0.12)),
+        ("bark", .bark, SIMD3(0.21, 0.145, 0.10)), ("dressed", .dressed, SIMD3(0.47, 0.44, 0.41)), ("deck plank", .plank, SIMD3(0.30, 0.20, 0.115)),
+        ("timber", .timber, SIMD3(0.20, 0.14, 0.09)), ("glyph stone", .glyphStone, SIMD3(0.30, 0.31, 0.34)), ("paper", .paper, SIMD3(0.85, 0.80, 0.66)),
+        ("glass stone", .glassStone, SIMD3(0.26, 0.27, 0.39)), ("mirror", .mirror, SIMD3(0.93, 0.96, 1.0)), ("pale metal", .paleMetal, SIMD3(0.62, 0.65, 0.76)),
+    ]
+    static func addMaterialSheet(_ scene: Scene, device: MTLDevice) {
+        var b = MeshBuilder()
+        for (i, m) in sheetMaterials.enumerated() {
+            let s = Surface(color: m.2, roughness: 0.7, material: m.1)
+            let x = Float(i) * 1.5
+            b.sphere(radius: 0.6, segments: 32, surface: s, transform: translation(SIMD3(x, 1.0, 0)))
+            b.chamferBox(size: SIMD3(1.2, 1.2, 0.3), chamfer: 0.04, surface: s, transform: translation(SIMD3(x, -0.4, 0)))
+        }
+        scene.add("material_sheet", mesh: b.build(device: device, label: "material sheet"), uniforms: ObjectUniforms(model: translation(sheetOrigin)))
     }
 
     // MARK: Trees
