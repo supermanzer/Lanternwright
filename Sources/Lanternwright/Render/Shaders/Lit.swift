@@ -123,6 +123,8 @@ float3 terrain_surface(float3 P, float3 Ng, float pathW, float wet, float palett
 constexpr sampler shadowSampler(coord::normalized, filter::linear, address::clamp_to_border,
                                 border_color::opaque_white, compare_func::less_equal);
 
+constexpr sampler depthPoint(coord::normalized, filter::nearest, address::clamp_to_edge);
+
 constant float2 POISSON16[16] = {
     float2(-0.94201624, -0.39906216), float2(0.94558609, -0.76890725), float2(-0.09418410, -0.92938870),
     float2(0.34495938, 0.29387760),   float2(-0.91588581, 0.45771432), float2(-0.81544232, -0.87912464),
@@ -145,12 +147,26 @@ float shadow_lookup(depth2d<float> tex, float4x4 vp, float texelWorld, float ran
     float cosT = max(NoL, 0.05);
     float tanT = min(sqrt(1.0 - cosT * cosT) / cosT, 12.0);
     float z = sp.z - (0.0002 + 2.5 * tanT * texelWorld / range);       // world-space bias -> depth units
-    float ang = 6.2831853 * fract(sin(dot(pixel, float2(12.9898, 78.233))) * 43758.5453);
+    // Interleaved gradient noise (Jimenez): a per-pixel rotation whose error is spread evenly across neighbouring pixels, so the
+    // leftover banding becomes fine, even noise (the old sin-hash gave clumpy noise and costs a sin per pixel).
+    float ang = 6.2831853 * fract(52.9829189 * fract(dot(pixel, float2(0.06711056, 0.00583715))));
     float2x2 rot = float2x2(float2(cos(ang), sin(ang)), float2(-sin(ang), cos(ang)));
     float texel = 1.0 / float(tex.get_width());
+    // PCSS contact hardening. 1) Blocker search: 8 taps in a small disc; none closer to the light = fully lit, done (also the
+    // cheap path for most of the screen). 2) The sun is a disc of ~0.53 degrees, so a shadow edge widens by ~0.0093 m for every
+    // metre between blocker and receiver: crisp where the shadow touches its caster, soft far from it. 3) PCF at that width.
+    float blockerSum = 0.0; int blockers = 0;
+    for (int i = 0; i < 8; i++) {
+        float d = tex.sample(depthPoint, uv + (rot * POISSON16[i * 2]) * texel * 4.0);
+        if (d < z) { blockerSum += d; blockers++; }
+    }
+    if (blockers == 0) return 1.0;
+    float blockerDepth = blockerSum / float(blockers);
+    float penumbraWorld = (z - blockerDepth) * range * 0.0093;                 // metres
+    float radius = clamp(penumbraWorld / max(texelWorld, 1e-4) * 2.0, 1.2, 5.0);   // PCF radius in texels (1.2 = the old crisp edge)
     float sum = 0.0;
     for (int i = 0; i < 16; i++) {
-        sum += tex.sample_compare(shadowSampler, uv + (rot * POISSON16[i]) * texel * 1.6, z);
+        sum += tex.sample_compare(shadowSampler, uv + (rot * POISSON16[i]) * texel * radius, z);
     }
     return sum / 16.0;
 }
