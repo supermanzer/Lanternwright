@@ -227,7 +227,7 @@ fragment SkyOut sky_fragment(FullscreenOut in [[stage_in]],
     // Clouds. Lit by the transmitted sun with a forward-scattering lobe (the bright "silver lining" when the
     // cloud sits near the sun), thin edges brighter than thick cores, ambient from the zenith sky.
     float cloudA = 0.0;
-    float3 sunT = sun_transmittance(sunDir, LUT_CAM_HEIGHT);
+    float3 sunT = frame.sunColor.rgb;          // atmosphere-filtered sunlight, or a fixed moonlight tint (computed on the CPU)
     if (dir.y > 0.01) {
         float t = (CLOUD_ALT - frame.cameraPos.y) / dir.y;
         float2 p = frame.cameraPos.xz + dir.xz * t;
@@ -244,13 +244,51 @@ fragment SkyOut sky_fragment(FullscreenOut in [[stage_in]],
         col = mix(col, sunlit + ambient * 0.9, cloudA);
     }
 
-    // Sun disk: angular radius 0.00465 rad (0.2665 deg). sin(angle) via |cross| stays precise at tiny angles.
+    // The main light's disc. For the sun: angular radius 0.00465 rad (0.2665 deg), limb darkening. In a night world the same
+    // machinery draws the big moon: a larger disc with a mottled "maria" texture and a soft halo. sin(angle) via |cross|
+    // stays precise at tiny angles.
+    float R = frame.worldA.w;
+    float lightScale = frame.worldA.y;
     if (dot(dir, sunDir) > 0.0) {
-        float ratio = length(cross(dir, sunDir)) / 0.00465;
+        float s = length(cross(dir, sunDir));
+        float ratio = s / R;
         float disk = 1.0 - smoothstep(0.92, 1.0, ratio);
         float mu = sqrt(max(0.0, 1.0 - ratio * ratio));
-        float limb = 0.6 + 0.4 * mu;                                   // limb darkening
-        col += disk * limb * 50.0 * sunT * (1.0 - cloudA);
+        float limb = 0.6 + 0.4 * mu;
+        float tex = 1.0;
+        if (R > 0.01) {
+            float3 r0 = normalize(cross(sunDir, float3(0.0, 1.0, 0.0)));
+            float3 u0 = cross(r0, sunDir);
+            float2 q = float2(dot(dir, r0), dot(dir, u0)) / R;
+            tex = 0.55 + 0.9 * fbm3(float3(q * 1.7, 3.0));
+            col += sunT * 0.35 * lightScale * exp(-s / (R * 5.0)) * (1.0 - cloudA * 0.7);          // halo
+        }
+        col += disk * limb * 50.0 * lightScale * tex * sunT * (1.0 - cloudA);
+    }
+    // A second, smaller moon.
+    if (frame.worldA.z > 0.0) {
+        float3 mb = normalize(frame.moonB.xyz);
+        if (dot(dir, mb) > 0.0) {
+            float rb = frame.worldA.z;
+            float s = length(cross(dir, mb));
+            float disk = 1.0 - smoothstep(0.9, 1.0, s / rb);
+            float3 tintB = float3(0.55, 0.9, 1.0);
+            col += tintB * (disk * 9.0 + 0.5 * exp(-s / (rb * 4.0))) * (1.0 - cloudA);
+        }
+    }
+    // Stars: a hashed grid on the sphere, one possible star per cell, twinkling. Only in worlds with a night sky.
+    if (frame.worldA.x > 0.0 && dir.y > 0.0) {
+        float3 sp = dir * 220.0;
+        float3 cellId = floor(sp);
+        float3 f = fract(sp) - 0.5;
+        float h = hash13(cellId);
+        if (h > 0.9965) {
+            float m = 0.35 + 0.65 * fract(h * 311.0);
+            float star = smoothstep(0.32, 0.0, length(f)) * m * (0.75 + 0.25 * sin(frame.cameraPos.w * 3.0 + h * 400.0));
+            float3 starCol = mix(float3(0.7, 0.85, 1.0), float3(1.0, 0.9, 0.75), fract(h * 53.0));
+            col += starCol * star * 5.0 * frame.worldA.x * (1.0 - cloudA) * smoothstep(0.0, 0.15, dir.y);
+        }
+        col += float3(0.004, 0.008, 0.02) * frame.worldA.x;              // faint airglow so the zenith is never pure black
     }
     SkyOut o;
     o.color = float4(col, 1.0);

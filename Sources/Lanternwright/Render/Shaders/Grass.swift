@@ -85,7 +85,9 @@ vertex LitOut grass_vertex(uint vid [[vertex_id]], uint iid [[instance_id]],
     // Colour: the terrain's lush/parched patches (same large-scale noise) with a dark root and a pale tip.
     float macro = fbm3(float3(xz.x, 0.0, xz.y) * 0.012);
     float dry = 0.7 * smoothstep(0.44, 0.72, macro + (y - 20.0) * 0.004);       // mostly lush, with parched patches
-    float3 lush = float3(0.060, 0.165, 0.030), parched = float3(0.27, 0.205, 0.070);
+    bool glass = frame.worldB.x > 0.5;
+    float3 lush = glass ? float3(0.04, 0.17, 0.20) : float3(0.060, 0.165, 0.030);
+    float3 parched = glass ? float3(0.15, 0.10, 0.28) : float3(0.27, 0.205, 0.070);
     float3 col = mix(lush, parched, dry) * (0.75 + 0.55 * hr) * (0.55 + 0.75 * t);
 
     o.worldPos = wp;

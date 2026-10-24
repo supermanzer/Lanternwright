@@ -41,30 +41,32 @@ vertex LitOut lit_vertex(uint vid [[vertex_id]],
 
 // Terrain material: grass (lush/parched patches), rock (steep or high, with horizontal strata),
 // sand (shore, darker where wet), packed earth on the path. Also perturbs the normal for close-up detail.
-float3 terrain_surface(float3 P, float3 Ng, float pathW, float wet, thread float3& N, thread float& rough) {
+float3 terrain_surface(float3 P, float3 Ng, float pathW, float wet, float palette, thread float3& N, thread float& rough) {
+    bool glass = palette > 0.5;                       // the Glass Wood: teal and violet instead of green and gold
     float slope = Ng.y;
     float macro = fbm3(P * 0.012);                 // large patches
     float meso = fbm3(P * 0.35);                   // clumps
     float micro = vnoise3(P * 9.0);                // grain (about 11 cm cells)
 
     float dry = smoothstep(0.38, 0.62, macro + (P.y - 20.0) * 0.004);
-    float3 lush = float3(0.060, 0.165, 0.030), parched = float3(0.27, 0.205, 0.070);
+    float3 lush = glass ? float3(0.045, 0.15, 0.18) : float3(0.060, 0.165, 0.030);
+    float3 parched = glass ? float3(0.16, 0.10, 0.26) : float3(0.27, 0.205, 0.070);
     float3 grass = mix(lush, parched, dry) * (0.65 + 0.7 * meso) * (0.9 + 0.2 * micro);
 
     float strata = fbm3(P * float3(0.12, 0.9, 0.12));      // squashed along Y: horizontal bands
-    float3 rock = mix(float3(0.20, 0.185, 0.165), float3(0.40, 0.355, 0.30), strata) * (0.85 + 0.3 * micro);
+    float3 rock = mix(glass ? float3(0.10, 0.09, 0.18) : float3(0.20, 0.185, 0.165), glass ? float3(0.30, 0.26, 0.42) : float3(0.40, 0.355, 0.30), strata) * (0.85 + 0.3 * micro);
 
     float rockMask = 1.0 - smoothstep(0.72, 0.90, slope);
     rockMask = max(rockMask, 0.65 * smoothstep(52.0, 66.0, P.y + 12.0 * (macro - 0.5)));
     float3 albedo = mix(grass, rock, rockMask);
 
     float wetSand = 1.0 - smoothstep(-0.1, 0.5, P.y);
-    float3 sand = mix(float3(0.56, 0.47, 0.31), float3(0.30, 0.235, 0.15), wetSand) * (0.94 + 0.12 * micro);
+    float3 sand = mix(glass ? float3(0.46, 0.48, 0.62) : float3(0.56, 0.47, 0.31), glass ? float3(0.20, 0.21, 0.32) : float3(0.30, 0.235, 0.15), wetSand) * (0.94 + 0.12 * micro);
     float sandMask = wet * (1.0 - 0.7 * rockMask);
     albedo = mix(albedo, sand, sandMask);
 
     float pebble = smoothstep(0.72, 0.82, vnoise3(P * 6.0));
-    float3 earth = mix(float3(0.23, 0.165, 0.10), float3(0.38, 0.32, 0.25), pebble) * (0.85 + 0.3 * meso);
+    float3 earth = mix(glass ? float3(0.20, 0.20, 0.30) : float3(0.23, 0.165, 0.10), glass ? float3(0.46, 0.50, 0.62) : float3(0.38, 0.32, 0.25), pebble) * (0.85 + 0.3 * meso);
     float pm = smoothstep(0.25, 0.75, pathW + (meso - 0.5) * 0.5);
     albedo = mix(albedo, earth, pm);
 
@@ -160,7 +162,7 @@ fragment LitFragOut lit_fragment(LitOut in [[stage_in]],
     float rough = in.color.a;
     if (in.material > 0.5 && in.material < 1.5) {
         float3 Ng = n;
-        albedo = terrain_surface(in.worldPos, Ng, in.color.r, in.color.g, n, rough);
+        albedo = terrain_surface(in.worldPos, Ng, in.color.r, in.color.g, frame.worldB.x, n, rough);
     }
 
     float3 V = normalize(frame.cameraPos.xyz - in.worldPos);
