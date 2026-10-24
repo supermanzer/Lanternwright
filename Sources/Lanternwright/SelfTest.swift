@@ -681,6 +681,30 @@ enum SelfTest {
             check(right.1 > right.0 * 1.2 && abs(centre.0 - centre.1) / max(centre.0, 1e-6) < 0.3, "surf from the right is louder in the right ear (\(right.0) / \(right.1)); centred stays balanced")
             check(muffled.2 < centre.2 * 0.85 && muffled.0 < centre.0, "behind a hill the surf is darker and quieter (brightness \(muffled.2) vs \(centre.2))")
         }
+        if name == "all" || name == "poisson" {
+            let sc = Scene.makeWorld(device: device)
+            let sites = Island.treeSites(terrain: sc.terrain)
+            check(sites.count > 150 && sites.count < 900, "Poisson-disc tree sites exist in a sensible number (\(sites.count))")
+            // Blue noise: no two sites closer than the smaller local radius allows (half the mean of the two radii).
+            var tooClose = 0
+            for i in 0..<sites.count { for j in (i + 1)..<sites.count {
+                let d = simd_length(sites[i] - sites[j])
+                if d < 6 { tooClose += 1 } else if d < 22 {
+                    let need = 0.5 * ((22 - 16 * Island.treeDensity(terrain: sc.terrain, x: sites[i].x, z: sites[i].y)) + (22 - 16 * Island.treeDensity(terrain: sc.terrain, x: sites[j].x, z: sites[j].y)))
+                    if d < need - 1e-3 { tooClose += 1 }
+                } } }
+            check(tooClose == 0, "no two trees closer than the local spacing (\(tooClose) violations)")
+            check(sites.allSatisfy { Island.treeAllowed(terrain: sc.terrain, x: $0.x, z: $0.y) }, "every site obeys the rules: altitude band, slope, clear of path, pads and dock")
+            check(sites == Island.treeSites(terrain: sc.terrain), "placement is deterministic")
+            // Groves vs clearings: nearest-neighbour distances span a wide range (a grid or jitter would not).
+            let nn = sites.map { p in sites.filter { $0 != p }.map { simd_length($0 - p) }.min() ?? 0 }.sorted()
+            check(nn[nn.count / 10] < 9 && nn[nn.count * 9 / 10] > 11, "spacing varies: tight in groves (p10 \(nn[nn.count / 10]) m), open in clearings (p90 \(nn[nn.count * 9 / 10]) m)")
+            // No rows: a regular lattice has a nearly constant nearest-neighbour distance; require real spread.
+            let mean = nn.reduce(0, +) / Float(nn.count)
+            let sd = (nn.map { ($0 - mean) * ($0 - mean) }.reduce(0, +) / Float(nn.count)).squareRoot()
+            check(sd > 1.5, "nearest-neighbour spacing is irregular, not a lattice (sd \(sd) m)")
+            check(sc.items.contains { $0.name.hasPrefix("trees_") }, "trees were built into the scene")
+        }
         if name == "all" || name == "zoom" {
             check(abs(LookCloser.fov(zoom: 0) - LookCloser.baseFov) < 1e-6 && LookCloser.fov(zoom: 1) < LookCloser.baseFov * 0.45 && LookCloser.fov(zoom: 1) > 0.2, "zoom 0 is the normal 60 degrees; full zoom narrows to about 22 degrees")
             var z: Float = 0, steps = 0

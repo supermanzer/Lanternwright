@@ -63,3 +63,9 @@ How to play: `scripts/bundle.sh && open Lanternwright.app`. Headless views: `.bu
 |---|---|---|---|---|
 | needs-inspection | R02-8a | Nothing: a question | `--screenshot shots/o.png --view overview` | Is the milky horizon haze too thick from altitude? Tell me if you want the fog density lowered at height |
 | needs-inspection | R02-8b | Nothing: a question | `--screenshot shots/d.png --view dock` | Is the dock's long beach shadow too hard-edged? Tell me if you want it softer (PCSS, T55.B6 may do this anyway) |
+
+## Round 2 (R02 defects)
+
+| Status | Task | What changed | How to see / hear it | What to look for |
+|---|---|---|---|---|
+| needs-inspection | T56.1 | Trees now placed by Poisson-disc sampling: groves, clearings, loners; per-tree size, lean, shade; rare dead and fallen trees; same for the Glass Wood crystal trees | Walk the slopes, and `--screenshot shots/o.png --view overview` | No visible rows; natural clusters and gaps; the path and landmarks are never crowded; tell me if there are too many/few trees (radius range in `Island.treeSites`) |

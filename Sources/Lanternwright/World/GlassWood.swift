@@ -92,12 +92,15 @@ enum GlassWood {
 
     /// The crystal forest: groves of glass trees on gentle dry ground, clear of the route, the pads and the pool's bank.
     static func addForest(_ scene: Scene, device: MTLDevice) {
-        let spots = Island.scatter(spacing: 9, salt: 311, accept: { x, z, h, ny, r in
-            guard h > 2.5, ny > 0.88, Island.isClear(terrain: scene.terrain, x: x, z: z, pathMargin: 7, padMargin: 7, avoidDock: false) else { return false }
-            if length(SIMD2(x, z) - GlassTerrain.pool) < GlassTerrain.poolRadius + 6 { return false }
-            let grove = Island.noise.fbm(x * 0.014 + 5, z * 0.014 - 12, octaves: 3)
-            return r < 0.12 + 0.95 * max(0, grove + 0.12)
-        }, terrain: scene.terrain)
+        func allowed(_ x: Float, _ z: Float) -> Bool {
+            guard scene.terrain.sampleHeight(x: x, z: z) > 2.5, scene.terrain.normal(x: x, z: z).y > 0.88,
+                  Island.isClear(terrain: scene.terrain, x: x, z: z, pathMargin: 7, padMargin: 7, avoidDock: false) else { return false }
+            return length(SIMD2(x, z) - GlassTerrain.pool) >= GlassTerrain.poolRadius + 6
+        }
+        func density(_ x: Float, _ z: Float) -> Float { min(max(0.4 + 1.7 * Island.noise.fbm(x * 0.014 + 5, z * 0.014 - 12, octaves: 3), 0), 1) }
+        let sites = PoissonDisc.sample(min: SIMD2(-290, -380), max: SIMD2(260, 260), rMin: 7, rMax: 24,
+                                       radius: { 24 - 17 * density($0.x, $0.y) }, accept: { allowed($0.x, $0.y) }, seed: 0xC0FFEE)
+        let spots = sites.map { (x: $0.x, z: $0.y, rand: Island.noise.unit(Int32($0.x * 3.1), Int32($0.y * 3.1))) }
         var batch = Island.Batcher()
         var count = 0
         for s in spots.prefix(220) {

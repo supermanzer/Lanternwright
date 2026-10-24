@@ -20,6 +20,16 @@ struct MeshBuilder {
 
     var isEmpty: Bool { vertices.isEmpty }
 
+    /// A copy with every vertex colour multiplied by `m` (per-instance value/hue jitter; roughness is untouched).
+    func tinted(_ m: SIMD3<Float>) -> MeshBuilder {
+        var out = self
+        for i in 0..<out.vertices.count {
+            let c = out.vertices[i].color
+            out.vertices[i].color = SIMD4(c.x * m.x, c.y * m.y, c.z * m.z, c.w)
+        }
+        return out
+    }
+
     mutating func append(_ other: MeshBuilder, transform: float4x4 = matrix_identity_float4x4) {
         let base = UInt32(vertices.count)
         let n = normalMatrix(transform)

@@ -58,9 +58,9 @@ enum Island {
     /// Merge placed pieces into one mesh per 120 m cell so they can be culled by region.
     struct Batcher {
         var cells: [String: MeshBuilder] = [:]
-        mutating func add(_ piece: MeshBuilder, at p: SIMD3<Float>, yaw: Float, prefix: String) {
+        mutating func add(_ piece: MeshBuilder, at p: SIMD3<Float>, yaw: Float, prefix: String, scale: SIMD3<Float> = SIMD3(1, 1, 1), tilt: SIMD2<Float> = .zero) {
             let key = "\(prefix)_\(Int(floor(p.x / 120)))_\(Int(floor(p.z / 120)))"
-            cells[key, default: MeshBuilder()].append(piece, transform: translation(p) * rotationY(yaw))
+            cells[key, default: MeshBuilder()].append(piece, transform: translation(p) * rotationY(yaw) * rotationX(tilt.x) * rotationZ(tilt.y) * scaling(scale))
         }
         func commit(_ scene: Scene, device: MTLDevice, uniforms: ObjectUniforms = ObjectUniforms(), refractive: Bool = false) {
             for (name, b) in cells.sorted(by: { $0.key < $1.key }) where !b.isEmpty {
@@ -167,21 +167,43 @@ enum Island {
 
     // MARK: Trees
 
+    /// Where trees are allowed and how dense: altitude band, slope, clear of the path, pads and dock; a low-frequency noise makes
+    /// groves (dense), clearings (sparse) and the odd loner.
+    static func treeDensity(terrain: Terrain, x: Float, z: Float) -> Float {
+        let grove = noise.fbm(x * 0.012 + 30, z * 0.012 - 7, octaves: 3)
+        return min(max(0.45 + 1.6 * grove, 0), 1)
+    }
+    static func treeAllowed(terrain: Terrain, x: Float, z: Float) -> Bool {
+        let h = terrain.sampleHeight(x: x, z: z)
+        guard h > 2.5, h < 48, terrain.normal(x: x, z: z).y > 0.86 else { return false }
+        return isClear(terrain: terrain, x: x, z: z, pathMargin: 6, padMargin: 9)
+    }
+    /// Blue-noise tree sites: spacing 6-22 m depending on the grove field, deterministic.
+    static func treeSites(terrain: Terrain) -> [SIMD2<Float>] {
+        PoissonDisc.sample(min: SIMD2(-290, -380), max: SIMD2(260, 260), rMin: 6, rMax: 22,
+                           radius: { 22 - 16 * treeDensity(terrain: terrain, x: $0.x, z: $0.y) },
+                           accept: { treeAllowed(terrain: terrain, x: $0.x, z: $0.y) }, seed: 0x7EE5)
+    }
+
     static func addTrees(_ scene: Scene, device: MTLDevice) {
-        let spots = scatter(spacing: 10, salt: 211, accept: { x, z, h, ny, r in
-            guard h > 2.5, h < 48, ny > 0.86, isClear(terrain: scene.terrain, x: x, z: z, pathMargin: 6, padMargin: 9) else { return false }
-            let grove = noise.fbm(x * 0.012 + 30, z * 0.012 - 7, octaves: 3)       // low-frequency clusters
-            return r < 0.2 + 0.9 * max(0, grove + 0.05)
-        }, terrain: scene.terrain)
+        let sites = treeSites(terrain: scene.terrain)
         var batch = Batcher()
         var count = 0
-        for s in spots.prefix(300) {
-            let y = scene.terrain.sampleHeight(x: s.x, z: s.z)
-            let height = 6 + 7.5 * (s.rand * 13.7 - floor(s.rand * 13.7))
+        for p in sites.prefix(420) {
+            let r1 = noise.unit(Int32(count), 11), r2 = noise.unit(Int32(count), 29), r3 = noise.unit(Int32(count), 47), r4 = noise.unit(Int32(count), 83)
+            let y = scene.terrain.sampleHeight(x: p.x, z: p.y)
+            let height = (6 + 7.5 * r1) * (0.7 + 0.6 * r2) / 1.0
             let seed = UInt32(truncatingIfNeeded: count &* 104729 &+ 5)
-            let tree = (y > 24 || s.rand > 0.55) ? Props.pine(seed: seed, height: height) : Props.cypress(seed: seed, height: height)
-            batch.add(tree, at: SIMD3(s.x, y - 0.15, s.z), yaw: s.rand * 90, prefix: "trees")
-            scene.colliders.addCylinder(center: SIMD2(s.x, s.z), radius: 0.3, minY: y - 1, maxY: y + height)
+            let dead = r4 < 0.04, fallen = r4 > 0.985
+            var tree: MeshBuilder
+            if dead || fallen { tree = Props.deadTree(seed: seed, height: height * 0.8) }
+            else { tree = ((y > 24 || r3 > 0.55) ? Props.pine(seed: seed, height: height) : Props.cypress(seed: seed, height: height))
+                .tinted(SIMD3(repeating: 0.8 + 0.4 * noise.unit(Int32(count), 61)) * SIMD3(1, 1 + 0.15 * (r2 - 0.5), 1 - 0.1 * (r1 - 0.5))) }
+            let lean = (1 + 2 * noise.unit(Int32(count), 71)) * .pi / 180            // 1-3 degrees
+            let la = noise.unit(Int32(count), 73) * 2 * .pi
+            let tilt = fallen ? SIMD2<Float>(0, .pi / 2 - 0.05) : SIMD2(lean * cos(la), lean * sin(la))
+            batch.add(tree, at: SIMD3(p.x, y - (fallen ? -0.25 : 0.15), p.y), yaw: r3 * 6.28, prefix: "trees", scale: SIMD3(repeating: 1), tilt: tilt)
+            if !fallen { scene.colliders.addCylinder(center: SIMD2(p.x, p.y), radius: 0.3, minY: y - 1, maxY: y + height) }
             count += 1
         }
         batch.commit(scene, device: device)

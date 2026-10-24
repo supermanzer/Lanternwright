@@ -66,6 +66,20 @@ enum Props {
         return b
     }
 
+    /// A dead snag: a bare grey trunk with a few broken stubs (also used lying down as a fallen tree).
+    static func deadTree(seed: UInt32, height: Float) -> MeshBuilder {
+        let noise = Noise(seed: seed)
+        var b = MeshBuilder()
+        let bark = Surface(color: SIMD3(0.20, 0.17, 0.14), roughness: 0.95)
+        b.cylinder(radiusTop: 0.05 * height / 7, radiusBottom: 0.17 * height / 7, height: height * 0.8, segments: 6, surface: bark)
+        for i in 0..<3 {
+            let y = height * (0.35 + 0.15 * Float(i)), a = noise.unit(Int32(i), 7) * 2 * .pi
+            b.cylinder(radiusTop: 0.02, radiusBottom: 0.05, height: height * 0.18, segments: 5, surface: bark,
+                       transform: translation(SIMD3(0, y, 0)) * rotationY(a) * rotationZ(0.9))
+        }
+        return b
+    }
+
     /// Wider, layered pine with a bare lower trunk.
     static func pine(seed: UInt32, height: Float) -> MeshBuilder {
         let noise = Noise(seed: seed)
