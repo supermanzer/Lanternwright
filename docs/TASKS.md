@@ -399,6 +399,22 @@ Reviewer brief: docs/reviews/R06-paths-glyphs-glass-wood.md. Budget +1.0 ms over
 - [x] **T60.7 Smaller (R06-7).** Retarget `lh-door` back and up so the arch, jambs and threshold are in frame; remove the faint ring contour on the lighthouse lower white band. *Accept:* before/after `lh-door` and `lh-mid`.
   > done: 2026-10-23. lh-door retargeted to 2.8 m back and slightly up (-30, 70.75, -41.0, pitch 0.06): whole arch, jambs, door, straps and steps in frame (the 0.8 m standing view is still reachable by walking, T58.8). The ring contour on the lower white band was the hairline-crack term: the iso-line of an isotropic noise, which closes into loops; it now uses a noise stretched 9x along Y so cracks run down the wall and no rings appear (lh-mid clean). Seen in the new frame: bright slits between the voussoirs (the joints showed the lit wall behind); arch() now has a dark mortar course behind the wedges. Evidence: before-lh-door/before-lh-mid vs a7-lh-door/a7-lh-mid.png.
 
+### Review round 8 (R08: an introductory controls screen; the user's own request, done before R07)
+Brief: docs/reviews/R08-intro-screen-and-feedback-key.md. Accepted whole: it is a direct user request, an AppKit overlay (no frame cost), and touches no puzzle or story logic. The feedback key stays **F** (confirmed); it becomes a one-line constant.
+
+- [ ] **T61.1 One Controls table.** `App/Controls.swift`: rows of (group, action, key labels, keycodes, how it is handled, a probe on `InputState`), plus `FeedbackShortcut` (key code and label in one place). Feeds the intro screen, the pause menu's hint line, the Help menu and the README table (`--controls-md` prints it). *Accept:* a selftest drives every row's keys/buttons through `Input` and sees the matching `InputState` change (menu rows: the menu item exists with that key equivalent); the README table equals the generated one.
+- [ ] **T61.2 Intro screen.** Parchment panel in the journal's language, grouped columns, drawn keycaps and mouse glyphs, soft fade-in, scales to the window; shown once on a new game after "Click to begin" (flag `introSeen` in Settings, reset by "New game"), never when resuming a save; dismissed by click, Enter, Space or Esc without leaking the click into the world; game input frozen while open; opened from the pause menu it returns to the pause menu. *Accept:* `--dump-overlay` images at 1600x900 and a small size, Read.
+- [ ] **T61.3 Menus.** Pause menu gains **Controls**; hint line from the table; main menu gains **Help > Controls... / Send Feedback... (F)**; the menu item opens the same panel as F; F while the panel is open does not reopen it. *Accept:* selftests for the flow (intro seen once, legacy settings still load, key handling), menu items present.
+
+### Review round 7 (R07: the final punch list)
+Brief: docs/reviews/R07-final-punch-list.md. All accepted except the optional last item of 5 (iterative sliding collision) which is taken only if small. Conifers: the user has NOT decided; the stylised conifers stay and the question stays open in INSPECT.md (the R06 note in INSPECT.md already words it as a question; wording re-checked).
+
+- [ ] **T62.1 Seams above the arch (R07-1).** Find and remove the two hairline vertical lines above the `lh-door` arch crown. *Accept:* before/after `lh-door`.
+- [ ] **T62.2 Smeared patch by the left hinge (R07-2).** *Accept:* before/after `lh-door`.
+- [ ] **T62.3 Glass Wood panes (R07-3).** Frame, glass body with a visible edge and thickness, coloured tint (refractive if affordable), plinth with a state marker; hooks unchanged. *Accept:* before/after `gw-mirrors`/`gw-court`.
+- [ ] **T62.4 Mirror cue (R07-4).** A faint deliberate cue that mirrors are mirrors (thin bright edge catch / soft moon reflection), no puzzle change. *Accept:* before/after `gw-mirrors`.
+- [ ] **T62.5 Leftovers (R07-5).** Copper roof dim sky-tint reflection fallback; wading splash from the step engine's grain layer; sliding collision only if small. *Accept:* before/after `lh-top`; a splash selftest.
+
 ### REJECTED (with reasons)
 - **R-A2 Keep the correct prefix lit permanently after a wrong strike.** It turns a 3-stone order puzzle into a linear search (each stone needs at most two tries), which defeats A1's goal; the audible drone (T55.2) gives the same learning signal without trivialising it.
 - **R-A3 A real tide that gates the Tide stone.** Breaks pillar 4 (no timers / forced waiting); the water level is baked into terrain, dock, causeway, player wading limit and audio, so it is also high-risk for little gain.
