@@ -158,6 +158,8 @@ enum Viewpoints {
         case "lh-mid":   return Camera(position: SIMD3(-30, 69.7, -32), yaw: 0, pitch: 0.55)
         case "lh-top":   return Camera(position: SIMD3(-12, 69.7, -20), yaw: -0.57, pitch: 0.65)
         case "lh-glass": return Camera(position: SIMD3(-24, 95.5, -42), yaw: -0.785, pitch: -0.07)
+        // A resonance stone seen from 3 m, at the height of its glyph (R04-7).
+        case "stone-close": return Camera(position: Layout.tideStone + SIMD3(1.2, 1.9, 3.2), yaw: -0.3, pitch: -0.12)
         case "overview": return Camera(position: SIMD3(330, 150, 330), yaw: -0.76, pitch: -0.19)
         case "summit":   return Camera(position: SIMD3(-30, 70, -32), yaw: .pi, pitch: -0.05)
         case "shore":    return Camera(position: SIMD3(150, 3.2, 172), yaw: -1.95, pitch: 0.03)

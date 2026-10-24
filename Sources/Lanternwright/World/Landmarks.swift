@@ -54,26 +54,49 @@ enum Landmarks {
         var b = MeshBuilder()
         let width: Float = 2.4
         let pitch: Float = 0.275
+        let deck = Surface(color: SIMD3(0.30, 0.20, 0.115), roughness: 0.85, material: .plank)
+        let timber = Surface(color: SIMD3(0.20, 0.14, 0.09), roughness: 0.9, material: .timber)
+        let iron = Surface(color: SIMD3(0.16, 0.15, 0.14), roughness: 0.5, material: .iron)
+        let rope = Surface(color: SIMD3(0.46, 0.38, 0.26), roughness: 1.0)
         var z: Float = 0.15
         var k: Int32 = 0
         while z < len - 0.1 {
-            let tone = 0.78 + 0.44 * Island.noise.unit(k, 91)
-            let plank = Surface(color: SIMD3(0.30, 0.20, 0.115) * tone, roughness: 0.85)
-            b.bevelBox(size: SIMD3(width, 0.07, 0.24), bevel: 0.012, surface: plank, transform: translation(SIMD3(0, deckY(z) - 0.035, z)) * tilt)
+            // Each board sits a little differently: a hair of twist, a few millimetres up or down, a slightly different length.
+            let tw = Island.noise.unit(k, 92) - 0.5, lift = (Island.noise.unit(k, 93) - 0.5) * 0.006
+            let w = width - 0.03 * Island.noise.unit(k, 94)
+            b.chamferBox(size: SIMD3(w, 0.07, 0.24), chamfer: 0.012, surface: deck,
+                         transform: translation(SIMD3(0, deckY(z) - 0.035 + lift, z)) * tilt * rotationZ(tw * 0.015) * rotationX(tw * 0.012))
+            // Four nail heads per board, two at each end over the beams.
+            for sx: Float in [-0.95, -0.80, 0.80, 0.95] {
+                for dz: Float in [-0.06, 0.06] where abs(sx) > 0.9 || dz > 0 {
+                    b.cylinder(radiusTop: 0.008, radiusBottom: 0.009, height: 0.006, segments: 6, smooth: false, surface: iron,
+                               transform: translation(SIMD3(sx, deckY(z) + lift + 0.002, z + dz)) * tilt)
+                }
+            }
             z += pitch; k += 1
         }
-        let beam = Surface(color: SIMD3(0.16, 0.11, 0.07), roughness: 0.9)
         for sx: Float in [-0.95, 0.95] {
-            b.box(size: SIMD3(0.14, 0.16, len), surface: beam,
+            b.box(size: SIMD3(0.14, 0.16, len), surface: timber,
                   transform: translation(SIMD3(sx, (deckY(0) + deckY(len)) / 2 - 0.16, len / 2)) * rotationX(-atan(slope)))
         }
-        // Piles every 4 m on both sides, reaching well below the water; every other one stands above the deck.
+        // Piles every 4 m on both sides, reaching well below the water; every other one stands above the deck as a mooring post with
+        // a coil of rope, a cap, and an iron cleat on the nearest beam.
         var pz: Float = 0.8, idx = 0
         while pz < len {
             for sx: Float in [-1.1, 1.1] {
-                let top = deckY(pz) + (idx % 2 == 0 ? 0.55 : -0.12)
-                b.cylinder(radiusTop: 0.10, radiusBottom: 0.12, height: top + 3.0, segments: 7, surface: beam,
-                           transform: translation(SIMD3(sx, -3.0, pz)))
+                let post = idx % 2 == 0
+                let top = deckY(pz) + (post ? 0.55 : -0.12)
+                b.cylinder(radiusTop: 0.10, radiusBottom: 0.12, height: top + 3.0, segments: 10, surface: timber, transform: translation(SIMD3(sx, -3.0, pz)))
+                if post {
+                    b.cylinder(radiusTop: 0.085, radiusBottom: 0.108, height: 0.05, segments: 10, smooth: false, surface: timber, transform: translation(SIMD3(sx, top, pz)))
+                    for c in 0..<4 {
+                        b.torus(major: 0.125, minor: 0.017, segments: 16, sides: 5, surface: rope,
+                                transform: translation(SIMD3(sx, top - 0.10 - 0.034 * Float(c), pz)) * rotationY(Float(c) * 0.4))
+                    }
+                    let side: Float = sx < 0 ? 1 : -1
+                    b.chamferBox(size: SIMD3(0.07, 0.04, 0.22), chamfer: 0.008, surface: iron,
+                                 transform: translation(SIMD3(sx + side * 0.24, deckY(pz) - 0.02, pz)) * tilt)                        // a cleat on the deck edge
+                }
             }
             pz += 4; idx += 1
         }
@@ -115,12 +138,12 @@ enum Landmarks {
         let toward = SIMD2(from.x - p.x, from.z - p.z)
         let yaw = atan2(toward.x, toward.y)
         let model = translation(p) * rotationY(yaw)
-        let basalt = Surface(color: SIMD3(0.075, 0.08, 0.09), roughness: 0.5)
+        let basalt = Surface(color: SIMD3(0.30, 0.31, 0.34), roughness: 0.75, material: .dressed)
 
         var body = MeshBuilder()
-        body.bevelBox(size: SIMD3(1.3, stoneHeight, 0.85), bevel: 0.05, surface: basalt, transform: translation(SIMD3(0, stoneHeight / 2 - 0.1, 0)))
-        body.box(size: SIMD3(1.12, 0.3, 0.7), surface: basalt, transform: translation(SIMD3(0.03, stoneHeight - 0.05, 0)) * rotationY(0.14))
-        body.bevelBox(size: SIMD3(1.9, 0.25, 1.5), bevel: 0.04, surface: Surface(color: SIMD3(0.20, 0.19, 0.17), roughness: 0.85), transform: translation(SIMD3(0, 0.05, 0)))
+        body.chamferBox(size: SIMD3(1.3, stoneHeight, 0.85), chamfer: 0.06, surface: basalt, transform: translation(SIMD3(0, stoneHeight / 2 - 0.1, 0)))
+        body.chamferBox(size: SIMD3(1.12, 0.3, 0.7), chamfer: 0.05, surface: basalt, transform: translation(SIMD3(0.03, stoneHeight - 0.05, 0)) * rotationY(0.14))
+        body.chamferBox(size: SIMD3(1.9, 0.25, 1.5), chamfer: 0.05, surface: Surface(color: SIMD3(0.40, 0.38, 0.35), roughness: 0.85, material: .dressed), transform: translation(SIMD3(0, 0.05, 0)))
         // Rank marks: 1, 2 or 3 notches low on the arrival face = how near the sky this stone stands (tide 1, wind 2, stone 3).
         // With the journal's "each stone a little nearer the sky than the last" the order is deduced, not read out.
         let rank = id.rawValue + 1

@@ -95,6 +95,12 @@ How to play: `scripts/bundle.sh && open Lanternwright.app`. Headless views: `.bu
 | needs-inspection | T58.1-3 | Rounded pits and flaking (no more pixel-art shapes), hand-cut masonry (varied course heights, block lengths, tones, a rust-stained block, convex/dished faces), warm bounce light in shade | Stand at the lighthouse base and look along the wall, `--screenshot shots/x.png --view lh-base` (also `lh-door`, `lh-mid`) | Stone looks hand-cut, shade is warm not teal; the red band weathers at its edges; anything still looking tiled, polka-dotted or too warm? |
 | needs-inspection | T58.4, T58.8 | The door is a real arch (voussoirs, keystone, quoins, hood), and you can now walk right up to it: the plinth and the four steps are climbable and you stop about 0.8 m from the door | Walk up the lantern path to the lighthouse and keep walking at the door; `--view lh-arch` / `--view lh-door` | Do the steps feel natural to climb (no snagging, camera smooth)? Can you reach the stonework to "touch" it? Anything catching you on the plinth from other sides? |
 
+### R04 T58.7: even fidelity (docks, posts, stones, lanterns)
+- `--view dock`: boards differ in tone and sit a hair differently, small nail heads, rope-wrapped mooring posts with caps, iron cleats on the deck edge.
+- Walk to the end of the dock and look down at a pile: dark wet timber, a weed band at the waterline, barnacle speckle just above it.
+- `--view stone-close`: the tide stone is chamfered dressed stone with pitting and chisel marks; lichen creeps up the plinth. Glyph bars unchanged.
+- Stone lanterns on the path: chamfered dressed stone, iron finial, glowing amber core.
+
 ## Round 5 (R05): footsteps that change with the surface (a person must listen)
 
 Each step is now built from an impact, a ringing body and a cloud of tiny grains, with the numbers for every surface in one table (`FootstepRecipe.table` in `Audio/Footsteps.swift`). Everything below was measured with offline tests (spectrum, decay, grain counts, blends), but only you can judge whether it *sounds* right: tell me which surface is wrong and in what way, and I will change that one row. To audition without playing: `.build/release/Lanternwright --dump-audio shots/m55/steps.wav && afplay shots/m55/steps.wav` (after the grass walk and run, it plays five steps each of dock planks, dry sand, wet sand, packed earth, stone, rock, then a walk off the end of the dock onto sand).

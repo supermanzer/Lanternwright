@@ -26,18 +26,18 @@ enum Props {
     /// Stone lantern: plinth, post, lamp chamber (four corner pillars around a glowing core), cap and roof.
     /// Returns the stone and the emissive core separately so the core can glow.
     static func stoneLantern() -> (body: MeshBuilder, core: MeshBuilder) {
-        let stone = Surface(color: SIMD3(0.36, 0.34, 0.31), roughness: 0.8)
+        let stone = Surface(color: SIMD3(0.58, 0.55, 0.50), roughness: 0.85, material: .dressed)
         var body = MeshBuilder()
-        body.box(size: SIMD3(0.55, 0.22, 0.55), surface: stone, transform: translation(SIMD3(0, 0.11, 0)))
+        body.chamferBox(size: SIMD3(0.55, 0.22, 0.55), chamfer: 0.025, surface: stone, transform: translation(SIMD3(0, 0.11, 0)))
         body.cylinder(radiusTop: 0.10, radiusBottom: 0.13, height: 0.95, segments: 8, surface: stone, transform: translation(SIMD3(0, 0.22, 0)))
-        body.box(size: SIMD3(0.46, 0.08, 0.46), surface: stone, transform: translation(SIMD3(0, 1.21, 0)))
+        body.chamferBox(size: SIMD3(0.46, 0.08, 0.46), chamfer: 0.015, surface: stone, transform: translation(SIMD3(0, 1.21, 0)))
         for (sx, sz) in [(-1, -1), (1, -1), (-1, 1), (1, 1)] as [(Float, Float)] {
             body.box(size: SIMD3(0.06, 0.34, 0.06), surface: stone, transform: translation(SIMD3(sx * 0.19, 1.42, sz * 0.19)))
         }
-        body.box(size: SIMD3(0.5, 0.07, 0.5), surface: stone, transform: translation(SIMD3(0, 1.62, 0)))
+        body.chamferBox(size: SIMD3(0.5, 0.07, 0.5), chamfer: 0.015, surface: stone, transform: translation(SIMD3(0, 1.62, 0)))
         body.cone(radius: 0.46, height: 0.32, segments: 4, smooth: false, surface: stone,
                   transform: translation(SIMD3(0, 1.655, 0)) * rotationY(.pi / 4))
-        body.sphere(radius: 0.06, segments: 8, surface: stone, transform: translation(SIMD3(0, 2.0, 0)))
+        body.sphere(radius: 0.06, segments: 8, surface: Surface(color: SIMD3(0.05, 0.055, 0.07), roughness: 0.5, material: .iron), transform: translation(SIMD3(0, 2.0, 0)))
         var core = MeshBuilder()
         core.box(size: SIMD3(0.24, 0.26, 0.24), surface: Surface(color: SIMD3(1.0, 0.78, 0.45), roughness: 0.4),
                  transform: translation(SIMD3(0, 1.42, 0)))

@@ -6,7 +6,7 @@
 // (joints at 3-15 cm per pixel, pits at 2-7 cm, ...), and thresholds widen by `fpix`, so detail resolves smoothly instead of
 // crawling. We have no anti-aliasing; this is what stands in for it.
 //
-// Material ids (vertex normal.w): 5 masonry, 6 paint, 7 iron, 8 copper, 9 wood, 10 bark, 11 dressed stone.
+// Material ids (vertex normal.w): 5 masonry, 6 paint, 7 iron, 8 copper, 9 wood, 10 bark, 11 dressed stone, 12 deck plank, 13 timber.
 enum MaterialShaders {
     static let source = #"""
 struct MatOut {
@@ -140,8 +140,8 @@ inline MatOut mat_dressed(float3 Pl, float3 P, float3 N, float3 base, float fpix
     float h = 0.012 * (vnoise3(P * 3.0 + 2.0) - 0.5) - 0.0035 * pm - 0.0012 * scratch;
     float3 albedo = base * (0.84 + 0.3 * vnoise3(P * 2.3)) * (0.92 + 0.16 * speck) * (1.0 - 0.3 * pm) * (1.0 - 0.08 * scratch);
     float low = 1.0 - smoothstep(0.05, 0.9, Pl.y);
-    float lichen = smoothstep(0.5, 0.74, fbm3(P * 2.1 + 1.0) * 0.85 + 0.3 * low - 0.12);
-    albedo = mix(albedo, mix(float3(0.34, 0.40, 0.28), float3(0.52, 0.46, 0.24), vnoise3(P * 6.0)), lichen * 0.65 * smoothstep(1.4, 0.0, Pl.y));
+    float lichen = smoothstep(0.38, 0.62, fbm3(P * 2.1 + 1.0) * 0.85 + 0.55 * low - 0.12);
+    albedo = mix(albedo, mix(float3(0.34, 0.40, 0.28), float3(0.52, 0.46, 0.24), vnoise3(P * 6.0)), lichen * 0.85 * smoothstep(1.6, 0.0, Pl.y));
     albedo *= mix(0.65, 1.0, smoothstep(0.0, 0.5, Pl.y));
     o.albedo = albedo;
     o.rough = clamp(0.82 + 0.1 * (cellId - 0.5) + 0.1 * lichen, 0.4, 1.0);
@@ -281,6 +281,54 @@ inline MatOut mat_bark(float3 P, float3 N, float3 base, float fpix) {
     return o;
 }
 
+// ---- Deck planks: boards laid across the dock (boards run along local z, 0.275 m apart), fibres across, silvered by weather. ------
+inline MatOut mat_plank(float3 Pl, float3 P, float3 N, float3 base, float fpix) {
+    MatOut o;
+    float q = (Pl.z - 0.15 + 0.1375) / 0.275;
+    float k = floor(q), f = fract(q);
+    float hp = hash13(float3(k, 4.0, 7.0)), hp2 = hash13(float3(k, 9.0, 2.0));
+    float edgeD = min(f, 1.0 - f) * 0.275;
+    float grainW = fadeBelow(fpix, 0.008, 0.04);
+    float g1 = vnoise3(float3(Pl.x * 1.2, Pl.z * 85.0 + hp * 30.0, 1.0)), g2 = vnoise3(float3(Pl.x * 5.0, Pl.z * 30.0 + hp * 7.0, 4.0));
+    float fibre = mix(0.5, g1 * 0.6 + g2 * 0.4, grainW);
+    float weather = saturate(0.45 + 0.5 * vnoise3(float3(Pl.x * 0.8, Pl.z * 0.5, k)) + 0.2 * (hp - 0.5));
+    float3 fresh = base * (0.7 + 0.6 * hp) * (0.8 + 0.4 * fibre);
+    float3 silver = float3(0.36, 0.33, 0.29) * (0.8 + 0.4 * fibre);
+    float3 albedo = mix(fresh, silver, weather * 0.75);
+    albedo *= 1.0 - 0.38 * (1.0 - smoothstep(0.7, 1.6, P.y));                      // the seaward boards stay wet and dark
+    float edgeAO = smoothstep(0.0, 0.02, edgeD);
+    o.albedo = albedo * mix(0.6, 1.0, edgeAO);
+    o.rough = clamp(0.84 + 0.1 * (fibre - 0.5) - 0.12 * (1.0 - smoothstep(0.7, 1.6, P.y)), 0.4, 1.0);
+    o.metal = 0.0;
+    o.N = bump_normal(P, N, 0.003 * (fibre - 0.5), 1.0);
+    o.ao = mix(0.7, 1.0, edgeAO);
+    return o;
+}
+
+// ---- Timber: piles, beams and posts: vertical fibres, silvered above the deck, and the tide's bands below it: wet dark wood, a weed band
+// at the waterline, barnacles just above it. (The sea level is y = 0.) -----------------------------------------------------------
+inline MatOut mat_timber(float3 P, float3 N, float3 base, float fpix) {
+    MatOut o;
+    float grainW = fadeBelow(fpix, 0.01, 0.05);
+    float fibre = mix(0.5, vnoise3(float3(P.x * 30.0, P.y * 2.5, P.z * 30.0)), grainW);
+    float3 albedo = base * (0.72 + 0.5 * fibre);
+    float above = smoothstep(0.9, 1.6, P.y);
+    albedo = mix(albedo, float3(0.34, 0.31, 0.27) * (0.8 + 0.4 * fibre), above * 0.7);          // silvered by sun above the deck
+    float wet = 1.0 - smoothstep(0.4, 1.4, P.y);
+    albedo *= mix(1.0, 0.55, wet);
+    float weedN = fbm3(P * 5.0 + 2.0);
+    float weed = smoothstep(0.35, 0.0, P.y) * smoothstep(-0.7, -0.1, P.y) * smoothstep(0.35, 0.7, weedN + 0.3);
+    albedo = mix(albedo, float3(0.06, 0.13, 0.04) * (0.7 + 0.6 * weedN), weed * 0.9);
+    float barn = (1.0 - smoothstep(0.10, 0.22, worley(P * 40.0))) * smoothstep(0.9, 0.4, P.y) * smoothstep(-0.2, 0.1, P.y) * fadeBelow(fpix, 0.015, 0.05);
+    albedo = mix(albedo, float3(0.62, 0.60, 0.55), barn * 0.85);
+    o.albedo = albedo;
+    o.rough = clamp(0.88 - 0.2 * wet + 0.1 * barn, 0.4, 1.0);
+    o.metal = 0.0;
+    o.N = bump_normal(P, N, 0.003 * (fibre - 0.5) + 0.006 * barn, 1.0);
+    o.ao = 1.0 - 0.25 * barn;
+    return o;
+}
+
 inline MatOut material_surface(int id, float3 Pl, float3 P, float3 N, float3 base, float rough, float fpix) {
     MatOut o;
     if (id == 5) o = mat_masonry(Pl, P, N, base, fpix);
@@ -289,6 +337,8 @@ inline MatOut material_surface(int id, float3 Pl, float3 P, float3 N, float3 bas
     else if (id == 8) o = mat_copper(P, N, fpix);
     else if (id == 9) o = mat_wood(Pl, P, N, base, fpix);
     else if (id == 11) o = mat_dressed(Pl, P, N, base, fpix);
+    else if (id == 12) o = mat_plank(Pl, P, N, base, fpix);
+    else if (id == 13) o = mat_timber(P, N, base, fpix);
     else o = mat_bark(P, N, base, fpix);
     return o;
 }
