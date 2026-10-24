@@ -51,6 +51,22 @@ enum Trees {
         let ts: [Float] = lod == 0 ? [0, 0.03, 0.08, 0.18, 0.35, 0.55, 0.75, 0.9, 1.0] : [0, 0.12, 0.5, 1.0]
         b.tube(points: ts.map(trunkAt), radii: ts.map(trunkR), sides: lod == 0 ? 8 : 5, surface: bark)
 
+        // ---- Litter at the foot (near detail only): fallen cones and twigs on the duff, half sunk so they sit on slopes.
+        if lod == 0 {
+            let cone = Surface(color: SIMD3(0.20, 0.115, 0.06), roughness: 0.9)
+            let twig = Surface(color: SIMD3(0.18, 0.13, 0.09), roughness: 0.95)
+            for k in 0..<7 {
+                let a = r(30 + k, 1) * 2 * .pi, d = 0.7 + 1.8 * r(30 + k, 2)
+                b.cone(radius: 0.04 + 0.018 * r(30 + k, 3), height: 0.10 + 0.05 * r(30 + k, 4), segments: 6, smooth: true, surface: cone,
+                       transform: translation(SIMD3(cos(a) * d, 0.03, sin(a) * d)) * rotationY(r(30 + k, 5) * 6.28) * rotationZ(.pi / 2 - 0.2 + 0.4 * r(30 + k, 6)))
+            }
+            for k in 0..<6 {
+                let a = r(50 + k, 1) * 2 * .pi, d = 0.6 + 2.0 * r(50 + k, 2), len = 0.35 + 0.5 * r(50 + k, 3), ang = r(50 + k, 4) * 6.28
+                let c0 = SIMD3<Float>(cos(a) * d, 0.012, sin(a) * d), dir = SIMD3<Float>(cos(ang), 0.04, sin(ang))
+                b.tube(points: [c0, c0 + dir * len * 0.5 + SIMD3(0, 0.012, 0), c0 + dir * len], radii: [0.012, 0.009, 0.005], sides: 4, surface: twig)
+            }
+        }
+
         // ---- Crown: whorls of branches, shorter toward the top.
         let tStart: Float = pine ? 0.27 : 0.15
         let crownR = H * (pine ? 0.27 : 0.135) * (0.85 + 0.3 * r(2, 2))

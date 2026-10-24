@@ -197,6 +197,7 @@ final class Renderer {
                         bare = max(bare, 1 - smoothstep(r - 1.5, r + 1.5, d))
                     }
                     texels[(j * n + i) * 4 + 2] = bare
+                    texels[(j * n + i) * 4 + 3] = sc.terrain.duffAt(x: x, z: z)
                 }
             }
             tex.replace(region: MTLRegionMake2D(0, 0, n, n), mipmapLevel: 0, withBytes: texels, bytesPerRow: n * 16)

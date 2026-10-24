@@ -34,6 +34,31 @@ final class Terrain {
     let noise: Noise
     let spec: TerrainSpec
     private(set) var heights: [Float]
+    /// Forest-floor litter weight 0...1 on the same grid (needle duff under conifers); zero until `setDuff` is called.
+    private(set) var duff: [Float] = []
+    /// Splat a soft disc of litter around each (position, radius): full inside 45 % of the radius, fading to nothing at the radius.
+    func setDuff(_ discs: [(c: SIMD2<Float>, r: Float)]) {
+        let n = Terrain.gridCount
+        var d = [Float](repeating: 0, count: n * n)
+        for disc in discs {
+            let i0 = max(0, Int(((disc.c.x - disc.r) - Terrain.origin) / Terrain.spacing)), i1 = min(n - 1, Int(((disc.c.x + disc.r) - Terrain.origin) / Terrain.spacing) + 1)
+            let j0 = max(0, Int(((disc.c.y - disc.r) - Terrain.origin) / Terrain.spacing)), j1 = min(n - 1, Int(((disc.c.y + disc.r) - Terrain.origin) / Terrain.spacing) + 1)
+            guard i0 <= i1, j0 <= j1 else { continue }
+            for j in j0...j1 { for i in i0...i1 {
+                let x = Terrain.origin + Float(i) * Terrain.spacing, z = Terrain.origin + Float(j) * Terrain.spacing
+                let w = 1 - smoothstep(disc.r * 0.45, disc.r, simd_length(SIMD2(x, z) - disc.c))
+                if w > d[j * n + i] { d[j * n + i] = w }
+            } }
+        }
+        duff = d
+    }
+    func duffAt(x: Float, z: Float) -> Float {
+        guard !duff.isEmpty else { return 0 }
+        let n = Terrain.gridCount
+        let gx = min(max((x - Terrain.origin) / Terrain.spacing, 0), Float(n - 1) - 1e-3), gz = min(max((z - Terrain.origin) / Terrain.spacing, 0), Float(n - 1) - 1e-3)
+        let i = Int(gx), j = Int(gz), fx = gx - Float(i), fz = gz - Float(j)
+        return mix(mix(duff[j * n + i], duff[j * n + i + 1], fx), mix(duff[(j + 1) * n + i], duff[(j + 1) * n + i + 1], fx), fz)
+    }
 
     init(seed: UInt32 = 20_26, spec: TerrainSpec = .varrow) {
         noise = Noise(seed: seed)

@@ -17,13 +17,13 @@ inline float2 hash22(float2 p) {
 
 // Bilinear sample of the terrain texture (x = height, y = path weight, z = landmark-pad mask), using read() so no float32
 // filtering is needed.
-float3 terrain_sample(texture2d<float> tex, float2 xz) {
+float4 terrain_sample(texture2d<float> tex, float2 xz) {
     float g = (xz.x + 512.0) / 2.0, h = (xz.y + 512.0) / 2.0;
     g = clamp(g, 0.0, 511.0); h = clamp(h, 0.0, 511.0);
     uint x0 = uint(g), z0 = uint(h);
     float fx = g - float(x0), fz = h - float(z0);
-    float3 a = tex.read(uint2(x0, z0)).rgb,     b = tex.read(uint2(x0 + 1, z0)).rgb;
-    float3 c = tex.read(uint2(x0, z0 + 1)).rgb, d = tex.read(uint2(x0 + 1, z0 + 1)).rgb;
+    float4 a = tex.read(uint2(x0, z0)),     b = tex.read(uint2(x0 + 1, z0));
+    float4 c = tex.read(uint2(x0, z0 + 1)), d = tex.read(uint2(x0 + 1, z0 + 1));
     return mix(mix(a, b, fx), mix(c, d, fx), fz);
 }
 
@@ -47,7 +47,7 @@ vertex LitOut grass_vertex(uint vid [[vertex_id]], uint iid [[instance_id]],
     float radius = gp.field.z;
     if (dist > radius) return o;
 
-    float3 ts = terrain_sample(terrainTex, xz);
+    float4 ts = terrain_sample(terrainTex, xz);
     float y = ts.x;
     // Normal from the height field (central differences, 2 m apart).
     float hx = terrain_sample(terrainTex, xz + float2(2.0, 0.0)).x - terrain_sample(terrainTex, xz - float2(2.0, 0.0)).x;
@@ -60,17 +60,17 @@ vertex LitOut grass_vertex(uint vid [[vertex_id]], uint iid [[instance_id]],
     float3 cp = float3(xz.x, 3.0, xz.y) * 0.09;
     float clump = 0.55 * vnoise3(cp) + 0.30 * vnoise3(cp * 2.1 + 5.0) + 0.12 * vnoise3(cp * 4.3 + 9.0);   // 3 octaves, mean ~0.47
     float tuft = vnoise3(float3(xz.x, 9.0, xz.y) * 0.55);
-    density *= mix(0.22, 1.0, smoothstep(0.30, 0.52, clump)) * (0.75 + 0.25 * tuft);
+    density *= mix(0.45, 1.0, smoothstep(0.28, 0.50, clump)) * (0.78 + 0.22 * tuft) * (1.0 - 0.9 * ts.w);     // thinner under conifers (needle litter)
     // Thin the field with distance so far blades (sub-pixel) are not drawn at all.
     float keep = density * (1.0 - smoothstep(0.35 * radius, radius, dist) * 0.9);
-    if (density < 0.32) return o;                                              // no lone blades on the fringe where the field fades out
+    if (density < 0.22) return o;                                              // no lone blades on the fringe where the field fades out
     if (hash22(float2(gcell) + 17.0).x > keep) return o;
 
     // Blade shape: height, width, lean, facing.
     float hr = h11(rnd.x * 91.7 + rnd.y * 13.1);
     bool seedHead = h11(rnd.x * 53.3 + rnd.y * 7.7) > 0.955;                  // a few taller stems with a pale tip: meadow, not carpet
     float height = (0.22 + 0.34 * hr) * (0.62 + 0.75 * clump) * (0.85 + 0.3 * tuft) * (seedHead ? 1.9 : 1.0) * (1.0 - smoothstep(0.7 * radius, radius, dist)) * smoothstep(0.5, 2.2, dist);   // blades right under the eye shrink away (a stray blade at the lens looked like a stake)
-    float width = 0.030 + 0.012 * rnd.y;
+    float width = 0.016 + 0.008 * rnd.y;                                        // thin blades: a meadow, not triangles
     float yaw = rnd.x * 6.2831853;
     float2 facing = float2(cos(yaw), sin(yaw));
     float2 side = float2(-facing.y, facing.x);
@@ -85,7 +85,7 @@ vertex LitOut grass_vertex(uint vid [[vertex_id]], uint iid [[instance_id]],
     // Wind: a travelling wave plus per-blade flutter, bending the upper part more (bend ~ t^2).
     float time = frame.cameraPos.w;
     float wave = sin(dot(xz, float2(0.35, 0.21)) + time * 1.7) * 0.6 + sin(dot(xz, float2(-0.8, 0.5)) + time * 2.9 + hr * 6.0) * 0.4;
-    float bend = (0.10 + 0.10 * hr) + 0.16 * wave;
+    float bend = (0.22 + 0.16 * hr) + 0.16 * wave;                              // each blade arcs over a little
     float3 wp = float3(xz.x, y, xz.y);
     wp.xz += side * sideSign * width * taper;
     wp.xz += facing * (bend * height * t * t);

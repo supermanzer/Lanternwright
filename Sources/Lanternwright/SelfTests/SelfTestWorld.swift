@@ -38,6 +38,14 @@ extension SelfTestRunner {
             let sigs = Set((0..<Trees.variantCount).map { i -> Int in let m = Trees.variant(.pine, i, lod: 0); return m.vertices.count * 31 + Int((m.vertices.map(\.position.x).reduce(0, +)) * 100) })
             check(sigs.count >= 14, "16 pine variants are genuinely different shapes (\(sigs.count) distinct)")
             check(tris(Trees.snagVariant(0, lod: 0)) > 100 && mat(Trees.snagVariant(0, lod: 0), .bark) > 50 && mat(Trees.snagVariant(0, lod: 0), .foliage) == 0, "a dead snag is bare bark with broken limbs")
+            // Forest floor: litter under every placed conifer, none far from trees, and the meadow keeps its grass elsewhere.
+            let terr = Scene.makeWorld(device: device).terrain!
+            let sitesNow = Island.treeSites(terrain: terr).prefix(420)
+            check(sitesNow.allSatisfy { terr.duffAt(x: $0.x, z: $0.y) > 0.9 }, "every conifer stands in full needle litter")
+            let farFromTrees = (0..<80).map { k in SIMD2<Float>(-40 + Float(k % 10) * 9, 150 + Float(k / 10) * 9) }.filter { p in sitesNow.allSatisfy { simd_length($0 - p) > 14 } }
+            check(!farFromTrees.isEmpty && farFromTrees.allSatisfy { terr.duffAt(x: $0.x, z: $0.y) < 0.01 }, "there is no litter away from trees (\(farFromTrees.count) places checked)")
+            let radii = Island.duffDiscs(terrain: terr).map(\.r)
+            check(radii.min()! > 3 && radii.max()! < 9, "litter discs follow the trees' size (radius \(radii.min()!)-\(radii.max()!) m)")
             // LOD selection in a real scene: exactly one level of each group is visible, chosen by distance to its footprint.
             let sc = Scene.makeWorld(device: device)
             check(sc.lodGroups.count > 10 && sc.lodGroups.allSatisfy { $0.names.count == 3 }, "tree cells have three levels each (\(sc.lodGroups.count) cells)")

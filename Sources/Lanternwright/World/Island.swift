@@ -206,10 +206,20 @@ enum Island {
         return isClear(terrain: terrain, x: x, z: z, pathMargin: 6, padMargin: 9)
     }
     /// Blue-noise tree sites: spacing 6-22 m depending on the grove field, deterministic.
+    private static var siteCache: [SIMD2<Float>]?
     static func treeSites(terrain: Terrain) -> [SIMD2<Float>] {
-        PoissonDisc.sample(min: SIMD2(-290, -380), max: SIMD2(260, 260), rMin: 6, rMax: 22,
+        if let c = siteCache { return c }
+        let sites = PoissonDisc.sample(min: SIMD2(-290, -380), max: SIMD2(260, 260), rMin: 6, rMax: 22,
                            radius: { 22 - 16 * treeDensity(terrain: terrain, x: $0.x, z: $0.y) },
                            accept: { treeAllowed(terrain: terrain, x: $0.x, z: $0.y) }, seed: 0x7EE5)
+        siteCache = sites
+        return sites
+    }
+    /// Height of placed tree `index` (shared by the trees and by the litter that surrounds them).
+    static func treeHeight(_ index: Int) -> Float { (6 + 7.5 * noise.unit(Int32(index), 11)) * (0.7 + 0.6 * noise.unit(Int32(index), 29)) }
+    /// The litter discs under the placed conifers: radius about 0.4 of the tree's height (the drip line).
+    static func duffDiscs(terrain: Terrain) -> [(c: SIMD2<Float>, r: Float)] {
+        treeSites(terrain: terrain).prefix(420).enumerated().map { (i, p) in (c: p, r: 1.4 + 0.42 * treeHeight(i)) }
     }
 
     /// The three level-of-detail batches of every tree cell, and the trunk colliders: deterministic, so built once per run and shared by
@@ -226,7 +236,7 @@ enum Island {
             for (count, p) in sites.prefix(420).enumerated() {
                 let r1 = noise.unit(Int32(count), 11), r2 = noise.unit(Int32(count), 29), r3 = noise.unit(Int32(count), 47), r4 = noise.unit(Int32(count), 83)
                 let y = terrain.sampleHeight(x: p.x, z: p.y)
-                let height = (6 + 7.5 * r1) * (0.7 + 0.6 * r2)
+                let height = treeHeight(count)
                 let dead = r4 < 0.04, fallen = r4 > 0.985
                 let pine = y > 24 || r3 > 0.55
                 let variantIndex = Int(noise.unit(Int32(count), 5) * Float(Trees.variantCount)) % Trees.variantCount

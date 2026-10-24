@@ -41,7 +41,7 @@ vertex LitOut lit_vertex(uint vid [[vertex_id]],
 
 // Terrain material: grass (lush/parched patches), rock (steep or high, with horizontal strata),
 // sand (shore, darker where wet), packed earth on the path. Also perturbs the normal for close-up detail.
-float3 terrain_surface(float3 P, float3 Ng, float pathW, float wet, float palette, float fpix, thread float3& N, thread float& rough) {
+float3 terrain_surface(float3 P, float3 Ng, float pathW, float wet, float duff, float palette, float fpix, thread float3& N, thread float& rough) {
     bool glass = palette > 0.5;                       // the Glass Wood: teal and violet instead of green and gold
     float slope = Ng.y;
     float macro = fbm3(P * 0.012);                 // large patches
@@ -84,6 +84,17 @@ float3 terrain_surface(float3 P, float3 Ng, float pathW, float wet, float palett
     float pm = smoothstep(0.25, 0.75, pathW + (meso - 0.5) * 0.5);
     albedo = mix(albedo, earth, pm);
 
+    // Forest floor under conifers: warm brown needle litter and duff, finer-grained and darker than the meadow, with lighter fallen
+    // needles lying in streaks. Band-limited like the rest.
+    float duffW = duff * (1.0 - pm) * (1.0 - 0.6 * smoothstep(0.55, 0.9, rockMask));
+    if (duffW > 0.002) {
+        float needleW = 1.0 - smoothstep(0.012, 0.05, fpix);
+        float needles = mix(0.5, vnoise3(float3(P.x * 46.0 + P.z * 17.0, P.y * 3.0, P.z * 46.0 - P.x * 17.0)), needleW);
+        float clumps = vnoise3(P * 7.0 + 3.0);
+        float3 duffCol = mix(float3(0.25, 0.145, 0.065), float3(0.50, 0.32, 0.15), smoothstep(0.55, 0.9, needles)) * (0.72 + 0.5 * clumps);
+        albedo = mix(albedo, duffCol, duffW * 0.93);
+    }
+
     // Wet ground darkens near the waterline (spray and damp), beyond the wet sand itself.
     float damp = (1.0 - smoothstep(0.3, 2.0, P.y)) * (1.0 - sandMask);
     albedo *= mix(1.0, 0.68, damp);
@@ -113,6 +124,7 @@ float3 terrain_surface(float3 P, float3 Ng, float pathW, float wet, float palett
     }
 
     rough = mix(mix(0.92, 0.85, rockMask), mix(0.95, 0.45, wetSand), sandMask);
+    rough = mix(rough, 1.0, duffW);
     // Gloss varies at three scales (patches, clumps, grain) so no surface has one uniform sheen; damp ground is glossier.
     rough += ((macro - 0.5) * 0.16 + (meso - 0.5) * 0.20 + (micro - 0.5) * 0.12) * 0.6;
     rough -= 0.22 * damp;
@@ -212,7 +224,7 @@ fragment LitFragOut lit_fragment(LitOut in [[stage_in]],
     float rough = in.color.a;
     if (in.material > 0.5 && in.material < 1.5) {
         float3 Ng = n;
-        albedo = terrain_surface(in.worldPos, Ng, in.color.r, in.color.g, frame.worldB.x, fpix, n, rough);
+        albedo = terrain_surface(in.worldPos, Ng, in.color.r, in.color.g, in.color.b, frame.worldB.x, fpix, n, rough);
     }
 
     // Procedural prop materials (masonry, paint, iron, copper, wood, bark): albedo, roughness, metalness, bumped normal, AO.

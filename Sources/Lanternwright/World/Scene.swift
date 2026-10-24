@@ -175,6 +175,7 @@ final class Scene {
     static func makeWorld(device: MTLDevice) -> Scene {
         let scene = Scene()
         scene.terrain = Terrain()
+        scene.terrain.setDuff(Island.duffDiscs(terrain: scene.terrain))
         for chunk in TerrainMesh.buildChunks(terrain: scene.terrain, device: device) {
             scene.add(chunk.name, mesh: chunk.mesh, uniforms: chunk.uniforms)
         }

@@ -25,7 +25,7 @@ enum TerrainMesh {
                         let wet = 1 - smoothstep(0.6, 2.0, y)
                         verts.append(Vertex(position: SIMD4(x, y, z, 1),
                                             normal: SIMD4(n, MaterialID.terrain.rawValue),
-                                            color: SIMD4(path, wet, 0, 0.9)))
+                                            color: SIMD4(path, wet, terrain.duffAt(x: x, z: z), 0.9)))
                     }
                 }
                 let row = per + 1
