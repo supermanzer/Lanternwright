@@ -3,16 +3,75 @@ import simd
 
 /// What survives between sessions. Partial progress through the stone sequence is deliberately NOT saved: a half-struck
 /// sequence means nothing after a restart, whereas solving the puzzle, the pages you found and where you stand do.
+///
+/// Version 2 keeps puzzle flags **per world** (`worldFlags["varrow"]`, `["glassWood"]`, plus `["game"]` for flags the game
+/// itself owns), so two worlds can never collide on a flag name and each world's puzzles restore only from their own bucket.
+/// Version 1 saves (one flat `flags` list) are migrated on load.
 struct SaveData: Codable, Equatable {
-    static let currentVersion = 1
+    static let currentVersion = 2
+    static let gameBucket = "game"
     var version = SaveData.currentVersion
-    var flags: [String]                 // puzzle flags worth keeping (see Game.persistentFlags)
+    var worldFlags: [String: [String]]
     var pages: [Int]
     var position: [Float]               // x, y, z (feet)
     var yaw: Float
     var pitch: Float
     var playTime: Float
     var world: String? = nil            // absent in saves from before the second world: means Varrow
+
+    /// Every saved flag, whichever bucket it is in.
+    var flags: [String] { worldFlags.values.flatMap { $0 }.sorted() }
+
+    init(worldFlags: [String: [String]], pages: [Int], position: [Float], yaw: Float, pitch: Float, playTime: Float, world: String? = nil) {
+        self.worldFlags = worldFlags; self.pages = pages; self.position = position
+        self.yaw = yaw; self.pitch = pitch; self.playTime = playTime; self.world = world
+    }
+
+    private enum CodingKeys: String, CodingKey { case version, worldFlags, flags, pages, position, yaw, pitch, playTime, world }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        let v = try c.decode(Int.self, forKey: .version)
+        if let w = try c.decodeIfPresent([String: [String]].self, forKey: .worldFlags) {
+            worldFlags = w
+        } else {
+            worldFlags = SaveData.migrate(legacyFlags: try c.decodeIfPresent([String].self, forKey: .flags) ?? [])
+        }
+        version = v
+        pages = try c.decode([Int].self, forKey: .pages)
+        position = try c.decode([Float].self, forKey: .position)
+        yaw = try c.decode(Float.self, forKey: .yaw)
+        pitch = try c.decode(Float.self, forKey: .pitch)
+        playTime = try c.decode(Float.self, forKey: .playTime)
+        world = try c.decodeIfPresent(String.self, forKey: .world)
+        if v < SaveData.currentVersion { version = SaveData.currentVersion }      // migrated in memory; rewritten as v2 on the next save
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(version, forKey: .version)
+        try c.encode(worldFlags, forKey: .worldFlags)
+        try c.encode(pages, forKey: .pages)
+        try c.encode(position, forKey: .position)
+        try c.encode(yaw, forKey: .yaw)
+        try c.encode(pitch, forKey: .pitch)
+        try c.encode(playTime, forKey: .playTime)
+        try c.encodeIfPresent(world, forKey: .world)
+    }
+
+    /// Sort a v1 flat flag list into worlds. This table is frozen history (v1 only ever had these flags), so it is the one
+    /// place a flag list is allowed to be spelled out.
+    static func migrate(legacyFlags: [String]) -> [String: [String]] {
+        var out: [String: [String]] = [:]
+        for f in legacyFlags {
+            let bucket: String
+            if f == "lensTouched" { bucket = gameBucket }
+            else if f.hasPrefix("gw_") { bucket = WorldKind.glassWood.rawValue }
+            else { bucket = WorldKind.varrow.rawValue }       // solved, lighthouseLit, causewayUp, seen_*, struck_*
+            out[bucket, default: []].append(f)
+        }
+        return out
+    }
 }
 
 enum SaveStore {
@@ -47,8 +106,19 @@ extension Game {
     /// Derived from the puzzles themselves (plus the one flag the game owns: having travelled), so a new puzzle needs no edit here.
     var persistentFlags: [String] { puzzles.flatMap(\.persistentFlags) + ["lensTouched"] }
 
+    /// Each puzzle's set flags under its own world, the game's own flags under "game".
+    private func savedFlagsByWorld() -> [String: [String]] {
+        var out: [String: [String]] = [:]
+        for p in puzzles {
+            let set = p.persistentFlags.filter { state.has($0) }
+            if !set.isEmpty { out[p.world.rawValue, default: []] += set }
+        }
+        if state.has("lensTouched") { out[SaveData.gameBucket] = ["lensTouched"] }
+        return out
+    }
+
     func makeSave() -> SaveData {
-        SaveData(flags: persistentFlags.filter { state.has($0) },
+        SaveData(worldFlags: savedFlagsByWorld(),
                  pages: journal.collectedPages.map(\.number),
                  position: [player.position.x, player.position.y, player.position.z],
                  yaw: player.yaw, pitch: player.pitch, playTime: time, world: world.rawValue)
@@ -56,9 +126,8 @@ extension Game {
 
     /// Bring a freshly created game to the saved state.
     func restore(_ s: SaveData) {
-        let saved = Set(s.flags)
-        if saved.contains("lensTouched") { state.set("lensTouched") }
-        for p in puzzles { p.restore(from: saved) }
+        if s.worldFlags[SaveData.gameBucket]?.contains("lensTouched") == true { state.set("lensTouched") }
+        for p in puzzles { p.restore(from: Set(s.worldFlags[p.world.rawValue] ?? [])) }
         for n in s.pages { restorePage(n) }
         if let w = s.world.flatMap(WorldKind.init(rawValue:)), w != world { travel(to: w) }
         let p = SIMD3(s.position[0], s.position[1], s.position[2])

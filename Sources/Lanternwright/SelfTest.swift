@@ -690,6 +690,30 @@ enum SelfTest {
             var sea = g.makeSave(); sea.position = [175, 0.8, 330]       // open sea
             let k = Game(scene: Scene.makeWorld(device: device)); k.restore(sea)
             check(distance(SIMD2(k.player.position.x, k.player.position.z), SIMD2(Layout.dockEnd.x, Layout.dockEnd.z)) < 1, "a saved position in the open sea falls back to the spawn")
+            // Version 2: puzzle flags per world; version 1 (one flat list) migrates on load.
+            let v2 = g.makeSave()
+            check(v2.version == 2 && v2.worldFlags["varrow"]?.contains("solved") == true && v2.worldFlags["game"] == ["lensTouched"] && v2.worldFlags["glassWood"] == nil, "a v2 save files flags under their world (solved -> varrow, lensTouched -> game)")
+            let v1json = """
+            {"version":1,"flags":["solved","lighthouseLit","causewayUp","lensTouched","gw_mirrors","gw_end","struck_tide"],"pages":[1,5],
+             "position":[175,0.8,205],"yaw":0.5,"pitch":0,"playTime":42,"world":"varrow"}
+            """
+            try? FileManager.default.createDirectory(atPath: tmp, withIntermediateDirectories: true)
+            try? v1json.write(to: SaveStore.url, atomically: true, encoding: .utf8)
+            let mig = SaveStore.load()
+            check(mig?.version == 2 && mig?.worldFlags["varrow"]?.sorted() == ["causewayUp", "lighthouseLit", "solved", "struck_tide"] && mig?.worldFlags["glassWood"]?.sorted() == ["gw_end", "gw_mirrors"] && mig?.worldFlags["game"] == ["lensTouched"], "a v1 save loads and its flat flags are sorted into worlds")
+            let migGame = Game(scenes: [.varrow: Scene.makeWorld(device: device), .glassWood: GlassWood.build(device: device)])
+            if let m = mig { migGame.restore(m) }
+            check(migGame.state.has("solved") && migGame.state.has("lensTouched") && migGame.state.has("gw_mirrors") && migGame.state.has("struck_tide") && migGame.journal.collectedPages.map(\.number) == [1, 5], "a migrated v1 save restores its progress and pages")
+            try? SaveStore.save(mig!)
+            let rewritten = (try? String(contentsOf: SaveStore.url, encoding: .utf8)) ?? ""
+            check(rewritten.contains("\"worldFlags\"") && !rewritten.contains("\"flags\"") && SaveStore.load() == mig, "saving a migrated game writes v2 and it reads back identically")
+            // A flag in the wrong bucket is ignored by a puzzle that does not own that world: no cross-world leakage.
+            var leaky = g.makeSave(); leaky.worldFlags["glassWood"] = ["solved"]
+            let leakGame = Game(scenes: [.varrow: Scene.makeWorld(device: device), .glassWood: GlassWood.build(device: device)]); leakGame.restore(leaky)
+            check(leakGame.state.has("solved"), "(Varrow's own bucket still restores) ...")
+            var onlyGlass = g.makeSave(); onlyGlass.worldFlags["varrow"] = nil
+            let og = Game(scenes: [.varrow: Scene.makeWorld(device: device), .glassWood: GlassWood.build(device: device)]); og.restore(onlyGlass)
+            check(!og.state.has("solved"), "...and a world's flags come only from that world's bucket")
             SaveStore.delete(); check(SaveStore.load() == nil, "delete removes the save")
         }
         if name == "all" || name == "settings" {
@@ -799,7 +823,7 @@ enum SelfTest {
             let k = Game(scenes: scenes)
             if let save = SaveStore.load() { k.restore(save) }
             check(k.world == .glassWood && abs(k.player.position.x + 20) < 0.01 && k.state.has("solved"), "a save made in the Glass Wood resumes there")
-            let old = SaveData(flags: ["solved"], pages: [], position: [175, 0.8, 205], yaw: 0, pitch: 0, playTime: 1, world: nil)
+            let old = SaveData(worldFlags: ["varrow": ["solved"]], pages: [], position: [175, 0.8, 205], yaw: 0, pitch: 0, playTime: 1, world: nil)
             let m = Game(scenes: scenes); m.restore(old)
             check(m.world == .varrow, "a save without a world field (from before the second world) resumes in Varrow")
         }
