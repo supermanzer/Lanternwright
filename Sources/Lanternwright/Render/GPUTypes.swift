@@ -43,7 +43,7 @@ struct ObjectUniforms {
 enum MaterialID: Float {
     case standard = 0, terrain = 1, emissiveGlass = 2, foliage = 3, bird = 4
     /// Procedural prop materials (see Shaders/Materials.swift).
-    case masonry = 5, paint = 6, iron = 7, copper = 8, wood = 9, bark = 10
+    case masonry = 5, paint = 6, iron = 7, copper = 8, wood = 9, bark = 10, dressed = 11
 }
 
 enum GPUTypes {
