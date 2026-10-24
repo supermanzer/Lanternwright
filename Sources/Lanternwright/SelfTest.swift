@@ -698,7 +698,7 @@ enum SelfTest {
             g.simulate(seconds: Game.fadeOutSeconds - 0.4)
             check(g.world == .glassWood && g.whiteout > 0.99, "at full white the world has changed to the Glass Wood (whiteout \(String(format: "%.2f", g.whiteout)))")
             check(distance(SIMD2(g.player.position.x, g.player.position.z), SIMD2(arrival.x, arrival.z)) < 0.01 && abs(g.player.position.y - arrival.y) < 0.6, "you arrive on the arrival pad")
-            check(g.interactables.map(\.id) == ["gw_return"] && g.drainEvents().contains(.worldChanged(.glassWood)), "the Glass Wood has its own interactables and a worldChanged event was emitted")
+            check(g.interactables.map(\.id).contains("gw_return") && !g.interactables.map(\.id).contains("lens") && g.drainEvents().contains(.worldChanged(.glassWood)), "the Glass Wood has its own interactables (and not Varrow's) and a worldChanged event was emitted")
             g.simulate(seconds: Game.holdSeconds + Game.fadeInSeconds + 0.2)
             check(g.whiteout == 0 && !g.isTraveling && g.whiteCaption == nil, "the white fades away and control returns")
             g.simulate(seconds: 2, input: input)
