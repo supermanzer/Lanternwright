@@ -48,7 +48,8 @@ final class Scene {
 
     /// Level-of-detail groups: items that are alternatives of each other (near, mid, far versions of the same trees). Exactly one is
     /// visible per group, chosen from the eye's distance to the group's footprint. Applied by the renderer each frame.
-    struct LODGroup { var names: [String]; var min: SIMD2<Float>; var max: SIMD2<Float> }
+    /// `extras` are items that belong to the near level only (the cell's cones and twigs): drawn whenever level 0 is.
+    struct LODGroup { var names: [String]; var extras: [String] = []; var min: SIMD2<Float>; var max: SIMD2<Float> }
     var lodGroups: [LODGroup] = []
     static let lodDistances: [Float] = [45, 130]
     /// Which levels of a tree cell can be needed when its box is `d` metres from the eye (R09). The shader decides per tree and per pixel
@@ -66,6 +67,7 @@ final class Scene {
                 let d = (dx * dx + dz * dz).squareRoot()
                 let level = d < Scene.lodDistances[0] ? 0 : (d < Scene.lodDistances[1] ? 1 : 2)
                 for (i, name) in g.names.enumerated() { update(name) { $0.hidden = (i != min(level, g.names.count - 1)); $0.uniforms.lod.x = 0 } }
+                for name in g.extras { update(name) { $0.hidden = level != 0; $0.uniforms.lod.x = 0 } }
             }
             return
         }
@@ -75,9 +77,12 @@ final class Scene {
             let diagonal = ((g.max.x - g.min.x) * (g.max.x - g.min.x) + (g.max.y - g.min.y) * (g.max.y - g.min.y)).squareRoot()
             let drawn = Scene.lodLevelsDrawn(boxDistance: d, diagonal: diagonal)
             for (i, name) in g.names.enumerated() { update(name) { $0.hidden = !drawn[min(i, 2)]; $0.uniforms.lod.x = 1 } }
+            for name in g.extras { update(name) { $0.hidden = !drawn[0]; $0.uniforms.lod.x = 1 } }
         }
     }
     var terrain: Terrain!
+    /// Every piece placed on the ground (cones, twigs, pebbles, rocks, lanterns, trunk footings...), for the contact selftest (see Placement).
+    var placed: [Placement.PlacedProp] = []
     var colliders = Colliders()
     var walkables: [Walkable] = []
     /// Index in `walkables` of the causeway, which starts disabled and is enabled once the slabs have risen.
@@ -173,6 +178,18 @@ final class Scene {
         mix[StepMaterial.wood.rawValue] = wood
         let pebble = smoothstep(0.62, 0.8, Island.noise.value(x * 6, z * 6)) * e
         return (mix, pebble)
+    }
+
+    /// How hollow the planks sound under (x, z) (F01 W6.1): 0 = planks resting on the ground (a dull thud, a scuff of sand), 1 = suspended over open space (the
+    /// full cavity boom). From the CLEARANCE: the deck's height above whatever is under it, the terrain or the sea surface (y = 0), whichever is higher.
+    func hollowness(x: Float, z: Float) -> Float {
+        let p = SIMD2(x, z)
+        for w in walkables where w.surface == .wood {
+            guard let h = w.height(at: p) else { continue }
+            let under = max(terrain.sampleHeight(x: x, z: z), 0)
+            return smoothstep(0.15, 0.8, h - under)
+        }
+        return 0
     }
 
     /// Which dock plank the foot is on (boards run across the dock, 0.275 m apart): each plank gets its own pitch.

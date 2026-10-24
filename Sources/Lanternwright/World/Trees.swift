@@ -16,6 +16,24 @@ enum Trees {
     static let nominalHeight: Float = 9
 
     private static var cache: [Int: MeshBuilder] = [:]
+    /// A fallen cone lying on its side, 5-9 cm long: its underside (the lower generatrix) at local y = 0, pointing along +Z, base end first. Place with Placement.lay.
+    static func litterCone(_ r: (Int) -> Float) -> (mesh: MeshBuilder, halfX: Float, halfZ: Float, sink: Float) {
+        let L = 0.05 + 0.04 * r(1), R = 0.017 + 0.011 * r(2)
+        var b = MeshBuilder()
+        let axis = simd_normalize(SIMD3<Float>(0, -R, L))                    // the apex touches the ground, the base end is R above it
+        b.cone(radius: R, height: simd_length(SIMD3(R, L, 0)), segments: 7, smooth: true, surface: Surface(color: SIMD3(0.20, 0.115, 0.06) * (0.8 + 0.4 * r(3)), roughness: 0.9),
+               transform: translation(SIMD3(0, R, 0)) * rotation(aligningYTo: axis))
+        return (b, R, L / 2, 0.45 * R)
+    }
+    /// A fallen twig 25-80 cm long lying along +Z with its underside at local y = 0.
+    static func litterTwig(_ r: (Int) -> Float) -> (mesh: MeshBuilder, halfX: Float, halfZ: Float, sink: Float) {
+        let len = 0.25 + 0.55 * r(1), rad = 0.008 + 0.006 * r(2)
+        var b = MeshBuilder()
+        b.tube(points: [SIMD3(0, rad, 0), SIMD3(0.01 * (r(3) - 0.5), rad * 1.1, len * 0.5), SIMD3(0, rad, len)], radii: [rad, rad * 0.75, rad * 0.4], sides: 4,
+               surface: Surface(color: SIMD3(0.18, 0.13, 0.09), roughness: 0.95))
+        return (b, rad, len / 2, 0.4 * rad)
+    }
+
     static func variant(_ style: Style, _ index: Int, lod: Int) -> MeshBuilder {
         let key = (style == .pine ? 0 : 1000) + index * 10 + lod
         if let c = cache[key] { return c }
@@ -51,21 +69,8 @@ enum Trees {
         let ts: [Float] = lod == 0 ? [0, 0.03, 0.08, 0.18, 0.35, 0.55, 0.75, 0.9, 1.0] : [0, 0.12, 0.5, 1.0]
         b.tube(points: ts.map(trunkAt), radii: ts.map(trunkR), sides: lod == 0 ? 8 : 5, surface: bark)
 
-        // ---- Litter at the foot (near detail only): fallen cones and twigs on the duff, half sunk so they sit on slopes.
-        if lod == 0 {
-            let cone = Surface(color: SIMD3(0.20, 0.115, 0.06), roughness: 0.9)
-            let twig = Surface(color: SIMD3(0.18, 0.13, 0.09), roughness: 0.95)
-            for k in 0..<7 {
-                let a = r(30 + k, 1) * 2 * .pi, d = 0.7 + 1.8 * r(30 + k, 2)
-                b.cone(radius: 0.04 + 0.018 * r(30 + k, 3), height: 0.10 + 0.05 * r(30 + k, 4), segments: 6, smooth: true, surface: cone,
-                       transform: translation(SIMD3(cos(a) * d, 0.03, sin(a) * d)) * rotationY(r(30 + k, 5) * 6.28) * rotationZ(.pi / 2 - 0.2 + 0.4 * r(30 + k, 6)))
-            }
-            for k in 0..<6 {
-                let a = r(50 + k, 1) * 2 * .pi, d = 0.6 + 2.0 * r(50 + k, 2), len = 0.35 + 0.5 * r(50 + k, 3), ang = r(50 + k, 4) * 6.28
-                let c0 = SIMD3<Float>(cos(a) * d, 0.012, sin(a) * d), dir = SIMD3<Float>(cos(ang), 0.04, sin(ang))
-                b.tube(points: [c0, c0 + dir * len * 0.5 + SIMD3(0, 0.012, 0), c0 + dir * len], radii: [0.012, 0.009, 0.005], sides: 4, surface: twig)
-            }
-        }
+        // (The litter at the foot, cones and twigs, is no longer baked in here: on a slope it floated. See Trees.litterCone / litterTwig and Island.addTrees,
+        // which place each piece on the terrain under it.)
 
         // ---- Crown: whorls of branches, shorter toward the top.
         let tStart: Float = pine ? 0.27 : 0.15

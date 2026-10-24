@@ -56,7 +56,7 @@ final class AudioEngine {
             lastFootfalls = game.footfalls
             synth.stepSurface = game.currentSurface
             let under = game.surfaceMix
-            synth.stepMix = under.mix; synth.stepPebble = under.pebble; synth.stepPlank = game.currentPlank
+            synth.stepMix = under.mix; synth.stepPebble = under.pebble; synth.stepPlank = game.currentPlank; synth.stepHollow = game.currentHollowness
             synth.stepRun = game.lastFootWasRun
             synth.stepPan = game.footfalls % 2 == 0 ? -0.3 : 0.3      // alternate feet
             synth.stepCounter += 1
@@ -67,14 +67,17 @@ final class AudioEngine {
         if game.world == .glassWood && Float.random(in: 0..<1) < 0.125 / 8 { synth.play(.glassAmbient) }
         let p = game.player.position
         // Wind is stronger up high and in the open.
-        synth.windGain = 0.18 + 0.55 * min(max(p.y / 70, 0), 1)
         let sc = game.scene
+        let amb = AudioSpace.ambient(at: p, ground: { sc.groundHeight(x: $0, z: $1) })
+        synth.windGain = amb.windGain
+        synth.windAltitude = amb.windAltitude
         let space = AudioSpace.read(listener: p, yaw: game.player.yaw, ground: { sc.groundHeight(x: $0, z: $1) })
         synth.reverbSeconds = AudioSpace.reverbTime(openness: space.openness)
         synth.surfPan = space.surfPan; synth.surfOcclusion = space.surfOcclusion
-        // Surf fades with distance from the water: loud on the beach, a murmur 150 m inland.
-        let d = game.scene.shoreDistance(x: p.x, z: p.z)
-        synth.surfGain = 0.7 * (1 / (1 + d / 25)) + (d < 1 ? 0.1 : 0)
+        // Surf as a line source: every shoreline direction in view contributes with an inverse-square-ish law, the air darkens it with distance, and far
+        // inland it is a slow low swell (AudioSpace.surfField).
+        synth.surfGain = amb.surfGain
+        synth.surfFar = amb.surfFar; synth.surfAirCutoff = amb.surfAirCutoff
         // Sonic landmarks: where each source is relative to the listener.
         let lv = SonicLandmarks.levels(listener: p, yaw: game.player.yaw, world: game.world, lighthouseLit: game.state.has("lighthouseLit"))
         synth.humGain = lv.hum; synth.humPan = lv.humPan

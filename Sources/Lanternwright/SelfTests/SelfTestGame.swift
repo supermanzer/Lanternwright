@@ -6,6 +6,17 @@ import simd
 extension SelfTestRunner {
     func runGame() {
         if name == "all" || name == "journal" {
+            // F01 W7: reading a page opens the journal on the Pages tab, on that page, even if the Notebook was the last tab open.
+            let jg = Game(scene: Scene.makeWorld(device: device))
+            jg.journal.tab = .notebook
+            jg.activate("page_2")
+            check(jg.journal.isOpen && jg.journal.tab == .pages && jg.journal.collectedPages[jg.journal.current].number == 2, "reading a new page opens the journal on the Pages tab at that page (was the Notebook)")
+            jg.activate("page_1")
+            check(jg.journal.tab == .pages && jg.journal.collectedPages[jg.journal.current].number == 1, "reading another page shows that page")
+            jg.toggleJournal(); jg.toggleJournal()
+            check(jg.journal.isOpen && jg.journal.collectedPages[jg.journal.current].number == 1 && jg.journal.tab == .pages, "J closes and reopens on the page just read")
+            jg.journal.tab = .notebook; jg.toggleJournal(); jg.toggleJournal()
+            check(jg.journal.tab == .notebook, "plain J reopens on the last used tab")
             var j = JournalState()
             check(j.collectedPages.isEmpty, "journal starts empty")
             j.collect(3); j.collect(1)

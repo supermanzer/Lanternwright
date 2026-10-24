@@ -58,6 +58,11 @@ enum Island {
     /// Merge placed pieces into one mesh per 120 m cell so they can be culled by region.
     struct Batcher {
         var cells: [String: MeshBuilder] = [:]
+        /// A piece with its full transform already worked out (see Placement.lay); the cell comes from the transform's position.
+        mutating func addPlaced(_ piece: MeshBuilder, transform: float4x4, prefix: String) {
+            let p = transform.columns.3
+            cells["\(prefix)_\(Int(floor(p.x / 120)))_\(Int(floor(p.z / 120)))", default: MeshBuilder()].append(piece, transform: transform)
+        }
         mutating func add(_ piece: MeshBuilder, at p: SIMD3<Float>, yaw: Float, prefix: String, scale: SIMD3<Float> = SIMD3(1, 1, 1), tilt: SIMD2<Float> = .zero) {
             let key = "\(prefix)_\(Int(floor(p.x / 120)))_\(Int(floor(p.z / 120)))"
             cells[key, default: MeshBuilder()].append(piece, transform: translation(p) * rotationY(yaw) * rotationX(tilt.x) * rotationZ(tilt.y) * scaling(scale))
@@ -82,6 +87,7 @@ enum Island {
         shell.cone(radius: 0.07, height: 0.05, segments: 7, smooth: false, surface: Surface(color: SIMD3(0.80, 0.72, 0.62), roughness: 0.5))
         wood.cylinder(radiusTop: 0.05, radiusBottom: 0.07, height: 1.0, segments: 6, surface: Surface(color: SIMD3(0.42, 0.37, 0.30), roughness: 0.9))   // sun-bleached grey-brown
         var batch = Batcher()
+        var placed: [Placement.PlacedProp] = []
 
         func wrack(_ x: Float, _ z: Float) -> Bool {
             let h = terrain.sampleHeight(x: x, z: z)
@@ -105,23 +111,24 @@ enum Island {
                 let r1 = noise.unit(Int32(k * 31 + i), 3), r2 = noise.unit(Int32(k * 31 + i), 5), r3 = noise.unit(Int32(k * 31 + i), 7)
                 let q = p + SIMD2(cos(r1 * 6.28), sin(r1 * 6.28)) * (r2 * r2 * 2.6 * scale)
                 let s = 0.04 + 0.17 * r3 * r3 * r3 * 1.3
-                let y = terrain.sampleHeight(x: q.x, z: q.y)
-                var one = MeshBuilder(); one.append(pebble.tinted(SIMD3(repeating: 0.8 + 0.4 * r2)), transform: scaling(SIMD3(s * 1.3, s * 0.65, s)))
-                batch.add(one, at: SIMD3(q.x, y + s * 0.12, q.y), yaw: r1 * 6.28, prefix: "clutter_pebble")
+                var one = MeshBuilder(); one.append(pebble.tinted(SIMD3(repeating: 0.8 + 0.4 * r2)), transform: translation(SIMD3(0, s * 0.65, 0)) * scaling(SIMD3(s * 1.3, s * 0.65, s)))
+                let tr = Placement.lay(terrain: terrain, x: q.x, z: q.y, heading: r1 * 6.28, halfX: s * 1.3, halfZ: s, sink: s * 0.4)     // lies on the slope, a third sunk
+                batch.addPlaced(one, transform: tr, prefix: "clutter_pebble"); placed.append(Placement.record(kind: "pebble", mesh: one, transform: tr))
             }
             for i in 0..<woodPieces {                                         // lying flat, partly buried, roughly along the shore
                 let r1 = noise.unit(Int32(k * 17 + i), 41), r2 = noise.unit(Int32(k * 17 + i), 43), r3 = noise.unit(Int32(k * 17 + i), 47)
                 let q = p + SIMD2(r1 - 0.5, r2 - 0.5) * 3.2 * scale
-                let y = terrain.sampleHeight(x: q.x, z: q.y)
                 let len = 0.7 + 1.5 * r3
                 var one = MeshBuilder()
-                one.append(wood, transform: rotationX(.pi / 2) * scaling(SIMD3(1, len, 1)) * translation(SIMD3(0, -0.5, 0)))   // along local +Z
-                batch.add(one, at: SIMD3(q.x, y + 0.02, q.y), yaw: along + (r1 - 0.5) * 0.7, prefix: "clutter_wood", tilt: SIMD2((r2 - 0.5) * 0.12, 0))
+                one.append(wood, transform: translation(SIMD3(0, 0.06, 0)) * rotationX(.pi / 2) * scaling(SIMD3(1, len, 1)) * translation(SIMD3(0, -0.5, 0)))   // along local +Z, underside at y = 0
+                let tr = Placement.lay(terrain: terrain, x: q.x, z: q.y, heading: along + (r1 - 0.5) * 0.7, halfX: 0.07, halfZ: len / 2, sink: 0.035)
+                batch.addPlaced(one, transform: tr, prefix: "clutter_wood"); placed.append(Placement.record(kind: "driftwood", mesh: one, transform: tr))
             }
             for i in 0..<shells {
                 let r1 = noise.unit(Int32(k * 13 + i), 53), r2 = noise.unit(Int32(k * 13 + i), 59)
                 let q = p + SIMD2(cos(r1 * 6.28), sin(r1 * 6.28)) * (r2 * 2.2 * scale)
-                batch.add(shell, at: SIMD3(q.x, terrain.sampleHeight(x: q.x, z: q.y) + 0.01, q.y), yaw: r1 * 6.28, prefix: "clutter_shell")
+                let tr = Placement.lay(terrain: terrain, x: q.x, z: q.y, heading: r1 * 6.28, halfX: 0.07, halfZ: 0.07, sink: 0.012)
+                batch.addPlaced(shell, transform: tr, prefix: "clutter_shell"); placed.append(Placement.record(kind: "shell", mesh: shell, transform: tr))
             }
         }
         for (k, p) in beachSites.enumerated() {
@@ -130,6 +137,7 @@ enum Island {
         }
         for (k, p) in pathSites.enumerated() { place(p, k + 500, scale: 0.8, pebbles: 3 + Int(noise.unit(Int32(k), 99) * 5), woodPieces: 0, shells: 0) }
         batch.commit(scene, device: device)
+        scene.placed += placed
     }
 
     // MARK: Lanterns
@@ -154,9 +162,16 @@ enum Island {
                 if stoneClear {
                     let y = scene.terrain.sampleHeight(x: c.x, z: c.y)
                     let yaw = noise.unit(Int32(c.x), Int32(c.y)) * 2 * .pi
-                    let m = translation(SIMD3(c.x, y, c.y)) * rotationY(yaw)
+                    // F01 W3.5: the lantern stays vertical, its pivot at the highest ground under the base, and a stone footing with a soil apron reaches
+                    // down to the lowest, so the base meets the slope on every side.
+                    let up = Placement.upright(terrain: scene.terrain, x: c.x, z: c.y, radius: 0.36, yaw: yaw)
+                    let m = up.transform
                     body.append(bodyProto, transform: m)
                     core.append(coreProto, transform: m)
+                    let foot = Placement.skirt(radius: 0.30, depth: up.depth, surface: Surface(color: SIMD3(0.50, 0.47, 0.43), roughness: 0.9, material: .dressed))
+                    body.append(foot, transform: m)
+                    let footing = Placement.skirt(radius: 0.30, depth: up.depth, apron: false, surface: Surface(color: SIMD3(0.50, 0.47, 0.43), roughness: 0.9, material: .dressed))
+                    scene.placed.append(Placement.record(kind: "lantern", mesh: footing, transform: m))
                     scene.colliders.addCylinder(center: c, radius: 0.3, minY: y - 1, maxY: y + 2)
                 }
                 s += 18
@@ -172,7 +187,7 @@ enum Island {
 
     static func addRocks(_ scene: Scene, device: MTLDevice) {
         let spots = scatter(spacing: 15, salt: 101, accept: { x, z, h, ny, r in
-            guard h > 0.4, isClear(terrain: scene.terrain, x: x, z: z, pathMargin: 4, padMargin: 5) else { return false }
+            guard h > 0.4, ny > 0.80, isClear(terrain: scene.terrain, x: x, z: z, pathMargin: 4, padMargin: 5) else { return false }      // no boulders on cliffs: they would be buried to nothing
             let steep = ny < 0.92
             let shore = h < 3
             return r < (steep ? 0.42 : shore ? 0.22 : 0.06)
@@ -182,8 +197,11 @@ enum Island {
         for s in spots.prefix(150) {
             let y = scene.terrain.sampleHeight(x: s.x, z: s.z)
             let size = 0.35 + 1.9 * pow(s.rand * 7.31 - floor(s.rand * 7.31), 3)
-            let rock = Props.rock(seed: UInt32(truncatingIfNeeded: count &* 7919 &+ 13), size: size)
-            batch.add(rock, at: SIMD3(s.x, y - size * 0.12, s.z), yaw: s.rand * 40, prefix: "rocks")
+            var rock = MeshBuilder()
+            rock.append(Props.rock(seed: UInt32(truncatingIfNeeded: count &* 7919 &+ 13), size: size), transform: translation(SIMD3(0, size * 0.3, 0)))      // underside at local y = 0
+            let tr = Placement.lay(terrain: scene.terrain, x: s.x, z: s.z, heading: s.rand * 40, halfX: size * 1.5, halfZ: size * 1.35, sink: size * (0.2 + 1.2 * (1 - scene.terrain.normal(x: s.x, z: s.z).y)))      // deeper on a slope: boulders sit INTO a hillside
+            batch.addPlaced(rock, transform: tr, prefix: "rocks")
+            scene.placed.append(Placement.record(kind: "rock", mesh: rock, transform: tr))
             if size > 1.0 {
                 scene.colliders.addCylinder(center: SIMD2(s.x, s.z), radius: size * 0.85, minY: y - 1, maxY: y + size * 0.9)
             }
@@ -224,7 +242,7 @@ enum Island {
 
     /// The three level-of-detail batches of every tree cell, and the trunk colliders: deterministic, so built once per run and shared by
     /// every scene (the selftests build dozens).
-    private static var treeCache: (cells: [[String: MeshBuilder]], colliders: [(c: SIMD2<Float>, y: Float, h: Float)])?
+    private static var treeCache: (cells: [[String: MeshBuilder]], colliders: [(c: SIMD2<Float>, y: Float, h: Float)], litter: [String: MeshBuilder], placed: [Placement.PlacedProp])?
     static let treeCell: Float = 60
 
     static func addTrees(_ scene: Scene, device: MTLDevice) {
@@ -233,6 +251,8 @@ enum Island {
             let sites = treeSites(terrain: terrain)
             var cells = [[String: MeshBuilder]](repeating: [:], count: 3)
             var colliders: [(c: SIMD2<Float>, y: Float, h: Float)] = []
+            var litter: [String: MeshBuilder] = [:]
+            var placed: [Placement.PlacedProp] = []
             for (count, p) in sites.prefix(420).enumerated() {
                 let r1 = noise.unit(Int32(count), 11), r2 = noise.unit(Int32(count), 29), r3 = noise.unit(Int32(count), 47), r4 = noise.unit(Int32(count), 83)
                 let y = terrain.sampleHeight(x: p.x, z: p.y)
@@ -246,7 +266,9 @@ enum Island {
                 let la = noise.unit(Int32(count), 73) * 2 * .pi
                 let tilt = fallen ? SIMD2<Float>(0, .pi / 2 - 0.05) : SIMD2(lean * cos(la), lean * sin(la))
                 let shade = SIMD3(repeating: 0.8 + 0.4 * noise.unit(Int32(count), 61)) * SIMD3<Float>(1, 1 + 0.15 * (r2 - 0.5), 1 - 0.1 * (r1 - 0.5))
-                let at = SIMD3(p.x, y - (fallen ? -0.25 : 0.15), p.y)
+                // The pivot sits at the highest ground under the trunk (the trunk is sunk 10 cm there) and a footing reaches down to the lowest (Placement).
+                let sm = Placement.samples(terrain: terrain, x: p.x, z: p.y, radius: 0.55 * width)
+                let at = fallen ? SIMD3(p.x, y + 0.25, p.y) : SIMD3(p.x, sm.high - 0.1, p.y)
                 let yaw = r3 * 6.28
                 let stagger = 3 + (noise.unit(Int32(count), 97) * 2 - 1)                // position.w = 3 + stagger in -1...1
                 let i = Int(floor(p.x / treeCell)), j = Int(floor(p.y / treeCell))
@@ -259,14 +281,59 @@ enum Island {
                     let start = cell.vertices.count
                     cell.append(mesh, transform: m)
                     cell.adjust(from: start) { $0.position.w = stagger }              // the same stagger on every level of this tree (see tree_lod_level)
+                    if !fallen {
+                        let foot = Placement.skirt(radius: 0.5 * width, depth: max(0.05, sm.high - 0.1 - sm.low), surface: Surface(color: SIMD3(0.19, 0.13, 0.09) * (0.9 + 0.2 * r1), roughness: 0.95))
+                        let ft = translation(at) * rotationY(yaw)
+                        let s0 = cell.vertices.count
+                        cell.append(foot, transform: ft)
+                        cell.adjust(from: s0) { $0.position.w = stagger }
+                        if lod == 0 {
+                            let footing = Placement.skirt(radius: 0.5 * width, depth: max(0.05, sm.high - 0.1 - sm.low), apron: false, surface: Surface(color: SIMD3(0.19, 0.13, 0.09), roughness: 0.95))
+                            placed.append(Placement.record(kind: "trunk", mesh: footing, transform: ft))
+                        }
+                    }
                     cells[lod][key] = cell
                 }
                 if !fallen { colliders.append((SIMD2(p.x, p.y), y, height)) }
+                // Fallen cones and twigs on the ground around the trunk, each placed on the terrain under it (they used to be baked into the tree and floated).
+                if !fallen {
+                    let litterKey = "litter_\(i)_\(j)"
+                    for k in 0..<13 {
+                        let cone = k < 7
+                        let salt = Int32(count * 40 + k)
+                        let a = noise.unit(salt, 201) * 2 * .pi, d = (cone ? 0.7 + 1.8 * noise.unit(salt, 202) : 0.6 + 2.0 * noise.unit(salt, 202)) * max(h, 0.7)
+                        let q = SIMD2(p.x + cos(a) * d, p.y + sin(a) * d)
+                        let rr = { (n: Int) in noise.unit(salt, Int32(210 + n)) }
+                        if cone {
+                            let piece = Trees.litterCone(rr)
+                            let tr = Placement.lay(terrain: terrain, x: q.x, z: q.y, heading: noise.unit(salt, 203) * 6.28, halfX: piece.halfX, halfZ: piece.halfZ, sink: piece.sink)
+                            litter[litterKey, default: MeshBuilder()].append(piece.mesh, transform: tr)
+                            placed.append(Placement.record(kind: "cone", mesh: piece.mesh, transform: tr))
+                        } else {
+                            // A twig is long and bends with the ground: its stations follow the terrain (in world space), so no part hovers over a dip.
+                            let twig = Trees.litterTwig(rr)
+                            let heading = noise.unit(salt, 203) * 6.28
+                            let dir = SIMD2(sin(heading), cos(heading))
+                            let rad = twig.halfX, len = twig.halfZ * 2
+                            var pts: [SIMD3<Float>] = []
+                            for st in 0..<5 {
+                                let u = Float(st) / 4 * len
+                                let wx = q.x + dir.x * (u - len / 2), wz = q.y + dir.y * (u - len / 2)
+                                pts.append(SIMD3(wx, terrain.sampleHeight(x: wx, z: wz) + rad * 0.6, wz))
+                            }
+                            var mesh = MeshBuilder()
+                            mesh.tube(points: pts, radii: [rad, rad * 0.9, rad * 0.8, rad * 0.65, rad * 0.4], sides: 4, surface: Surface(color: SIMD3(0.18, 0.13, 0.09) * (0.8 + 0.4 * rr(4)), roughness: 0.95))
+                            litter[litterKey, default: MeshBuilder()].append(mesh)
+                            placed.append(Placement.record(kind: "twig", mesh: mesh, transform: matrix_identity_float4x4))
+                        }
+                    }
+                }
             }
-            treeCache = (cells, colliders)
+            treeCache = (cells, colliders, litter, placed)
         }
         let cache = treeCache!
         for c in cache.colliders { scene.colliders.addCylinder(center: c.c, radius: 0.3, minY: c.y - 1, maxY: c.y + c.h) }
+        scene.placed += cache.placed
         for name in cache.cells[0].keys.sorted() {
             let suffix = String(name.dropFirst("trees_L0".count))
             var names: [String] = []
@@ -276,10 +343,17 @@ enum Island {
                 scene.add(n, mesh: mb.build(device: device, label: n), uniforms: ObjectUniforms(lod: SIMD4(1, Float(lod), 0, 0)), hidden: lod != 0)
                 names.append(n)
             }
+            // The litter of this cell belongs to the near level only: it is drawn (and dithered out with the level) wherever level 0 is.
+            var extras: [String] = []
+            if let lit = cache.litter["litter\(suffix)"], !lit.isEmpty {
+                let n = "litter\(suffix)"
+                scene.add(n, mesh: lit.build(device: device, label: n), uniforms: ObjectUniforms(lod: SIMD4(1, 0, 0, 0)), hidden: false)
+                extras.append(n)
+            }
             let parts = suffix.split(separator: "_").compactMap { Int($0) }
             if parts.count == 2 {
                 let lo = SIMD2(Float(parts[0]) * treeCell, Float(parts[1]) * treeCell)
-                scene.lodGroups.append(Scene.LODGroup(names: names, min: lo, max: lo + SIMD2(treeCell, treeCell)))
+                scene.lodGroups.append(Scene.LODGroup(names: names, extras: extras, min: lo, max: lo + SIMD2(treeCell, treeCell)))
             }
         }
     }

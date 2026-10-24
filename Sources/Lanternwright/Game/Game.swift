@@ -101,6 +101,8 @@ final class Game {
     /// The weighted version (for the footstep voice), and the dock plank under the foot.
     var surfaceMix: (mix: StepMix, pebble: Float) { scene.surfaceMix(x: player.position.x, z: player.position.z) }
     var currentPlank: Int { scene.plankIndex(x: player.position.x, z: player.position.z) }
+    /// 0...1: how hollow the dock sounds under the feet (from the clearance under the planks).
+    var currentHollowness: Float { scene.hollowness(x: player.position.x, z: player.position.z) }
     var currentSurface: SurfaceKind { scene.surface(x: player.position.x, z: player.position.z) }
 
     /// Events since the last call (audio and UI consume these).
@@ -184,6 +186,7 @@ final class Game {
 
     private func collectPage(_ n: Int) {
         restorePage(n)
+        journal.tab = .pages                       // F01 W7: a newly read page opens on the Pages tab, on that page, whatever tab was last used
         journal.isOpen = true
         pending.append(.pageCollected(n))
         pending.append(.journalOpened)

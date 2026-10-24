@@ -104,6 +104,7 @@ enum Screenshot {
         let camera = options.camera
             ?? (options.viewName == "tree-close" ? Viewpoints.treeClose(terrain: renderer.scene.terrain) : nil)
             ?? (options.viewName == "page-close" ? Viewpoints.pageClose(terrain: renderer.scene.terrain) : nil)
+            ?? (options.viewName == "lantern-close" ? Viewpoints.lanternClose(scene: renderer.scene) : nil)
             ?? options.viewName.flatMap(Viewpoints.named)
             ?? Viewpoints.named("overview")!
 

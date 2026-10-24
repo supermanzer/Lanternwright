@@ -120,7 +120,9 @@ final class Footsteps {
     }
 
     /// Start one footfall (heel, plus toe unless running) from a weighted mix of materials.
-    func start(mix: StepMix, run: Bool, pan: Float, plank: Int = 0, pebble: Float = 0) {
+    /// `hollow` (0...1) only matters for wood: planks resting on the ground thud (the cavity's gain and ring shrink and an earthen thump and a scuff take over),
+    /// planks over open water boom.
+    func start(mix: StepMix, run: Bool, pan: Float, plank: Int = 0, pebble: Float = 0, hollow: Float = 1) {
         var weights: [(StepMaterial, Float)] = []
         for m in StepMaterial.allCases where mix[m.rawValue] > 0.04 { weights.append((m, mix[m.rawValue])) }
         weights.sort { $0.1 > $1.1 }
@@ -130,12 +132,17 @@ final class Footsteps {
         let vary = 0.85 + 0.3 * rnd(), bright = 0.9 + 0.2 * rnd()
         for (m, w) in weights {
             let level = w / total
-            emit(FootstepRecipe.table[m.rawValue], level: level, vary: vary, bright: bright, delay: 0, toe: false, run: run, pan: pan, plank: plank, pebble: pebble)
-            if !run { emit(FootstepRecipe.table[m.rawValue], level: level * 0.28, vary: vary, bright: bright, delay: 0.075, toe: true, run: false, pan: pan, plank: plank, pebble: pebble) }
+            let h: Float = m == .wood ? hollow : 1
+            emit(FootstepRecipe.table[m.rawValue], level: level, vary: vary, bright: bright, delay: 0, toe: false, run: run, pan: pan, plank: plank, pebble: pebble, hollow: h)
+            if !run { emit(FootstepRecipe.table[m.rawValue], level: level * 0.28, vary: vary, bright: bright, delay: 0.075, toe: true, run: false, pan: pan, plank: plank, pebble: pebble, hollow: h) }
+            if m == .wood && hollow < 0.99 {     // wood lying on stone or sand: the solid thud of the ground under it, with a little scuff
+                let solid = (1 - hollow) * 0.6
+                emit(FootstepRecipe.table[StepMaterial.earth.rawValue], level: level * solid, vary: vary, bright: bright, delay: 0, toe: false, run: run, pan: pan, plank: plank, pebble: 0, hollow: 1)
+            }
         }
     }
 
-    private func emit(_ r: FootstepRecipe, level: Float, vary: Float, bright: Float, delay: Float, toe: Bool, run: Bool, pan: Float, plank: Int, pebble: Float) {
+    private func emit(_ r: FootstepRecipe, level: Float, vary: Float, bright: Float, delay: Float, toe: Bool, run: Bool, pan: Float, plank: Int, pebble: Float, hollow: Float = 1) {
         let g = level * vary
         let seed = UInt32(truncatingIfNeeded: Int(rnd() * 1e6) &+ 1)
         if layers.contains(.impact) {
@@ -145,13 +152,14 @@ final class Footsteps {
         }
         // Body modes: detuned ~5 % per step; wood also shifts pitch and decay per plank (the same plank always sounds the same).
         let plankPitch: Float = r.perPlank ? 1 + (Footsteps.plankHash(plank, salt: 1) - 0.5) * 0.24 : 1
-        let plankDecay: Float = r.perPlank ? 1 + (Footsteps.plankHash(plank, salt: 2) - 0.5) * 0.30 : 1
+        let plankDecay: Float = (r.perPlank ? 1 + (Footsteps.plankHash(plank, salt: 2) - 0.5) * 0.30 : 1) * (0.18 + 0.82 * hollow)        // a plank on the ground does not ring
+        let cavity: Float = 0.12 + 0.88 * hollow
         for m in r.modes where modes.count < 90 && layers.contains(.body) {
             modes.append(Mode(delay: delay, hz: m.hz * (1 + (rnd() - 0.5) * 0.10) * plankPitch * (toe ? 1.2 : 1), glide: m.glide, attack: m.attack,
-                              decay: m.decay * plankDecay * (toe ? 0.7 : 1) * (run ? 0.6 : 1), gain: m.gain * g * (run ? 1.7 : 1), pan: pan, send: r.reverbSend))
+                              decay: m.decay * plankDecay * (toe ? 0.7 : 1) * (run ? 0.6 : 1), gain: m.gain * g * (run ? 1.7 : 1) * (r.perPlank ? cavity : 1), pan: pan, send: r.reverbSend))
         }
         // A creak: a short, gliding squeak, now and then, a little more often when running.
-        if r.creakChance > 0 && !toe && rnd() < r.creakChance * level * (run ? 1.6 : 1) && modes.count < 90 {
+        if r.creakChance > 0 && !toe && rnd() < r.creakChance * level * (run ? 1.6 : 1) * hollow && modes.count < 90 {
             let hz = lerp(600, 1400, rnd())
             modes.append(Mode(delay: delay + 0.02 + 0.05 * rnd(), hz: hz, glide: (rnd() < 0.5 ? -1 : 1) * (0.5 + rnd()), attack: 0.004, decay: 0.09, gain: 0.07 * vary, pan: pan, send: r.reverbSend))
         }

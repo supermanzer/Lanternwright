@@ -101,6 +101,19 @@ How to play: `scripts/bundle.sh && open Lanternwright.app`. Headless views: `.bu
 - `--view stone-close`: the tide stone is chamfered dressed stone with pitting and chisel marks; lichen creeps up the plinth. Glyph bars unchanged.
 - Stone lanterns on the path: chamfered dressed stone, iron finial, glowing amber core.
 
+## F01 playtest fixes (P0): journal, litter, footings, sliding, surf, wind, dock hollowness
+- **Journal (W7).** Notebook tab open, then read a new page: it opens on Pages at that page. J closes and reopens on it.
+- **Floating cones and twigs (W3.6), lantern bases (W3.5).** Look downhill from any conifer at 0.3-3 m: cones and twigs lie on the ground at the slope's angle. `--view tree-close`, `--view lantern-close` (the lantern on the steepest ground: a stone footing and a soil apron meet the slope).
+- **Stuck at the lighthouse (W4.1).** Not reproducible in 40+ simulated minutes of circling, wandering and approaching (now permanent bots). Steep ground now slides you along its contour instead of stopping you. If it still happens, press F where it happens: the feedback carries the position.
+- **Surf and wind (W6.2, W6.3). A person must listen.** Walk shore -> ridge -> summit -> lighthouse plinth: the surf should fall away steadily (about 11x quieter at the summit), darken, and breathe slowly; at the summit and plinth the wind should moan and whistle with the gusts, not hiss. `Lanternwright --selftest ambience` prints the per-position table.
+- **Dock (W6.1). A person must listen.** Walk the dock from the beach to the end: the first planks (resting on the sand) thud; they gradually start to boom over the water.
+
+## Questions for the user (not decided by anyone but you)
+1. **The door.** Is the locked door (phase 1: you try it, it rattles, a keeper's line) enough, or do you want the abandoned interior (phase 2) behind it after the island puzzle is solved?
+2. **Slipping on steep slopes.** Do you want to try it (a setting, default off): beyond about 40 degrees you slide gently downhill until the ground is gentler, never any harm? What angle feels right?
+3. **Conifers.** Stylised drooping sprays (cheap, clean, painterly) or needle-level (alpha-tested needle cards, which needs alpha-to-coverage or MSAA and costs frame time). Still undecided.
+4. **The ending of the story.** Still yours: nothing has been built or decided.
+
 ## Round 9 (R09): detail arrives gradually
 - `Lanternwright --approach all shots/x/after --size 1600x900` walks toward ten targets and writes a contact sheet each (far to near, row by row, 10 per row) plus luma / high-frequency numbers; `scripts/sheet_metrics.py before after <targets>` compares two runs. Read the sheets: detail should grow, never arrive in one step.
 - Walk through the conifer stands near 45 m and 130 m: trees dissolve between levels with a fine screen-door pattern, each tree at a slightly different distance; no cell changes shape at once. `--hard-lod` brings back the old instant swap for comparison.

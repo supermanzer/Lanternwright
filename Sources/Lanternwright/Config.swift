@@ -166,6 +166,21 @@ enum Viewpoints {
         return Camera(position: p + SIMD3(0.0, 0.8, 0.45), yaw: 0, pitch: -1.0)
     }
 
+    /// `lantern-close`: 1.6 m from the stone lantern that stands on the steepest ground, at eye height, looking at its base (F01 W3.5).
+    static func lanternClose(scene: Scene) -> Camera {
+        let t = scene.terrain!
+        let lanterns = scene.placed.filter { $0.kind == "lantern" }.map { p -> SIMD2<Float> in
+            let n = Float(p.low.count); return SIMD2(p.low.map(\.x).reduce(0, +) / n, p.low.map(\.z).reduce(0, +) / n)
+        }
+        let c = lanterns.min { t.normal(x: $0.x, z: $0.y).y < t.normal(x: $1.x, z: $1.y).y } ?? SIMD2(0, 0)
+        let down = simd_normalize(SIMD2(-t.normal(x: c.x, z: c.y).x, -t.normal(x: c.x, z: c.y).z) + SIMD2(1e-4, 0))       // the way the ground falls away
+        let cam = c + down * 1.7
+        let y = t.sampleHeight(x: cam.x, z: cam.y) + 1.1
+        let target = SIMD3<Float>(c.x, t.sampleHeight(x: c.x, z: c.y) + 0.3, c.y)
+        let d = target - SIMD3(cam.x, y, cam.y)
+        return Camera(position: SIMD3(cam.x, y, cam.y), yaw: atan2(d.x, -d.z), pitch: asin(d.y / simd_length(d)))
+    }
+
     static func named(_ name: String) -> Camera? {
         switch name {
         case "dock":     return Camera(position: SIMD3(175, 2.5, 205), yaw: -0.75, pitch: 0.02)

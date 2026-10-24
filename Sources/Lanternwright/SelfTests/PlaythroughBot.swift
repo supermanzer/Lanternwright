@@ -69,4 +69,92 @@ final class PlaythroughBot {
         var input = InputState(); input.journalPressed = true
         tick(input)
     }
+
+    /// F01 W4.1: what a stuck detector sees while the bot holds a direction. `stuck` counts one-second windows in which the player, with forward held,
+    /// moved less than `minProgress` of the distance it should have.
+    struct HoldReport { var stuck = 0; var seconds = 0; var worstProgress: Float = .infinity; var stuckAt: SIMD2<Float>? }
+
+    /// Walk around `centre` at `radius`, holding the circle with a little radial correction (so a wall pushes back and the bot slides along it), for `seconds`.
+    func circle(around centre: SIMD2<Float>, radius: Float, clockwise: Bool, run: Bool, seconds: Float, startAngle: Float = 0) -> HoldReport {
+        var rep = HoldReport()
+        let sgn: Float = clockwise ? -1 : 1
+        game.player.position = SIMD3(centre.x + cos(startAngle) * radius, game.scene.groundHeight(x: centre.x + cos(startAngle) * radius, z: centre.y + sin(startAngle) * radius), centre.y + sin(startAngle) * radius)
+        wait(0.3)
+        var windowStart = flat(feet), t: Float = 0, windowT: Float = 0
+        while t < seconds {
+            let p = flat(feet), rel = p - centre, dist = max(simd_length(rel), 1e-3)
+            let radial = rel / dist, tangent = SIMD2(-radial.y, radial.x) * sgn
+            let want = simd_normalize(tangent + radial * (radius - dist) * 0.8)
+            game.player.yaw = atan2(want.x, -want.y); game.player.pitch = 0
+            var input = InputState(); input.move = SIMD2(0, 1); input.run = run
+            tick(input); t += 1.0 / 60; windowT += 1.0 / 60
+            if windowT >= 1 {
+                let moved = simd_length(flat(feet) - windowStart)
+                let expected = (run ? Player.runSpeed : Player.walkSpeed) * Player.minPace
+                rep.worstProgress = min(rep.worstProgress, moved / expected)
+                if moved < 0.3 * expected { rep.stuck += 1; rep.stuckAt = rep.stuckAt ?? flat(feet) }
+                rep.seconds += 1; windowStart = flat(feet); windowT = 0
+            }
+        }
+        return rep
+    }
+
+    /// Walk straight at `point` from where the player stands; reports stuck windows the same way.
+    func approach(_ point: SIMD2<Float>, seconds: Float, run: Bool = false) -> HoldReport {
+        var rep = HoldReport()
+        var windowStart = flat(feet), t: Float = 0, windowT: Float = 0
+        while t < seconds {
+            let d = point - flat(feet)
+            game.player.yaw = atan2(d.x, -d.y); game.player.pitch = 0
+            var input = InputState(); input.move = SIMD2(0, 1); input.run = run
+            tick(input); t += 1.0 / 60; windowT += 1.0 / 60
+            if windowT >= 1 {
+                let moved = simd_length(flat(feet) - windowStart)
+                rep.worstProgress = min(rep.worstProgress, moved / ((run ? Player.runSpeed : Player.walkSpeed) * Player.minPace))
+                rep.seconds += 1; windowStart = flat(feet); windowT = 0
+            }
+        }
+        return rep
+    }
+
+    /// A bot that wanders at random (a new heading every 0.4-2 s, sometimes running, sometimes strafing) inside `radius` of `centre`, and after every stall
+    /// tries all eight directions for half a second each: if none of them gets anywhere the player is TRAPPED (a real stuck, not a wall faced on purpose).
+    func wander(around centre: SIMD2<Float>, radius: Float, seconds: Float, seed: UInt32) -> (trapped: [SIMD2<Float>], stalls: Int) {
+        let noise = Noise(seed: seed)
+        var trapped: [SIMD2<Float>] = [], stalls = 0
+        var t: Float = 0, heading = noise.unit(0, 1) * 2 * .pi, nextTurn: Float = 0, k: Int32 = 1
+        var run = false
+        var windowStart = flat(feet), windowT: Float = 0
+        while t < seconds {
+            if t >= nextTurn {
+                k += 1
+                heading = noise.unit(k, 1) * 2 * .pi; run = noise.unit(k, 2) > 0.6; nextTurn = t + 0.4 + 1.6 * noise.unit(k, 3)
+            }
+            let to = centre - flat(feet)
+            if simd_length(to) > radius { heading = atan2(to.x, -to.y) + (noise.unit(k, 4) - 0.5) }            // turn back toward the tower when straying
+            game.player.yaw = heading; game.player.pitch = 0
+            var input = InputState(); input.move = SIMD2((noise.unit(k, 5) - 0.5) * 0.6, 1); input.run = run
+            tick(input); t += 1.0 / 60; windowT += 1.0 / 60
+            if windowT >= 1.2 {
+                let moved = simd_length(flat(feet) - windowStart)
+                if moved < 0.25 {
+                    stalls += 1
+                    // Escape test: eight headings, half a second each.
+                    let from = flat(feet)
+                    var best: Float = 0
+                    for e in 0..<8 {
+                        game.player.position = SIMD3(from.x, game.player.position.y, from.y)
+                        let a = Float(e) / 8 * 2 * .pi
+                        for _ in 0..<30 { game.player.yaw = a; var i = InputState(); i.move = SIMD2(0, 1); tick(i) }
+                        best = max(best, simd_length(flat(feet) - from))
+                    }
+                    game.player.position = SIMD3(from.x, game.player.position.y, from.y)
+                    if best < 0.6 { trapped.append(from) }
+                    nextTurn = 0
+                }
+                windowStart = flat(feet); windowT = 0
+            }
+        }
+        return (trapped, stalls)
+    }
 }

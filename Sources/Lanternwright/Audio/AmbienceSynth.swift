@@ -33,6 +33,7 @@ final class AmbienceSynth {
     /// Weighted surface mix at the foot (when set, it replaces `stepSurface`), the dock plank index and the pebble level underfoot.
     var stepMix: StepMix?
     var stepPlank = 0
+    var stepHollow: Float = 1
     var stepPebble: Float = 0
     let feet: Footsteps
     var stepRun = false
@@ -94,6 +95,14 @@ final class AmbienceSynth {
     private var reverbApplied: Float = 1.6
     var surfPan: Float = 0
     var surfOcclusion: Float = 0
+    /// Distance shaping of the surf (AudioSpace.SurfField): `surfFar` 0...1 (near the shore ... far inland), `surfAirCutoff` the air-absorption low-pass.
+    var surfFar: Float = 0
+    var surfAirCutoff: Float = 8000
+    /// 0...1: how high the listener stands. Up high the wind loses its broadband rustle and becomes bands: a low rumble, a whistle that moves with the gusts.
+    var windAltitude: Float = 0
+    private var altSmooth: Float = 0, farSmooth: Float = 0, airSmooth: Float = 8000
+    // Wind formants: two state-variable band-passes (low, band) per channel.
+    private var howlLow = [[Float]](repeating: [0, 0], count: 2), howlBand = [[Float]](repeating: [0, 0], count: 2)
     private var panSmooth: Float = 0, occlusionSmooth: Float = 0
     private var surfMuffle: [Float] = [0, 0]
     /// How far the ambient bed is ducked right now (0 = not at all): a chime rings over the wind and surf.
@@ -188,7 +197,7 @@ final class AmbienceSynth {
 
     /// Render `frames` stereo samples (one-pole filters are cheap, so this is far under the audio deadline).
     func render(frames: Int, left: UnsafeMutablePointer<Float>, right: UnsafeMutablePointer<Float>) {
-        if stepCounter != seenSteps { seenSteps = stepCounter; feet.start(mix: stepMix ?? FootstepRecipe.pure(FootstepRecipe.material(for: stepSurface)), run: stepRun, pan: stepPan, plank: stepPlank, pebble: stepPebble) }
+        if stepCounter != seenSteps { seenSteps = stepCounter; feet.start(mix: stepMix ?? FootstepRecipe.pure(FootstepRecipe.material(for: stepSurface)), run: stepRun, pan: stepPan, plank: stepPlank, pebble: stepPebble, hollow: stepHollow) }
         if chimeLock.try() {
             let queued = pendingChimes
             pendingChimes.removeAll()
@@ -203,6 +212,7 @@ final class AmbienceSynth {
             let t = time
             panSmooth += (panTarget - panSmooth) * 0.0004
             occlusionSmooth += (occTarget - occlusionSmooth) * 0.0004
+            altSmooth += (windAltitude - altSmooth) * 0.0003; farSmooth += (surfFar - farSmooth) * 0.0003; airSmooth += (surfAirCutoff - airSmooth) * 0.0003
             // Gust: slow, irregular 0...1 built from three incommensurate sines.
             let gust = Wind.gust(time: t)
             // Surf: three swells of different periods drift in and out of phase, so the sea never repeats audibly.
@@ -220,15 +230,23 @@ final class AmbienceSynth {
                 pink[ch][1] = 0.96300 * pink[ch][1] + w * 0.2965164
                 pink[ch][2] = 0.57000 * pink[ch][2] + w * 1.0526913
                 let p = (pink[ch][0] + pink[ch][1] + pink[ch][2] + w * 0.1848) * 0.11
-                let cutoff = 250 + 1700 * gust * gust
+                let cutoff = 250 + 1700 * gust * gust * (1 - 0.6 * altSmooth)
                 let a = 1 - exp(-2 * .pi * cutoff / sampleRate)
                 windLP[ch] += a * (p - windLP[ch])
-                let windOut = windLP[ch] * (0.25 + 0.75 * gust) * wind * 3.2
+                // Up high the rustle gives way to BANDS (F01 W6.3): two resonant band-passes (Q about 7) whose centres ride the gust, so the wind whistles
+                // and moans and changes pitch with each gust; broadband noise at that level is what sounded like static.
+                let f1 = 2 * sin(.pi * (210 + 330 * gust) / sampleRate), f2 = 2 * sin(.pi * (360 + 560 * gust + 40 * sin(t * 0.13)) / sampleRate)
+                howlLow[ch][0] += f1 * howlBand[ch][0]; let hi1 = w * 0.6 - howlLow[ch][0] - howlBand[ch][0] / 7; howlBand[ch][0] += f1 * hi1
+                howlLow[ch][1] += f2 * howlBand[ch][1]; let hi2 = w * 0.6 - howlLow[ch][1] - howlBand[ch][1] / 8; howlBand[ch][1] += f2 * hi2
+                let howl = (howlBand[ch][0] + 0.7 * howlBand[ch][1]) * gust * gust * 0.9
+                let rustle = windLP[ch] * (0.25 + 0.75 * gust) * (1 - 0.7 * altSmooth)
+                let windOut = (rustle + howl * altSmooth * 1.6) * wind * 3.2
 
                 // --- surf. Right channel's swells are offset in phase for width.
                 let o: Float = ch == 1 ? 0.07 : 0
                 let e1 = swell(7.3, 0.00 + o), e2 = swell(10.1, 0.37 + o), e3 = swell(13.7, 0.71 + o)
-                let env = min(1, 0.12 + 0.55 * e1 + 0.40 * e2 + 0.30 * e3)
+                var env = min(1, 0.12 + 0.55 * e1 + 0.40 * e2 + 0.30 * e3)
+                env = pow(env, 1 + 1.6 * farSmooth)                               // far away the swells keep their depth: a slow breathing, not a steady wash
                 func drainOf(_ period: Float, _ phase: Float, _ e: Float) -> Float {
                     let x = t / period + phase + o
                     return e * smoothstep(0.45, 0.7, x - floor(x))
@@ -246,13 +264,13 @@ final class AmbienceSynth {
                 // Foam fizz: a narrow, quiet band (about 1.2-3 kHz), only while the water drains back.
                 let fw = white(ch)
                 fizzA[ch] += 0.35 * (fw - fizzA[ch]); fizzB[ch] += 0.15 * (fw - fizzB[ch])
-                let fizz = (fizzA[ch] - fizzB[ch]) * drain * 0.10
-                let body = surfLP2[ch] * (0.15 + 0.85 * env) * 2.6
-                let rumble = surfRumble[ch] * env * env * 1.1
+                let fizz = (fizzA[ch] - fizzB[ch]) * drain * 0.10 * (1 - farSmooth)
+                let body = surfLP2[ch] * (0.15 + 0.85 * env) * 2.6 * (1 - 0.65 * farSmooth)
+                let rumble = surfRumble[ch] * env * env * 1.1 * (1 + 1.8 * farSmooth)
                 var surfOut = (body + rumble + fizz) * surf * 0.42
                 // A hill between you and the sea muffles the surf (one-pole low-pass, 8 kHz open down to ~400 Hz behind a ridge) and
                 // thins it; the surf is placed left or right toward the nearest shore.
-                let muffleCut = 8000 - 7750 * occlusionSmooth
+                let muffleCut = min(8000 - 7750 * occlusionSmooth, airSmooth)           // a hill and the distance (air absorption) both darken the surf
                 surfMuffle[ch] += (1 - exp(-2 * .pi * muffleCut / sampleRate)) * (surfOut - surfMuffle[ch])
                 surfOut = surfMuffle[ch] * (1 - 0.4 * occlusionSmooth) * (1 + (ch == 0 ? -0.55 : 0.55) * panSmooth)
                 out[ch] = windOut + surfOut

@@ -73,6 +73,26 @@ extension SelfTestRunner {
             check(drawnNear == [true, true, false] && drawnFar == [false, false, true], "a cell draws the levels its trees can need (near: full+mid, far: cones only)")
             sc.applyLOD(eye: SIMD3(0, 0, 0))
         }
+        if name == "all" || name == "placement" {
+            // F01 W3.5/W3.6: nothing placed on the ground floats. Every recorded piece (cones, twigs, pebbles, shells, driftwood, rocks, lantern and trunk
+            // footings) has its lowest vertices within a few centimetres of the terrain under them, or embedded by no more than the kind allows.
+            let sc = Scene.makeWorld(device: device)
+            // `touching` = the least embedded of a piece's lowest vertices (must not be in the air, and only shallowly buried); the uphill side may be deeper.
+            let tol: [String: Float] = ["cone": 0.10, "twig": 0.10, "pebble": 0.15, "shell": 0.10, "driftwood": 0.15, "rock": 1.2, "lantern": 0.25, "trunk": 0.35]
+            let hover: [String: Float] = ["cone": 0.05, "twig": 0.05, "pebble": 0.08, "shell": 0.05, "driftwood": 0.05, "rock": 0.07, "lantern": 0.03, "trunk": 0.03]     // how far the least embedded low vertex may be in the air
+            var worstUp: [String: Float] = [:], worstDown: [String: Float] = [:], counts: [String: Int] = [:]
+            for p in sc.placed {
+                let g = Placement.contact(p, terrain: sc.terrain)
+                counts[p.kind, default: 0] += 1
+                worstUp[p.kind] = max(worstUp[p.kind] ?? -9, g.touching)
+                worstDown[p.kind] = min(worstDown[p.kind] ?? 9, g.touching)
+            }
+            check(["cone", "twig", "pebble", "shell", "driftwood", "rock", "lantern", "trunk"].allSatisfy { (counts[$0] ?? 0) > 5 }, "every kind of placed piece is recorded (\(counts))")
+            for (kind, t) in tol.sorted(by: { $0.key < $1.key }) {
+                let up = worstUp[kind] ?? 0, down = worstDown[kind] ?? 0
+                check(up <= (hover[kind] ?? 0.03) && down >= -t, "\(kind): nothing hovers (largest gap \(up) m) and the downhill side is embedded by at most \(t) m (deepest \(down) m) over \(counts[kind] ?? 0) pieces")
+            }
+        }
         if name == "all" || name == "r06" {
             func tris(_ b: MeshBuilder) -> Int { b.indices.count / 3 }
             func finite(_ b: MeshBuilder) -> Bool { b.vertices.allSatisfy { $0.position.x.isFinite && $0.position.y.isFinite && $0.position.z.isFinite && abs(simd_length(SIMD3($0.normal.x, $0.normal.y, $0.normal.z)) - 1) < 1e-2 } }

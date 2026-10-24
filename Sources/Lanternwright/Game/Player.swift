@@ -105,7 +105,17 @@ struct Player {
         let from = SIMD2(position.x, position.z)
         let delta = velocity * dt
         var pos = from
-        for candidate in [from + delta, from + SIMD2(delta.x, 0), from + SIMD2(0, delta.y)] where candidate != from {
+        // Ground too steep to climb behaves like a wall (F01 W4.1): the uphill part of the move is removed and the player slides along the contour,
+        // instead of stopping dead. The old fall-backs (each axis alone) remain for ledges and the sea's edge.
+        var slide = delta
+        let gx = scene.groundHeight(x: from.x + 0.3, z: from.y) - scene.groundHeight(x: from.x - 0.3, z: from.y)
+        let gz = scene.groundHeight(x: from.x, z: from.y + 0.3) - scene.groundHeight(x: from.x, z: from.y - 0.3)
+        let grad = SIMD2(gx, gz) / 0.6
+        if length(grad) > 1e-4 {
+            let uphill = normalize(grad)
+            slide -= uphill * max(dot(delta, uphill), 0)
+        }
+        for candidate in [from + delta, from + slide, from + SIMD2(delta.x, 0), from + SIMD2(0, delta.y)] where candidate != from {
             if canMove(from: from, to: candidate, scene: scene) { pos = candidate; break }
         }
         scene.colliders.resolve(position: &pos, radius: Player.radius, feetY: position.y, height: Player.eyeHeight)
