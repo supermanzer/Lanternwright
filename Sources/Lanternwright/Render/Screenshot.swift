@@ -30,7 +30,7 @@ enum Screenshot {
         case "solved": g.puzzle.forceSolved()
         case "mirrors": g.glass?.forceMirrorsSolved()
         case "chimes": g.glass?.forceChimesSolved()
-        case "both": g.glass?.forceMirrorsSolved(); g.glass?.forceChimesSolved()
+        case "both": g.glass?.forceMirrorsSolved(); g.glass?.forceChimesSolved(); g.glass?.forceAltar()
         case "mirrorswrong": g.glass?.setArrangement(mirrors: MirrorCourt.solutionMirrors, panes: [1, 2, 0])
         case "tide": g.puzzle.strike(.tide)
         case "tidewind": g.puzzle.strike(.tide); g.simulate(seconds: 0.7); g.puzzle.strike(.wind)

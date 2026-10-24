@@ -46,12 +46,12 @@ struct LaunchOptions {
 
     Usage: Lanternwright [options]
       --screenshot <path.png>      Render headless to a PNG and exit (no window)
-      --view <name>                Named viewpoint: dock, overview, summit, shore, islet
+      --view <name>                Viewpoint: dock overview summit shore islet; gw-arrival gw-overview gw-court gw-court-high gw-chimes gw-altar
       --camera x,y,z,yaw,pitch     Explicit camera (radians for yaw/pitch)
       --size WxH                   Output size for --screenshot (default 1600x900)
       --frames N                   Frames rendered before capture (default 3)
       --sun elevDeg,azimuthDeg     Sun position (default 8,250)
-      --debug <name>               Debug view: depth, shadow, albedo, ambient
+      --debug <name>               Debug view: depth, shadow, albedo, ambient, cascade, ao, noao
       --dump-audio <path.wav>      Render 24 s of the soundscape to a WAV (play with afplay) and exit
       --world <name>               World to render: varrow, glass (views named gw-* imply glass)
       --state <name>               World state: solved, mirrors, chimes, both, mirrorswrong, tide, tidewind

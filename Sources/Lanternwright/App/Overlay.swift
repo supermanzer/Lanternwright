@@ -14,6 +14,8 @@ final class OverlayView: NSView {
     var whiteout: CGFloat = 0
     /// Text shown while the screen is white ("The light folds…").
     var whiteoutCaption: String?
+    /// A line of story text near the top of the screen ("Ilse: ..."), set by the game.
+    var bannerText: String?
     /// Draws a stand-in scene behind the overlay (only used by the headless snapshot).
     var debugBackdrop: NSColor?
 
@@ -93,6 +95,7 @@ final class OverlayView: NSView {
         if journalOpen { drawJournal() }
         if feedbackOpen { drawFeedbackCard() }
         if let toast { drawToast(toast) }
+        if let bannerText, !journalOpen, !feedbackOpen, !menuOpen, !titleOpen { drawBanner(bannerText) }
         if whiteout > 0 { drawWhiteout() }
     }
 
@@ -332,6 +335,18 @@ final class OverlayView: NSView {
         ("⌘↩ send     Esc cancel" as NSString).draw(at: NSPoint(x: c.minX + 28, y: c.maxY - 34), withAttributes: hint)
     }
 
+    private func drawBanner(_ text: String) {
+        let width = min(860, bounds.width * 0.82)
+        let para = NSMutableParagraphStyle(); para.alignment = .center; para.lineSpacing = 4
+        let shadow = NSShadow(); shadow.shadowColor = NSColor.black.withAlphaComponent(0.7); shadow.shadowBlurRadius = 6; shadow.shadowOffset = .zero
+        let attrs: [NSAttributedString.Key: Any] = [.font: serif(22), .foregroundColor: NSColor.white, .paragraphStyle: para, .shadow: shadow]
+        let size = (text as NSString).boundingRect(with: NSSize(width: width - 48, height: 400), options: [.usesLineFragmentOrigin], attributes: attrs).size
+        let r = NSRect(x: bounds.midX - width / 2, y: 54, width: width, height: size.height + 36)
+        NSColor.black.withAlphaComponent(0.55).setFill()
+        NSBezierPath(roundedRect: r, xRadius: 12, yRadius: 12).fill()
+        (text as NSString).draw(in: NSRect(x: r.minX + 24, y: r.minY + 18, width: width - 48, height: size.height + 4), withAttributes: attrs)
+    }
+
     private func drawToast(_ text: String) {
         let attrs: [NSAttributedString.Key: Any] = [.font: serif(17), .foregroundColor: NSColor.white]
         let size = (text as NSString).size(withAttributes: attrs)
@@ -388,6 +403,8 @@ enum OverlayDump {
         try v.snapshot(to: base + "-title.png")
         v = make(); v.showMenu()
         try v.snapshot(to: base + "-menu.png")
+        v = make(); v.bannerText = "Oren: \"She would not follow, so I went ahead, and I have waited here since.\""
+        try v.snapshot(to: base + "-banner.png")
         v = make(); v.showFeedback(); v.setFeedbackString("The surf sounds much better, but the dock feels a bit narrow.")
         try v.snapshot(to: base + "-feedback.png")
     }

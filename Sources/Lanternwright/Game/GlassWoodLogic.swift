@@ -11,6 +11,9 @@ final class GlassWoodLogic {
     private let emit: (GameEvent) -> Void
     /// Make a hidden journal page visible and readable (implemented by Game, which owns interactables).
     private let revealPage: (Int) -> Void
+    /// Show a line of text over the world for a few seconds, and enable/disable an interactable by id (both provided by Game).
+    private let showBanner: (String) -> Void
+    private let setEnabled: (String, Bool) -> Void
 
     // MARK: Mirror court state
     private(set) var mirrors = MirrorCourt.initialMirrors
@@ -34,12 +37,15 @@ final class GlassWoodLogic {
     private var chimeColumn: Float = 0
     var chimesSolved: Bool { state.has("gw_chimes") }
 
-    init(scene: Scene, state: PuzzleState, animator: Animator, emit: @escaping (GameEvent) -> Void, revealPage: @escaping (Int) -> Void) {
+    init(scene: Scene, state: PuzzleState, animator: Animator, emit: @escaping (GameEvent) -> Void, revealPage: @escaping (Int) -> Void,
+         showBanner: @escaping (String) -> Void, setEnabled: @escaping (String, Bool) -> Void) {
         self.scene = scene
         self.state = state
         self.animator = animator
         self.emit = emit
         self.revealPage = revealPage
+        self.showBanner = showBanner
+        self.setEnabled = setEnabled
         refreshBeams()
     }
 
@@ -60,10 +66,17 @@ final class GlassWoodLogic {
             list.append(Interactable(id: "gw_chime_\(k)", min: SIMD3(p.x - 0.8, p.y, p.z - 0.8), max: SIMD3(p.x + 0.8, p.y + GlassPuzzleProps.chimeHeights[k] + 1.0, p.z + 0.8),
                                      prompt: "Strike the glass", reach: 6))
         }
+        for (i, name) in ["ilse", "oren"].enumerated() {
+            let p = GlassPuzzleProps.pedestalPosition(i)
+            list.append(Interactable(id: "gw_altar_\(name)", min: SIMD3(p.x - 1.1, p.y, p.z - 1.1), max: SIMD3(p.x + 1.1, p.y + 3.0, p.z + 1.1),
+                                     prompt: i == 0 ? "Touch Ilse's light" : "Touch Oren's light", reach: 5, enabled: false))
+        }
         return list
     }
 
     func click(_ id: String) {
+        if id == "gw_altar_ilse" { touchAltar(0); return }
+        if id == "gw_altar_oren" { touchAltar(1); return }
         if id.hasPrefix("gw_chime_"), let k = Int(id.dropFirst(9)), k < GlassPuzzleProps.chimeCount { strikeChime(k); return }
         if id.hasPrefix("gw_mirror_"), let k = Int(id.dropFirst(10)), k < 3 {
             emit(.chime(.glassTick))
@@ -160,6 +173,7 @@ final class GlassWoodLogic {
         scene.update("gw_column_chimes") { $0.hidden = false }
         animator.tween(delay: 0.8, duration: 3.0, ease: .inOutCubic) { [weak self] t in self?.chimeColumn = t }
         animator.after(2.0) { [weak self] in self?.revealPage(7) }
+        animator.after(3.5) { [weak self] in self?.checkAltar() }
     }
 
     func forceChimesSolved() {
@@ -169,6 +183,56 @@ final class GlassWoodLogic {
         chimeColumn = 1
         scene.update("gw_column_chimes") { $0.hidden = false }
         revealPage(7)
+    }
+
+    // MARK: The altar of two accounts
+
+    private var altarRise: Float = 0
+    private var altarColumn: Float = 0
+    var altarAwake: Bool { state.has("gw_altar") }
+
+    /// The altar wakes when BOTH puzzles are solved.
+    func checkAltar() {
+        guard mirrorsSolved, chimesSolved, !altarAwake else { return }
+        state.set("gw_altar")
+        emit(.chime(.ignite))
+        showBanner("Both lights answer. Something has woken at the end of the wood.")
+        for name in ["ilse", "oren"] { scene.update("gw_altar_\(name)") { $0.hidden = false } }
+        scene.update("gw_column_altar") { $0.hidden = false }
+        animator.tween(delay: 0.5, duration: 3.5, ease: .inOutCubic) { [weak self] t in self?.altarRise = t }
+        animator.tween(delay: 1.0, duration: 3.0, ease: .inOutCubic) { [weak self] t in self?.altarColumn = t }
+        animator.after(4.0) { [weak self] in
+            self?.revealPage(8)
+            self?.setEnabled("gw_altar_ilse", true); self?.setEnabled("gw_altar_oren", true)
+        }
+    }
+
+    /// The setup for the choice to come: hear each sibling's account. Nothing is decided here.
+    func touchAltar(_ which: Int) {
+        guard altarAwake else { return }
+        emit(.chime(.lens))
+        if which == 0 {
+            state.set("gw_ilse_heard")
+            showBanner("Ilse: \"He took the lens and went through before the lamp was lit. I have kept it burning for him since.\"")
+        } else {
+            state.set("gw_oren_heard")
+            showBanner("Oren: \"She would not follow, so I went ahead, and I have waited here since.\"")
+        }
+        if state.has("gw_ilse_heard") && state.has("gw_oren_heard") && !state.has("gw_end") {
+            state.set("gw_end")
+            animator.after(7.0) { [weak self] in
+                self?.showBanner("Two accounts, one light. You will have to choose whose you carry.   (end of the second world)")
+            }
+        }
+    }
+
+    func forceAltar() {
+        state.set("gw_altar")
+        altarRise = 1; altarColumn = 1
+        for name in ["ilse", "oren"] { scene.update("gw_altar_\(name)") { $0.hidden = false } }
+        scene.update("gw_column_altar") { $0.hidden = false }
+        revealPage(8)
+        setEnabled("gw_altar_ilse", true); setEnabled("gw_altar_oren", true)
     }
 
     // MARK: Reward
@@ -183,6 +247,7 @@ final class GlassWoodLogic {
         scene.update("gw_column") { $0.hidden = false }
         animator.tween(delay: 0.8, duration: 3.0, ease: .inOutCubic) { [weak self] t in self?.columnGrowth = t }
         animator.after(2.0) { [weak self] in self?.revealPage(6) }
+        animator.after(3.5) { [weak self] in self?.checkAltar() }
     }
 
     /// Put the court in a given arrangement without any animation (debug views and tests).
@@ -208,6 +273,24 @@ final class GlassWoodLogic {
     // MARK: Visuals (every tick)
 
     func updateVisuals(time: Float) {
+        if altarRise > 0 {
+            for (i, name) in ["ilse", "oren"].enumerated() {
+                let col = i == 0 ? GlassPuzzleProps.ilseColor : GlassPuzzleProps.orenColor
+                let heard = state.has(i == 0 ? "gw_ilse_heard" : "gw_oren_heard")
+                let m = GlassPuzzleProps.pedestalModel(i, rise: altarRise)
+                scene.update("gw_altar_\(name)") {
+                    $0.uniforms.model = m
+                    $0.uniforms.emissive = SIMD4(col, (heard ? 1.5 : 0.9) + 0.25 * sin(time * 1.8 + Float(i) * 3) * altarRise)
+                }
+            }
+        }
+        if altarColumn > 0 {
+            let h = max(altarColumn * 30, 0.01)
+            scene.update("gw_column_altar") {
+                $0.uniforms.model = translation(GlassLayout.altar) * scaling(SIMD3(1, h, 1))
+                $0.uniforms.emissive = SIMD4(1.0, 0.92, 0.8, 5 + sin(time * 1.4))
+            }
+        }
         for k in 0..<GlassPuzzleProps.chimeCount {
             let lit = chimeLit[k]
             let idle = 0.35 + 0.15 * sin(time * 2.0 + Float(k))              // gentle pulse: strike me

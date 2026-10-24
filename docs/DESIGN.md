@@ -90,8 +90,8 @@ Audio      ─ AVAudioEngine source nodes: wind, surf, synthesized chimes
 | M1 | The look | HDR + ACES, atmosphere sky + clouds, terrain island, shadows, water, bloom; screenshot looks like a painting at golden hour | **done** |
 | M2 | Embodiment | WASD + mouse-look, terrain grounding, colliders, water boundary, ambience audio | **done** |
 | M3 | Vertical slice | Dock/path/lighthouse built; 3 resonance stones; journal overlay; puzzle solvable; causeway rises; islet reachable | **done** |
-| M4 | Polish pass | Instanced grass/foliage, cascaded shadows, god rays, SSAO, footsteps per surface, save/load of flags, settings menu | planned |
-| M5 | First Refraction | Linking through the lens to a second world (e.g. a glass forest under twin moons) with 2–3 puzzles reusing the glyph language | planned |
+| M4 | Polish pass | Instanced grass/foliage, cascaded shadows, god rays, SSAO, footsteps per surface, save/load of flags, settings menu | **done** |
+| M5 | First Refraction | Linking through the lens to a second world (e.g. a glass forest under twin moons) with 2–3 puzzles reusing the glyph language | **done (the final choice is deliberately not built)** |
 | M6+ | Full game | 3–4 Refractions, sibling-choice ending, title screen, notarized build | planned |
 
 ## 8. Controls

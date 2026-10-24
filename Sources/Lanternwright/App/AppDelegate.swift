@@ -39,6 +39,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, MTKViewDelegate {
         if options.state == "solved" { game.puzzle.forceSolved(); game.simulate(seconds: 0.1); _ = game.drainEvents() }
         if options.state == "mirrors" || options.state == "both" { game.glass?.forceMirrorsSolved() }
         if options.state == "chimes" || options.state == "both" { game.glass?.forceChimesSolved() }
+        if options.state == "both" { game.glass?.forceAltar() }
         if ["mirrors", "chimes", "both"].contains(options.state ?? "") { game.simulate(seconds: 0.1); _ = game.drainEvents() }
         if options.world == .glassWood || ["mirrors", "chimes", "both"].contains(options.state ?? "") { game.travel(to: .glassWood); _ = game.drainEvents() }
         game.state.onChange = { [weak self] _, _ in self?.saveDirty = true }
@@ -241,6 +242,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, MTKViewDelegate {
         set(&overlay.pageIndex, journal.current)
         set(&overlay.whiteout, CGFloat(game.whiteout))
         set(&overlay.whiteoutCaption, game.whiteCaption)
+        set(&overlay.bannerText, game.banner)
         if overlay.pages.map(\.number) != journal.collectedPages.map(\.number) { overlay.pages = journal.collectedPages; dirty = true }
         if overlay.step(dt: dt) { dirty = true }
         if dirty { overlay.needsDisplay = true }

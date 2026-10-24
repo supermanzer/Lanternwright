@@ -904,6 +904,63 @@ enum SelfTest {
             let early = tick[0..<4000].map { abs($0) }.max() ?? 0, dryLate = tick[Int(sr * 0.26)..<Int(sr * 0.35)].map { abs($0) }.max() ?? 1
             check(early > 0.02 && dryLate < early * 0.08, "the mirror tick is short: gone before the first echo (peak \(String(format: "%.2f", early)) -> \(String(format: "%.4f", dryLate)) at 0.3 s)")
         }
+        if name == "all" || name == "altar" {
+            func fresh() -> Game {
+                let g = Game(scenes: [.varrow: Scene.makeWorld(device: device), .glassWood: GlassWood.build(device: device)])
+                g.travel(to: .glassWood); _ = g.drainEvents(); return g
+            }
+            func item(_ g: Game, _ name: String) -> DrawItem { g.scenes[.glassWood]!.items.first { $0.name == name }! }
+            func enabled(_ g: Game, _ id: String) -> Bool { g.interactables.first { $0.id == id }?.enabled == true }
+
+            var g = fresh()
+            check(item(g, "gw_altar_ilse").hidden && item(g, "gw_altar_oren").hidden && !enabled(g, "gw_altar_ilse") && !enabled(g, "gw_altar_oren"), "the altar's pedestals are hidden and inert at the start")
+            g.glass!.touchAltar(0)
+            check(g.banner == nil && !g.state.has("gw_ilse_heard"), "touching a dormant altar does nothing")
+
+            // One puzzle is not enough, in either order.
+            g.glass!.forceMirrorsSolved(); g.glass!.checkAltar(); g.simulate(seconds: 6)
+            check(!g.state.has("gw_altar") && item(g, "gw_altar_ilse").hidden, "solving only the mirrors does not wake the altar")
+            g = fresh()
+            g.glass!.forceChimesSolved(); g.glass!.checkAltar(); g.simulate(seconds: 6)
+            check(!g.state.has("gw_altar"), "solving only the chimes does not wake it either")
+
+            // Both, by really playing the second puzzle: chimes first, then the mirrors.
+            g = fresh()
+            for k in GlassWoodLogic.chimeSolution { g.glass!.strikeChime(k); g.simulate(seconds: 0.6) }
+            g.simulate(seconds: 5)
+            check(g.state.has("gw_chimes") && !g.state.has("gw_altar"), "chimes solved first: the altar is still asleep")
+            g.glass!.setArrangement(mirrors: MirrorCourt.solutionMirrors, panes: MirrorCourt.solutionPanes)
+            g.simulate(seconds: 5)
+            check(g.state.has("gw_mirrors") && g.state.has("gw_altar"), "then the mirrors: the altar wakes (either order works)")
+            check(g.banner?.contains("woken") == true, "a line of text announces it (\"\(g.banner ?? "")\")")
+            check(!item(g, "gw_altar_ilse").hidden && !item(g, "gw_altar_oren").hidden && !item(g, "gw_column_altar").hidden, "the pedestals and a column of light appear")
+            check(!enabled(g, "gw_altar_ilse") && item(g, "page_8").hidden, "…but they are not touchable until they have finished rising")
+            g.simulate(seconds: 5)
+            check(enabled(g, "gw_altar_ilse") && enabled(g, "gw_altar_oren") && !item(g, "page_8").hidden && enabled(g, "page_8"), "once risen, both lights can be touched and Oren's last page (8) appears")
+            let sunk = item(g, "gw_altar_ilse").uniforms.model.columns.3.y
+            check(abs(sunk - GlassLayout.altar.y) < 0.05, "the pedestals have risen to ground level (y \(String(format: "%.2f", sunk)) vs \(String(format: "%.2f", GlassLayout.altar.y)))")
+
+            // Hearing the two accounts.
+            g.activate("gw_altar_ilse")
+            check(g.state.has("gw_ilse_heard") && g.banner?.hasPrefix("Ilse:") == true && !g.state.has("gw_end"), "Ilse's account is shown; the end is not reached with only one")
+            g.activate("gw_altar_oren")
+            check(g.state.has("gw_oren_heard") && g.banner?.hasPrefix("Oren:") == true && g.state.has("gw_end"), "Oren's account is shown; hearing both reaches the end of the second world")
+            g.simulate(seconds: 8)
+            check(g.banner?.contains("choose") == true, "after a pause the closing line sets up the choice (\"\(g.banner ?? "")\")")
+            g.simulate(seconds: 12)
+            check(g.banner == nil, "banners clear themselves")
+
+            // A save keeps all of it; returning to Varrow acknowledges it.
+            let tmp = NSTemporaryDirectory() + "lw-altar-\(getpid())"
+            setenv("LANTERNWRIGHT_SAVE_DIR", tmp, 1)
+            defer { try? FileManager.default.removeItem(atPath: tmp); unsetenv("LANTERNWRIGHT_SAVE_DIR") }
+            try? SaveStore.save(g.makeSave())
+            let h = Game(scenes: [.varrow: Scene.makeWorld(device: device), .glassWood: GlassWood.build(device: device)])
+            if let save = SaveStore.load() { h.restore(save) }
+            check(h.state.has("gw_altar") && h.state.has("gw_end") && enabled(h, "gw_altar_oren") && !h.scenes[.glassWood]!.items.first { $0.name == "page_8" }!.hidden, "a save restores the awakened altar and the story flags")
+            h.activate("gw_return"); h.simulate(seconds: Game.fadeOutSeconds + 0.1)
+            check(h.world == .varrow && h.banner?.contains("two accounts") == true, "returning to Varrow after the end acknowledges it (\"\(h.banner ?? "")\")")
+        }
         return ok
     }
 }

@@ -25,6 +25,9 @@ final class Game {
     private(set) var whiteCaption: String?
     /// True while a world change is in progress: the player stands still and nothing is hoverable.
     private(set) var isTraveling = false
+    /// A line of text shown over the world for a few seconds (nil = none).
+    private(set) var banner: String?
+    private var bannerSerial = 0
 
     private var accumulator: Float = 0
     private var lastTime: Double?
@@ -41,9 +44,21 @@ final class Game {
         puzzle = LighthousePuzzle(scene: scenes[.varrow]!, state: state, animator: animator) { [weak self] in self?.pending.append($0) }
         if let gw = scenes[.glassWood] {
             glass = GlassWoodLogic(scene: gw, state: state, animator: animator, emit: { [weak self] in self?.pending.append($0) },
-                                   revealPage: { [weak self] n in self?.revealPage(n) })
+                                   revealPage: { [weak self] n in self?.revealPage(n) },
+                                   showBanner: { [weak self] t in self?.showBanner(t) },
+                                   setEnabled: { [weak self] id, on in self?.setInteractable(id, enabled: on) })
         }
         buildInteractables()
+    }
+
+    /// Show text over the world; it stays for a time proportional to its length, unless replaced by a newer line.
+    func showBanner(_ text: String) {
+        banner = text
+        bannerSerial += 1
+        let serial = bannerSerial
+        animator.after(3.5 + Float(text.count) * 0.055) { [weak self] in
+            if self?.bannerSerial == serial { self?.banner = nil }
+        }
     }
 
     /// Make a hidden journal page visible and readable (puzzles call this as a reward).
@@ -175,6 +190,7 @@ final class Game {
         player.position.y = scene.groundHeight(x: pose.position.x, z: pose.position.z)
         hovered = nil
         pending.append(.worldChanged(kind))
+        if kind == .varrow && state.has("gw_end") { showBanner("The lamp still burns. You carry two accounts now.") }
     }
 
     /// Where the player is and what they have done, attached to every piece of feedback.
