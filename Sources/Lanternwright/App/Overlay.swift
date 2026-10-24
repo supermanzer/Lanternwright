@@ -8,6 +8,8 @@ final class OverlayView: NSView {
     // State pushed in by the app each frame.
     var captured = false
     var prompt: String?
+    /// The hovered thing has already done its job: a quieter, smaller ring and a dimmer prompt.
+    var promptDone = false
     var journalOpen = false
     var pages: [JournalPage] = []
     var journalTab: JournalTab = .pages
@@ -63,7 +65,7 @@ final class OverlayView: NSView {
     @discardableResult
     func step(dt: CGFloat) -> Bool {
         if titleOpen { titleTime += dt }
-        let target: CGFloat = prompt != nil ? 1 : 0
+        let target: CGFloat = prompt != nil ? (promptDone ? 0.6 : 1) : 0
         let before = ring
         ring += (target - ring) * min(1, dt * 16)
         if abs(ring - target) < 0.01 { ring = target }
@@ -129,7 +131,8 @@ final class OverlayView: NSView {
         NSColor.black.withAlphaComponent(0.45).setStroke(); NSColor.black.withAlphaComponent(0.45).setFill()
         if ring > 0.5 { halo.stroke() } else { halo.fill() }
         let path = NSBezierPath(ovalIn: rect)
-        NSColor.white.withAlphaComponent(0.92).setStroke(); NSColor.white.withAlphaComponent(0.92).setFill()
+        let tone = promptDone ? NSColor(calibratedRed: 0.85, green: 0.95, blue: 0.80, alpha: 0.62) : NSColor.white.withAlphaComponent(0.92)
+        tone.setStroke(); tone.setFill()
         if ring > 0.5 { path.lineWidth = 1.6; path.stroke() } else { path.fill() }
 
         if let prompt, ring > 0.3 {

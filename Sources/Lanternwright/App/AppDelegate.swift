@@ -241,6 +241,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, MTKViewDelegate {
         if wantMenu && !overlay.menuOpen { overlay.showMenu() }
         if !wantMenu && overlay.menuOpen { overlay.hideMenu() }
         set(&overlay.prompt, game.hovered?.prompt)
+        set(&overlay.promptDone, game.hoveredFinished)
         set(&overlay.journalOpen, journal.isOpen)
         set(&overlay.pageIndex, journal.current)
         set(&overlay.journalTab, journal.tab)

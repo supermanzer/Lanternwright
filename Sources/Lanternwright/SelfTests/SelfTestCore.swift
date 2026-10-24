@@ -190,6 +190,40 @@ extension SelfTestRunner {
             check(frozen.exposure == 1, "no time passing means no adaptation")
             check(LaunchOptions.parse(["lanternwright", "--screenshot", "x.png", "--auto-exposure"]).autoExposure == true && LaunchOptions.parse(["lanternwright", "--screenshot", "x.png"]).autoExposure == false, "screenshots are fixed-exposure unless --auto-exposure is passed")
         }
+        if name == "all" || name == "polish" {
+            // B1: finished things look finished.
+            let g = Game(scene: Scene.makeWorld(device: device))
+            check(!g.hoveredFinished, "nothing hovered is not finished")
+            let bot = PlaythroughBot(g)
+            _ = bot.walk(to: Layout.lanternPath[1], within: 2.2)
+            let tide = g.interactables.first { $0.id == "stone_tide" }!
+            bot.aim(at: (tide.min + tide.max) * 0.5); bot.tick()
+            check(g.hovered?.id == "stone_tide" && !g.hoveredFinished, "an unsolved stone looks fresh")
+            g.puzzle.forceSolved(); g.simulate(seconds: 0.1); bot.tick()
+            check(g.hovered?.id == "stone_tide" && g.hoveredFinished, "once the lighthouse is solved the same stone looks finished (and still responds)")
+            // B2: auto-run and the one-time hint.
+            let r = Game(scene: Scene.makeWorld(device: device))
+            var walk = InputState(); walk.move = SIMD2(0, 1)
+            r.simulate(seconds: 2, input: walk)
+            let walkSpeed = r.player.speed
+            var press = InputState(); press.autoRunPressed = true
+            r.advance(now: 1, input: press)
+            check(r.autoRun && r.banner?.contains("Auto-run on") == true, "R turns auto-run on and says so")
+            for k in 0..<120 { r.advance(now: 1 + Double(k + 1) / 60, input: walk) }
+            check(r.player.speed > walkSpeed * 1.4, "with auto-run on, just walking runs (\(walkSpeed) -> \(r.player.speed) m/s)")
+            r.advance(now: 5, input: press)
+            check(!r.autoRun, "R turns it off again")
+            let h = Game(scene: Scene.makeWorld(device: device))
+            h.simulate(seconds: Game.runHintAfter - 5, input: walk)
+            check(h.banner == nil && !h.state.has("hint_run"), "no hint before \(Int(Game.runHintAfter)) s of walking")
+            h.simulate(seconds: 8, input: walk)
+            check(h.state.has("hint_run") && h.banner?.contains("Shift") == true, "after \(Int(Game.runHintAfter)) s of walking without running, the hint appears once")
+            let h2 = Game(scene: Scene.makeWorld(device: device)); var sprint = walk; sprint.run = true
+            h2.simulate(seconds: Game.runHintAfter + 5, input: sprint)
+            check(!h2.state.has("hint_run"), "a player who already runs never sees the hint")
+            let saved = h.makeSave(); let h3 = Game(scene: Scene.makeWorld(device: device)); h3.restore(saved)
+            check(h3.state.has("hint_run"), "the hint is remembered across sessions")
+        }
         if name == "all" || name == "zoom" {
             check(abs(LookCloser.fov(zoom: 0) - LookCloser.baseFov) < 1e-6 && LookCloser.fov(zoom: 1) < LookCloser.baseFov * 0.45 && LookCloser.fov(zoom: 1) > 0.2, "zoom 0 is the normal 60 degrees; full zoom narrows to about 22 degrees")
             var z: Float = 0, steps = 0

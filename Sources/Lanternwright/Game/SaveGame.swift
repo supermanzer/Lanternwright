@@ -104,7 +104,7 @@ enum SaveStore {
 extension Game {
     /// Flags that make sense to restore directly.
     /// Derived from the puzzles themselves (plus the one flag the game owns: having travelled), so a new puzzle needs no edit here.
-    var persistentFlags: [String] { puzzles.flatMap(\.persistentFlags) + ["lensTouched"] }
+    var persistentFlags: [String] { puzzles.flatMap(\.persistentFlags) + Game.ownFlags }
 
     /// Each puzzle's set flags under its own world, the game's own flags under "game".
     private func savedFlagsByWorld() -> [String: [String]] {
@@ -113,7 +113,8 @@ extension Game {
             let set = p.persistentFlags.filter { state.has($0) }
             if !set.isEmpty { out[p.world.rawValue, default: []] += set }
         }
-        if state.has("lensTouched") { out[SaveData.gameBucket] = ["lensTouched"] }
+        let own = Game.ownFlags.filter { state.has($0) }
+        if !own.isEmpty { out[SaveData.gameBucket] = own }
         return out
     }
 
@@ -126,7 +127,8 @@ extension Game {
 
     /// Bring a freshly created game to the saved state.
     func restore(_ s: SaveData) {
-        if s.worldFlags[SaveData.gameBucket]?.contains("lensTouched") == true { state.set("lensTouched") }
+        for f in Game.ownFlags where s.worldFlags[SaveData.gameBucket]?.contains(f) == true { state.set(f) }
+        if state.has("hint_run") { markHintSeen() }
         for p in puzzles { p.restore(from: Set(s.worldFlags[p.world.rawValue] ?? [])) }
         for n in s.pages { restorePage(n) }
         if let w = s.world.flatMap(WorldKind.init(rawValue:)), w != world { travel(to: w) }

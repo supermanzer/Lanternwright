@@ -10,6 +10,7 @@ struct InputState {
     var escapePressed = false          // Esc edge
     var feedbackPressed = false        // F edge
     var zoom = false                   // right mouse button or Z held: look closer
+    var autoRunPressed = false         // R edge: toggle auto-run
     var tabPressed = false             // Tab edge (journal: pages <-> notebook)
     var pageFlip = 0                   // -1 / +1 when left / right arrow was pressed (journal navigation)
 }
@@ -19,7 +20,7 @@ final class Input {
     enum Key {
         static let a: UInt16 = 0, s: UInt16 = 1, d: UInt16 = 2, w: UInt16 = 13
         static let e: UInt16 = 14, f: UInt16 = 3, j: UInt16 = 38, escape: UInt16 = 53, space: UInt16 = 49
-        static let tab: UInt16 = 48, z: UInt16 = 6
+        static let tab: UInt16 = 48, z: UInt16 = 6, r: UInt16 = 15
         static let left: UInt16 = 123, right: UInt16 = 124, down: UInt16 = 125, up: UInt16 = 126
     }
 
@@ -31,6 +32,7 @@ final class Input {
     private var escapeEdge = false
     private var flipEdge = 0
     private var tabEdge = false
+    private var autoRunEdge = false
     /// Right mouse button held (set by the view).
     var rightMouseDown = false
     private var feedbackEdge = false
@@ -45,6 +47,7 @@ final class Input {
         if code == Key.escape { escapeEdge = true }
         if code == Key.f { feedbackEdge = true }
         if code == Key.tab { tabEdge = true }
+        if code == Key.r { autoRunEdge = true }
         if code == Key.left { flipEdge -= 1 }
         if code == Key.right { flipEdge += 1 }
     }
@@ -80,8 +83,9 @@ final class Input {
         s.escapePressed = escapeEdge
         s.pageFlip = flipEdge
         s.tabPressed = tabEdge
+        s.autoRunPressed = autoRunEdge
         s.feedbackPressed = feedbackEdge
-        mouse = .zero; clickEdge = false; journalEdge = false; escapeEdge = false; flipEdge = 0; tabEdge = false; feedbackEdge = false
+        mouse = .zero; clickEdge = false; journalEdge = false; escapeEdge = false; flipEdge = 0; tabEdge = false; autoRunEdge = false; feedbackEdge = false
         return s
     }
 }

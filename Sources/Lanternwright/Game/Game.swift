@@ -82,6 +82,14 @@ final class Game {
     private var atmosphereTargets: (mist: Float, beam: Float) { (state.has("lensTouched") ? Game.thinMist : 1, state.has("lighthouseLit") ? 1 : 0) }
     /// Jump the slow atmosphere easing to where it is heading (loading a save, `--state`).
     func settleAtmosphere() { (mistScale, beamAmount) = atmosphereTargets }
+    /// Auto-run: while on, moving means running (R toggles). Plus the one-time hint for players who never find Shift.
+    private(set) var autoRun = false
+    private var walkedSeconds: Float = 0
+    private var hasRun = false
+    /// A restored save that already showed the hint counts as having been told (the hint never repeats).
+    func markHintSeen() { hasRun = true }
+    static let runHintAfter: Float = 45
+    static let ownFlags = ["lensTouched", "hint_run"]
     /// 0...1: how far the "look closer" zoom has eased in (right mouse button or Z).
     private(set) var zoomAmount: Float = 0
     var camera: Camera { var c = player.camera; c.fovY = LookCloser.fov(zoom: zoomAmount); return c }
@@ -129,6 +137,18 @@ final class Game {
         for kind in worldInteractables.keys {
             if let i = worldInteractables[kind]?.firstIndex(where: { $0.id == id }) { worldInteractables[kind]![i].enabled = enabled }
         }
+    }
+
+    /// True when what the crosshair is on has already done its job (a solved stone, a heard account...): it still responds, but the
+    /// crosshair looks quieter, so the player can tell the unfinished from the finished at a glance. No sound, no text.
+    var hoveredFinished: Bool {
+        guard let id = hovered?.id else { return false }
+        if id.hasPrefix("stone_") { return state.has("solved") }
+        if id.hasPrefix("gw_mirror_") || id.hasPrefix("gw_pane_") { return state.has("gw_mirrors") }
+        if id.hasPrefix("gw_chime_") { return state.has("gw_chimes") }
+        if id == "gw_altar_ilse" { return state.has("gw_ilse_heard") }
+        if id == "gw_altar_oren" { return state.has("gw_oren_heard") }
+        return false
     }
 
     /// What the crosshair is on right now (nil while reading or fading out).
@@ -253,6 +273,11 @@ final class Game {
         let target = atmosphereTargets
         mistScale += (target.mist - mistScale) * min(1, Game.tick / 12)        // about 12 s to thin
         beamAmount += (target.beam - beamAmount) * min(1, Game.tick / 4)       // about 4 s to fade in
+        if input.run && length_squared(input.move) > 0 { hasRun = true }
+        if !hasRun && length_squared(input.move) > 0 && !journal.isOpen && !isTraveling { walkedSeconds += Game.tick }
+        if !hasRun && walkedSeconds > Game.runHintAfter && !state.has("hint_run") && banner == nil {
+            state.set("hint_run"); showBanner("Hold Shift to run, or press R to run automatically.")
+        }
         zoomAmount = LookCloser.ease(zoomAmount, held: input.zoom && !journal.isOpen && !isTraveling, dt: Game.tick)
         for p in puzzles { p.updateVisuals(time: time) }
         updateDiscoveries()
@@ -272,7 +297,10 @@ final class Game {
     }
 
     /// Advance by wall-clock time. Frame hiccups are clamped so a stall doesn't teleport the player.
-    func advance(now: Double, input: InputState) {
+    func advance(now: Double, input rawInput: InputState) {
+        var input = rawInput
+        if input.autoRunPressed { autoRun.toggle(); showBanner(autoRun ? "Auto-run on (R to stop)" : "Auto-run off") }
+        if autoRun && length_squared(input.move) > 0 { input.run = true }
         let dt = Float(min(max(now - (lastTime ?? now), 0), 0.1))
         lastTime = now
 
