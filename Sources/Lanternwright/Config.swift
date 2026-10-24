@@ -42,6 +42,8 @@ struct LaunchOptions {
     var showFeedbackDir = false
     var dumpOverlayBase: String?
     var benchFrames: Int?
+    var approachTarget: String?
+    var approachOut: String?
 
     static let usage = """
     Lanternwright: an exploration and puzzle game.
@@ -59,6 +61,7 @@ struct LaunchOptions {
       --world <name>               World to render: varrow, glass (views named gw-* imply glass)
       --state <name>               World state: solved, mirrors, chimes, both, mirrorswrong, tide, tidewind
       --dump-overlay <base>        Render crosshair/journal/end/intro overlays to <base>-*.png and exit
+      --approach <target|all> <out>  Continuous-detail measurement: walk toward a target, write a contact sheet and luma/high-frequency numbers
       --controls-md                Print the README controls table, generated from App/Controls.swift
       --feedback                   Print all saved player feedback and exit
       --feedback-dir               Print the feedback folder and exit
@@ -109,6 +112,7 @@ struct LaunchOptions {
             case "--feedback": o.showFeedback = true
             case "--feedback-dir": o.showFeedbackDir = true
             case "--dump-overlay": o.dumpOverlayBase = next()
+            case "--approach": o.approachTarget = next(); o.approachOut = next()
             case "--controls-md": print(Controls.markdownTable()); exit(0)
             case "--fps": o.showFPS = true
             case "--bench":

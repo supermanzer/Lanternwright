@@ -110,16 +110,21 @@ enum GlassWood {
                   uniforms: ObjectUniforms(model: translation(GlassLayout.returnLens), tint: SIMD4(1, 1, 1, 1), emissive: SIMD4(1.0, 0.85, 0.55, 5)))
     }
 
-    /// The crystal forest: groves of glass trees on gentle dry ground, clear of the route, the pads and the pool's bank.
-    static func addForest(_ scene: Scene, device: MTLDevice) {
+    /// Candidate crystal-tree sites (Poisson disc, clear of the route, the pads and the pool): shared by the forest and the `--approach` targets.
+    static func forestSites(terrain: Terrain) -> [SIMD2<Float>] {
         func allowed(_ x: Float, _ z: Float) -> Bool {
-            guard scene.terrain.sampleHeight(x: x, z: z) > 2.5, scene.terrain.normal(x: x, z: z).y > 0.88,
-                  Island.isClear(terrain: scene.terrain, x: x, z: z, pathMargin: 7, padMargin: 7, avoidDock: false) else { return false }
+            guard terrain.sampleHeight(x: x, z: z) > 2.5, terrain.normal(x: x, z: z).y > 0.88,
+                  Island.isClear(terrain: terrain, x: x, z: z, pathMargin: 7, padMargin: 7, avoidDock: false) else { return false }
             return length(SIMD2(x, z) - GlassTerrain.pool) >= GlassTerrain.poolRadius + 6
         }
         func density(_ x: Float, _ z: Float) -> Float { min(max(0.4 + 1.7 * Island.noise.fbm(x * 0.014 + 5, z * 0.014 - 12, octaves: 3), 0), 1) }
-        let sites = PoissonDisc.sample(min: SIMD2(-290, -380), max: SIMD2(260, 260), rMin: 7, rMax: 24,
-                                       radius: { 24 - 17 * density($0.x, $0.y) }, accept: { allowed($0.x, $0.y) }, seed: 0xC0FFEE)
+        return PoissonDisc.sample(min: SIMD2(-290, -380), max: SIMD2(260, 260), rMin: 7, rMax: 24,
+                                  radius: { 24 - 17 * density($0.x, $0.y) }, accept: { allowed($0.x, $0.y) }, seed: 0xC0FFEE)
+    }
+
+    /// The crystal forest: groves of glass trees on gentle dry ground, clear of the route, the pads and the pool's bank.
+    static func addForest(_ scene: Scene, device: MTLDevice) {
+        let sites = forestSites(terrain: scene.terrain)
         let spots = sites.map { (x: $0.x, z: $0.y, rand: Island.noise.unit(Int32($0.x * 3.1), Int32($0.y * 3.1))) }
         // Like the conifers: each tree is one of a few variants at three LODs, merged per 60 m cell; the cell shows the LOD for its distance.
         let cell: Float = 60
