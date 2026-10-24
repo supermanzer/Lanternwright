@@ -29,9 +29,10 @@ if options.benchFrames != nil {
     catch { FileHandle.standardError.write(Data("error: \(error)\n".utf8)); exit(1) }
 }
 
+Scene.hardLOD = options.hardLOD
 if let which = options.approachTarget, let out = options.approachOut {
     let renderer = Renderer(device: device, options: options)
-    do { try Approach.main(renderer: renderer, which: which, out: out, width: options.width, height: options.height); exit(0) }
+    do { try Approach.main(renderer: renderer, which: which, out: out, width: options.width, height: options.height, range: options.approachRange); exit(0) }
     catch { FileHandle.standardError.write(Data("error: \(error)\n".utf8)); exit(1) }
 }
 

@@ -101,6 +101,11 @@ How to play: `scripts/bundle.sh && open Lanternwright.app`. Headless views: `.bu
 - `--view stone-close`: the tide stone is chamfered dressed stone with pitting and chisel marks; lichen creeps up the plinth. Glyph bars unchanged.
 - Stone lanterns on the path: chamfered dressed stone, iron finial, glowing amber core.
 
+## Round 9 (R09): detail arrives gradually
+- `Lanternwright --approach all shots/x/after --size 1600x900` walks toward ten targets and writes a contact sheet each (far to near, row by row, 10 per row) plus luma / high-frequency numbers; `scripts/sheet_metrics.py before after <targets>` compares two runs. Read the sheets: detail should grow, never arrive in one step.
+- Walk through the conifer stands near 45 m and 130 m: trees dissolve between levels with a fine screen-door pattern, each tree at a slightly different distance; no cell changes shape at once. `--hard-lod` brings back the old instant swap for comparison.
+- Walk away from the meadow: the grass thins out and ends without a ring; walk toward the lighthouse from 200 m: courses and the white/red bands are faintly there from afar and sharpen as you approach, with no brightness change.
+
 ## Round 8 (R08): the controls screen
 - Delete the save (or run with `--new`) and launch: after "Click to begin" the **Finding your way** screen appears once, fades in softly, and the world does not move until you click, press Enter or Space (or Esc). Launch again: it does not return. Menu *New game…* makes it return once.
 - Esc, then **Controls…**: the same screen; closing it brings the pause menu back (not gameplay). **Help > Controls…** does the same. **Help > Send Feedback… (F)** opens the feedback panel. F in the game opens it too; F while it is open does nothing; typing F in the panel types F.

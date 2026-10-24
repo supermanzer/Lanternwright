@@ -33,7 +33,7 @@ vertex LitOut grass_vertex(uint vid [[vertex_id]], uint iid [[instance_id]],
                            texture2d<float> terrainTex [[texture(5)]]) {
     LitOut o;
     o.position = float4(0.0, 0.0, 2.0, 1.0);        // default: outside the clip volume = culled
-    o.worldPos = float3(0.0); o.normal = float3(0.0, 1.0, 0.0); o.color = float4(0.0); o.material = 3.0;
+    o.worldPos = float3(0.0); o.normal = float3(0.0, 1.0, 0.0); o.color = float4(0.0); o.material = 3.0; o.stagger = 0.0;
 
     float cell = gp.field.x;
     int n = int(gp.field.y);
@@ -65,7 +65,7 @@ vertex LitOut grass_vertex(uint vid [[vertex_id]], uint iid [[instance_id]],
     // The Glass Wood gets deeper clumping: real bare patches between clumps, and (below) taller tufts, so it is not an even carpet.
     density *= mix(glassW ? 0.04 : 0.45, 1.0, glassW ? smoothstep(0.36, 0.56, clump) : smoothstep(0.28, 0.50, clump)) * (0.78 + 0.22 * tuft) * (1.0 - 0.9 * ts.w);     // thinner under conifers (needle litter)
     // Thin the field with distance so far blades (sub-pixel) are not drawn at all.
-    float keep = density * (1.0 - smoothstep(0.35 * radius, radius, dist) * 0.9);
+    float keep = density * (1.0 - smoothstep(0.3 * radius, radius, dist));          // thins to ZERO at the edge (dithered by the per-blade threshold below): no ring where blades stop
     if (density < 0.22) return o;                                              // no lone blades on the fringe where the field fades out
     if (hash22(float2(gcell) + 17.0).x > keep) return o;
 
@@ -73,7 +73,7 @@ vertex LitOut grass_vertex(uint vid [[vertex_id]], uint iid [[instance_id]],
     float hr = h11(rnd.x * 91.7 + rnd.y * 13.1);
     bool seedHead = h11(rnd.x * 53.3 + rnd.y * 7.7) > 0.955;                  // a few taller stems with a pale tip: meadow, not carpet
     float height = (0.22 + 0.34 * hr) * (0.62 + 0.75 * clump) * (0.85 + 0.3 * tuft) * (seedHead ? 1.9 : 1.0) * (glassW ? mix(0.6, 1.1, smoothstep(0.3, 0.6, clump)) * (1.0 + 1.1 * tall) : 1.0) * (1.0 - smoothstep(0.7 * radius, radius, dist)) * smoothstep(0.5, 2.2, dist);   // blades right under the eye shrink away (a stray blade at the lens looked like a stake)
-    float width = 0.016 + 0.008 * rnd.y;                                        // thin blades: a meadow, not triangles
+    float width = (0.016 + 0.008 * rnd.y) * (1.0 - 0.35 * smoothstep(0.6 * radius, radius, dist));                                        // thin blades: a meadow, not triangles
     float yaw = rnd.x * 6.2831853;
     float2 facing = float2(cos(yaw), sin(yaw));
     float2 side = float2(-facing.y, facing.x);
@@ -104,7 +104,7 @@ vertex LitOut grass_vertex(uint vid [[vertex_id]], uint iid [[instance_id]],
     float hue = clump - 0.47;                                                  // patches lean toward one colour or the other
     float3 col = mix(lush, parched, clamp(dry + hue * 0.9, 0.0, 1.0)) * (0.75 + 0.55 * hr) * (0.55 + 0.75 * t) * (0.85 + 0.3 * tuft);
     col = mix(col, float3(0.52, 0.46, 0.92), tall * smoothstep(0.35, 1.0, t) * 0.65);          // tall tufts fade to a pale violet tip
-    if (seedHead) col = mix(col, glass ? float3(0.55, 0.62, 0.85) : float3(0.62, 0.55, 0.30), smoothstep(0.55, 1.0, t) * 0.8);
+    if (seedHead) col = mix(col, glass ? float3(0.55, 0.62, 0.85) : float3(0.62, 0.55, 0.30), smoothstep(0.55, 1.0, t) * 0.8 * (1.0 - smoothstep(0.25 * radius, 0.8 * radius, dist)));     // pale tips fade with distance (they were single bright pixels)
 
     o.worldPos = wp;
     o.position = frame.viewProj * float4(wp, 1.0);

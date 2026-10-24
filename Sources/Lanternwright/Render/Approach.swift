@@ -15,7 +15,7 @@ enum Approach {
         let world: WorldKind
         let point: SIMD3<Float>          // what the camera looks at
         let dir: SIMD2<Float>            // the camera stands this way from the target (xz, unit)
-        let start: Float                 // first distance (m)
+        var start: Float                 // first distance (m)
         let base: Float                  // camera height above `point` at zero distance
         let rise: Float                  // extra camera height per metre of distance (keeps the target in view from far)
         let crop: Int                    // side of the measured crop (px)
@@ -35,6 +35,28 @@ enum Approach {
         var maxHFRatio: Float { zip(hf, hf.dropFirst()).map { max($1, 1e-3) / max($0, 1e-3) }.map { max($0, 1 / $0) }.max() ?? 1 }
         /// Number of steps (towards the target) where the energy falls by more than 15 % (detail should not vanish as you approach).
         var hfDrops: Int { zip(hf, hf.dropFirst()).filter { $1 < $0 * 0.85 }.count }
+        /// Mean absolute luma difference between each pair of neighbouring crops. A pop is a step whose difference towers over its neighbours.
+        var stepDiffs: [Float] {
+            var out: [Float] = []
+            for k in 1..<max(thumbs.count, 1) {
+                let a = thumbs[k - 1], b = thumbs[k]
+                var s: Float = 0
+                var i = 0
+                while i + 3 < a.count {
+                    let la = 0.2126 * Float(a[i + 2]) + 0.7152 * Float(a[i + 1]) + 0.0722 * Float(a[i])
+                    let lb = 0.2126 * Float(b[i + 2]) + 0.7152 * Float(b[i + 1]) + 0.0722 * Float(b[i])
+                    s += abs(la - lb); i += 4
+                }
+                out.append(s / Float(a.count / 4))
+            }
+            return out
+        }
+        /// Largest step difference divided by the median one (1 = perfectly even; a pop shows as a big number).
+        var diffSpike: Float {
+            let d = stepDiffs.sorted()
+            guard let mx = d.last, d.count > 2 else { return 1 }
+            return mx / max(d[d.count / 2], 0.25)
+        }
     }
 
     static let names = ["dock", "lh-door", "lh-shaft", "stone", "path", "conifer", "meadow", "sand", "crystal-tree", "gw-grass"]
@@ -171,7 +193,7 @@ enum Approach {
     // MARK: Output
 
     static func summary(_ r: Result) -> String {
-        var s = String(format: "%-13@ steps %2d  max luma step %5.1f %%  max HF ratio %5.2f  HF drops %d\n", r.name as NSString, r.distances.count, r.maxLumaStep * 100, r.maxHFRatio, r.hfDrops)
+        var s = String(format: "%-13@ steps %2d  max luma step %5.1f %%  max HF ratio %5.2f  HF drops %d  diff spike %5.2f\n", r.name as NSString, r.distances.count, r.maxLumaStep * 100, r.maxHFRatio, r.hfDrops, r.diffSpike)
         for i in 0..<r.distances.count { s += String(format: "    d %7.2f m  luma %6.1f  hf %6.2f\n", r.distances[i], r.luma[i], r.hf[i]) }
         return s
     }
@@ -205,11 +227,13 @@ enum Approach {
     }
 
     /// `--approach all <base>` writes `<base>-<target>.png` for every target and prints each summary; `--approach <target> <out.png>` does one.
-    static func main(renderer: Renderer, which: String, out: String, width: Int, height: Int) throws {
+    static func main(renderer: Renderer, which: String, out: String, width: Int, height: Int, range: (start: Float, min: Float, factor: Float)? = nil) throws {
         let list = which == "all" ? names : [which]
         for name in list {
             guard let t = target(name, renderer: renderer) else { print("unknown or unavailable target \(name)"); continue }
-            let r = run(t, renderer: renderer, width: width, height: height, minDistance: t.minDistance)
+            var tt = t
+            if let range { tt.start = range.start }
+            let r = run(tt, renderer: renderer, width: width, height: height, factor: range?.factor ?? 0.85, minDistance: range?.min ?? t.minDistance)
             print(summary(r))
             try writeContactSheet(r, to: which == "all" ? "\(out)-\(name).png" : out)
         }

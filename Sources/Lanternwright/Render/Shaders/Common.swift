@@ -34,6 +34,7 @@ struct ObjectUniforms {
     float4x4 model;
     float4 tint;
     float4 emissive;
+    float4 lod;          // x = 1: a level of a tree LOD set (dithered cross-fade), y = its level 0...2
 };
 
 struct FullscreenOut {
@@ -48,6 +49,24 @@ vertex FullscreenOut fullscreen_vertex(uint vid [[vertex_id]]) {
     o.position = float4(p * 2.0 - 1.0, 0.0, 1.0);
     o.uv = float2(p.x, 1.0 - p.y);
     return o;
+}
+
+// Interleaved gradient noise (Jimenez): a per-pixel threshold in [0,1) whose error is spread evenly, so a screen-door dissolve looks like fine,
+// even grain, not clumps. Used for the dithered LOD cross-fades.
+inline float ign(float2 pixel) { return fract(52.9829189 * fract(dot(pixel, float2(0.06711056, 0.00583715)))); }
+
+// Tree LOD level as a continuous number 0...2 from the horizontal distance to the eye (R09). Level 0 -> 1 around 45 m and 1 -> 2 around 130 m,
+// each over a band of 15 % of the distance (+-7.5 %), shifted per tree by `stagger` (-1...1, x 10 m) so a stand never changes all at once.
+// The fragment keeps its LOD only if floor(level + noise) equals its own index, so neighbouring levels dissolve into each other exactly
+// complementarily (every pixel belongs to one level) and nothing is drawn twice.
+inline float tree_lod_level(float d, float stagger) {
+    float s = stagger * 10.0;
+    return smoothstep(45.0 + s - 3.4, 45.0 + s + 3.4, d) + smoothstep(130.0 + s - 9.75, 130.0 + s + 9.75, d);
+}
+inline bool tree_lod_discard(float4 lod, float3 worldPos, float3 eye, float stagger, float2 pixel) {
+    if (lod.x < 0.5) return false;
+    float level = tree_lod_level(length(worldPos.xz - eye.xz), stagger);
+    return floor(level + ign(pixel)) != lod.y;
 }
 
 // 3D value noise. Procedural 3D noise needs no UVs and no texture, so it cannot stretch on steep

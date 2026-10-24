@@ -23,6 +23,19 @@ enum ShaderLibrary {
         }
     }
 
+    /// A fragment function specialised on the `kLodDither` function constant (index 0): only tree LOD objects pay for the dithered cross-fade's
+    /// `discard_fragment`, which would otherwise cost every opaque object its early depth rejection on Apple's tile-based GPU.
+    static func function(_ library: MTLLibrary, _ name: String, lodDither: Bool) -> MTLFunction {
+        let values = MTLFunctionConstantValues()
+        var flag = lodDither
+        values.setConstantValue(&flag, type: .bool, index: 0)
+        guard let f = try? library.makeFunction(name: name, constantValues: values) else {
+            FileHandle.standardError.write(Data("missing shader function \(name) (lodDither \(lodDither))\n".utf8))
+            exit(1)
+        }
+        return f
+    }
+
     static func function(_ library: MTLLibrary, _ name: String) -> MTLFunction {
         guard let f = library.makeFunction(name: name) else {
             FileHandle.standardError.write(Data("missing shader function \(name)\n".utf8))

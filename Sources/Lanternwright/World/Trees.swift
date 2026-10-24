@@ -70,8 +70,10 @@ enum Trees {
         // ---- Crown: whorls of branches, shorter toward the top.
         let tStart: Float = pine ? 0.27 : 0.15
         let crownR = H * (pine ? 0.27 : 0.135) * (0.85 + 0.3 * r(2, 2))
-        let whorls = lod == 0 ? (pine ? 9 : 11) : (pine ? 8 : 9)
-        let perWhorl = lod == 0 ? (pine ? 5 : 4) : 4
+        // The mid level keeps the near level's branch layout (same whorls, same branches), only with fewer and larger sprays, so the crown's mass
+        // and outline match across the dithered cross-fade (R09).
+        let whorls = pine ? 9 : 11
+        let perWhorl = pine ? 5 : 4
         let droop: Float = (pine ? 0.26 : 0.12) * (0.8 + 0.4 * r(2, 3))
         struct Branch { var base: SIMD3<Float>; var mid: SIMD3<Float>; var tip: SIMD3<Float>; var ang: Float; var len: Float; var t: Float }
         var branches: [Branch] = []
@@ -122,7 +124,7 @@ enum Trees {
                     } }
                 }
             } else {
-                spray(at: br.base + (br.tip - br.base) * 0.55, dir: out, length: br.len * 1.0 + 0.4, width: br.len * 0.42 + 0.2, droop: droop * 1.4)
+                spray(at: br.base + (br.tip - br.base) * 0.5, dir: out, length: br.len * 1.12 + 0.45, width: br.len * 0.62 + 0.25, droop: droop * 1.5)
             }
         }
         let top = trunkAt(0.985)

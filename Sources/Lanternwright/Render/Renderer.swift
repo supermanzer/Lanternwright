@@ -34,6 +34,8 @@ final class Renderer {
     var lastOpaqueDraws = 0
     var lastShadowDraws = 0
     let litPipeline: MTLRenderPipelineState
+    /// The same shader with the dithered LOD cross-fade compiled in: used for the tree LOD objects only (R09).
+    let litLODPipeline: MTLRenderPipelineState
     let compositePipeline: MTLRenderPipelineState
     let skyLUTPipeline: MTLRenderPipelineState
     let irradiancePipeline: MTLRenderPipelineState
@@ -114,11 +116,14 @@ final class Renderer {
         let lit = MTLRenderPipelineDescriptor()
         lit.label = "lit"
         lit.vertexFunction = ShaderLibrary.function(library, "lit_vertex")
-        lit.fragmentFunction = ShaderLibrary.function(library, "lit_fragment")
+        lit.fragmentFunction = ShaderLibrary.function(library, "lit_fragment", lodDither: false)
         lit.colorAttachments[0].pixelFormat = Renderer.hdrFormat
         lit.colorAttachments[1].pixelFormat = Renderer.distanceFormat
         lit.depthAttachmentPixelFormat = Renderer.depthFormat
         litPipeline = try! device.makeRenderPipelineState(descriptor: lit)
+        lit.label = "lit (lod dither)"
+        lit.fragmentFunction = ShaderLibrary.function(library, "lit_fragment", lodDither: true)
+        litLODPipeline = try! device.makeRenderPipelineState(descriptor: lit)
 
         let comp = MTLRenderPipelineDescriptor()
         comp.label = "composite"
@@ -170,7 +175,7 @@ final class Renderer {
         let gr = MTLRenderPipelineDescriptor()
         gr.label = "grass"
         gr.vertexFunction = ShaderLibrary.function(lib, "grass_vertex")
-        gr.fragmentFunction = ShaderLibrary.function(lib, "lit_fragment")
+        gr.fragmentFunction = ShaderLibrary.function(lib, "lit_fragment", lodDither: false)
         gr.colorAttachments[0].pixelFormat = Renderer.hdrFormat
         gr.colorAttachments[1].pixelFormat = Renderer.distanceFormat
         gr.depthAttachmentPixelFormat = Renderer.depthFormat
@@ -207,7 +212,7 @@ final class Renderer {
         let cr = MTLRenderPipelineDescriptor()
         cr.label = "crystal"
         cr.vertexFunction = ShaderLibrary.function(lib, "lit_vertex")
-        cr.fragmentFunction = ShaderLibrary.function(lib, "crystal_fragment")
+        cr.fragmentFunction = ShaderLibrary.function(lib, "crystal_fragment", lodDither: true)
         cr.colorAttachments[0].pixelFormat = Renderer.hdrFormat
         cr.depthAttachmentPixelFormat = Renderer.depthFormat
         crystalPipeline = try! device.makeRenderPipelineState(descriptor: cr)
@@ -379,16 +384,21 @@ final class Renderer {
             enc.setFragmentTexture(irradianceMap, index: 4)
             let camFrustum = Frustum(viewProj: frame.viewProj)
             lastOpaqueDraws = 0
-            for item in scene.items {
-                let b = item.worldBounds
-                guard !item.hidden, !item.refractive, camFrustum.intersects(min: b.min, max: b.max) else { continue }
-                lastOpaqueDraws += 1
-                var u = item.uniforms
-                enc.setVertexBuffer(item.mesh.vertexBuffer, offset: 0, index: 0)
-                enc.setVertexBytes(&u, length: MemoryLayout<ObjectUniforms>.stride, index: 2)
-                enc.setFragmentBytes(&u, length: MemoryLayout<ObjectUniforms>.stride, index: 2)
-                enc.drawIndexedPrimitives(type: .triangle, indexCount: item.mesh.indexCount, indexType: .uint32,
-                                          indexBuffer: item.mesh.indexBuffer, indexBufferOffset: 0)
+            // Two sweeps: ordinary objects first (a pipeline without any discard keeps early depth rejection), then the tree LOD objects, whose
+            // fragments dither between levels and so need the variant with `discard_fragment`.
+            for lodSweep in [false, true] {
+                if lodSweep { enc.setRenderPipelineState(litLODPipeline) }
+                for item in scene.items {
+                    let b = item.worldBounds
+                    guard !item.hidden, !item.refractive, (item.uniforms.lod.x > 0.5) == lodSweep, camFrustum.intersects(min: b.min, max: b.max) else { continue }
+                    lastOpaqueDraws += 1
+                    var u = item.uniforms
+                    enc.setVertexBuffer(item.mesh.vertexBuffer, offset: 0, index: 0)
+                    enc.setVertexBytes(&u, length: MemoryLayout<ObjectUniforms>.stride, index: 2)
+                    enc.setFragmentBytes(&u, length: MemoryLayout<ObjectUniforms>.stride, index: 2)
+                    enc.drawIndexedPrimitives(type: .triangle, indexCount: item.mesh.indexCount, indexType: .uint32,
+                                              indexBuffer: item.mesh.indexBuffer, indexBufferOffset: 0)
+                }
             }
             // Grass: one instanced draw, 7 vertices per blade, positions generated in the vertex shader.
             enc.setRenderPipelineState(grassPipeline)

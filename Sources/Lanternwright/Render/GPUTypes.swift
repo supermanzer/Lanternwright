@@ -37,7 +37,9 @@ struct ObjectUniforms {
     var model = matrix_identity_float4x4
     var tint = SIMD4<Float>(1, 1, 1, 1)
     var emissive = SIMD4<Float>(0, 0, 0, 0)
-    static let expectedStride = 96
+    /// R09: x = 1 for the objects that are one level of a tree LOD set (the shader dithers between levels), y = their level index 0...2.
+    var lod = SIMD4<Float>(0, 0, 0, 0)
+    static let expectedStride = 112
 }
 
 enum MaterialID: Float {

@@ -51,12 +51,30 @@ final class Scene {
     struct LODGroup { var names: [String]; var min: SIMD2<Float>; var max: SIMD2<Float> }
     var lodGroups: [LODGroup] = []
     static let lodDistances: [Float] = [45, 130]
+    /// Which levels of a tree cell can be needed when its box is `d` metres from the eye (R09). The shader decides per tree and per pixel
+    /// (`tree_lod_level`: 45 m and 130 m, +-7.5 % bands, +-10 m stagger per tree); a level is hidden here only when no tree in the cell can need
+    /// it. The trees of a cell are between `d` and `d + diagonal` away, so neighbouring levels overlap and two are drawn inside a band.
+    static func lodLevelsDrawn(boxDistance d: Float, diagonal: Float) -> [Bool] {
+        [d < 45 + 10 + 3.4, d + diagonal > 45 - 10 - 3.4 && d < 130 + 10 + 9.75, d + diagonal > 130 - 10 - 9.75]
+    }
+    /// Debug (`--hard-lod`): the pre-R09 behaviour, one level per cell chosen by distance to its box, no dithering. Only for measuring.
+    static var hardLOD = false
     func applyLOD(eye: SIMD3<Float>) {
+        if Scene.hardLOD {
+            for g in lodGroups {
+                let dx = max(g.min.x - eye.x, 0, eye.x - g.max.x), dz = max(g.min.y - eye.z, 0, eye.z - g.max.y)
+                let d = (dx * dx + dz * dz).squareRoot()
+                let level = d < Scene.lodDistances[0] ? 0 : (d < Scene.lodDistances[1] ? 1 : 2)
+                for (i, name) in g.names.enumerated() { update(name) { $0.hidden = (i != min(level, g.names.count - 1)); $0.uniforms.lod.x = 0 } }
+            }
+            return
+        }
         for g in lodGroups {
             let dx = max(g.min.x - eye.x, 0, eye.x - g.max.x), dz = max(g.min.y - eye.z, 0, eye.z - g.max.y)
             let d = (dx * dx + dz * dz).squareRoot()
-            let level = d < Scene.lodDistances[0] ? 0 : (d < Scene.lodDistances[1] ? 1 : 2)
-            for (i, name) in g.names.enumerated() { update(name) { $0.hidden = (i != min(level, g.names.count - 1)) } }
+            let diagonal = ((g.max.x - g.min.x) * (g.max.x - g.min.x) + (g.max.y - g.min.y) * (g.max.y - g.min.y)).squareRoot()
+            let drawn = Scene.lodLevelsDrawn(boxDistance: d, diagonal: diagonal)
+            for (i, name) in g.names.enumerated() { update(name) { $0.hidden = !drawn[min(i, 2)]; $0.uniforms.lod.x = 1 } }
         }
     }
     var terrain: Terrain!

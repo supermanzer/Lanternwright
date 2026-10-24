@@ -29,6 +29,17 @@ inline float3 bump_normal(float3 P, float3 N, float h, float strength) {
 
 inline float fadeBelow(float fpix, float a, float b) { return 1.0 - smoothstep(a, b, fpix); }   // 1 while the footprint is small
 
+// Continuous detail (R09): one visibility rule for every feature, from the feature's size over the pixel footprint (size / fpix = how many
+// pixels it spans). Below ~0.6 px it is invisible, above ~2.5 px fully resolved, smooth in between, so every feature is *hinted* from
+// about 1.7 x its size per pixel and sharp from 0.4 x. That puts macro features (courses, plank joints, colour patches: 0.2-1 m) in view
+// at 100-400 m, meso (cobbles, pits, board grain: 5-15 cm) at 20-130 m, micro (fibres, sparkle, fine grain: 0.5-3 cm) at 3-30 m, with no
+// per-feature magic numbers: it also follows the field of view, the render scale and look-closer. Every feature must fade TO ITS MEAN
+// (mix(mean, value, vis)), never to zero, or the surface changes brightness where the detail goes.
+inline float featVis(float size, float fpix) { return smoothstep(0.6, 2.5, size / max(fpix, 1e-5)); }
+// A line or groove of width w seen with a footprint f: when it is narrower than the pixel its darkness is spread over the pixel, so its
+// contrast falls as w / f and its average stays the same (energy preserved). Multiply a line's coverage by this.
+inline float lineAmp(float w, float edge) { return saturate(w / max(edge, w)); }
+
 // Cellular (Worley) noise, F1 distance: round, un-gridded blobs for pits and flakes. `rotated` turns the lattice by a fixed 3D
 // rotation first, so no feature lines up with the world axes (value-noise thresholds make L, T and plus shapes).
 inline float3 hash33w(float3 p) {
@@ -87,7 +98,7 @@ inline float4 cobbles(float2 P, float fpix) {
     float tt = saturate((bd - gap) / rad);
     float dome = (1.0 - (1.0 - tt) * (1.0 - tt)) * (0.55 + 0.45 * (big ? b.z : a.z));      // round shoulder, flat crown (no crease along the medial axis)
     dome = saturate(dome) * (big ? 1.0 : 0.8);
-    float w = fadeBelow(fpix, 0.012, 0.05);
+    float w = big ? featVis(0.30, fpix) : featVis(0.10, fpix);                 // stones 30 cm, pebbles 10 cm
     float hid = big ? b.z : a.z;
     return float4(mix(0.45, dome, w), mix(0.82, body, w), hid, big ? 1.0 : 0.0);
 }
@@ -157,7 +168,7 @@ inline float3 carve_glyph(float3 Pl, float3 P, float3 faceN, float3 Vl, float4 t
 // a sheet about 0.34 x 0.46 m; Pl is its own frame (x across, z down the sheet). Ink is band-limited to a faint average density.
 inline MatOut mat_paper(float3 Pl, float3 P, float3 N, float fpix) {
     MatOut o;
-    float fibreW = fadeBelow(fpix, 0.002, 0.01);
+    float fibreW = featVis(0.0045, fpix);
     float fibre = mix(0.5, vnoise3(float3(Pl.x * 220.0, Pl.y * 3.0, Pl.z * 60.0)) * 0.6 + vnoise3(float3(Pl.x * 60.0, 0.0, Pl.z * 190.0)) * 0.4, fibreW);
     float3 paper = float3(0.80, 0.70, 0.50) * (0.92 + 0.16 * fibre);
     float2 e = float2(0.17 - abs(Pl.x), 0.23 - abs(Pl.z));
@@ -178,7 +189,7 @@ inline MatOut mat_paper(float3 Pl, float3 P, float3 N, float fpix) {
     float letters = 0.55 + 0.45 * vnoise3(float3(Pl.x * 330.0 + r * 11.0, r, 1.0));
     float thick = 0.00115 * (0.7 + 0.6 * vnoise3(float3(Pl.x * 90.0, r, 2.0)));
     float stroke = (1.0 - smoothstep(thick * 0.6, thick * 1.3 + fpix, abs(dz))) * words * letters * (inBlock ? 1.0 : 0.0);
-    float inkW = fadeBelow(fpix, 0.0012, 0.006);
+    float inkW = featVis(0.003, fpix);
     float cover = mix((inBlock ? 0.22 : 0.0) * words, stroke, inkW);
     float3 ink = float3(0.18, 0.10, 0.045);
     float3 albedo = mix(paper, ink, saturate(cover) * 0.9);
@@ -195,12 +206,12 @@ inline MatOut mat_paper(float3 Pl, float3 P, float3 N, float fpix) {
 
 // Rounded pits: two scales (about 3x apart) so sizes vary, clustered by a slow mask, gated per block (`gate` 0..1).
 inline float pits_mask(float3 Pl, float seed, float gate, float fpix) {
-    float microW = fadeBelow(fpix, 0.02, 0.08);
+    float vs = featVis(0.04, fpix), vl = featVis(0.12, fpix);                 // small pits 4 cm, large pits 12 cm
     float w1 = worley(Pl * 26.0 + seed * 7.0), w2 = worley(Pl * 8.5 + seed * 3.0 + 40.0);
-    float small = 1.0 - smoothstep(0.10, 0.24, w1);
-    float large = 1.0 - smoothstep(0.07, 0.17, w2);
+    float small = mix(0.12, 1.0 - smoothstep(0.10, 0.24, w1), vs);              // each fades to its mean coverage, not to zero
+    float large = mix(0.07, 1.0 - smoothstep(0.07, 0.17, w2), vl);
     float cluster = smoothstep(0.35, 0.75, fbm3(Pl * 1.3 + seed));
-    return saturate(max(small * 0.8, large) * (0.25 + 0.75 * cluster)) * gate * microW;
+    return saturate(max(small * 0.8, large) * (0.25 + 0.75 * cluster)) * gate;
 }
 
 // ---- Masonry: hand-cut granite blocks in running bond with lime mortar. ------------------------------------------------------
@@ -229,10 +240,10 @@ inline MatOut mat_masonry(float3 Pl, float3 P, float3 N, float3 base, float fpix
     if (h2 > 0.88) dEdge = min(dEdge, abs(fu - 0.5) * blockLen);
     dEdge += 0.003 * (vnoise3(Pl * 18.0 + h1 * 11.0) - 0.5);                          // chiselled, wobbling edges
 
-    float jointFade = smoothstep(0.03, 0.15, fpix);
     float mortarW = 0.009 + 0.008 * h4;
-    float edge = max(0.005, fpix * 1.4);
-    float mortar = (1.0 - smoothstep(mortarW - edge, mortarW + edge, dEdge)) * (1.0 - jointFade);
+    float edge = max(0.005, fpix * 0.9);
+    // Joints are macro structure: they stay (faintly) at any distance. A joint narrower than a pixel keeps its average darkness (lineAmp).
+    float mortar = (1.0 - smoothstep(mortarW - edge, mortarW + edge, dEdge)) * lineAmp(mortarW, edge);
     float chamfer = 0.025 + 0.05 * hash13(float3(bi, c, 5.0));
 
     // Height (metres): convex or dished face, irregular chamfer, recessed joint, a little roughness.
@@ -241,27 +252,25 @@ inline MatOut mat_masonry(float3 Pl, float3 P, float3 N, float3 base, float fpix
     float face = 0.016 * (vnoise3(Pl * 3.2 + h1 * 30.0) - 0.5) + dish;
     float pm = pits_mask(Pl, h1 * 13.0, smoothstep(0.25, 0.85, h2 * 0.6 + h4 * 0.5), fpix);
     float h = face + (h3 - 0.5) * 0.012 + 0.007 * smoothstep(0.0, chamfer, dEdge) - 0.014 * mortar - 0.0035 * pm;
-    h *= 1.0 - 0.7 * jointFade;
+    h *= mix(0.3, 1.0, featVis(0.10, fpix));                                           // the relief fades; roughness takes over (see material_surface)
 
-    float microW = fadeBelow(fpix, 0.02, 0.07);
-    float speck = vnoise3(Pl * 55.0) * microW;
-    // Tone: warm and cool greys, wide value range, an odd rust-stained block.
+    float speck = mix(0.5, vnoise3(Pl * 55.0), featVis(0.018, fpix));
+    // Tone: warm and cool greys, wide value range, an odd rust-stained block. Per-block tone is a 0.3-0.9 m feature: hinted from afar.
     float3 warm = float3(1.10, 1.01, 0.90), cool = float3(0.90, 0.97, 1.06);
-    float3 granite = base * mix(cool, warm, h1) * (0.66 + 0.7 * h3) * (0.92 + 0.16 * speck);
+    float3 blockTone = mix(float3(1.0), mix(cool, warm, h1) * (0.66 + 0.7 * h3), featVis(0.30, fpix));
+    float3 granite = base * blockTone * (0.92 + 0.16 * speck);
     granite = mix(granite, float3(0.52, 0.36, 0.27) * (0.8 + 0.4 * h4), step(h2, 0.06) * 0.8);       // rust-stained
     granite *= 1.0 - 0.3 * pm;
     float3 limeMortar = float3(0.42, 0.39, 0.34) * (0.8 + 0.4 * vnoise3(Pl * 9.0));
     float3 albedo = mix(granite, limeMortar, mortar);
-    albedo = mix(albedo, albedo * 0.9, jointFade * 0.5);
 
     float damp = smoothstep(0.0, 1.7, Pl.y);
     albedo *= mix(0.62, 1.0, damp);
-    float streakW = fadeBelow(fpix, 0.04, 0.25);
     float streak = vnoise3(float3(ang * r * 8.0, Pl.y * 0.45, 3.0));
-    albedo *= 1.0 - 0.34 * smoothstep(0.55, 0.88, streak) * streakW * smoothstep(0.5, 3.0, Pl.y);
+    albedo *= 1.0 - 0.34 * mix(0.12, smoothstep(0.55, 0.88, streak), featVis(0.25, fpix)) * smoothstep(0.5, 3.0, Pl.y);      // drip stains: 0.25 m wide
     float zone = 1.0 - smoothstep(1.0, 3.4, Pl.y);
     float windward = saturate(dot(normalize(N.xz + float2(1e-4)), normalize(float2(-0.86, -0.5))) * 0.5 + 0.5);
-    float lf = fbm3(Pl * float3(1.7, 1.1, 1.7) + 4.0) * 0.8 + 0.12 * (1.0 - smoothstep(0.1, 0.3, worley(Pl * 6.0 + 3.0))) * microW;
+    float lf = fbm3(Pl * float3(1.7, 1.1, 1.7) + 4.0) * 0.8 + 0.12 * (1.0 - smoothstep(0.1, 0.3, worley(Pl * 6.0 + 3.0))) * featVis(0.08, fpix);
     float lichen = smoothstep(0.50, 0.74, lf + 0.26 * zone + 0.16 * windward - 0.36 + 0.10 * mortar);
     float3 lichenCol = mix(float3(0.36, 0.41, 0.29), float3(0.57, 0.49, 0.24), smoothstep(0.55, 0.8, vnoise3(Pl * 5.0)));
     albedo = mix(albedo, lichenCol, lichen * 0.7);
@@ -277,11 +286,10 @@ inline MatOut mat_masonry(float3 Pl, float3 P, float3 N, float3 base, float fpix
 // ---- Dressed stone: trim blocks (arch, quoins, sills, steps, resonance stones) whose own geometry makes the joints. ----------
 inline MatOut mat_dressed(float3 Pl, float3 P, float3 N, float3 base, float fpix) {
     MatOut o;
-    float microW = fadeBelow(fpix, 0.02, 0.07);
     float cellId = hash13(floor(P * 1.7));
     float pm = pits_mask(P, cellId * 11.0, smoothstep(0.2, 0.9, hash13(floor(P * 3.1) + 5.0)), fpix);
-    float scratch = smoothstep(0.62, 0.9, vnoise3(float3(P.x * 5.0 + P.z * 3.0, P.y * 55.0, P.z * 5.0 - P.x * 3.0))) * microW;   // chisel marks, mostly horizontal
-    float speck = vnoise3(P * 55.0) * microW;
+    float scratch = mix(0.08, smoothstep(0.62, 0.9, vnoise3(float3(P.x * 5.0 + P.z * 3.0, P.y * 55.0, P.z * 5.0 - P.x * 3.0))), featVis(0.018, fpix));   // chisel marks, mostly horizontal
+    float speck = mix(0.5, vnoise3(P * 55.0), featVis(0.018, fpix));
     float h = 0.012 * (vnoise3(P * 3.0 + 2.0) - 0.5) - 0.0035 * pm - 0.0012 * scratch;
     float3 albedo = base * (0.84 + 0.3 * vnoise3(P * 2.3)) * (0.92 + 0.16 * speck) * (1.0 - 0.3 * pm) * (1.0 - 0.08 * scratch);
     float low = 1.0 - smoothstep(0.05, 0.9, Pl.y);
@@ -305,19 +313,19 @@ inline MatOut mat_paint(float3 Pl, float3 P, float3 N, float3 base, float fpix) 
     float macro = fbm3(Pl * 0.9 + 3.0);
     float meso = vnoise3(Pl * 3.3);
     float3 albedo = base * (0.88 + 0.22 * macro) * (0.95 + 0.10 * meso);
-    float microW = fadeBelow(fpix, 0.02, 0.09);
-    float h = 0.0015 * (vnoise3(Pl * 40.0) - 0.5) * microW;
+    float h = 0.0015 * (vnoise3(Pl * 40.0) - 0.5) * featVis(0.025, fpix);
 
     // Where the paint has failed: near the band edges (under the string courses, at the top of a band), and along drips.
     float streak = vnoise3(float3(ang * r * 7.0, Pl.y * 0.30, 2.0));
     float dBand = 99.0;
     dBand = min(dBand, abs(Pl.y - 8.16)); dBand = min(dBand, abs(Pl.y - 13.0)); dBand = min(dBand, abs(Pl.y - 20.16)); dBand = min(dBand, abs(Pl.y - 24.6));
     float prox = exp(-dBand * 1.5);
-    float flakeW = fadeBelow(fpix, 0.05, 0.3);
+    float flakeW = featVis(0.30, fpix);                                       // flake cells are ~0.34 m: macro, hinted from far away
     float rad = clamp(0.015 + 0.34 * prox * prox + 0.09 * smoothstep(0.6, 0.9, streak) * smoothstep(0.4, 0.7, macro) + 0.03 * macro, 0.0, 0.42);
     float3 warpP = Pl + 0.16 * (float3(vnoise3(Pl * 4.3), vnoise3(Pl * 4.3 + 7.0), vnoise3(Pl * 4.3 + 13.0)) - 0.5);
     float wf = worley(warpP * float3(2.9, 2.5, 2.9) + 11.0);
-    float flake = (1.0 - smoothstep(rad - 0.035, rad + 0.035, wf)) * flakeW;
+    // Faded to its mean coverage (Poisson: 1 - exp(-4/3 pi r^3) of the cell), so the band keeps its average colour.
+    float flake = mix(1.0 - exp(-4.19 * rad * rad * rad), 1.0 - smoothstep(rad - 0.035, rad + 0.035, wf), flakeW);
     float rim = smoothstep(rad - 0.01, rad + 0.04, wf) * (1.0 - smoothstep(rad + 0.04, rad + 0.10, wf)) * flakeW;
     if (red) {
         float fade = smoothstep(0.45, 0.78, fbm3(Pl * float3(1.1, 0.7, 1.1) + 9.0));
@@ -330,10 +338,10 @@ inline MatOut mat_paint(float3 Pl, float3 P, float3 N, float3 base, float fpix) 
         albedo = mix(albedo, albedo * float3(0.84, 0.82, 0.78), flake * 0.5);          // white render chips back to a greyer coat
         h -= 0.0015 * flake;
     }
-    albedo *= 1.0 - 0.28 * smoothstep(0.58, 0.88, streak) * fadeBelow(fpix, 0.05, 0.3);          // drip stains
+    albedo *= 1.0 - 0.28 * mix(0.10, smoothstep(0.58, 0.88, streak), featVis(0.20, fpix));          // drip stains
     // Hairline cracks: the iso-line of a noise stretched hard along Y, so they run mostly down the wall (an unstretched iso-line closes into rings).
     float crackLine = 1.0 - smoothstep(0.0, 0.004 + fpix * 0.7, abs(vnoise3(Pl * float3(3.2, 0.35, 3.2) + 21.0) - 0.5));
-    float crack = crackLine * smoothstep(0.45, 0.85, vnoise3(Pl * 0.8 + 5.0)) * fadeBelow(fpix, 0.006, 0.03);
+    float crack = crackLine * smoothstep(0.45, 0.85, vnoise3(Pl * 0.8 + 5.0)) * featVis(0.012, fpix);
     albedo *= 1.0 - 0.4 * crack;
     h -= 0.003 * crack;
     albedo *= mix(0.80, 1.0, smoothstep(0.0, 6.0, Pl.y));
@@ -349,7 +357,7 @@ inline MatOut mat_paint(float3 Pl, float3 P, float3 N, float3 base, float fpix) 
 // ---- Iron: dark blue-black, rust blooming in patches and weeping streaks, a few bright worn spots. ------------------------
 inline MatOut mat_iron(float3 P, float3 N, float3 base, float fpix) {
     MatOut o;
-    float microW = fadeBelow(fpix, 0.015, 0.06);
+    float microW = featVis(0.03, fpix);
     float bloom = smoothstep(0.52, 0.76, fbm3(P * 3.5 + 3.0));
     float weep = smoothstep(0.62, 0.9, vnoise3(float3(P.x * 18.0 + P.z * 11.0, P.y * 1.4, P.z * 18.0 - P.x * 11.0))) * 0.7;
     float rust = saturate(bloom * 0.8 + weep * 0.6);
@@ -368,7 +376,7 @@ inline MatOut mat_iron(float3 P, float3 N, float3 base, float fpix) {
 // ---- Copper: bright copper under green verdigris, streaked down the slope. -------------------------------------------------
 inline MatOut mat_copper(float3 P, float3 N, float fpix) {
     MatOut o;
-    float microW = fadeBelow(fpix, 0.02, 0.08);
+    float microW = featVis(0.045, fpix);
     float verd = smoothstep(0.26, 0.50, fbm3(P * float3(1.6, 0.9, 1.6) + 6.0) + 0.18 * (1.0 - N.y)
                             + 0.20 * smoothstep(0.55, 0.9, vnoise3(float3(P.x * 14.0 + P.z * 9.0, P.y * 0.8, P.z * 14.0 - P.x * 9.0))));
     float3 copper = float3(0.66, 0.34, 0.20) * (0.85 + 0.3 * vnoise3(P * 12.0));
@@ -389,11 +397,12 @@ inline MatOut mat_wood(float3 Pl, float3 P, float3 N, float3 base, float fpix) {
     float fu = fract(Pl.x / pw);
     float hp = hash13(float3(pi, 3.0, 1.0));
     float gapD = min(fu, 1.0 - fu) * pw;
-    float gap = (1.0 - smoothstep(0.004, 0.009 + fpix * 1.5, gapD)) * fadeBelow(fpix, 0.03, 0.12);
-    float grainW = fadeBelow(fpix, 0.01, 0.05);
+    float gapEdge = 0.009 + fpix * 0.9;
+    float gap = (1.0 - smoothstep(0.004, gapEdge, gapD)) * lineAmp(0.007, gapEdge);        // plank joints are macro: hinted from afar, energy kept
+    float grainW = featVis(0.02, fpix);
     float grain = vnoise3(float3(Pl.x * 60.0, Pl.y * 2.6, hp * 40.0));
     float ring = 0.5 + 0.5 * sin((Pl.x / pw + hp * 7.0) * 18.0 + 3.0 * vnoise3(float3(Pl.x * 8.0, Pl.y * 1.0, hp * 9.0)));
-    float3 albedo = base * (0.65 + 0.55 * hp) * (0.86 + 0.28 * mix(0.5, grain, grainW)) * (0.9 + 0.2 * mix(0.5, ring, grainW));
+    float3 albedo = base * mix(1.0, 0.65 + 0.55 * hp, featVis(0.22, fpix)) * (0.86 + 0.28 * mix(0.5, grain, grainW)) * (0.9 + 0.2 * mix(0.5, ring, grainW));
     albedo = mix(albedo, albedo * float3(1.25, 1.2, 1.15), smoothstep(0.7, 1.0, hp) * 0.5);
     albedo = mix(albedo, float3(0.02, 0.015, 0.01), gap);
     float damp = smoothstep(0.0, 1.2, Pl.y);
@@ -411,7 +420,7 @@ inline MatOut mat_wood(float3 Pl, float3 P, float3 N, float3 base, float fpix) {
 inline MatOut mat_bark(float3 P, float3 N, float3 base, float fpix) {
     MatOut o;
     float3 q = float3(P.x * 8.0 + P.z * 3.0, P.y * 1.1, P.z * 8.0 - P.x * 3.0);          // stretched along the trunk axis
-    float w1 = fadeBelow(fpix, 0.03, 0.14), w2 = fadeBelow(fpix, 0.015, 0.07);
+    float w1 = featVis(0.12, fpix), w2 = featVis(0.05, fpix);
     float f1 = 1.0 - abs(2.0 * vnoise3(q) - 1.0);
     float f2 = 1.0 - abs(2.0 * vnoise3(q * float3(2.2, 1.4, 2.2) + 5.0) - 1.0);
     float ridge = mix(0.55, f1, w1) * 0.65 + mix(0.55, f2, w2) * 0.35;
@@ -434,15 +443,15 @@ inline MatOut mat_plank(float3 Pl, float3 P, float3 N, float3 base, float fpix) 
     float k = floor(q), f = fract(q);
     float hp = hash13(float3(k, 4.0, 7.0)), hp2 = hash13(float3(k, 9.0, 2.0));
     float edgeD = min(f, 1.0 - f) * 0.275;
-    float grainW = fadeBelow(fpix, 0.008, 0.04);
+    float grainW = featVis(0.012, fpix);
     float g1 = vnoise3(float3(Pl.x * 1.2, Pl.z * 85.0 + hp * 30.0, 1.0)), g2 = vnoise3(float3(Pl.x * 5.0, Pl.z * 30.0 + hp * 7.0, 4.0));
     float fibre = mix(0.5, g1 * 0.6 + g2 * 0.4, grainW);
     float weather = saturate(0.45 + 0.5 * vnoise3(float3(Pl.x * 0.8, Pl.z * 0.5, k)) + 0.2 * (hp - 0.5));
-    float3 fresh = base * (0.7 + 0.6 * hp) * (0.8 + 0.4 * fibre);
+    float3 fresh = base * mix(1.0, 0.7 + 0.6 * hp, featVis(0.27, fpix)) * (0.8 + 0.4 * fibre);
     float3 silver = float3(0.36, 0.33, 0.29) * (0.8 + 0.4 * fibre);
     float3 albedo = mix(fresh, silver, weather * 0.75);
     albedo *= 1.0 - 0.38 * (1.0 - smoothstep(0.7, 1.6, P.y));                      // the seaward boards stay wet and dark
-    float edgeAO = smoothstep(0.0, 0.02, edgeD);
+    float edgeAO = 1.0 - (1.0 - smoothstep(0.0, 0.02, edgeD)) * lineAmp(0.02, max(0.02, fpix * 0.9));      // the board edges: a 2 cm shadow line, energy kept
     o.albedo = albedo * mix(0.6, 1.0, edgeAO);
     o.rough = clamp(0.84 + 0.1 * (fibre - 0.5) - 0.12 * (1.0 - smoothstep(0.7, 1.6, P.y)), 0.4, 1.0);
     o.metal = 0.0;
@@ -455,7 +464,7 @@ inline MatOut mat_plank(float3 Pl, float3 P, float3 N, float3 base, float fpix) 
 // at the waterline, barnacles just above it. (The sea level is y = 0.) -----------------------------------------------------------
 inline MatOut mat_timber(float3 P, float3 N, float3 base, float fpix) {
     MatOut o;
-    float grainW = fadeBelow(fpix, 0.01, 0.05);
+    float grainW = featVis(0.03, fpix);
     float fibre = mix(0.5, vnoise3(float3(P.x * 30.0, P.y * 2.5, P.z * 30.0)), grainW);
     float3 albedo = base * (0.72 + 0.5 * fibre);
     float above = smoothstep(0.9, 1.6, P.y);
@@ -465,7 +474,8 @@ inline MatOut mat_timber(float3 P, float3 N, float3 base, float fpix) {
     float weedN = fbm3(P * 5.0 + 2.0);
     float weed = smoothstep(0.35, 0.0, P.y) * smoothstep(-0.7, -0.1, P.y) * smoothstep(0.35, 0.7, weedN + 0.3);
     albedo = mix(albedo, float3(0.06, 0.13, 0.04) * (0.7 + 0.6 * weedN), weed * 0.9);
-    float barn = (1.0 - smoothstep(0.10, 0.22, worley(P * 40.0))) * smoothstep(0.9, 0.4, P.y) * smoothstep(-0.2, 0.1, P.y) * fadeBelow(fpix, 0.015, 0.05);
+    float barn = (1.0 - smoothstep(0.10, 0.22, worley(P * 40.0))) * smoothstep(0.9, 0.4, P.y) * smoothstep(-0.2, 0.1, P.y);
+    barn = mix(0.07 * smoothstep(0.9, 0.4, P.y) * smoothstep(-0.2, 0.1, P.y), barn, featVis(0.025, fpix));      // barnacles: 2.5 cm, to their mean coverage
     albedo = mix(albedo, float3(0.62, 0.60, 0.55), barn * 0.85);
     o.albedo = albedo;
     o.rough = clamp(0.88 - 0.2 * wet + 0.1 * barn, 0.4, 1.0);
@@ -478,7 +488,7 @@ inline MatOut mat_timber(float3 P, float3 N, float3 base, float fpix) {
 // ---- Glass Wood materials (R06): cold frosted stone, true mirror, pale brushed metal. -----------------------------------------
 inline MatOut mat_glassstone(float3 Pl, float3 P, float3 N, float3 base, float fpix) {
     MatOut o = mat_dressed(Pl + float3(0.0, 4.0, 0.0), P, N, base, fpix);                 // pits and chisel marks, no lichen
-    float sparkle = step(0.965, vnoise3(P * 80.0)) * fadeBelow(fpix, 0.01, 0.04);
+    float sparkle = step(0.965, vnoise3(P * 80.0)) * featVis(0.012, fpix);
     o.albedo = o.albedo * float3(0.94, 0.96, 1.08) + float3(0.10, 0.12, 0.20) * sparkle;   // frost glints
     o.rough = clamp(o.rough - 0.2, 0.3, 1.0);
     return o;
@@ -494,7 +504,7 @@ inline MatOut mat_mirror(float3 P, float3 N, float fpix) {
 }
 inline MatOut mat_palemetal(float3 P, float3 N, float3 base, float fpix) {
     MatOut o;
-    float W = fadeBelow(fpix, 0.01, 0.05);
+    float W = featVis(0.02, fpix);
     float streak = mix(0.5, vnoise3(float3(P.x * 4.0 + P.z * 4.0, P.y * 90.0, 1.0)), W);    // brushed along the horizontal
     o.albedo = base * (0.88 + 0.24 * streak);
     o.rough = 0.30 + 0.16 * streak;
@@ -504,7 +514,7 @@ inline MatOut mat_palemetal(float3 P, float3 N, float3 base, float fpix) {
     return o;
 }
 
-inline MatOut material_surface(int id, float3 Pl, float3 P, float3 N, float3 base, float rough, float fpix) {
+inline MatOut material_surface_raw(int id, float3 Pl, float3 P, float3 N, float3 base, float rough, float fpix) {
     MatOut o;
     if (id == 5) o = mat_masonry(Pl, P, N, base, fpix);
     else if (id == 6) o = mat_paint(Pl, P, N, base, fpix);
@@ -520,6 +530,14 @@ inline MatOut material_surface(int id, float3 Pl, float3 P, float3 N, float3 bas
     else if (id == 12) o = mat_plank(Pl, P, N, base, fpix);
     else if (id == 13) o = mat_timber(P, N, base, fpix);
     else o = mat_bark(P, N, base, fpix);
+    return o;
+}
+
+inline MatOut material_surface(int id, float3 Pl, float3 P, float3 N, float3 base, float rough, float fpix) {
+    MatOut o = material_surface_raw(id, Pl, P, N, base, rough, fpix);
+    // Roughness follows lost detail (Toksvig idea): the relief that is no longer resolved still scatters light, so the surface goes matte
+    // with distance instead of getting a cleaner, brighter highlight. A footprint of 1.5 cm starts it; 40 cm has taken a third of the way.
+    if (id != 18) o.rough = mix(o.rough, 1.0, 0.33 * smoothstep(0.015, 0.40, fpix));        // (a mirror stays a mirror)
     return o;
 }
 """#

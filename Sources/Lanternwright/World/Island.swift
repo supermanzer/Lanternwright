@@ -248,12 +248,18 @@ enum Island {
                 let shade = SIMD3(repeating: 0.8 + 0.4 * noise.unit(Int32(count), 61)) * SIMD3<Float>(1, 1 + 0.15 * (r2 - 0.5), 1 - 0.1 * (r1 - 0.5))
                 let at = SIMD3(p.x, y - (fallen ? -0.25 : 0.15), p.y)
                 let yaw = r3 * 6.28
+                let stagger = 3 + (noise.unit(Int32(count), 97) * 2 - 1)                // position.w = 3 + stagger in -1...1
                 let i = Int(floor(p.x / treeCell)), j = Int(floor(p.y / treeCell))
                 for lod in 0..<3 {
                     let mesh: MeshBuilder = (dead || fallen) ? Trees.snagVariant(variantIndex, lod: min(lod, 1)).tinted(SIMD3(repeating: 1))
                         : Trees.variant(pine ? .pine : .cypress, variantIndex, lod: lod).tinted(shade)
                     let m = translation(at) * rotationY(yaw) * rotationX(tilt.x) * rotationZ(tilt.y) * scaling(SIMD3(width, h, width))
-                    cells[lod]["trees_L\(lod)_\(i)_\(j)", default: MeshBuilder()].append(mesh, transform: m)
+                    let key = "trees_L\(lod)_\(i)_\(j)"
+                    var cell = cells[lod][key] ?? MeshBuilder()
+                    let start = cell.vertices.count
+                    cell.append(mesh, transform: m)
+                    cell.adjust(from: start) { $0.position.w = stagger }              // the same stagger on every level of this tree (see tree_lod_level)
+                    cells[lod][key] = cell
                 }
                 if !fallen { colliders.append((SIMD2(p.x, p.y), y, height)) }
             }
@@ -267,7 +273,7 @@ enum Island {
             for lod in 0..<3 {
                 let n = "trees_L\(lod)\(suffix)"
                 guard let mb = cache.cells[lod][n], !mb.isEmpty else { continue }
-                scene.add(n, mesh: mb.build(device: device, label: n), uniforms: ObjectUniforms(), hidden: lod != 0)
+                scene.add(n, mesh: mb.build(device: device, label: n), uniforms: ObjectUniforms(lod: SIMD4(1, Float(lod), 0, 0)), hidden: lod != 0)
                 names.append(n)
             }
             let parts = suffix.split(separator: "_").compactMap { Int($0) }

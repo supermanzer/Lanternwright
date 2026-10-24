@@ -55,16 +55,22 @@ extension SelfTestRunner {
                 return g0.names.enumerated().filter { n in !(sc.items.first { $0.name == n.element }?.hidden ?? true) }.map(\.offset)
             }
             let c = (g0.min + g0.max) / 2
-            check(visibleLevel(SIMD3(c.x, 0, c.y)) == [0], "standing in a cell shows its full-detail trees")
-            check(visibleLevel(SIMD3(c.x + 60 + 80, 0, c.y)) == [1], "80 m beyond a cell's edge shows the mid level")
-            check(visibleLevel(SIMD3(c.x + 60 + 400, 0, c.y)) == [2], "far away shows the cone silhouettes")
+            check(visibleLevel(SIMD3(c.x, 0, c.y)).contains(0) && !visibleLevel(SIMD3(c.x, 0, c.y)).contains(2), "standing in a cell shows its full-detail trees (and the mid level for its far corner), never the cones")
+            check(visibleLevel(SIMD3(c.x + 60 + 80, 0, c.y)).contains(1) && !visibleLevel(SIMD3(c.x + 60 + 80, 0, c.y)).contains(0), "80 m beyond a cell's edge shows the mid level, not the full-detail one")
+            check(visibleLevel(SIMD3(c.x + 60 + 400, 0, c.y)) == [2], "far away shows only the cone silhouettes")
             var oneEach = true
             for k in 0..<40 {
                 let eye = SIMD3<Float>(-300 + Float(k) * 17, 0, -300 + Float(k * k % 600))
                 sc.applyLOD(eye: eye)
-                for grp in sc.lodGroups { if grp.names.filter({ n in !(sc.items.first { $0.name == n }?.hidden ?? true) }).count != 1 { oneEach = false } }
+                for grp in sc.lodGroups { // at least one level, and no gap (a cell's trees span ~85 m, so all three can be needed)
+                let vis = grp.names.enumerated().filter { n in !(sc.items.first { $0.name == n.element }?.hidden ?? true) }.map(\.offset); if vis.isEmpty || vis.last! - vis.first! != vis.count - 1 { oneEach = false } }
             }
-            check(oneEach, "from any eye position exactly one level of every tree cell is visible")
+            check(oneEach, "from any eye position every tree cell draws at least one level and the drawn levels are contiguous")
+            // The cross-fade itself: complementary by construction (a pixel belongs to exactly one level), and it moves from level 0 to 2 with distance.
+            let lv: (Float) -> Float = { d in smoothstep(45 - 3.4, 45 + 3.4, d) + smoothstep(130 - 9.75, 130 + 9.75, d) }
+            check(lv(20) == 0 && lv(90) == 1 && lv(200) == 2 && lv(30) < lv(45) && lv(45) < lv(60), "the level coordinate rises 0 to 2 with distance (45 m and 130 m, each over a band)")
+            let drawnNear = Scene.lodLevelsDrawn(boxDistance: 0, diagonal: 85), drawnFar = Scene.lodLevelsDrawn(boxDistance: 300, diagonal: 85)
+            check(drawnNear == [true, true, false] && drawnFar == [false, false, true], "a cell draws the levels its trees can need (near: full+mid, far: cones only)")
             sc.applyLOD(eye: SIMD3(0, 0, 0))
         }
         if name == "all" || name == "r06" {

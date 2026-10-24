@@ -137,17 +137,25 @@ enum GlassWood {
             let width = h * (0.85 + 0.3 * Island.noise.unit(Int32(count), 13))
             let i = Int(floor(s.x / cell)), j = Int(floor(s.z / cell))
             let m = translation(SIMD3(s.x, y - 0.1, s.z)) * rotationY(s.rand * 60) * scaling(SIMD3(width, h, width))
-            for lod in 0..<3 { cells[lod]["crystals_L\(lod)_\(i)_\(j)", default: MeshBuilder()].append(CrystalTrees.variant(variant, lod: lod), transform: m) }
+            let stagger = 3 + (Island.noise.unit(Int32(count), 97) * 2 - 1)               // see tree_lod_level
+            for lod in 0..<3 {
+                let key = "crystals_L\(lod)_\(i)_\(j)"
+                var cell = cells[lod][key] ?? MeshBuilder()
+                let start = cell.vertices.count
+                cell.append(CrystalTrees.variant(variant, lod: lod), transform: m)
+                cell.adjust(from: start) { $0.position.w = stagger }
+                cells[lod][key] = cell
+            }
             scene.colliders.addCylinder(center: SIMD2(s.x, s.z), radius: 0.55, minY: y - 1, maxY: y + height)
         }
-        let treeUniforms = ObjectUniforms(model: matrix_identity_float4x4, tint: SIMD4(1, 1, 1, 1), emissive: SIMD4(0.6, 0.85, 1.0, 1.8))
+        let treeUniforms = { (lod: Int) in ObjectUniforms(model: matrix_identity_float4x4, tint: SIMD4(1, 1, 1, 1), emissive: SIMD4(0.6, 0.85, 1.0, 1.8), lod: SIMD4(1, Float(lod), 0, 0)) }
         for name in cells[0].keys.sorted() {
             let suffix = String(name.dropFirst("crystals_L0".count))
             var names: [String] = []
             for lod in 0..<3 {
                 let n = "crystals_L\(lod)\(suffix)"
                 guard let mb = cells[lod][n], !mb.isEmpty else { continue }
-                scene.add(n, mesh: mb.build(device: device, label: n), uniforms: treeUniforms, hidden: lod != 0, refractive: true)
+                scene.add(n, mesh: mb.build(device: device, label: n), uniforms: treeUniforms(lod), hidden: lod != 0, refractive: true)
                 names.append(n)
             }
             let parts = suffix.split(separator: "_").compactMap { Int($0) }

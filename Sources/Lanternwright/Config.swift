@@ -43,6 +43,8 @@ struct LaunchOptions {
     var dumpOverlayBase: String?
     var benchFrames: Int?
     var approachTarget: String?
+    var approachRange: (start: Float, min: Float, factor: Float)?
+    var hardLOD = false
     var approachOut: String?
 
     static let usage = """
@@ -62,6 +64,8 @@ struct LaunchOptions {
       --state <name>               World state: solved, mirrors, chimes, both, mirrorswrong, tide, tidewind
       --dump-overlay <base>        Render crosshair/journal/end/intro overlays to <base>-*.png and exit
       --approach <target|all> <out>  Continuous-detail measurement: walk toward a target, write a contact sheet and luma/high-frequency numbers
+      --approach-range <start> <min> <factor>  with --approach: override the distances (e.g. 90 30 0.97 to walk through the tree LOD band)
+      --hard-lod                   Debug: switch tree LODs instantly (the pre-R09 behaviour), for before/after measurements
       --controls-md                Print the README controls table, generated from App/Controls.swift
       --feedback                   Print all saved player feedback and exit
       --feedback-dir               Print the feedback folder and exit
@@ -113,6 +117,8 @@ struct LaunchOptions {
             case "--feedback-dir": o.showFeedbackDir = true
             case "--dump-overlay": o.dumpOverlayBase = next()
             case "--approach": o.approachTarget = next(); o.approachOut = next()
+            case "--approach-range": o.approachRange = (Float(next()) ?? 80, Float(next()) ?? 30, Float(next()) ?? 0.97)
+            case "--hard-lod": o.hardLOD = true
             case "--controls-md": print(Controls.markdownTable()); exit(0)
             case "--fps": o.showFPS = true
             case "--bench":

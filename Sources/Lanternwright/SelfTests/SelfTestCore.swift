@@ -12,7 +12,7 @@ extension SelfTestRunner {
         if name == "all" || name == "layout" {
             check(MemoryLayout<Vertex>.stride == 48, "Vertex stride 48")
             check(MemoryLayout<FrameUniforms>.stride == 512, "FrameUniforms stride 512")
-            check(MemoryLayout<ObjectUniforms>.stride == 96, "ObjectUniforms stride 96")
+            check(MemoryLayout<ObjectUniforms>.stride == 112, "ObjectUniforms stride 112")
         }
         if name == "all" || name == "math" {
             let cam = Camera(position: SIMD3(10, 5, 3), yaw: 0.6, pitch: 0.2)

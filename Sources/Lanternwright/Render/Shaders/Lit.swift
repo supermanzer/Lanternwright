@@ -10,12 +10,16 @@ vertex float4 shadow_vertex(uint vid [[vertex_id]],
     return frame.sunViewProj * (obj.model * float4(verts[vid].position.xyz, 1.0));
 }
 
+// R09: true only in the pipeline variant that draws tree LOD objects (see ShaderLibrary.function(lodDither:)).
+constant bool kLodDither [[function_constant(0)]];
+
 struct LitOut {
     float4 position [[position]];
     float3 worldPos;
     float3 normal;
     float4 color;      // rgb albedo, a roughness
     float material;
+    float stagger;     // per-tree LOD stagger (the vertex's position.w), see tree_lod_level
 };
 
 vertex LitOut lit_vertex(uint vid [[vertex_id]],
@@ -36,6 +40,7 @@ vertex LitOut lit_vertex(uint vid [[vertex_id]],
     o.normal = (obj.model * float4(v.normal.xyz, 0.0)).xyz;   // uniform scale assumed
     o.color = float4(v.color.rgb * obj.tint.rgb, v.color.a);
     o.material = v.normal.w;
+    o.stagger = v.position.w > 1.5 ? v.position.w - 3.0 : 0.0;      // tree vertices carry 3 + stagger (-1...1) in position.w; everything else has w = 1
     return o;
 }
 
@@ -47,15 +52,17 @@ float3 terrain_surface(float3 P, float3 Ng, float pathW, float wet, float duff, 
     float macro = fbm3(P * 0.012);                 // large patches
     // Band-limiting: `fpix` is the world size of one pixel (metres). Noise finer than a pixel aliases into hard blocks, so each
     // octave fades to its mean as its cell size approaches the pixel size, and thresholds widen by the footprint.
-    float mesoW = 1.0 - smoothstep(0.5, 2.0, fpix);
-    float meso = mix(0.5, fbm3(P * 0.35), mesoW);          // clumps
-    float microW = 1.0 - smoothstep(0.03, 0.11, fpix);
+    float mesoW = featVis(2.5, fpix);
+    float meso = mix(0.5, fbm3(P * 0.35), mesoW);          // clumps (macro: 2.5 m)
+    float microW = featVis(0.11, fpix);
     float micro = mix(0.5, vnoise3(P * 9.0), microW);      // grain (about 11 cm cells)
 
     float dry = smoothstep(0.38, 0.62, macro + (P.y - 20.0) * 0.004);
     float3 lush = glass ? float3(0.045, 0.15, 0.18) : float3(0.060, 0.165, 0.030);
     float3 parched = glass ? float3(0.16, 0.10, 0.26) : float3(0.27, 0.205, 0.070);
-    float3 grass = mix(lush, parched, dry) * (0.65 + 0.7 * meso) * (0.9 + 0.2 * micro);
+    // Blade-scale grain (3 cm) hints at the grass from afar: as the instanced blades thin out with distance, the ground already carries their texture.
+    float bladeGrain = mix(0.5, vnoise3(float3(P.x * 34.0, P.y * 6.0, P.z * 34.0)), featVis(0.03, fpix));
+    float3 grass = mix(lush, parched, dry) * (0.65 + 0.7 * meso) * (0.9 + 0.2 * micro) * (0.9 + 0.2 * bladeGrain);
 
     // Strata are horizontal bands (noise squashed along Y). They only read as rock layers on steep faces: on flat or gently
     // rolling ground the same bands trace elevation contours (concentric rings), so there the rock is isotropic, and the bands
@@ -93,7 +100,7 @@ float3 terrain_surface(float3 P, float3 Ng, float pathW, float wet, float duff, 
     // needles lying in streaks. Band-limited like the rest.
     float duffW = duff * (1.0 - pm) * (1.0 - 0.6 * smoothstep(0.55, 0.9, rockMask));
     if (duffW > 0.002) {
-        float needleW = 1.0 - smoothstep(0.012, 0.05, fpix);
+        float needleW = featVis(0.022, fpix);
         float needles = mix(0.5, vnoise3(float3(P.x * 46.0 + P.z * 17.0, P.y * 3.0, P.z * 46.0 - P.x * 17.0)), needleW);
         float clumps = vnoise3(P * 7.0 + 3.0);
         float3 duffCol = mix(float3(0.25, 0.145, 0.065), float3(0.50, 0.32, 0.15), smoothstep(0.55, 0.9, needles)) * (0.72 + 0.5 * clumps);
@@ -116,12 +123,12 @@ float3 terrain_surface(float3 P, float3 Ng, float pathW, float wet, float duff, 
                       vnoise3(q + float3(0, e, 0)) * 0.6 + vnoise3((q + float3(0, e, 0)) * 3.1) * 0.4 - b0,
                       vnoise3(q + float3(0, 0, e)) * 0.6 + vnoise3((q + float3(0, 0, e)) * 3.1) * 0.4 - b0) / e;
     g -= dot(g, Ng) * Ng;
-    float bumpStrength = mix(0.006, 0.09, rockiness) * (1.0 - 0.5 * sandMask) * (1.0 - smoothstep(0.04, 0.25, fpix));   // sand stays smooth: pits read as noise at a grazing sun
+    float bumpStrength = mix(0.006, 0.09, rockiness) * (1.0 - 0.5 * sandMask) * featVis(0.09, fpix);   // sand stays smooth: pits read as noise at a grazing sun
     N = normalize(Ng - g * bumpStrength);
-    N = normalize(mix(N, bump_normal(P, N, cob.x * (cob.w > 0.5 ? 0.04 : 0.022) * (1.0 - smoothstep(0.04, 0.2, fpix)), 1.0), pm));
+    N = normalize(mix(N, bump_normal(P, N, cob.x * (cob.w > 0.5 ? 0.04 : 0.022) * (cob.w > 0.5 ? featVis(0.30, fpix) : featVis(0.10, fpix)), 1.0), pm));
     // Sand and flat pale ground carry faint wind ripples (crests across the wind, bent by a slow noise) so open flats are not a
     // smooth dome. They fade with the pixel footprint so distant sand does not shimmer.
-    float rippleFade = (1.0 - smoothstep(0.06, 0.4, fpix)) * max(sandMask, 0.0) * smoothstep(0.6, 0.95, Ng.y);
+    float rippleFade = featVis(0.5, fpix) * max(sandMask, 0.0) * smoothstep(0.6, 0.95, Ng.y);
     if (rippleFade > 0.001) {
         float ph = dot(P.xz, float2(0.86, 0.5)) * 6.0 + (macro - 0.5) * 26.0 + (meso - 0.5) * 7.0;
         float crest = cos(ph);
@@ -135,6 +142,7 @@ float3 terrain_surface(float3 P, float3 Ng, float pathW, float wet, float duff, 
     // Gloss varies at three scales (patches, clumps, grain) so no surface has one uniform sheen; damp ground is glossier.
     rough += ((macro - 0.5) * 0.16 + (meso - 0.5) * 0.20 + (micro - 0.5) * 0.12) * 0.6;
     rough -= 0.22 * damp;
+    rough += 0.22 * (1.0 - featVis(0.09, fpix)) * (1.0 - 0.7 * sandMask);        // roughness follows the bump that is no longer resolved (R09)
     rough = clamp(rough, mix(0.62, 0.28, max(damp, sandMask)), 0.98);       // dry ground never turns glossy (it would mirror the sky on flats)
     return albedo;
 }
@@ -225,6 +233,7 @@ fragment LitFragOut lit_fragment(LitOut in [[stage_in]],
                              texture2d<float> irradianceMap [[texture(4)]],
                              depth2d<float> shadowNear [[texture(6)]],
                              depth2d<float> shadowMid [[texture(7)]]) {
+    if (kLodDither && tree_lod_discard(obj.lod, in.worldPos, frame.cameraPos.xyz, in.stagger, in.position.xy)) discard_fragment();
     float3 n = normalize(in.normal);
     float fpix = max(length(dfdx(in.worldPos)), length(dfdy(in.worldPos)));     // metres per pixel (for band-limited noise)
     float3 albedo = in.color.rgb;
