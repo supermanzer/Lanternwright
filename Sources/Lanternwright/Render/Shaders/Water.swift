@@ -10,6 +10,7 @@ struct WaterOut {
     float4 position [[position]];
     float3 worldPos;
     float3 gNormal;
+    float jac;          // Jacobian of the horizontal displacement: 1 = flat water, toward 0 where a crest folds (whitecaps)
 };
 
 // x = direction angle (rad), y = wavelength (m), z = amplitude (m), w = steepness 0..1
@@ -30,6 +31,7 @@ vertex WaterOut water_vertex(uint vid [[vertex_id]],
 
     float3 disp = float3(0.0);
     float3 nrm = float3(0.0, 1.0, 0.0);
+    float jxx = 0.0, jzz = 0.0, jxz = 0.0;
     for (int i = 0; i < 4; i++) {
         float2 d = float2(cos(WAVES[i].x), sin(WAVES[i].x));
         float k = 2.0 * M_PI_F / WAVES[i].y;
@@ -41,11 +43,14 @@ vertex WaterOut water_vertex(uint vid [[vertex_id]],
         disp.y += A * sin(th);
         nrm.xz -= d * k * A * cos(th);
         nrm.y -= Q * k * A * sin(th);
+        float qak = Q * A * k * sin(th);
+        jxx -= qak * d.x * d.x; jzz -= qak * d.y * d.y; jxz -= qak * d.x * d.y;
     }
     WaterOut o;
     float3 wp = float3(w0.x + disp.x, w0.y + disp.y, w0.z + disp.z);
     o.worldPos = wp;
     o.gNormal = normalize(nrm);
+    o.jac = (1.0 + jxx) * (1.0 + jzz) - jxz * jxz;
     o.position = frame.viewProj * float4(wp, 1.0);
     return o;
 }
@@ -140,6 +145,13 @@ fragment float4 water_fragment(WaterOut in [[stage_in]],
     float foam = smoothstep(0.55 + 0.25 * surge, 0.0, vDepth + (n1 - 0.5) * 0.3) * (0.55 + 0.45 * n2);
     foam *= smoothstep(0.0, 0.08, vDepth);                            // clean edge where water meets land
     float3 foamLit = (lightUp + E * max(sunDir.y, 0.0) / M_PI_F * 0.5) * 0.7;
+    // Whitecaps: foam on crests that are folding (Jacobian below ~0.8). Fine, soft flecks (two noise octaves, wide threshold) in a
+    // clearly white foam colour (the shore foam is dull at dusk), so it reads as spray and not as dirt on the water.
+    float crest = smoothstep(0.78, 0.50, in.jac) * (1.0 - smoothstep(150.0, 600.0, waterDist));
+    float fleck = 0.5 * n2 + 0.3 * vnoise3(float3(P.xz * 7.0, t * 1.1)) + 0.2 * vnoise3(float3(P.xz * 17.0, -t * 1.3));
+    float whiteCap = crest * smoothstep(0.30, 0.80, fleck);
+    float3 capColor = float3(0.78, 0.82, 0.84) * (0.35 + 0.65 * saturate(dot(lightUp, float3(0.33)) * 5.0));
+    col = mix(col, capColor, whiteCap * 0.8);
     col = mix(col, foamLit, saturate(foam) * 0.85);
 
     col = apply_fog(col, P, frame, skyLUT);
