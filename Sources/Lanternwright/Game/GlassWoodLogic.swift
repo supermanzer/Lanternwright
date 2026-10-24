@@ -4,7 +4,7 @@ import simd
 /// The Glass Wood's puzzles. Like Varrow's, it talks to the world only through named scene items, flags and events.
 ///  - The mirror court: turn mirrors and change panes until the moonbeam meets tide, wind, stone, in that order.
 ///  - (T5.5) The chimes by the pool.
-final class GlassWoodLogic {
+final class GlassWoodLogic: WorldPuzzle {
     private let scene: Scene
     private let state: PuzzleState
     private let animator: Animator
@@ -268,6 +268,20 @@ final class GlassWoodLogic {
         columnGrowth = 1
         scene.update("gw_column") { $0.hidden = false }
         revealPage(6)
+    }
+
+    // MARK: WorldPuzzle
+
+    var world: WorldKind { .glassWood }
+    static let storyFlags = ["gw_ilse_heard", "gw_oren_heard", "gw_end"]
+    var persistentFlags: [String] { ["gw_mirrors", "gw_chimes", "gw_altar"] + GlassWoodLogic.storyFlags }
+    func handles(_ id: String) -> Bool { id.hasPrefix("gw_") && id != "gw_return" }
+    func activate(_ id: String) { click(id) }
+    func restore(from flags: Set<String>) {
+        if flags.contains("gw_mirrors") { forceMirrorsSolved() }
+        if flags.contains("gw_chimes") { forceChimesSolved() }
+        if flags.contains("gw_altar") { forceAltar() }
+        for f in GlassWoodLogic.storyFlags where flags.contains(f) { state.set(f) }
     }
 
     // MARK: Visuals (every tick)

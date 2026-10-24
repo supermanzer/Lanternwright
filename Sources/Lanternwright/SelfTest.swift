@@ -545,6 +545,17 @@ enum SelfTest {
             check(zip(ToneTable.droneHz, ToneTable.stoneHz).allSatisfy { abs($0 * 2 - $1) < 0.01 }, "the stone drone is exactly an octave under the stones' tones")
             check(ToneTable.stoneHz == [293.66, 440.00, 587.33] && ToneTable.stoneHz[0] < ToneTable.stoneHz[1] && ToneTable.stoneHz[1] < ToneTable.stoneHz[2], "the stones' tones rise in solution order")
 
+            // 3e. WorldPuzzle: the save's flag list is derived from the registered puzzles, and clicks route to the owning puzzle.
+            g = freshGame()
+            check(g.puzzles.count == 1 && g.puzzles[0].world == .varrow, "Varrow-only games register one puzzle")
+            check(Set(g.persistentFlags) == Set(["solved", "lighthouseLit", "causewayUp", "lensTouched"] + Notebook.flags), "persistent flags come from the puzzles (+ lensTouched)")
+            g.activate("stone_tide")
+            check(g.state.has("lit_tide"), "activating a stone id routes to the lighthouse puzzle")
+            let both = Game(scenes: [.varrow: Scene.makeWorld(device: device), .glassWood: GlassWood.build(device: device)])
+            check(both.puzzles.map(\.world) == [.varrow, .glassWood], "a game with both worlds registers both puzzles")
+            check(Set(["gw_mirrors", "gw_chimes", "gw_altar", "gw_end"]).isSubset(of: Set(both.persistentFlags)), "the Glass Wood's flags appear in the derived save list")
+            check(!both.puzzles[1].handles("gw_return") && both.puzzles[1].handles("gw_mirror_0") && !both.puzzles[0].handles("gw_mirror_0"), "ownership: the return ring is the game's, mirrors are the Glass Wood's")
+
             // 4. The right order solves it and runs the whole sequence.
             g = freshGame()
             for id in LighthousePuzzle.order { g.puzzle.strike(id); g.simulate(seconds: 0.7) }

@@ -9,7 +9,7 @@ import simd
 ///  - Observable cause and effect: every strike changes something you can see and hear.
 ///  - No punishment: a mistake costs a soft chime and a reset, nothing else.
 ///  - The puzzle only talks to the world through named scene items, flags and events, never to rendering or audio.
-final class LighthousePuzzle {
+final class LighthousePuzzle: WorldPuzzle {
     static let order: [StoneID] = [.tide, .wind, .summit]
 
     /// Seconds. The whole solve sequence takes about 12 s.
@@ -135,6 +135,17 @@ final class LighthousePuzzle {
         slabRise = [Float](repeating: 1, count: PuzzleProps.slabCount)
         for k in 0..<PuzzleProps.slabCount { scene.update("causeway_\(k)") { $0.hidden = false } }
         if let i = scene.causewayIndex { scene.walkables[i].enabled = true }
+    }
+
+    // MARK: WorldPuzzle
+
+    var world: WorldKind { .varrow }
+    var persistentFlags: [String] { ["solved", "lighthouseLit", "causewayUp"] + Notebook.flags }
+    func handles(_ id: String) -> Bool { StoneID.allCases.contains { "stone_\($0.name)" == id } }
+    func activate(_ id: String) { if let stone = StoneID.allCases.first(where: { "stone_\($0.name)" == id }) { strike(stone) } }
+    func restore(from flags: Set<String>) {
+        if flags.contains("solved") { forceSolved() }
+        for f in Notebook.flags where flags.contains(f) { state.set(f) }
     }
 
     // MARK: Visuals (called every tick)

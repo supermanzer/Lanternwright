@@ -15,6 +15,8 @@ final class Game {
     let animator = Animator()
     private(set) var puzzle: LighthousePuzzle!
     private(set) var glass: GlassWoodLogic?
+    /// Every world's puzzle, in restore order. Saving, restoring, click routing and visuals all go through this list.
+    private(set) var puzzles: [WorldPuzzle] = []
     private var worldInteractables: [WorldKind: [Interactable]] = [:]
     var interactables: [Interactable] { worldInteractables[world] ?? [] }
     private(set) var hovered: Interactable?
@@ -48,6 +50,7 @@ final class Game {
                                    showBanner: { [weak self] t in self?.showBanner(t) },
                                    setEnabled: { [weak self] id, on in self?.setInteractable(id, enabled: on) })
         }
+        puzzles = [puzzle] + (glass.map { [$0] } ?? [])
         buildInteractables()
     }
 
@@ -124,16 +127,14 @@ final class Game {
     }
 
     func activate(_ id: String) {
-        if id.hasPrefix("stone_") {
-            if let stone = StoneID.allCases.first(where: { "stone_\($0.name)" == id }) { puzzle.strike(stone) }
+        if let owner = puzzles.first(where: { $0.handles(id) }) {
+            owner.activate(id)
         } else if id.hasPrefix("page_"), let n = Int(id.dropFirst(5)) {
             collectPage(n)
         } else if id == "lens" {
             touchLens()
         } else if id == "gw_return" {
             fadeThrough(to: .varrow)
-        } else if id.hasPrefix("gw_") {
-            glass?.click(id)
         }
     }
 
@@ -239,14 +240,13 @@ final class Game {
         if player.step(dt: Game.tick, input: isTraveling ? InputState() : input, scene: scene) { footfalls += 1; lastFootWasRun = player.lastStepWasRun }
         animator.update(Game.tick)
         time += Game.tick
-        puzzle.updateVisuals(time: time)
+        for p in puzzles { p.updateVisuals(time: time) }
         updateDiscoveries()
         Birds.update(scene, time: time)
         // Uncollected pages glow faintly so they read as "pick me up", even in shadow.
         for n in (world == .varrow ? 1...4 : 5...8) where !state.has("page_\(n)") {
             scene.update("page_\(n)") { $0.uniforms.emissive.w = 0.25 + 0.15 * sin(self.time * 2.4 + Float(n)) }
         }
-        glass?.updateVisuals(time: time)
         // The lens floats and turns while it waits.
         let bob = sin(time * 1.2) * 0.08
         scene.update("lens_ring") { $0.uniforms.model = translation(PuzzleProps.lensRestPosition + SIMD3(0, bob, 0)) * rotationY(self.time * 0.4) }
