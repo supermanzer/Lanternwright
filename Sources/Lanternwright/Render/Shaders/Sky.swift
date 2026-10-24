@@ -197,6 +197,7 @@ inline float cloud_fbm(float3 p, float lod) {
     float s = 0.0, a = 0.5, norm = 0.0;
     for (int i = 0; i < 5; i++) {
         float w = 1.0 - saturate(lod - (4.0 - float(i)));          // the finest octave fades first
+        if (w <= 0.0) break;                                          // and a faded octave costs nothing
         s += a * w * vnoise3(p);
         norm += a * w;
         p = p * 2.07 + float3(5.3, 17.1, 9.7);
@@ -246,7 +247,7 @@ fragment SkyOut sky_fragment(FullscreenOut in [[stage_in]],
         // sun-facing edge of a bank glows (a silver lining) and its far side is in shadow lit only by sky.
         float2 toSun = normalize(sunDir.xz + float2(1e-4)) * (1500.0 + 4000.0 * (1.0 - clamp(sunDir.y, 0.0, 1.0)));
         float depth = 0.0;
-        for (int k = 1; k <= 3; k++) depth += cloud_density(p + toSun * (float(k) / 3.0), frame.cameraPos.w, lod);
+        for (int k = 1; k <= 3; k++) depth += cloud_density(p + toSun * (float(k) / 3.0), frame.cameraPos.w, lod + 2.5);   // coarse: self-shadowing needs only the broad shapes
         float lightThrough = exp(-depth * 0.95);                                    // 1 = unshadowed, ~0.1 = deep inside
         float rim = (1.0 - d) * min(hg, 3.0) * 0.5;                                  // thin edges toward the sun shine
         float3 sunlit = sunT * frame.sunColor.w / M_PI_F * (0.55 * lightThrough * (0.6 + 0.4 * min(hg, 2.0)) + rim);

@@ -71,37 +71,64 @@ enum Island {
 
     // MARK: Clutter
 
-    /// Pebbles, shells and driftwood on the beach and along the path's edges: small things that say people and tides were here.
-    /// Deterministic, kept off the path itself, the pads and the dock, merged per 120 m cell.
+    /// Beach and path-edge litter in clusters, not a uniform sprinkle. Cluster centres are blue-noise sites (Poisson disc) on the
+    /// wrack line, the band just above the foam where the tide leaves things; each cluster has a few pieces of driftwood lying
+    /// (nearly) flat, partly buried and aligned along the shoreline, a clump of pebbles of very different sizes, and shells.
+    /// Pebble-only clusters also sit beside the path. All deterministic, kept off the path, pads and dock.
     static func addClutter(_ scene: Scene, device: MTLDevice) {
         let terrain = scene.terrain!
         var pebble = MeshBuilder(), shell = MeshBuilder(), wood = MeshBuilder()
-        pebble.icosphere(subdivisions: 1, smooth: false, radius: { _ in 1 }, surface: Surface(color: SIMD3(0.36, 0.34, 0.31), roughness: 0.8))
+        pebble.icosphere(subdivisions: 0, smooth: false, radius: { _ in 1 }, surface: Surface(color: SIMD3(0.36, 0.34, 0.31), roughness: 0.8))
         shell.cone(radius: 0.07, height: 0.05, segments: 7, smooth: false, surface: Surface(color: SIMD3(0.80, 0.72, 0.62), roughness: 0.5))
-        wood.cylinder(radiusTop: 0.045, radiusBottom: 0.065, height: 1.0, segments: 6, surface: Surface(color: SIMD3(0.32, 0.27, 0.21), roughness: 0.9))
+        wood.cylinder(radiusTop: 0.05, radiusBottom: 0.07, height: 1.0, segments: 6, surface: Surface(color: SIMD3(0.42, 0.37, 0.30), roughness: 0.9))   // sun-bleached grey-brown
         var batch = Batcher()
-        let places = scatter(spacing: 3.2, salt: 4242, accept: { x, z, h, ny, r in
-            let onBeach = h > 0.15 && h < 1.7
-            let besidePath = terrain.pathDistance(x: x, z: z) > 1.6 && terrain.pathDistance(x: x, z: z) < 5.5 && ny > 0.85
-            return (onBeach || besidePath) && r < 0.55 && isClear(terrain: terrain, x: x, z: z, pathMargin: 1.2, padMargin: 1.5)
-        }, terrain: terrain)
-        for (k, p) in places.enumerated() {
-            let y = terrain.sampleHeight(x: p.x, z: p.z)
-            let yaw = noise.unit(Int32(k), 91) * 2 * .pi
-            let kind = noise.unit(Int32(k) &+ 5, 17)
-            if kind < 0.6 {                                      // a pebble, squashed and slightly sunk
-                let s = 0.07 + 0.12 * noise.unit(Int32(k), 33)
-                var one = MeshBuilder(); one.append(pebble, transform: scaling(SIMD3(s * 1.3, s * 0.7, s)))
-                batch.add(one, at: SIMD3(p.x, y + s * 0.2, p.z), yaw: yaw, prefix: "clutter_pebble")
-            } else if kind < 0.85 {                              // a shell
-                batch.add(shell, at: SIMD3(p.x, y + 0.01, p.z), yaw: yaw, prefix: "clutter_shell")
-            } else if y < 1.7 {                                  // driftwood lying on the sand
+
+        func wrack(_ x: Float, _ z: Float) -> Bool {
+            let h = terrain.sampleHeight(x: x, z: z)
+            return h > 0.15 && h < 1.8 && isClear(terrain: terrain, x: x, z: z, pathMargin: 1.2, padMargin: 1.5)
+        }
+        func beside(_ x: Float, _ z: Float) -> Bool {
+            let d = terrain.pathDistance(x: x, z: z)
+            return d > 1.8 && d < 5.5 && terrain.normal(x: x, z: z).y > 0.85 && isClear(terrain: terrain, x: x, z: z, pathMargin: 1.2, padMargin: 1.5)
+        }
+        let beachSites = PoissonDisc.sample(min: SIMD2(-290, -380), max: SIMD2(260, 260), rMin: 6.5, rMax: 6.5, radius: { _ in 6.5 },
+                                            accept: { wrack($0.x, $0.y) }, seed: 0xBEAC4, seedSpacing: 30)
+        let pathSites = PoissonDisc.sample(min: SIMD2(-290, -380), max: SIMD2(260, 260), rMin: 14, rMax: 14, radius: { _ in 14 },
+                                           accept: { beside($0.x, $0.y) }, seed: 0x9A7C, seedSpacing: 40)
+
+        func place(_ p: SIMD2<Float>, _ k: Int, scale: Float, pebbles: Int, woodPieces: Int, shells: Int) {
+            // Direction along the shore: perpendicular to the ground's gradient.
+            let gx = terrain.sampleHeight(x: p.x + 1.5, z: p.y) - terrain.sampleHeight(x: p.x - 1.5, z: p.y)
+            let gz = terrain.sampleHeight(x: p.x, z: p.y + 1.5) - terrain.sampleHeight(x: p.x, z: p.y - 1.5)
+            let along = atan2(-gx, gz)                                        // yaw whose local +Z runs along the contour
+            for i in 0..<pebbles {                                            // clumped, with a ~4x size range
+                let r1 = noise.unit(Int32(k * 31 + i), 3), r2 = noise.unit(Int32(k * 31 + i), 5), r3 = noise.unit(Int32(k * 31 + i), 7)
+                let q = p + SIMD2(cos(r1 * 6.28), sin(r1 * 6.28)) * (r2 * r2 * 2.6 * scale)
+                let s = 0.04 + 0.17 * r3 * r3 * r3 * 1.3
+                let y = terrain.sampleHeight(x: q.x, z: q.y)
+                var one = MeshBuilder(); one.append(pebble.tinted(SIMD3(repeating: 0.8 + 0.4 * r2)), transform: scaling(SIMD3(s * 1.3, s * 0.65, s)))
+                batch.add(one, at: SIMD3(q.x, y + s * 0.12, q.y), yaw: r1 * 6.28, prefix: "clutter_pebble")
+            }
+            for i in 0..<woodPieces {                                         // lying flat, partly buried, roughly along the shore
+                let r1 = noise.unit(Int32(k * 17 + i), 41), r2 = noise.unit(Int32(k * 17 + i), 43), r3 = noise.unit(Int32(k * 17 + i), 47)
+                let q = p + SIMD2(r1 - 0.5, r2 - 0.5) * 3.2 * scale
+                let y = terrain.sampleHeight(x: q.x, z: q.y)
+                let len = 0.7 + 1.5 * r3
                 var one = MeshBuilder()
-                let len = 0.8 + 1.4 * noise.unit(Int32(k), 61)
-                one.append(wood, transform: rotationZ(.pi / 2) * scaling(SIMD3(1, len, 1)) * translation(SIMD3(0, -0.5, 0)))
-                batch.add(one, at: SIMD3(p.x, y + 0.05, p.z), yaw: yaw, prefix: "clutter_wood")
+                one.append(wood, transform: rotationX(.pi / 2) * scaling(SIMD3(1, len, 1)) * translation(SIMD3(0, -0.5, 0)))   // along local +Z
+                batch.add(one, at: SIMD3(q.x, y + 0.02, q.y), yaw: along + (r1 - 0.5) * 0.7, prefix: "clutter_wood", tilt: SIMD2((r2 - 0.5) * 0.12, 0))
+            }
+            for i in 0..<shells {
+                let r1 = noise.unit(Int32(k * 13 + i), 53), r2 = noise.unit(Int32(k * 13 + i), 59)
+                let q = p + SIMD2(cos(r1 * 6.28), sin(r1 * 6.28)) * (r2 * 2.2 * scale)
+                batch.add(shell, at: SIMD3(q.x, terrain.sampleHeight(x: q.x, z: q.y) + 0.01, q.y), yaw: r1 * 6.28, prefix: "clutter_shell")
             }
         }
+        for (k, p) in beachSites.enumerated() {
+            let r = noise.unit(Int32(k), 97)
+            place(p, k, scale: 1.0, pebbles: 5 + Int(r * 8), woodPieces: r > 0.45 ? 2 + Int(r * 3) : 0, shells: 2 + Int(r * 4))
+        }
+        for (k, p) in pathSites.enumerated() { place(p, k + 500, scale: 0.8, pebbles: 3 + Int(noise.unit(Int32(k), 99) * 5), woodPieces: 0, shells: 0) }
         batch.commit(scene, device: device)
     }
 

@@ -57,17 +57,19 @@ vertex LitOut grass_vertex(uint vid [[vertex_id]], uint iid [[instance_id]],
     // Where does grass grow? Not on sand/beach, the path, steep rock or the bare summit.
     float density = smoothstep(2.2, 4.0, y) * (1.0 - smoothstep(0.35, 0.9, ts.y)) * (1.0 - ts.z) * smoothstep(0.80, 0.90, ny) * (1.0 - smoothstep(52.0, 64.0, y));
     // Meadow structure at three scales: ~11 m clumps (with bare patches between them), ~2 m tufts, and per-blade variance.
-    float clump = fbm3(float3(xz.x, 3.0, xz.y) * 0.09);                       // 0..0.94, mean ~0.47
+    float3 cp = float3(xz.x, 3.0, xz.y) * 0.09;
+    float clump = 0.55 * vnoise3(cp) + 0.30 * vnoise3(cp * 2.1 + 5.0) + 0.12 * vnoise3(cp * 4.3 + 9.0);   // 3 octaves, mean ~0.47
     float tuft = vnoise3(float3(xz.x, 9.0, xz.y) * 0.55);
     density *= mix(0.22, 1.0, smoothstep(0.30, 0.52, clump)) * (0.75 + 0.25 * tuft);
     // Thin the field with distance so far blades (sub-pixel) are not drawn at all.
     float keep = density * (1.0 - smoothstep(0.35 * radius, radius, dist) * 0.9);
+    if (density < 0.32) return o;                                              // no lone blades on the fringe where the field fades out
     if (hash22(float2(gcell) + 17.0).x > keep) return o;
 
     // Blade shape: height, width, lean, facing.
     float hr = h11(rnd.x * 91.7 + rnd.y * 13.1);
     bool seedHead = h11(rnd.x * 53.3 + rnd.y * 7.7) > 0.955;                  // a few taller stems with a pale tip: meadow, not carpet
-    float height = (0.22 + 0.34 * hr) * (0.62 + 0.75 * clump) * (0.85 + 0.3 * tuft) * (seedHead ? 1.9 : 1.0) * (1.0 - smoothstep(0.7 * radius, radius, dist));
+    float height = (0.22 + 0.34 * hr) * (0.62 + 0.75 * clump) * (0.85 + 0.3 * tuft) * (seedHead ? 1.9 : 1.0) * (1.0 - smoothstep(0.7 * radius, radius, dist)) * smoothstep(0.5, 2.2, dist);   // blades right under the eye shrink away (a stray blade at the lens looked like a stake)
     float width = 0.030 + 0.012 * rnd.y;
     float yaw = rnd.x * 6.2831853;
     float2 facing = float2(cos(yaw), sin(yaw));
