@@ -328,6 +328,7 @@ fragment LitFragOut lit_fragment(LitOut in [[stage_in]],
     // Diffuse ambient from the convolved irradiance map (see irradiance_fragment for why not a blurry LUT mip).
     float3 irradiance = irradianceMap.sample(skySampler, lut_uv(n)).rgb;
     float3 R = reflect(-V, n);
+    if (mid == 8) R = normalize(float3(R.x, max(R.y, 0.30 + 0.25 * rough), R.z));             // copper roof (R07-5): a gloss lobe aimed at the ground row of the sky LUT painted dark patches; fall back to a dim, roughness-biased sky tint
     if (mid == 18) R = normalize(float3(R.x, max(R.y, 0.14), R.z));       // a mirror shows the sky, not the dark ground row of the table
     float3 envSpec = skyLUT.sample(skySampler, lut_uv(R), level(rough * 6.0)).rgb;
     float3 fEnv = F0 + (max(float3(1.0 - rough), F0) - F0) * pow(1.0 - NoV, 5.0);

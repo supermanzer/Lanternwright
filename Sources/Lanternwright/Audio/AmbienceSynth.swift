@@ -35,6 +35,8 @@ final class AmbienceSynth {
     var stepMix: StepMix?
     var stepPlank = 0
     var stepHollow: Float = 1
+    /// 0...1: how deep the foot is in the water (ankle-deep and wading): adds the splash voice.
+    var stepSplash: Float = 0
     var stepPebble: Float = 0
     let feet: Footsteps
     var stepRun = false
@@ -203,7 +205,7 @@ final class AmbienceSynth {
 
     /// Render `frames` stereo samples (one-pole filters are cheap, so this is far under the audio deadline).
     func render(frames: Int, left: UnsafeMutablePointer<Float>, right: UnsafeMutablePointer<Float>) {
-        if stepCounter != seenSteps { seenSteps = stepCounter; feet.start(mix: stepMix ?? FootstepRecipe.pure(FootstepRecipe.material(for: stepSurface)), run: stepRun, pan: stepPan, plank: stepPlank, pebble: stepPebble, hollow: stepHollow) }
+        if stepCounter != seenSteps { seenSteps = stepCounter; feet.start(mix: stepMix ?? FootstepRecipe.pure(FootstepRecipe.material(for: stepSurface)), run: stepRun, pan: stepPan, plank: stepPlank, pebble: stepPebble, hollow: stepHollow, splash: stepSplash) }
         if chimeLock.try() {
             let queued = pendingChimes
             pendingChimes.removeAll()

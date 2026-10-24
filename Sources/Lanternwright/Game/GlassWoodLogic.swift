@@ -123,6 +123,7 @@ final class GlassWoodLogic: WorldPuzzle {
         for k in 0..<3 {
             let col = GlassPuzzleProps.color(panes[k])
             scene.update("gw_pane_\(k)") { $0.uniforms.tint = SIMD4(col, 1); $0.uniforms.emissive = SIMD4(col, 0.7) }
+            scene.update("gw_pane_\(k)_marker") { $0.uniforms.tint = SIMD4(col, 1); $0.uniforms.emissive = SIMD4(col, 1.2) }
         }
     }
 

@@ -117,4 +117,28 @@ extension SelfTestRunner {
         check(h.first! < 0.35 && h.last! > 0.85 && zip(h, h.dropFirst()).allSatisfy { $1 >= $0 - 0.02 }, "along the dock the hollowness rises from the shore to the water: \(h.map { String(format: "%.2f", $0) }) (planks over the beach thud, planks over the sea boom)")
         check(sc.hollowness(x: Layout.lighthouse.x, z: Layout.lighthouse.z) == 0, "off the dock there is no hollowness")
     }
+
+    /// R07-5: wading makes a wet, low splash from the step engine's grain layer: more energy than the dry foot, darker than sand, a body in the low band, no clipping.
+    func runSplash() {
+        guard name == "all" || name == "splash" else { return }
+        typealias A = FootstepAnalysis
+        func steps(_ splash: Float, run: Bool = false) -> [[Float]] {
+            let feet = Footsteps(sampleRate: A.sr)
+            let n = Int(A.sr * 0.8)
+            return (0..<10).map { _ in
+                feet.start(mix: A.pure(.wetSand), run: run, pan: 0, splash: splash)
+                var x = [Float](repeating: 0, count: n)
+                for i in 0..<n { let s = feet.render(dt: 1 / A.sr); x[i] = s.0 + s.1 }
+                return x
+            }
+        }
+        let dry = steps(0), wade = steps(1), run = steps(1, run: true)
+        let eDry = A.mean(dry.map { $0.reduce(0) { $0 + $1 * $1 } }), eWade = A.mean(wade.map { $0.reduce(0) { $0 + $1 * $1 } })
+        check(eWade > 3 * eDry, "wading adds a splash: much more energy than the same step on wet sand (\(eWade) vs \(eDry))")
+        let low = A.mean(wade.map { A.band(A.spectrum($0), 80, 400) / max(A.band(A.spectrum($0), 80, 9000), 1e-12) })
+        let cWade = A.mean(wade.map { A.centroid(A.spectrum($0)) })
+        check(low > 0.35 && cWade < 1500, "the splash is wet and low (\(Int(low * 100)) % of its energy below 400 Hz, centroid \(Int(cWade)) Hz)")
+        check(A.mean(wade.map { A.decayTime($0, lowpass: 400, dB: 30) }) > 0.12, "it sloshes for a moment, not a click")
+        check((wade + run).allSatisfy { ($0.map { abs($0) }.max() ?? 0) < 0.9 } && !wade.joined().contains { !$0.isFinite }, "no clipping, all finite")
+    }
 }

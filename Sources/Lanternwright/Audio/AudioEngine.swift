@@ -57,6 +57,8 @@ final class AudioEngine {
             synth.stepSurface = game.currentSurface
             let under = game.surfaceMix
             synth.stepMix = under.mix; synth.stepPebble = under.pebble; synth.stepPlank = game.currentPlank; synth.stepHollow = game.currentHollowness
+            let gy = game.scene.groundHeight(x: game.player.position.x, z: game.player.position.z)
+            synth.stepSplash = smoothstep(0.08, -0.25, gy)
             synth.stepRun = game.lastFootWasRun
             synth.stepPan = game.footfalls % 2 == 0 ? -0.3 : 0.3      // alternate feet
             synth.stepCounter += 1

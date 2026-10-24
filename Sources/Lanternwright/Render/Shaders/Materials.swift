@@ -355,9 +355,9 @@ inline MatOut mat_paint(float3 Pl, float3 P, float3 N, float3 base, float fpix) 
     }
     albedo *= 1.0 - 0.28 * mix(0.10, smoothstep(0.58, 0.88, streak), featVis(0.20, fpix));          // drip stains
     // Hairline cracks: the iso-line of a noise stretched hard along Y, so they run mostly down the wall (an unstretched iso-line closes into rings).
-    float crackLine = 1.0 - smoothstep(0.0, 0.004 + fpix * 0.7, abs(vnoise3(Pl * float3(3.2, 0.35, 3.2) + 21.0) - 0.5));
-    float crack = crackLine * smoothstep(0.45, 0.85, vnoise3(Pl * 0.8 + 5.0)) * featVis(0.012, fpix);
-    albedo *= 1.0 - 0.4 * crack;
+    float crackLine = 1.0 - smoothstep(0.0, 0.004 + fpix * 0.7, abs(vnoise3(Pl * float3(3.2, 1.4, 3.2) + 21.0) - 0.5));
+    float crack = crackLine * smoothstep(0.66, 0.92, vnoise3(Pl * 1.1 + 5.0)) * featVis(0.012, fpix);       // short hairlines in a few patches, not tall seams (R07-1)
+    albedo *= 1.0 - 0.22 * crack;
     h -= 0.003 * crack;
     albedo *= mix(0.80, 1.0, smoothstep(0.0, 6.0, Pl.y));
 
@@ -397,7 +397,7 @@ inline MatOut mat_copper(float3 P, float3 N, float fpix) {
     float3 copper = float3(0.66, 0.34, 0.20) * (0.85 + 0.3 * vnoise3(P * 12.0));
     float3 patina = mix(float3(0.14, 0.34, 0.29), float3(0.30, 0.55, 0.45), vnoise3(P * 9.0));
     o.albedo = mix(copper, patina, verd);
-    o.rough = clamp(mix(0.26, 0.74, verd) + 0.08 * (vnoise3(P * 22.0) - 0.5) * microW, 0.15, 1.0);
+    o.rough = clamp(mix(0.34, 0.74, verd) + 0.08 * (vnoise3(P * 22.0) - 0.5) * microW, 0.15, 1.0);
     o.metal = 1.0 - 0.9 * verd;
     o.N = bump_normal(P, N, 0.0015 * verd * (vnoise3(P * 30.0) - 0.5) * microW, 1.0);
     o.ao = 1.0;

@@ -118,16 +118,28 @@ enum GlassPuzzleProps {
         plate.cylinder(radiusTop: 0.04, radiusBottom: 0.04, height: 0.45, segments: 8, smooth: true, surface: pale, transform: translation(SIMD3(0, -1.25, 0)))      // yoke stem
         plate.cylinder(radiusTop: 0.20, radiusBottom: 0.20, height: 0.06, segments: 14, smooth: true, surface: pale, transform: translation(SIMD3(0, -1.0, 0)))
         plate.chamferBox(size: SIMD3(0.62, 0.03, 0.06), chamfer: 0.008, surface: pale, transform: translation(SIMD3(0.4, -1.0, 0)))                            // the pointer
+        // R07-4: a thin bright edge catch along the inside of the frame, as light does on a bevel.
+        for sx: Float in [-0.9, 0.9] { plate.box(size: SIMD3(0.012, 1.66, 0.052), surface: Surface(color: SIMD3(1, 1, 1), roughness: 0.2, material: .emissiveGlass), transform: translation(SIMD3(sx, 0, 0.02))) }
+        for sy: Float in [-0.83, 0.83] { plate.box(size: SIMD3(1.8, 0.012, 0.052), surface: Surface(color: SIMD3(1, 1, 1), roughness: 0.2, material: .emissiveGlass), transform: translation(SIMD3(0, sy, 0.02))) }
         let plateMesh = plate.build(device: device, label: "mirror")
         var pane = MeshBuilder()
-        pane.chamferBox(size: SIMD3(1.9, 2.3, 0.07), chamfer: 0.02, surface: Surface(color: SIMD3(0.32, 0.32, 0.32), roughness: 0.04, material: .emissiveGlass))
+        // R07-3: a pane is coloured glass, not a rectangle: 9 cm thick with bevelled edges, drawn through the refractive pass so the court shows through it,
+        // tinted by its current colour; a thin darker inner rim reads as the glass's edge; a state marker (see below) sits on its plinth.
+        pane.chamferBox(size: SIMD3(1.9, 2.3, 0.09), chamfer: 0.035, surface: Surface(color: SIMD3(0.9, 0.9, 0.9), roughness: 0.04))
+        for sx: Float in [-0.88, 0.88] { pane.chamferBox(size: SIMD3(0.05, 2.2, 0.10), chamfer: 0.012, surface: Surface(color: SIMD3(0.55, 0.55, 0.6), roughness: 0.04), transform: translation(SIMD3(sx, 0, 0))) }
+        for sy: Float in [-1.08, 1.08] { pane.chamferBox(size: SIMD3(1.8, 0.05, 0.10), chamfer: 0.012, surface: Surface(color: SIMD3(0.55, 0.55, 0.6), roughness: 0.04), transform: translation(SIMD3(0, sy, 0))) }
         let paneMesh = pane.build(device: device, label: "pane")
         for k in 0..<3 {
             scene.add("gw_mirror_\(k)", mesh: plateMesh,
-                      uniforms: ObjectUniforms(model: mirrorModel(k, turns: Float(MirrorCourt.initialMirrors[k])), tint: SIMD4(1, 1, 1, 1), emissive: SIMD4(0.5, 0.6, 0.8, 0.05)))
+                      uniforms: ObjectUniforms(model: mirrorModel(k, turns: Float(MirrorCourt.initialMirrors[k])), tint: SIMD4(1, 1, 1, 1), emissive: SIMD4(0.55, 0.66, 0.9, 0.22)))       // R07-4: a faint moonlit sheen on the mirror (it reads as a mirror, not a grey panel)
             let col = color(MirrorCourt.initialPanes[k])
             scene.add("gw_pane_\(k)", mesh: paneMesh,
-                      uniforms: ObjectUniforms(model: translation(panePosition(k) + SIMD3(0, 1.3, 0)) * rotationY(paneYaw[k]), tint: SIMD4(col, 1), emissive: SIMD4(col, 0.7)))
+                      uniforms: ObjectUniforms(model: translation(panePosition(k) + SIMD3(0, 1.3, 0)) * rotationY(paneYaw[k]), tint: SIMD4(col, 1), emissive: SIMD4(col, 0.7)), refractive: true)
+            var marker = MeshBuilder()
+            marker.cylinder(radiusTop: 0.17, radiusBottom: 0.2, height: 0.05, segments: 20, smooth: true, surface: Surface(color: SIMD3(1, 1, 1), roughness: 0.3))
+            marker.torus(major: 0.2, minor: 0.018, segments: 24, sides: 6, surface: pale, transform: translation(SIMD3(0, 0.03, 0)))
+            scene.add("gw_pane_\(k)_marker", mesh: marker.build(device: device, label: "pane marker"),
+                      uniforms: ObjectUniforms(model: translation(panePosition(k) + SIMD3(0, 0.17, 0)) * rotationY(paneYaw[k]) * translation(SIMD3(0, 0, 0.36)), tint: SIMD4(col, 1), emissive: SIMD4(col, 1.2)))
         }
 
         // The receiver orb, and the column of light it releases when the puzzle is solved.

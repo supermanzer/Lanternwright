@@ -38,6 +38,13 @@ struct FootstepRecipe {
     var perPlank = false
     var reverbSend: Float = 0.05
 
+    /// Wading (R07-5): a foot pushed through shallow water. A soft low slosh of the water's mass, then a cloud of wet, low-passed droplet grains (the grain layer of
+    /// the step engine, 0.5-2.4 kHz, longer and softer than sand) falling over a quarter of a second, with a bit of reverb.
+    static let splash = FootstepRecipe(impactAttack: 0.014, impactDecay: 0.09, impactCutoff: 520, impactGain: 0.10,
+                                       modes: [Mode(hz: 150, decay: 0.14, gain: 0.34, glide: -1.2, attack: 0.012), Mode(hz: 310, decay: 0.08, gain: 0.16, glide: -2.0, attack: 0.010)],
+                                       grainMin: 16, grainMax: 28, grainWindow: 0.26, grainFreqLo: 500, grainFreqHi: 2400, grainLenLo: 0.004, grainLenHi: 0.014,
+                                       grainGain: 0.055, grainSweep: 0.55, grainSwish: 0.6, grainCrunch: 0.5, reverbSend: 0.10)
+
     /// Indexed by `StepMaterial.rawValue`.
     static let table: [FootstepRecipe] = [
         // grass: the quietest, a soft swish with a few faint stalk crackles
@@ -122,7 +129,7 @@ final class Footsteps {
     /// Start one footfall (heel, plus toe unless running) from a weighted mix of materials.
     /// `hollow` (0...1) only matters for wood: planks resting on the ground thud (the cavity's gain and ring shrink and an earthen thump and a scuff take over),
     /// planks over open water boom.
-    func start(mix: StepMix, run: Bool, pan: Float, plank: Int = 0, pebble: Float = 0, hollow: Float = 1) {
+    func start(mix: StepMix, run: Bool, pan: Float, plank: Int = 0, pebble: Float = 0, hollow: Float = 1, splash: Float = 0) {
         var weights: [(StepMaterial, Float)] = []
         for m in StepMaterial.allCases where mix[m.rawValue] > 0.04 { weights.append((m, mix[m.rawValue])) }
         weights.sort { $0.1 > $1.1 }
@@ -130,6 +137,9 @@ final class Footsteps {
         let total = weights.reduce(0) { $0 + $1.1 }
         guard total > 0 else { return }
         let vary = 0.85 + 0.3 * rnd(), bright = 0.9 + 0.2 * rnd()
+        if splash > 0.02 {                       // ankle-deep water: the splash joins whatever the foot is on (wet sand underneath)
+            emit(FootstepRecipe.splash, level: splash * (run ? 1.3 : 1), vary: vary, bright: bright, delay: 0.01, toe: false, run: run, pan: pan, plank: plank, pebble: 0)
+        }
         for (m, w) in weights {
             let level = w / total
             let h: Float = m == .wood ? hollow : 1

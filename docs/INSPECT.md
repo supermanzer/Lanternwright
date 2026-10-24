@@ -108,6 +108,15 @@ How to play: `scripts/bundle.sh && open Lanternwright.app`. Headless views: `.bu
 - **Surf and wind (W6.2, W6.3). A person must listen.** Walk shore -> ridge -> summit -> lighthouse plinth: the surf should fall away steadily (about 11x quieter at the summit), darken, and breathe slowly; at the summit and plinth the wind should moan and whistle with the gusts, not hiss. `Lanternwright --selftest ambience` prints the per-position table.
 - **Dock (W6.1). A person must listen.** Walk the dock from the beach to the end: the first planks (resting on the sand) thud; they gradually start to boom over the water.
 
+## F01 visual and structural work (W0-W5): what to look at
+- **Ground (W0/W1).** `--view ground-grass`, `ground-sand`, `ground-edge`, `ground-slope`, `ground-islet` (add `-1m` or `-5m`): the turf mat (moss, clover, soil specks, straw), grains and pebbles in sand, stony scree on slopes; no blocks at 0.3 m. The islet ground is still plain turf. `--view material-sheet` shows every prop material; `docs/MATERIALS.md` lists the rules.
+- **Dock (W2).** `--view dock-close`, `dock-side`, `dock-under`: boards of different widths and gaps, two missing, one broken, one replaced; piles lean, with weed and barnacle bands.
+- **Props (W3).** `--view rock-close`, `--view islet`, a walk over the causeway after solving the puzzle: real stone rocks, weathered causeway slabs that drip dry as they rise, standing stones on the islet. `Lanternwright --audit-props docs/PROPS.md` lists what is still flat (three small items).
+- **Slopes (W5).** `Lanternwright --audit-slopes`: the steepest 10 m of the lit route is now 24 degrees (it was 36). The north side of the hill is a cliff, so the lit route now continues from the lighthouse down a graded descent to the causeway start. Pause menu: *Slide on very steep slopes (try it)* is OFF by default.
+- **Beam (W4.3).** Solve the puzzle, then look at the lighthouse from the dock, the beach and the sea: two beams leave a glow in the lantern room and sweep round; there is no longer a floating column.
+- **Door (W4.2 phase 1).** Stand on the plinth and click the door: rattle, thump, "Locked. The keeper took the key with her."
+- **Glass Wood (R07).** Panes are thick tinted glass with a colour marker on their plinth; mirrors have a faint moonlit sheen and a bright edge.
+
 ## Questions for the user (not decided by anyone but you)
 1. **The door.** Is the locked door (phase 1: you try it, it rattles, a keeper's line) enough, or do you want the abandoned interior (phase 2) behind it after the island puzzle is solved?
 2. **Slipping on steep slopes.** Do you want to try it (a setting, default off): beyond about 40 degrees you slide gently downhill until the ground is gentler, never any harm? What angle feels right?
