@@ -53,11 +53,16 @@ vertex WaterOut water_vertex(uint vid [[vertex_id]],
 constexpr sampler waterLinear(filter::linear, address::clamp_to_edge);
 
 // Ripple height field: three scrolling layers of noise. The normal comes from finite differences.
-inline float ripple_height(float2 p, float t) {
+// The layers cross at different angles (0, +55, -40 degrees) so no single direction dominates, and the finer two fade out as the
+// pixel footprint approaches their wavelength: at grazing angles one pixel spans many metres along the view direction and the
+// fine noise otherwise smears into brush-stroke streaks. `fade` = (layer 2 weight, layer 3 weight).
+inline float ripple_height(float2 p, float t, float2 fade) {
+    const float2x2 rot2 = float2x2(float2(0.574, -0.819), float2(0.819, 0.574));
+    const float2x2 rot3 = float2x2(float2(0.766, 0.643), float2(-0.643, 0.766));
     float h = 0.0;
     h += 0.50 * vnoise3(float3(p * 0.9 + float2(t * 0.35, t * 0.12), t * 0.15));
-    h += 0.30 * vnoise3(float3(p * 2.3 + float2(-t * 0.22, t * 0.41), t * 0.23));
-    h += 0.20 * vnoise3(float3(p * 5.7 + float2(t * 0.30, -t * 0.26), t * 0.37));
+    h += 0.30 * fade.x * vnoise3(float3((rot2 * p) * 2.3 + float2(-t * 0.22, t * 0.41), t * 0.23));
+    h += 0.20 * fade.y * vnoise3(float3((rot3 * p) * 5.7 + float2(t * 0.30, -t * 0.26), t * 0.37));
     return h;
 }
 
@@ -75,9 +80,14 @@ fragment float4 water_fragment(WaterOut in [[stage_in]],
     // Normal = geometric (Gerstner) + ripples, with the ripples fading out with distance to avoid shimmer.
     float rippleAmt = 0.35 * (1.0 - smoothstep(40.0, 400.0, waterDist));
     float e = 0.08;
-    float h0 = ripple_height(P.xz, t);
-    float hx = ripple_height(P.xz + float2(e, 0.0), t);
-    float hz = ripple_height(P.xz + float2(0.0, e), t);
+    float fpw = max(length(dfdx(P.xz)), length(dfdy(P.xz)));                      // metres per pixel on the water
+    float2 fade = float2(1.0 - smoothstep(0.25, 0.8, fpw * 2.3), 1.0 - smoothstep(0.25, 0.8, fpw * 5.7));
+    // Domain warp (once per pixel): a slow noise bends the whole ripple field so crests curve instead of running straight.
+    float2 warp = (float2(vnoise3(float3(P.xz * 0.23, t * 0.08)), vnoise3(float3(P.xz * 0.23 + 7.7, t * 0.08))) - 0.5) * 2.4;
+    float2 pw = P.xz + warp;
+    float h0 = ripple_height(pw, t, fade);
+    float hx = ripple_height(pw + float2(e, 0.0), t, fade);
+    float hz = ripple_height(pw + float2(0.0, e), t, fade);
     float3 N = normalize(in.gNormal + float3(-(hx - h0) / e, 0.0, -(hz - h0) / e) * rippleAmt * 0.35);
     float NoV = saturate(dot(N, V));
 
