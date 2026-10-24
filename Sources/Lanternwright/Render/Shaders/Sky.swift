@@ -191,21 +191,25 @@ inline float3 view_ray(float2 uv, constant FrameUniforms& frame) {
 // Cloud layer: a flat sheet at CLOUD_ALT whose density comes from 5-octave noise that drifts with the wind.
 constant float CLOUD_ALT = 2500.0;
 
-inline float cloud_fbm(float3 p) {
-    float s = 0.0, a = 0.5;
+// `lod` fades the finer octaves out (0 = all five, 3 = the first two only): at grazing angles one pixel spans kilometres of
+// cloud sheet, and detail finer than that smears into horizontal streaks, so the far clouds keep only their broad shapes.
+inline float cloud_fbm(float3 p, float lod) {
+    float s = 0.0, a = 0.5, norm = 0.0;
     for (int i = 0; i < 5; i++) {
-        s += a * vnoise3(p);
+        float w = 1.0 - saturate(lod - (4.0 - float(i)));          // the finest octave fades first
+        s += a * w * vnoise3(p);
+        norm += a * w;
         p = p * 2.07 + float3(5.3, 17.1, 9.7);
         a *= 0.5;
     }
-    return s;       // about 0..0.97, mean about 0.48
+    return s * (0.969 / norm);       // renormalised: coverage stays the same as detail fades (full sum of amplitudes is 0.969)
 }
 
 // Returns density 0..1 at ground position `p` (metres, xz) at time t.
-inline float cloud_density(float2 p, float t) {
+inline float cloud_density(float2 p, float t, float lod) {
     float2 q = p * 0.00022 + float2(t * 0.0035, t * 0.0012);        // wind drift
     float warp = vnoise3(float3(q * 2.3, 3.0)) - 0.5;                // warp so shapes aren't blobby
-    float n = cloud_fbm(float3(q + warp * 0.35, t * 0.004));         // z drifts slowly: clouds slowly evolve
+    float n = cloud_fbm(float3(q + warp * 0.35, t * 0.004), lod);    // z drifts slowly: clouds slowly evolve
     return smoothstep(0.43, 0.66, n);                                // threshold sets coverage
 }
 
@@ -231,17 +235,25 @@ fragment SkyOut sky_fragment(FullscreenOut in [[stage_in]],
     if (dir.y > 0.01) {
         float t = (CLOUD_ALT - frame.cameraPos.y) / dir.y;
         float2 p = frame.cameraPos.xz + dir.xz * t;
-        float d = cloud_density(p, frame.cameraPos.w);
-        float fade = smoothstep(0.02, 0.22, dir.y);                  // dissolve into the horizon haze
+        float lod = clamp(log2(max(t / 12000.0, 1.0)), 0.0, 3.0);
+        float d = cloud_density(p, frame.cameraPos.w, lod);
+        float fade = smoothstep(0.03, 0.30, dir.y);                  // dissolve into the horizon haze
         cloudA = d * fade;
         float cosT = dot(dir, sunDir);
         float g = 0.65;
         float hg = (1.0 - g * g) / pow(1.0 + g * g - 2.0 * g * cosT, 1.5) * 0.25;   // Henyey-Greenstein lobe
-        float phase = 0.35 + 0.65 * min(hg, 4.0);
-        float edge = 0.35 + 0.65 * (1.0 - d);                                        // thin edges let light through
-        float3 sunlit = sunT * frame.sunColor.w / M_PI_F * 0.9 * phase * edge;
-        float3 ambient = lut.sample(skySampler, float2(0.5, 0.0), level(4)).rgb * (0.9 + 0.4 * (1.0 - d));
-        col = mix(col, sunlit + ambient * 0.9, cloudA);
+        // Light reaching this cloud: sunlight is dimmed by the cloud between here and the sun (3 taps toward the sun), so the
+        // sun-facing edge of a bank glows (a silver lining) and its far side is in shadow lit only by sky.
+        float2 toSun = normalize(sunDir.xz + float2(1e-4)) * (1500.0 + 4000.0 * (1.0 - clamp(sunDir.y, 0.0, 1.0)));
+        float depth = 0.0;
+        for (int k = 1; k <= 3; k++) depth += cloud_density(p + toSun * (float(k) / 3.0), frame.cameraPos.w, lod);
+        float lightThrough = exp(-depth * 0.95);                                    // 1 = unshadowed, ~0.1 = deep inside
+        float rim = (1.0 - d) * min(hg, 3.0) * 0.5;                                  // thin edges toward the sun shine
+        float3 sunlit = sunT * frame.sunColor.w / M_PI_F * (0.55 * lightThrough * (0.6 + 0.4 * min(hg, 2.0)) + rim);
+        // Sky light for the cloud's shaded side: the sky on the far side of the sun (cooler, bluer), not a fixed tan.
+        float3 awayDir = normalize(float3(-sunDir.x, 0.45, -sunDir.z));
+        float3 ambient = lut.sample(skySampler, lut_uv(awayDir), level(3)).rgb * (0.75 + 0.5 * (1.0 - d));
+        col = mix(col, sunlit + ambient * 0.8, cloudA);
     }
 
     // The main light's disc. For the sun: angular radius 0.00465 rad (0.2665 deg), limb darkening. In a night world the same

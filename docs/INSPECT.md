@@ -69,3 +69,4 @@ How to play: `scripts/bundle.sh && open Lanternwright.app`. Headless views: `.bu
 | Status | Task | What changed | How to see / hear it | What to look for |
 |---|---|---|---|---|
 | needs-inspection | T56.1 | Trees now placed by Poisson-disc sampling: groves, clearings, loners; per-tree size, lean, shade; rare dead and fallen trees; same for the Glass Wood crystal trees | Walk the slopes, and `--screenshot shots/o.png --view overview` | No visible rows; natural clusters and gaps; the path and landmarks are never crowded; tell me if there are too many/few trees (radius range in `Island.treeSites`) |
+| needs-inspection | T56.2 | Clouds are lit by the sun and sky (warm toward the sun, cool and shaded away, bright rims) instead of flat tan; no horizon smear | Look at the sky from the dock, the shore and the summit | Do they read as real evening clouds? Too dark underneath or too bright? (`cloud_density` thresholds, the 0.55/0.95 light constants in `Sky.swift`) |
