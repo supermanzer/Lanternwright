@@ -291,7 +291,7 @@ extension SelfTestRunner {
             let inside = door.vertices.filter { abs($0.position.x) < 0.7 - 0.01 && $0.position.y < spring - 0.01 }.count
             let top = door.vertices.map(\.position.y).max() ?? 0
             check(inside == 0 && top > 2.6 && top < 3.6 && finite(door), "arch: nothing intrudes into the opening, and the voussoirs crown it (top \(top) m)")
-            check((door.vertices.map(\.position.z).max() ?? 0) <= 0.5 * 1.08 / 2 + 1e-3 && door.vertices.count > 300, "arch: depth stays within the keystone and the surround is made of many blocks (\(door.vertices.count) vertices)")
+            check((door.vertices.map(\.position.z).max() ?? 0) <= 0.5 / 2 + 0.11 + 1e-3 && door.vertices.count > 300, "arch: depth stays within the keystone and the surround is made of many blocks (\(door.vertices.count) vertices)")
         }
         if name == "all" || name == "zoom" {
             check(abs(LookCloser.fov(zoom: 0) - LookCloser.baseFov) < 1e-6 && LookCloser.fov(zoom: 1) < LookCloser.baseFov * 0.45 && LookCloser.fov(zoom: 1) > 0.2, "zoom 0 is the normal 60 degrees; full zoom narrows to about 22 degrees")

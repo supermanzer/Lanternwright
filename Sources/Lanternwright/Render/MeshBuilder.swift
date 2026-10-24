@@ -184,30 +184,111 @@ struct MeshBuilder {
 
     /// The stone surround of an arched opening in the XY plane, facing +Z (the front face is at z = +depth/2): jambs of alternating
     /// long and short blocks, a semicircular ring of voussoirs and a larger keystone. `width` and `height` are the clear opening.
+    /// Convex flat-shaded solid from polygons: each face is wound so its normal faces away from `inside`.
+    mutating func solid(faces: [[SIMD3<Float>]], inside: SIMD3<Float>, surface: Surface, transform: float4x4 = matrix_identity_float4x4) {
+        var pos: [SIMD3<Float>] = [], idx: [UInt32] = []
+        for f in faces {
+            var poly = f
+            let n = simd_cross(poly[1] - poly[0], poly[2] - poly[0])
+            let c = poly.reduce(SIMD3<Float>.zero, +) / Float(poly.count)
+            if simd_dot(n, c - inside) < 0 { poly.reverse() }
+            let base = UInt32(pos.count)
+            pos.append(contentsOf: poly)
+            for k in 1..<(poly.count - 1) { idx.append(contentsOf: [base, base + UInt32(k), base + UInt32(k + 1)]) }
+        }
+        addIndexed(positions: pos, indices: idx, smoothNormals: nil, surface: surface, transform: transform)
+    }
+
+    /// A box with all twelve edges cut by a flat chamfer (26 faces): what a mason's chisel leaves, without the pillowed look of a
+    /// stepped bevel.
+    mutating func chamferBox(size: SIMD3<Float>, chamfer: Float, surface: Surface, transform: float4x4 = matrix_identity_float4x4) {
+        let h = size * 0.5
+        let c = min(chamfer, min(h.x, min(h.y, h.z)) * 0.9)
+        func pt(_ v: [Float]) -> SIMD3<Float> { SIMD3(v[0], v[1], v[2]) }
+        let hv = [h.x, h.y, h.z]
+        var faces: [[SIMD3<Float>]] = []
+        for a in 0..<3 {
+            let b = (a + 1) % 3, t = (a + 2) % 3
+            for sa: Float in [-1, 1] {                                     // six flat faces
+                var quad: [SIMD3<Float>] = []
+                for (sb, st) in [(Float(-1), Float(-1)), (1, -1), (1, 1), (-1, 1)] {
+                    var v = [Float](repeating: 0, count: 3)
+                    v[a] = sa * hv[a]; v[b] = sb * (hv[b] - c); v[t] = st * (hv[t] - c)
+                    quad.append(pt(v))
+                }
+                faces.append(quad)
+            }
+            for sa: Float in [-1, 1] { for sb: Float in [-1, 1] {          // four edge strips parallel to axis t
+                var quad: [SIMD3<Float>] = []
+                for st: Float in [-1, 1] {
+                    var v1 = [Float](repeating: 0, count: 3), v2 = v1
+                    v1[a] = sa * hv[a]; v1[b] = sb * (hv[b] - c); v1[t] = st * (hv[t] - c)
+                    v2[a] = sa * (hv[a] - c); v2[b] = sb * hv[b]; v2[t] = st * (hv[t] - c)
+                    quad.append(pt(v1)); quad.append(pt(v2))
+                }
+                faces.append([quad[0], quad[1], quad[3], quad[2]])
+            } }
+        }
+        for sx: Float in [-1, 1] { for sy: Float in [-1, 1] { for sz: Float in [-1, 1] {     // eight corner triangles
+            faces.append([SIMD3(sx * h.x, sy * (h.y - c), sz * (h.z - c)), SIMD3(sx * (h.x - c), sy * h.y, sz * (h.z - c)), SIMD3(sx * (h.x - c), sy * (h.y - c), sz * h.z)])
+        } } }
+        solid(faces: faces, inside: .zero, surface: surface, transform: transform)
+    }
+
+    /// A tapered block of an arch ring: between angles a0 and a1 (radians, about `centre`), radii r0...r1, thickness z0...z1.
+    mutating func ringBlock(centre: SIMD3<Float>, a0: Float, a1: Float, r0: Float, r1: Float, z0: Float, z1: Float, surface: Surface,
+                            transform: float4x4 = matrix_identity_float4x4) {
+        func p(_ a: Float, _ r: Float, _ z: Float) -> SIMD3<Float> { centre + SIMD3(cos(a) * r, sin(a) * r, z) }
+        let mid = (a0 + a1) / 2, rm = (r0 + r1) / 2, zm = (z0 + z1) / 2
+        solid(faces: [
+            [p(a0, r0, z1), p(a0, r1, z1), p(a1, r1, z1), p(a1, r0, z1)], [p(a0, r0, z0), p(a0, r1, z0), p(a1, r1, z0), p(a1, r0, z0)],   // front, back
+            [p(a0, r0, z0), p(a0, r1, z0), p(a0, r1, z1), p(a0, r0, z1)], [p(a1, r0, z0), p(a1, r1, z0), p(a1, r1, z1), p(a1, r0, z1)],   // joints
+            [p(a0, r1, z0), p(a1, r1, z0), p(a1, r1, z1), p(a0, r1, z1)], [p(a0, r0, z0), p(a1, r0, z0), p(a1, r0, z1), p(a0, r0, z1)],   // extrados, intrados
+        ], inside: p(mid, rm, zm), surface: surface, transform: transform)
+    }
+
+    /// The stone surround of an arched opening in the XY plane, facing +Z (the front face is at z = +depth/2): jambs of alternating
+    /// long and short quoins, a semicircular ring of tapered voussoirs radiating from the arch centre with a taller keystone, and a
+    /// moulded hood over it. `width` and `height` are the clear opening. Each stone gets its own tone from its index.
     mutating func arch(width: Float, height: Float, depth: Float, voussoirs: Int = 11, blockHeight: Float = 0.36,
                        surface: Surface, transform: float4x4 = matrix_identity_float4x4) {
-        let bw = 0.30 * max(width, 0.8) / 1.2 + 0.1                      // jamb and voussoir thickness
-        let spring = max(height - width / 2, blockHeight)                // where the curve starts
+        func toned(_ k: Int) -> Surface {
+            var s = surface
+            let raw = sin(Float(k) * 12.9898) * 43758.5453
+            let hsh = raw - floor(raw)
+            s.color = surface.color * (0.86 + 0.28 * hsh)
+            return s
+        }
+        let bw: Float = 0.30
+        let spring = max(height - width / 2, blockHeight)
         var y: Float = 0, row = 0
         while y < spring - 1e-3 {
-            let h = min(blockHeight * (row % 2 == 0 ? 1.0 : 0.8), spring - y)
-            let w = bw * (row % 2 == 0 ? 1.0 : 1.35)
-            for side: Float in [-1, 1] {
-                bevelBox(size: SIMD3(w, h * 0.97, depth), bevel: 0.025, surface: surface,
-                         transform: transform * translation(SIMD3(side * (width / 2 + w / 2), y + h / 2, 0)))
+            let h = min(blockHeight * (row % 2 == 0 ? 1.0 : 0.78), spring - y)
+            let w = bw * (row % 2 == 0 ? 1.55 : 1.0)                      // quoins: long, short, long...
+            for (si, side) in [Float(-1), 1].enumerated() {
+                chamferBox(size: SIMD3(w, h - 0.014, depth), chamfer: 0.022, surface: toned(row * 2 + si),
+                           transform: transform * translation(SIMD3(side * (width / 2 + w / 2), y + h / 2, 0)))
             }
             y += h; row += 1
         }
-        let n = max(5, voussoirs | 1)                                    // odd, so there is a keystone at the crown
-        let mid = width / 2 + bw / 2
+        let n = max(5, voussoirs | 1)
+        let ri = width / 2, ro = ri + bw * 1.4
+        let centre = SIMD3<Float>(0, spring, 0)
+        let gap: Float = 0.012
         for i in 0..<n {
-            let t = (Float(i) + 0.5) / Float(n)
-            let ang = .pi - t * .pi                                      // from the left springing over the top to the right
-            let arc = .pi * mid / Float(n)
+            let a0 = .pi - Float(i) / Float(n) * .pi - gap, a1 = .pi - Float(i + 1) / Float(n) * .pi + gap
             let key = i == n / 2
-            let c = SIMD3(cos(ang) * mid, spring + sin(ang) * mid, 0)
-            bevelBox(size: SIMD3(bw * (key ? 1.25 : 1.0), arc * 0.97 * (key ? 1.15 : 1.0), depth * (key ? 1.08 : 1.0)), bevel: 0.02, surface: surface,
-                     transform: transform * translation(c) * rotationZ(ang - .pi / 2))
+            ringBlock(centre: centre, a0: a0, a1: a1, r0: ri, r1: key ? ro + 0.14 : ro, z0: -depth / 2, z1: depth / 2, surface: toned(100 + i), transform: transform)
+        }
+        // Hood moulding: a thin, proud ring over the voussoirs, in short segments, with a stop at each end.
+        let m = 21
+        for i in 0..<m {
+            let a0 = .pi - Float(i) / Float(m) * .pi - 0.004, a1 = .pi - Float(i + 1) / Float(m) * .pi + 0.004
+            ringBlock(centre: centre, a0: a0, a1: a1, r0: ro + 0.02, r1: ro + 0.15, z0: depth / 2 - 0.05, z1: depth / 2 + 0.07, surface: toned(200 + i), transform: transform)
+        }
+        for side: Float in [-1, 1] {
+            chamferBox(size: SIMD3(0.16, 0.20, 0.16), chamfer: 0.02, surface: toned(300 + Int(side + 2)),
+                       transform: transform * translation(SIMD3(side * (ro + 0.085), spring - 0.1, depth / 2 + 0.02)))
         }
     }
 

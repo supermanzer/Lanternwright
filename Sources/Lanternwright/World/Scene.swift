@@ -99,8 +99,24 @@ final class Scene {
         var h = terrain.sampleHeight(x: x, z: z)
         let p = SIMD2(x, z)
         for w in walkables { if let wh = w.height(at: p) { h = max(h, wh) } }
+        for pl in platforms where pl.contains(p) { h = max(h, pl.top) }
         return h
     }
+
+    /// A flat-topped block you can step onto (the lighthouse plinth and doorstep): a disc or an axis-aligned rectangle.
+    struct Platform {
+        var center: SIMD2<Float>
+        var radius: Float = 0                      // > 0: a disc
+        var halfSize: SIMD2<Float> = .zero         // otherwise a rectangle
+        var top: Float
+        func contains(_ p: SIMD2<Float>) -> Bool {
+            if radius > 0 { return simd_length(p - center) <= radius }
+            let d = simd_abs(p - center)
+            return d.x <= halfSize.x && d.y <= halfSize.y
+        }
+    }
+    var platforms: [Platform] = []
+    func isOnPlatform(_ p: SIMD2<Float>) -> Bool { platforms.contains { $0.contains(p) } }
 
     static func make(_ kind: WorldKind, device: MTLDevice) -> Scene {
         switch kind {
@@ -118,7 +134,7 @@ final class Scene {
 
         // Solid things (their meshes arrive in M3; the collision shapes are fixed by the layout now).
         let lh = Layout.lighthouse
-        scene.colliders.addCylinder(center: SIMD2(lh.x, lh.z), radius: 5.5, minY: lh.y - 1, maxY: lh.y + 30)
+        scene.colliders.addCylinder(center: SIMD2(lh.x, lh.z), radius: Lighthouse.colliderRadius, minY: lh.y - 1, maxY: lh.y + 30)
         // The dock: planks 2.4 m wide from the beach out over the water.
         let dock = Layout.dockStrip()
         scene.walkables.append(Walkable(a: dock.a, b: dock.b, halfWidth: 1.2, y0: dock.y0, y1: dock.y1))

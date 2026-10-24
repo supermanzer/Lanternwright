@@ -604,8 +604,16 @@ extension SelfTestRunner {
             p.position.y = ground(p)
             for _ in 0..<(8 * 120) { p.step(dt: dt, input: InputState(move: SIMD2(0, 1)), scene: scene) }
             let dLH = distance(flat(p.position), lh)
-            check(dLH > 5.5 + Player.radius - 0.1 && dLH < 5.5 + Player.radius + 0.5, "lighthouse is solid (stopped \(String(format: "%.2f", dLH)) m from its axis)")
+            check(dLH > Lighthouse.colliderRadius + Player.radius - 0.1 && dLH < Lighthouse.colliderRadius + Player.radius + 0.5, "lighthouse is solid (stopped \(String(format: "%.2f", dLH)) m from its axis)")
 
+            // 4b. Touch distance: the doorstep is climbed, not snagged on; you end up about 0.8 m from the door, standing on a step.
+            check(p.position.y > Layout.lighthouse.y + 0.5 && p.position.y < Layout.lighthouse.y + 0.95, "walking at the door climbs the steps (feet \(String(format: "%.2f", p.position.y - Layout.lighthouse.y)) m above the pad)")
+            let doorFace = Layout.lighthouse.z + Lighthouse.wallR(2.0)
+            check(abs((p.position.z) - doorFace) < 1.0 && abs(p.position.x - Layout.lighthouse.x) < 0.2, "and stops within 1 m of the door, in front of it (\(String(format: "%.2f", p.position.z - doorFace)) m)")
+            var around = Player(position: SIMD3(lh.x + 7, Layout.lighthouse.y, lh.y), yaw: -.pi / 2)    // east of the tower, facing west
+            around.position.y = ground(around)
+            for _ in 0..<(6 * 120) { around.step(dt: dt, input: InputState(move: SIMD2(0, 1)), scene: scene) }
+            check(distance(flat(around.position), lh) > Lighthouse.colliderRadius + Player.radius - 0.1 && around.position.y < Layout.lighthouse.y + 0.65, "from the east the plinth is climbed to its second tread and the wall stops you, without clipping into it")
             // 5. Speeds: walking settles at 3.2 m/s, running at 6.5 m/s.
             p = Player(position: SIMD3(40, 34, 55), yaw: 0)
             for _ in 0..<(3 * 120) { p.step(dt: dt, input: InputState(move: SIMD2(1, 0)), scene: scene) }

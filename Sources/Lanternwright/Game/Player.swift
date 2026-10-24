@@ -72,7 +72,7 @@ struct Player {
         let rise = g1 - g0
         if rise > Player.maxStep { return false }
         let run = max(length(to - from), 1e-4)
-        if rise / run > Player.maxSlope && rise > 0.02 { return false }
+        if rise / run > Player.maxSlope && rise > 0.02 && !scene.isOnPlatform(to) { return false }       // stairs are steps, not slopes
         return true
     }
 

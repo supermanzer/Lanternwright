@@ -152,7 +152,8 @@ enum Viewpoints {
         switch name {
         case "dock":     return Camera(position: SIMD3(175, 2.5, 205), yaw: -0.75, pitch: 0.02)
         // Lighthouse close-ups (R03). The tower stands at Layout.lighthouse with its door on the +Z (south) side; ground y = 68.
-        case "lh-door":  return Camera(position: SIMD3(-30, 69.7, -42.15), yaw: 0, pitch: 0.05)        // 1.65 m from the wall: as close as the collider lets a player stand
+        case "lh-door":  return Camera(position: SIMD3(-30, 70.38, -43.0), yaw: 0, pitch: -0.02)       // 0.8 m from the door, standing on the third step: where a player can stand (collider 4.65 m + 0.35)
+        case "lh-arch":  return Camera(position: SIMD3(-30, 69.7, -40.0), yaw: 0, pitch: 0.12)         // 3.8 m back: the whole arched doorway
         case "lh-base":  return Camera(position: SIMD3(-25.85, 69.4, -43.85), yaw: -0.38, pitch: 0.05)
         case "lh-mid":   return Camera(position: SIMD3(-30, 69.7, -32), yaw: 0, pitch: 0.55)
         case "lh-top":   return Camera(position: SIMD3(-12, 69.7, -20), yaw: -0.57, pitch: 0.65)

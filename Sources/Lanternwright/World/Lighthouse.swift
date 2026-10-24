@@ -15,6 +15,9 @@ enum Lighthouse {
     static let baseY: Float = 0.9                    // top of the plinth = where the shaft begins
     static let topY: Float = 24.6                    // under the gallery
     static let segments = 48
+    /// The solid core for collision: the tower wall (4.2 m at the base) plus the door surround that stands 0.4 m proud. The player's own
+    /// radius is added by the collider, so the feet stop about 0.8 m from the door itself and the plinth steps are all within reach.
+    static let colliderRadius: Float = 4.65
 
     /// Outer radius of the shaft at height y: the old taper (4.2 m to 2.8 m) plus a gentle entasis (the shaft swells slightly).
     static func wallR(_ y: Float) -> Float {
@@ -58,34 +61,49 @@ enum Lighthouse {
         for band in bands { shaft(from: band.y0, to: band.y1, band.s) }
         for y: Float in [8.08, 13.08, 20.08] { stringCourse(y, out: 0.12, granite) }
 
-        // ---- Door: a stone arch (voussoirs and keystone), a planked door standing back inside it, iron straps, studs, a ring handle.
+        // ---- Door: a real arch (quoins, tapered voussoirs, keystone, hood) of dressed stone, the planked door standing back inside it,
+        // iron straps, studs and a ring handle on an escutcheon, a worn threshold and four steps up from the ground.
         let rd = wallR(2.0)
         let doorW: Float = 1.1, doorH: Float = 2.4
-        b.arch(width: doorW, height: doorH, depth: 0.7, voussoirs: 11, blockHeight: 0.40, surface: granite,
+        let dressed = Surface(color: SIMD3(0.47, 0.44, 0.41), roughness: 0.9, material: .dressed)
+        let dressedDark = Surface(color: SIMD3(0.36, 0.34, 0.32), roughness: 0.9, material: .dressed)
+        b.arch(width: doorW + 0.06, height: doorH + 0.03, depth: 0.7, voussoirs: 11, blockHeight: 0.40, surface: dressed,
                transform: translation(SIMD3(0, baseY, rd + 0.05)))
         let spring = doorH - doorW / 2
         b.box(size: SIMD3(doorW + 0.04, spring, 0.12), surface: wood, transform: translation(SIMD3(0, baseY + spring / 2, rd + 0.02)))
         b.cylinder(radiusTop: doorW / 2 + 0.02, radiusBottom: doorW / 2 + 0.02, height: 0.12, segments: 24, smooth: true, surface: wood,
                    transform: translation(SIMD3(0, baseY + spring, rd - 0.04)) * rotationX(.pi / 2) * translation(SIMD3(0, -0.12, 0)))
-        // Half-disc top: cut the lower half away by hiding it inside the rectangle (same material, same plane).
         for yStrap: Float in [0.35, 1.05, 1.75] {
             b.box(size: SIMD3(doorW + 0.06, 0.13, 0.03), surface: iron, transform: translation(SIMD3(0, baseY + yStrap, rd + 0.095)))
             for sx: Float in [-0.42, -0.21, 0, 0.21, 0.42] {
                 b.sphere(radius: 0.028, segments: 8, surface: iron, transform: translation(SIMD3(sx, baseY + yStrap, rd + 0.115)))
             }
-            for hs: Float in [-1, 1] {                                       // hinge eyes on the left, a hasp on the right
+            for hs: Float in [-1, 1] {
                 b.cylinder(radiusTop: 0.035, radiusBottom: 0.035, height: 0.16, segments: 8, smooth: true, surface: iron,
                            transform: translation(SIMD3(hs * (doorW / 2 + 0.03), baseY + yStrap - 0.08, rd + 0.09)))
             }
         }
-        b.box(size: SIMD3(0.04, 0.5, 0.025), surface: iron, transform: translation(SIMD3(0.3, baseY + 1.05, rd + 0.105)))      // lock plate
+        b.cylinder(radiusTop: 0.095, radiusBottom: 0.095, height: 0.022, segments: 20, smooth: true, surface: iron,
+                   transform: translation(SIMD3(0.3, baseY + 0.95, rd + 0.085)) * rotationX(.pi / 2))                                    // escutcheon plate
         b.torus(major: 0.085, minor: 0.012, segments: 24, sides: 8, surface: iron,
-                transform: translation(SIMD3(0.3, baseY + 0.95, rd + 0.14)) * rotationX(.pi / 2))                                // ring handle
-        // Worn threshold and approach steps (the plinth is 0.9 m high; four steps climb to the door).
+                transform: translation(SIMD3(0.3, baseY + 0.95, rd + 0.125)) * rotationX(.pi / 2))                                       // ring handle
+        b.chamferBox(size: SIMD3(1.7, 0.14, 0.78), chamfer: 0.025, surface: dressedDark, transform: translation(SIMD3(0, baseY - 0.07, rd + 0.42)))   // worn threshold
+        // Four approach steps (their tops are also registered as walkable platforms, see below).
+        var stepDefs: [(w: Float, z: Float, top: Float)] = []
         for i in 0..<4 {
-            let h = 0.9 * Float(i + 1) / 4
-            b.bevelBox(size: SIMD3(1.9 - 0.12 * Float(3 - i), h, 0.5), bevel: 0.03, surface: i == 3 ? graniteDark : granite,
-                       transform: translation(SIMD3(0, h / 2, rd + 0.45 + 0.45 * Float(3 - i))))
+            let back: Float = Float(3 - i)
+            let w: Float = 1.9 - 0.12 * back
+            let z: Float = rd + 0.45 + 0.45 * back + 0.25
+            let top: Float = 0.9 * Float(i + 1) / 4
+            stepDefs.append((w: w, z: z, top: top))
+        }
+        for (i, st) in stepDefs.enumerated() {
+            b.chamferBox(size: SIMD3(st.w, st.top, 0.5), chamfer: 0.03, surface: i == 3 ? dressedDark : dressed, transform: translation(SIMD3(0, st.top / 2, st.z - 0.25)))
+            scene.platforms.append(Scene.Platform(center: SIMD2(Layout.lighthouse.x, Layout.lighthouse.z + st.z - 0.25), halfSize: SIMD2(st.w / 2 - 0.02, 0.25), top: Layout.lighthouse.y + st.top))
+        }
+        // The plinth steps are discs: stepping up from the ground, the tread heights 0.3 / 0.6 / 0.9 m.
+        for (r, top) in [(Float(5.40), Float(0.30)), (4.95, 0.60), (4.65, 0.90)] {
+            scene.platforms.append(Scene.Platform(center: SIMD2(Layout.lighthouse.x, Layout.lighthouse.z), radius: r - 0.03, top: Layout.lighthouse.y + top))
         }
 
         // ---- Windows (splayed reveals): a stone frame standing proud, a dark recessed pane behind iron bars, a sill with a drip groove.
