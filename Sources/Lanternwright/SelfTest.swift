@@ -618,6 +618,69 @@ enum SelfTest {
             check(frozen.exposure == 1, "no time passing means no adaptation")
             check(LaunchOptions.parse(["lanternwright", "--screenshot", "x.png", "--auto-exposure"]).autoExposure == true && LaunchOptions.parse(["lanternwright", "--screenshot", "x.png"]).autoExposure == false, "screenshots are fixed-exposure unless --auto-exposure is passed")
         }
+        if name == "all" || name == "space" {
+            // FDN reverb: stable, silent after its decay, decay time as asked, never louder than the input.
+            func tail(_ rt: Float) -> [Float] {
+                var r = FDNReverb(sampleRate: 44100); r.setDecay(rt)
+                var out: [Float] = []
+                for i in 0..<(44100 * 8) { out.append(r.process(left: i == 0 ? 1 : 0, right: 0).0) }
+                return out
+            }
+            func rmsWindow(_ a: [Float], _ from: Float, _ to: Float) -> Float {
+                let s = a[Int(from * 44100)..<Int(to * 44100)]; return (s.reduce(0) { $0 + $1 * $1 } / Float(s.count)).squareRoot()
+            }
+            let short = tail(0.8), long = tail(3.0)
+            check((short + long).allSatisfy { $0.isFinite && abs($0) < 1 }, "the FDN reverb is stable and never louder than a unit impulse")
+            check(rmsWindow(short, 7, 8) < 1e-4 && rmsWindow(long, 7, 8) < 1e-3, "and it falls silent after its decay (\(rmsWindow(long, 7, 8)))")
+            // Decay measured: the energy envelope should drop ~60 dB over rt60 (within a generous factor: it is a statistical tail).
+            func dbDrop(_ a: [Float], _ rt: Float) -> Float { 20 * log10(max(rmsWindow(a, 0.1, 0.3), 1e-9) / max(rmsWindow(a, 0.1 + rt * 0.6, 0.3 + rt * 0.6), 1e-9)) }
+            let dShort = dbDrop(short, 0.8), dLong = dbDrop(long, 3.0)
+            check(dShort > 20 && dShort < 70 && dLong > 20 && dLong < 70, "decay follows rt60: both fall tens of dB over 60 % of their rt60 (\(dShort) dB, \(dLong) dB)")
+            check(rmsWindow(long, 1.0, 2.0) > rmsWindow(short, 1.0, 2.0) * 3, "a longer rt60 keeps ringing after a shorter one has died")
+            var loud = FDNReverb(sampleRate: 44100); loud.setDecay(6)
+            var peak: Float = 0
+            for i in 0..<(44100 * 4) { let x = Float(sin(Double(i) * 0.05)); let o = loud.process(left: x, right: -x); peak = max(peak, abs(o.0), abs(o.1)) }
+            check(peak.isFinite && peak < 12, "even fed a continuous full-scale tone it stays finite and bounded (peak \(peak)); the synth's tanh limiter takes it from there")
+            // The space probe.
+            let sc = Scene.makeWorld(device: device)
+            let ground: (Float, Float) -> Float = { sc.groundHeight(x: $0, z: $1) }
+            var opens: [Float] = []
+            for k in 0..<60 { let x = -150 + Float(k % 10) * 28, z = -150 + Float(k / 10) * 40; if ground(x, z) > 2 { opens.append(AudioSpace.openness(at: SIMD3(x, ground(x, z), z), ground: ground)) } }
+            check(opens.count > 10 && ((opens.max() ?? 0) - (opens.min() ?? 1)) > 0.25, "openness varies across the island (min \(opens.min() ?? -1), max \(opens.max() ?? -1) over \(opens.count) places)")
+            check(AudioSpace.reverbTime(openness: 1) < AudioSpace.reverbTime(openness: 0) && AudioSpace.reverbTime(openness: 0) <= 3.2 && AudioSpace.reverbTime(openness: 1) >= 0.7, "an enclosed place rings longer than an open one")
+            let dock = AudioSpace.read(listener: Layout.dockEnd, yaw: Layout.spawnYaw, ground: ground)
+            let dockFlip = AudioSpace.read(listener: Layout.dockEnd, yaw: Layout.spawnYaw + .pi, ground: ground)
+            check(dock.shoreDistance < 40 && abs(dock.surfPan) > 0.05 && dock.surfPan * dockFlip.surfPan < 0, "surf pans toward the nearest shore and flips when you turn round (\(dock.surfPan) / \(dockFlip.surfPan))")
+            check(dock.surfOcclusion < 0.2, "the dock has a clear line to the sea (occlusion \(dock.surfOcclusion))")
+            // Behind the hill: a lee-side spot whose nearest shoreline lies across the ridge should be occluded, the beach not.
+            // A synthetic coast: sea for x < 0, a ridge 40 m high at x 10...20, low land beyond. Standing behind the ridge muffles the sea.
+            let coast: (Float, Float) -> Float = { x, _ in x < 0 ? -5 : ((x >= 10 && x <= 20) ? 40 : 5) }
+            let lee = AudioSpace.read(listener: SIMD3(50, 5, 0), yaw: 0, ground: coast), front = AudioSpace.read(listener: SIMD3(6, 5, 0), yaw: 0, ground: coast)
+            check(lee.surfOcclusion > 0.8 && front.surfOcclusion < 0.1, "behind a ridge the sea is occluded; on the near side it is not (\(lee.surfOcclusion) vs \(front.surfOcclusion))")
+            // Ducking and the muffled/panned surf, measured offline.
+            let synth = AmbienceSynth(sampleRate: 44100)
+            var l = [Float](repeating: 0, count: 512), r = l
+            l.withUnsafeMutableBufferPointer { lp in r.withUnsafeMutableBufferPointer { rp in synth.render(frames: 512, left: lp.baseAddress!, right: rp.baseAddress!) } }
+            check(synth.duckAmount == 0, "no chime, no ducking")
+            synth.play(.stone)
+            var maxDuck: Float = 0
+            for _ in 0..<40 { l.withUnsafeMutableBufferPointer { lp in r.withUnsafeMutableBufferPointer { rp in synth.render(frames: 512, left: lp.baseAddress!, right: rp.baseAddress!) } }; maxDuck = max(maxDuck, synth.duckAmount) }
+            check(maxDuck > 0.1 && maxDuck <= 0.351, "a chime ducks the ambient bed (peak \(maxDuck))")
+            for _ in 0..<(44100 * 12 / 512) { l.withUnsafeMutableBufferPointer { lp in r.withUnsafeMutableBufferPointer { rp in synth.render(frames: 512, left: lp.baseAddress!, right: rp.baseAddress!) } } }
+            check(synth.duckAmount < 0.02, "and the ducking releases once the chime has gone")
+            func surfEnergy(pan: Float, occ: Float) -> (Float, Float, Float) {
+                let sy = AmbienceSynth(sampleRate: 44100); sy.windGain = 0; sy.surfGain = 1; sy.surfPan = pan; sy.surfOcclusion = occ
+                var a = [Float](repeating: 0, count: 44100 * 6), b = a
+                a.withUnsafeMutableBufferPointer { ap in b.withUnsafeMutableBufferPointer { bp in var d = 0; while d < 44100 * 6 { sy.render(frames: 512, left: ap.baseAddress! + d, right: bp.baseAddress! + d); d += 512 } } }
+                func rm(_ x: ArraySlice<Float>) -> Float { (x.reduce(0) { $0 + $1 * $1 } / Float(x.count)).squareRoot() }
+                // brightness: energy of the sample-to-sample difference relative to the signal
+                let diff = zip(a.dropFirst(), a).map { $0 - $1 }
+                return (rm(a[88200...]), rm(b[88200...]), rm(diff[88200...]) / max(rm(a[88200...]), 1e-6))
+            }
+            let centre = surfEnergy(pan: 0, occ: 0), right = surfEnergy(pan: 1, occ: 0), muffled = surfEnergy(pan: 0, occ: 1)
+            check(right.1 > right.0 * 1.2 && abs(centre.0 - centre.1) / max(centre.0, 1e-6) < 0.3, "surf from the right is louder in the right ear (\(right.0) / \(right.1)); centred stays balanced")
+            check(muffled.2 < centre.2 * 0.85 && muffled.0 < centre.0, "behind a hill the surf is darker and quieter (brightness \(muffled.2) vs \(centre.2))")
+        }
         if name == "all" || name == "zoom" {
             check(abs(LookCloser.fov(zoom: 0) - LookCloser.baseFov) < 1e-6 && LookCloser.fov(zoom: 1) < LookCloser.baseFov * 0.45 && LookCloser.fov(zoom: 1) > 0.2, "zoom 0 is the normal 60 degrees; full zoom narrows to about 22 degrees")
             var z: Float = 0, steps = 0
@@ -1190,9 +1253,9 @@ enum SelfTest {
             check(energy(a, hz: 293.66) > 15 * energy(a, hz: 440) && energy(b, hz: 293.66) > 15 * energy(b, hz: 440), "chime 0 and Varrow's tide stone share the pitch D4 (so the player's memory of the stone is the key)")
             check(energy(render(.glass2), hz: 440) > 15 * energy(render(.wind), hz: 440 * 1.12) && energy(render(.wind), hz: 440) > 15 * energy(render(.wind), hz: 440 * 1.12), "chime 2 and the wind stone share A4")
             let tick = render(.glassTick)
-            // The chime bus has a reverb whose first echo arrives at 0.37 s, so judge the dry tick before that.
+            // The chime bus is an 8-line FDN reverb: no discrete echo, a faint wash from ~25 ms. The tick must leave only that.
             let early = tick[0..<4000].map { abs($0) }.max() ?? 0, dryLate = tick[Int(sr * 0.26)..<Int(sr * 0.35)].map { abs($0) }.max() ?? 1
-            check(early > 0.02 && dryLate < early * 0.08, "the mirror tick is short: gone before the first echo (peak \(String(format: "%.2f", early)) -> \(String(format: "%.4f", dryLate)) at 0.3 s)")
+            check(early > 0.02 && dryLate < early * 0.15, "the mirror tick is short: only a faint reverb wash is left at 0.3 s (peak \(String(format: "%.2f", early)) -> \(String(format: "%.4f", dryLate)) at 0.3 s)")
         }
         if name == "all" || name == "altar" {
             func fresh() -> Game {

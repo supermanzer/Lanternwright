@@ -83,10 +83,17 @@ final class AmbienceSynth {
     func bloomDrone() { droneLock.lock(); droneTarget = [1, 1, 1]; droneBloomLeft = 9; droneLock.unlock() }
 
     // A simple stereo feedback-delay "reverb" for the chime bus: two taps with damped feedback.
-    private var revL: [Float] = []
-    private var revR: [Float] = []
-    private var revPos = 0
-    private var revDamp: [Float] = [0, 0]
+    private var reverb: FDNReverb
+    /// Set by the engine from the listener's surroundings (see AudioSpace).
+    var reverbSeconds: Float = 1.6 { didSet { if abs(reverbSeconds - reverbApplied) > 0.05 { reverbApplied = reverbSeconds; reverb.setDecay(reverbSeconds) } } }
+    private var reverbApplied: Float = 1.6
+    var surfPan: Float = 0
+    var surfOcclusion: Float = 0
+    private var panSmooth: Float = 0, occlusionSmooth: Float = 0
+    private var surfMuffle: [Float] = [0, 0]
+    /// How far the ambient bed is ducked right now (0 = not at all): a chime rings over the wind and surf.
+    private(set) var duckAmount: Float = 0
+    private var chimeFollow: Float = 0
 
     private let sampleRate: Float
     private var time: Float = 0
@@ -119,8 +126,7 @@ final class AmbienceSynth {
 
     init(sampleRate: Float = 44100) {
         self.sampleRate = sampleRate
-        revL = [Float](repeating: 0, count: Int(sampleRate * 0.37))
-        revR = [Float](repeating: 0, count: Int(sampleRate * 0.43))
+        reverb = FDNReverb(sampleRate: sampleRate)
     }
 
     /// Inharmonic partials (ratios 2.76, 5.40, 8.93) are what make a struck bell or glass sound like metal and not a
@@ -227,9 +233,12 @@ final class AmbienceSynth {
         }
         let dt = 1 / sampleRate
         let wind = windGain, surf = surfGain, m = master
+        let panTarget = surfPan, occTarget = surfOcclusion
 
         for i in 0..<frames {
             let t = time
+            panSmooth += (panTarget - panSmooth) * 0.0004
+            occlusionSmooth += (occTarget - occlusionSmooth) * 0.0004
             // Gust: slow, irregular 0...1 built from three incommensurate sines.
             let gust = Wind.gust(time: t)
             // Surf: three swells of different periods drift in and out of phase, so the sea never repeats audibly.
@@ -276,7 +285,12 @@ final class AmbienceSynth {
                 let fizz = (fizzA[ch] - fizzB[ch]) * drain * 0.10
                 let body = surfLP2[ch] * (0.15 + 0.85 * env) * 2.6
                 let rumble = surfRumble[ch] * env * env * 1.1
-                let surfOut = (body + rumble + fizz) * surf * 0.42
+                var surfOut = (body + rumble + fizz) * surf * 0.42
+                // A hill between you and the sea muffles the surf (one-pole low-pass, 8 kHz open down to ~400 Hz behind a ridge) and
+                // thins it; the surf is placed left or right toward the nearest shore.
+                let muffleCut = 8000 - 7750 * occlusionSmooth
+                surfMuffle[ch] += (1 - exp(-2 * .pi * muffleCut / sampleRate)) * (surfOut - surfMuffle[ch])
+                surfOut = surfMuffle[ch] * (1 - 0.4 * occlusionSmooth) * (1 + (ch == 0 ? -0.55 : 0.55) * panSmooth)
                 out[ch] = windOut + surfOut
             }
 
@@ -367,11 +381,11 @@ final class AmbienceSynth {
                 chimes[k] = v
             }
             chimes.removeAll { $0.delay <= 0 && $0.age > $0.partials[0].decay * 3 }
-            let rl = revL[revPos % revL.count], rr = revR[revPos % revR.count]
-            revDamp[0] += 0.35 * (rl - revDamp[0]); revDamp[1] += 0.35 * (rr - revDamp[1])
-            revL[revPos % revL.count] = bellL + revDamp[1] * 0.42      // cross-feed left/right for width
-            revR[revPos % revR.count] = bellR + revDamp[0] * 0.42
-            revPos += 1
+            let (rl, rr) = reverb.process(left: bellL, right: bellR)
+            // Ducking: while a chime rings, the wind and surf (and the drone, hums) make way for it by up to 35 %.
+            let level = max(abs(bellL), abs(bellR))
+            chimeFollow += (level > chimeFollow ? 0.01 : 0.00006) * (level - chimeFollow)       // fast attack, ~0.4 s release
+            duckAmount = 0.35 * min(chimeFollow * 14, 1)
             var rumble: Float = 0
             if rumbleLeft > 0 {
                 rumbleBrown = 0.998 * rumbleBrown + 0.04 * white(0)
@@ -380,8 +394,8 @@ final class AmbienceSynth {
                 rumble = rumbleLP * e * 1.6
                 rumbleLeft -= dt
             }
-            out[0] += bellL + rl * 0.35 + rumble
-            out[1] += bellR + rr * 0.35 + rumble
+            out[0] = out[0] * (1 - duckAmount) + bellL + rl * 0.4 + rumble
+            out[1] = out[1] * (1 - duckAmount) + bellR + rr * 0.4 + rumble
 
             // Soft clip: tanh keeps any pile-up of sounds from ever hard-clipping the speakers.
             left[i] = tanh((out[0] + stepL * 1.4) * m)

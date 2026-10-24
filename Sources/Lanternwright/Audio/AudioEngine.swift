@@ -66,6 +66,10 @@ final class AudioEngine {
         let p = game.player.position
         // Wind is stronger up high and in the open.
         synth.windGain = 0.18 + 0.55 * min(max(p.y / 70, 0), 1)
+        let sc = game.scene
+        let space = AudioSpace.read(listener: p, yaw: game.player.yaw, ground: { sc.groundHeight(x: $0, z: $1) })
+        synth.reverbSeconds = AudioSpace.reverbTime(openness: space.openness)
+        synth.surfPan = space.surfPan; synth.surfOcclusion = space.surfOcclusion
         // Surf fades with distance from the water: loud on the beach, a murmur 150 m inland.
         let d = game.scene.shoreDistance(x: p.x, z: p.z)
         synth.surfGain = 0.7 * (1 / (1 + d / 25)) + (d < 1 ? 0.1 : 0)
