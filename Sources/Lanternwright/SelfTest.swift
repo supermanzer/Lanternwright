@@ -541,6 +541,24 @@ enum SelfTest {
             let silentBell = render({ $0.buoyGain = 0; $0.play(.buoy) })
             check(zip(silentBell, base).allSatisfy { abs($0 - $1) < 1e-6 }, "a buoy too far away to hear adds nothing")
         }
+        if name == "all" || name == "wind" {
+            var lo: Float = 1, hi: Float = 0, deterministic = true
+            for k in 0..<4000 {
+                let tt = Float(k) * 0.05, p = SIMD3<Float>(Float(k % 37) * 7 - 120, Float(k % 70), Float(k % 53) * 5 - 100)
+                let s = Wind.strength(at: p, time: tt)
+                if s != Wind.strength(at: p, time: tt) { deterministic = false }
+                lo = min(lo, s); hi = max(hi, s)
+                if !(Wind.gust(time: tt) >= 0 && Wind.gust(time: tt) <= 1) { deterministic = false }
+            }
+            check(deterministic && lo >= 0 && hi <= 1 && hi - lo > 0.4, "wind is deterministic and stays in 0...1 while genuinely gusting (range \(lo)...\(hi))")
+            check(abs(simd_length(Wind.direction) - 1) < 1e-5 && abs(simd_length(Wind.vector(at: .zero, time: 3)) - Wind.strength(at: .zero, time: 3)) < 1e-5, "the wind direction is a unit vector and the velocity is direction x strength")
+            let up = (0..<400).map { Wind.strength(at: SIMD3(0, 70, 0), time: Float($0) * 0.5) }.reduce(0, +)
+            let low = (0..<400).map { Wind.strength(at: SIMD3(0, 0, 0), time: Float($0) * 0.5) }.reduce(0, +)
+            check(up > low * 1.2, "the wind is stronger on the summit than at the shore on average")
+            // A gust travels downwind: the same gust reaches a point 90 m downwind 10 s later.
+            let there = SIMD3<Float>(Wind.direction.x * 90, 0, Wind.direction.y * 90)
+            check(abs(Wind.strength(at: there, time: 25 + 10) - Wind.strength(at: .zero, time: 25)) < 1e-4, "gusts travel downwind at 9 m/s")
+        }
         if name == "all" || name == "zoom" {
             check(abs(LookCloser.fov(zoom: 0) - LookCloser.baseFov) < 1e-6 && LookCloser.fov(zoom: 1) < LookCloser.baseFov * 0.45 && LookCloser.fov(zoom: 1) > 0.2, "zoom 0 is the normal 60 degrees; full zoom narrows to about 22 degrees")
             var z: Float = 0, steps = 0

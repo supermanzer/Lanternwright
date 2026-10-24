@@ -558,9 +558,11 @@ final class Renderer {
             // Grass: one instanced draw, 7 vertices per blade, positions generated in the vertex shader.
             enc.setRenderPipelineState(grassPipeline)
             enc.setCullMode(.none)
-            var gp = SIMD4<Float>(LookDefaults.grassCell, Float(grassCellsPerSide), LookDefaults.grassRadius, 0)
+            let windNow = Wind.strength(at: camera.position, time: fixedTime ?? Float(Date().timeIntervalSince(startTime)))
+            var gp = [SIMD4<Float>(LookDefaults.grassCell, Float(grassCellsPerSide), LookDefaults.grassRadius, 0),
+                      SIMD4<Float>(Wind.direction.x, Wind.direction.y, windNow, 0)]
             enc.setVertexBytes(&frame, length: MemoryLayout<FrameUniforms>.stride, index: 1)
-            enc.setVertexBytes(&gp, length: MemoryLayout<SIMD4<Float>>.stride, index: 3)
+            enc.setVertexBytes(&gp, length: MemoryLayout<SIMD4<Float>>.stride * gp.count, index: 3)
             enc.setVertexTexture(terrainTextures[world], index: 5)
             var identity = ObjectUniforms()
             enc.setFragmentBytes(&identity, length: MemoryLayout<ObjectUniforms>.stride, index: 2)

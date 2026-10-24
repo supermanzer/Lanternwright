@@ -231,7 +231,7 @@ final class AmbienceSynth {
         for i in 0..<frames {
             let t = time
             // Gust: slow, irregular 0...1 built from three incommensurate sines.
-            let gust = 0.5 + 0.5 * (0.55 * sin(t * 0.43) + 0.3 * sin(t * 0.81 + 1.3) + 0.15 * sin(t * 1.9 + 2.1))
+            let gust = Wind.gust(time: t)
             // Surf: three swells of different periods drift in and out of phase, so the sea never repeats audibly.
             // Each swell takes ~40 % of its period to build, then drains slowly.
             let swell: (Float, Float) -> Float = { period, phase in

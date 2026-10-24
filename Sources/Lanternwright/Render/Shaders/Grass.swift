@@ -5,6 +5,7 @@ enum GrassShaders {
     static let source = #"""
 struct GrassParams {
     float4 field;      // x = cell size (m), y = cells per side, z = draw radius (m), w = unused
+    float4 wind;       // xy = wind direction on the ground (unit), z = strength 0...1 at the camera (see Wind.swift)
 };
 
 inline float h11(float n) { return fract(sin(n) * 43758.5453); }
@@ -81,6 +82,7 @@ vertex LitOut grass_vertex(uint vid [[vertex_id]], uint iid [[instance_id]],
     float3 wp = float3(xz.x, y, xz.y);
     wp.xz += side * sideSign * width * taper;
     wp.xz += facing * (bend * height * t * t);
+    wp.xz += gp.wind.xy * (gp.wind.z * 0.30 * height * t * t);              // the blades lean along the wind, more in a gust
     wp.y += height * t - 0.4 * bend * bend * height * t * t;      // bending shortens the blade slightly
 
     // Colour: the terrain's lush/parched patches (same large-scale noise) with a dark root and a pale tip.
