@@ -5,7 +5,7 @@ import Metal
 /// so shaders live as Swift strings and are compiled at runtime with makeLibrary(source:).
 enum ShaderLibrary {
     static var sources: [String] {
-        [CommonShaders.source, SkyShaders.source, LitShaders.source, GrassShaders.source, WaterShaders.source, CrystalShaders.source, MistShaders.source, PostShaders.source]
+        [CommonShaders.source, SkyShaders.source, MaterialShaders.source, LitShaders.source, GrassShaders.source, WaterShaders.source, CrystalShaders.source, MistShaders.source, PostShaders.source]
     }
 
     static func make(device: MTLDevice) -> MTLLibrary {

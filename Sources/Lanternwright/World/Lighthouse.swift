@@ -1,0 +1,160 @@
+import Metal
+import simd
+
+/// The lighthouse (R03 / T57.3): a round, tapered, entasis-curved tower on a stepped granite plinth with a granite lower shaft, a
+/// lime-rendered upper shaft in white and red bands separated by string courses, an arched stone doorway with a planked iron-strapped
+/// door, splayed windows, a corbelled gallery with an iron balustrade, and a glazed lantern room under a verdigris copper roof.
+/// Detail follows reach: the plinth, door and lower shaft (reachable at 1-2 m) carry the most geometry and the best materials; the
+/// shaft reads at 5-30 m; the gallery and lantern are silhouette detail seen from the summit path.
+///
+/// Everything is built in the tower's local frame (origin on the axis at ground level; the door faces +Z, toward the approaching
+/// player) and drawn as one mesh at `Layout.lighthouse`. Pattern materials use that origin as the axis (see Shaders/Materials.swift).
+/// The lens, the lantern glass, the beams and the puzzle hooks (`lighthouse_lens`, `lighthouse_glass`, `Landmarks.lensPosition`)
+/// are unchanged: the lens still floats at y = 26.9 inside the lantern room.
+enum Lighthouse {
+    static let baseY: Float = 0.9                    // top of the plinth = where the shaft begins
+    static let topY: Float = 24.6                    // under the gallery
+    static let segments = 48
+
+    /// Outer radius of the shaft at height y: the old taper (4.2 m to 2.8 m) plus a gentle entasis (the shaft swells slightly).
+    static func wallR(_ y: Float) -> Float {
+        let t = min(max((y - baseY) / (topY - baseY), 0), 1)
+        return 4.2 - 1.4 * t + 0.07 * sin(.pi * t)
+    }
+
+    static func build(into scene: Scene, device: MTLDevice) {
+        let granite = Surface(color: SIMD3(0.47, 0.44, 0.41), roughness: 0.9, material: .masonry)
+        let graniteDark = Surface(color: SIMD3(0.36, 0.34, 0.32), roughness: 0.9, material: .masonry)
+        let white = Surface(color: SIMD3(0.60, 0.575, 0.53), roughness: 0.88, material: .paint)
+        let red = Surface(color: SIMD3(0.42, 0.085, 0.06), roughness: 0.88, material: .paint)
+        let iron = Surface(color: SIMD3(0.05, 0.055, 0.07), roughness: 0.5, material: .iron)
+        let wood = Surface(color: SIMD3(0.20, 0.12, 0.06), roughness: 0.8, material: .wood)
+        let copper = Surface(color: SIMD3(0.5, 0.4, 0.3), roughness: 0.5, material: .copper)
+        let glassDark = Surface(color: SIMD3(0.015, 0.02, 0.03), roughness: 0.08)
+        var b = MeshBuilder()
+        let seg = segments
+
+        // ---- Plinth: three granite steps sunk into the ground (the base is buried, so the terrain pad shows no ring).
+        b.lathe(profile: [SIMD2(5.40, -0.7), SIMD2(5.40, 0.30), SIMD2(5.40, 0.30), SIMD2(4.95, 0.30), SIMD2(4.95, 0.60),
+                          SIMD2(4.65, 0.60), SIMD2(4.65, baseY), SIMD2(wallR(baseY), baseY)], segments: seg, surface: granite)
+
+        // ---- Shaft: granite to 3.6 m, then render. Sampled every 0.6 m along the entasis curve, split at the string courses.
+        func shaft(from y0: Float, to y1: Float, _ s: Surface) {
+            var pts: [SIMD2<Float>] = []
+            var y = y0
+            while y < y1 - 1e-4 { pts.append(SIMD2(wallR(y), y)); y += 0.6 }
+            pts.append(SIMD2(wallR(y1), y1))
+            b.lathe(profile: pts, segments: seg, surface: s)
+        }
+        /// A projecting band: a cornice with a sloped top and a chamfered underside, at height y.
+        func stringCourse(_ y: Float, out: Float = 0.16, _ s: Surface) {
+            let r = wallR(y)
+            b.lathe(profile: [SIMD2(r - 0.02, y - 0.10), SIMD2(r + out * 0.55, y - 0.10), SIMD2(r + out, y - 0.02),
+                              SIMD2(r + out, y + 0.08), SIMD2(r + out * 0.4, y + 0.16), SIMD2(r - 0.02, y + 0.16)], segments: seg, surface: s)
+        }
+        let bands: [(y0: Float, y1: Float, s: Surface)] = [(3.76, 8.0, white), (8.16, 13.0, red), (13.16, 20.0, white), (20.16, 24.6, red)]
+        shaft(from: baseY, to: 3.6, granite)
+        stringCourse(3.68, out: 0.20, granite)
+        for band in bands { shaft(from: band.y0, to: band.y1, band.s) }
+        for y: Float in [8.08, 13.08, 20.08] { stringCourse(y, out: 0.12, granite) }
+
+        // ---- Door: a stone arch (voussoirs and keystone), a planked door standing back inside it, iron straps, studs, a ring handle.
+        let rd = wallR(2.0)
+        let doorW: Float = 1.1, doorH: Float = 2.4
+        b.arch(width: doorW, height: doorH, depth: 0.7, voussoirs: 11, blockHeight: 0.40, surface: granite,
+               transform: translation(SIMD3(0, baseY, rd + 0.05)))
+        let spring = doorH - doorW / 2
+        b.box(size: SIMD3(doorW + 0.04, spring, 0.12), surface: wood, transform: translation(SIMD3(0, baseY + spring / 2, rd + 0.02)))
+        b.cylinder(radiusTop: doorW / 2 + 0.02, radiusBottom: doorW / 2 + 0.02, height: 0.12, segments: 24, smooth: true, surface: wood,
+                   transform: translation(SIMD3(0, baseY + spring, rd - 0.04)) * rotationX(.pi / 2) * translation(SIMD3(0, -0.12, 0)))
+        // Half-disc top: cut the lower half away by hiding it inside the rectangle (same material, same plane).
+        for yStrap: Float in [0.35, 1.05, 1.75] {
+            b.box(size: SIMD3(doorW + 0.06, 0.13, 0.03), surface: iron, transform: translation(SIMD3(0, baseY + yStrap, rd + 0.095)))
+            for sx: Float in [-0.42, -0.21, 0, 0.21, 0.42] {
+                b.sphere(radius: 0.028, segments: 8, surface: iron, transform: translation(SIMD3(sx, baseY + yStrap, rd + 0.115)))
+            }
+            for hs: Float in [-1, 1] {                                       // hinge eyes on the left, a hasp on the right
+                b.cylinder(radiusTop: 0.035, radiusBottom: 0.035, height: 0.16, segments: 8, smooth: true, surface: iron,
+                           transform: translation(SIMD3(hs * (doorW / 2 + 0.03), baseY + yStrap - 0.08, rd + 0.09)))
+            }
+        }
+        b.box(size: SIMD3(0.04, 0.5, 0.025), surface: iron, transform: translation(SIMD3(0.3, baseY + 1.05, rd + 0.105)))      // lock plate
+        b.torus(major: 0.085, minor: 0.012, segments: 24, sides: 8, surface: iron,
+                transform: translation(SIMD3(0.3, baseY + 0.95, rd + 0.14)) * rotationX(.pi / 2))                                // ring handle
+        // Worn threshold and approach steps (the plinth is 0.9 m high; four steps climb to the door).
+        for i in 0..<4 {
+            let h = 0.9 * Float(i + 1) / 4
+            b.bevelBox(size: SIMD3(1.9 - 0.12 * Float(3 - i), h, 0.5), bevel: 0.03, surface: i == 3 ? graniteDark : granite,
+                       transform: translation(SIMD3(0, h / 2, rd + 0.45 + 0.45 * Float(3 - i))))
+        }
+
+        // ---- Windows (splayed reveals): a stone frame standing proud, a dark recessed pane behind iron bars, a sill with a drip groove.
+        let windowYs: [Float] = [6.2, 10.4, 14.6, 18.2, 21.8]
+        for (i, wy) in windowYs.enumerated() {
+            let ang = .pi / 2 + Float(i) * 1.9 + 0.5
+            let rw = wallR(wy)
+            let place = translation(SIMD3(cos(ang) * rw, wy, sin(ang) * rw)) * rotationY(.pi / 2 - ang)
+            b.bevelBox(size: SIMD3(0.14, 1.15, 0.36), bevel: 0.02, surface: granite, transform: place * translation(SIMD3(-0.4, 0, 0.08)))
+            b.bevelBox(size: SIMD3(0.14, 1.15, 0.36), bevel: 0.02, surface: granite, transform: place * translation(SIMD3(0.4, 0, 0.08)))
+            b.bevelBox(size: SIMD3(1.02, 0.15, 0.40), bevel: 0.025, surface: granite, transform: place * translation(SIMD3(0, 0.62, 0.09)))      // lintel
+            b.bevelBox(size: SIMD3(1.1, 0.12, 0.5), bevel: 0.02, surface: granite, transform: place * translation(SIMD3(0, -0.62, 0.14)))        // sill, projecting
+            b.box(size: SIMD3(0.98, 0.025, 0.04), surface: graniteDark, transform: place * translation(SIMD3(0, -0.545, 0.34)))                  // drip groove
+            b.box(size: SIMD3(0.66, 1.08, 0.05), surface: glassDark, transform: place * translation(SIMD3(0, 0, 0.03)))
+            for bx: Float in [-0.17, 0.17] { b.box(size: SIMD3(0.025, 1.08, 0.04), surface: iron, transform: place * translation(SIMD3(bx, 0, 0.075))) }
+            b.box(size: SIMD3(0.66, 0.025, 0.04), surface: iron, transform: place * translation(SIMD3(0, 0.1, 0.075)))
+        }
+
+        // ---- Gallery: a corbelled granite deck on 24 brackets, a cornice, an iron balustrade with posts and two rails.
+        let rg = wallR(topY)
+        b.lathe(profile: [SIMD2(rg - 0.02, 23.95), SIMD2(rg + 0.18, 23.95), SIMD2(rg + 0.18, 24.15), SIMD2(rg + 0.55, 24.45), SIMD2(3.88, 24.50),
+                          SIMD2(3.88, 24.86), SIMD2(3.70, 24.92), SIMD2(2.62, 24.92)], segments: seg, surface: granite)
+        for i in 0..<24 {
+            let a = Float(i) / 24 * 2 * .pi
+            b.bevelBox(size: SIMD3(0.22, 0.52, 0.62), bevel: 0.03, surface: granite,
+                       transform: translation(SIMD3(cos(a) * (rg + 0.35), 24.2, sin(a) * (rg + 0.35))) * rotationY(.pi / 2 - a) * rotationX(-0.45))
+        }
+        let postR: Float = 3.72
+        for i in 0..<36 {
+            let a = Float(i) / 36 * 2 * .pi
+            let big = i % 3 == 0
+            b.cylinder(radiusTop: big ? 0.04 : 0.022, radiusBottom: big ? 0.05 : 0.026, height: 1.1, segments: 6, smooth: true, surface: iron,
+                       transform: translation(SIMD3(postR * cos(a), 24.92, postR * sin(a))))
+            if big { b.sphere(radius: 0.055, segments: 8, surface: iron, transform: translation(SIMD3(postR * cos(a), 26.06, postR * sin(a)))) }
+        }
+        b.torus(major: postR, minor: 0.032, segments: 72, sides: 8, surface: iron, transform: translation(SIMD3(0, 26.0, 0)))         // top rail
+        b.torus(major: postR, minor: 0.022, segments: 72, sides: 6, surface: iron, transform: translation(SIMD3(0, 25.45, 0)))        // mid rail
+        b.torus(major: postR, minor: 0.018, segments: 72, sides: 6, surface: iron, transform: translation(SIMD3(0, 25.12, 0)))        // toe rail
+        // ---- Lantern room: an iron base, sixteen glazing bars, two transom rings, a head ring, glass behind (see lighthouse_glass).
+        b.lathe(profile: [SIMD2(2.62, 24.92), SIMD2(2.62, 25.40), SIMD2(2.45, 25.47), SIMD2(2.25, 25.47)], segments: seg, surface: iron)
+        for i in 0..<16 {
+            let a = Float(i) / 16 * 2 * .pi
+            b.cylinder(radiusTop: 0.032, radiusBottom: 0.04, height: 3.0, segments: 5, smooth: true, surface: iron,
+                       transform: translation(SIMD3(2.16 * cos(a), 25.6, 2.16 * sin(a))))
+        }
+        for y: Float in [26.7, 27.7] { b.torus(major: 2.16, minor: 0.03, segments: 64, sides: 6, surface: iron, transform: translation(SIMD3(0, y, 0))) }
+        b.torus(major: 2.2, minor: 0.07, segments: 64, sides: 8, surface: iron, transform: translation(SIMD3(0, 28.6, 0)))
+
+        // ---- Copper roof: an ogee dome with twelve ribs, a ventilator cowl, a weathervane and a lightning rod.
+        var roof: [SIMD2<Float>] = [SIMD2(2.62, 28.55), SIMD2(2.74, 28.62), SIMD2(2.66, 28.76)]
+        for k in 1...10 {
+            let t = Float(k) / 10
+            roof.append(SIMD2(2.55 * (1 - pow(t, 1.35)) + 0.42 * (1 - t), 28.76 + 1.9 * t + 0.25 * sin(.pi * t)))
+        }
+        b.lathe(profile: roof, segments: seg, surface: copper)
+        for i in 0..<12 {
+            let a = Float(i) / 12 * 2 * .pi
+            let pts: [SIMD3<Float>] = roof.dropFirst(2).map { SIMD3(($0.x + 0.025) * cos(a), $0.y + 0.012, ($0.x + 0.025) * sin(a)) }
+            b.tube(points: pts, radii: [Float](repeating: 0.028, count: pts.count), sides: 5, caps: false, surface: copper)
+        }
+        let topPt = roof.last!
+        b.lathe(profile: [SIMD2(0.45, topPt.y - 0.05), SIMD2(0.52, topPt.y + 0.12), SIMD2(0.38, topPt.y + 0.34), SIMD2(0.12, topPt.y + 0.46), SIMD2(0.0, topPt.y + 0.5)],
+                segments: 24, surface: copper)
+        b.tube(points: [SIMD3(0, topPt.y + 0.4, 0), SIMD3(0, topPt.y + 1.5, 0)], radii: [0.03, 0.02], sides: 6, surface: iron)           // spindle / rod
+        b.tube(points: [SIMD3(0, topPt.y + 1.1, 0), SIMD3(0.55, topPt.y + 1.1, 0.1)], radii: [0.02, 0.015], sides: 5, surface: iron)       // vane arm
+        b.box(size: SIMD3(0.22, 0.09, 0.012), surface: iron, transform: translation(SIMD3(0.62, topPt.y + 1.1, 0.12)) * rotationY(-0.18))   // arrow head
+        b.box(size: SIMD3(0.18, 0.12, 0.012), surface: iron, transform: translation(SIMD3(-0.18, topPt.y + 1.1, -0.03)))                   // tail
+        b.sphere(radius: 0.035, segments: 8, surface: iron, transform: translation(SIMD3(0, topPt.y + 1.52, 0)))
+
+        scene.add("lighthouse", mesh: b.build(device: device, label: "lighthouse"), uniforms: ObjectUniforms(model: translation(Layout.lighthouse)))
+    }
+}

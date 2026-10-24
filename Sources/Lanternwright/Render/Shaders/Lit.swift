@@ -215,17 +215,27 @@ fragment LitFragOut lit_fragment(LitOut in [[stage_in]],
         albedo = terrain_surface(in.worldPos, Ng, in.color.r, in.color.g, frame.worldB.x, fpix, n, rough);
     }
 
+    // Procedural prop materials (masonry, paint, iron, copper, wood, bark): albedo, roughness, metalness, bumped normal, AO.
+    float metal = 0.0, matAO = 1.0;
+    int mid = int(in.material + 0.5);
+    if (mid >= 5) {
+        float3 Pl = in.worldPos - obj.model.columns[3].xyz;               // relative to the object's origin (the lighthouse axis)
+        MatOut mo = material_surface(mid, Pl, in.worldPos, n, albedo, rough, fpix);
+        albedo = mo.albedo; rough = mo.rough; metal = mo.metal; n = mo.N; matAO = mo.ao;
+    }
+
     float3 V = normalize(frame.cameraPos.xyz - in.worldPos);
     float3 L = normalize(frame.sunDir.xyz);
     float NoV = max(dot(n, V), 1e-3);
     float NoL = saturate(dot(n, L));
-    const float F0 = 0.04;                                       // dielectrics
+    const float F0d = 0.04;                                      // dielectrics
+    float3 F0 = mix(float3(F0d), albedo, metal);                 // metals: no diffuse, F0 = albedo
 
     // Sun: E is irradiance (the sun's colour after the atmosphere took its share).
     int cascade = 2;
     float shadow = sun_shadow(in.worldPos, normalize(in.normal), NoL, in.position.xy, frame, shadowMap, shadowNear, shadowMid, cascade);
     float3 E = frame.sunColor.rgb * frame.sunColor.w * shadow;
-    float3 diffuse = albedo / M_PI_F * E * NoL;
+    float3 diffuse = albedo * (1.0 - metal) / M_PI_F * E * NoL * mix(1.0, matAO, 0.6);
 
     // GGX specular (Trowbridge-Reitz D, height-correlated Smith V, Schlick F).
     float a = max(rough * rough, 0.02);
@@ -235,7 +245,7 @@ fragment LitFragOut lit_fragment(LitOut in [[stage_in]],
     float dd = NoH * NoH * (a2 - 1.0) + 1.0;
     float D = a2 / (M_PI_F * dd * dd);
     float Vis = 0.5 / max(NoL * sqrt(NoV * NoV * (1.0 - a2) + a2) + NoV * sqrt(NoL * NoL * (1.0 - a2) + a2), 1e-4);
-    float F = F0 + (1.0 - F0) * pow(1.0 - VoH, 5.0);
+    float3 F = F0 + (1.0 - F0) * pow(1.0 - VoH, 5.0);
     float3 specular = E * D * Vis * F * NoL;
     bool foliage = in.material > 2.5 && in.material < 3.5;
     if (foliage) {
@@ -253,8 +263,8 @@ fragment LitFragOut lit_fragment(LitOut in [[stage_in]],
     float3 irradiance = irradianceMap.sample(skySampler, lut_uv(n)).rgb;
     float3 R = reflect(-V, n);
     float3 envSpec = skyLUT.sample(skySampler, lut_uv(R), level(rough * 6.0)).rgb;
-    float fEnv = F0 + (max(1.0 - rough, F0) - F0) * pow(1.0 - NoV, 5.0);
-    float3 ambient = albedo * irradiance * (1.0 - fEnv) + envSpec * fEnv;
+    float3 fEnv = F0 + (max(float3(1.0 - rough), F0) - F0) * pow(1.0 - NoV, 5.0);
+    float3 ambient = (albedo * irradiance * (1.0 - metal) * (1.0 - dot(fEnv, float3(0.333))) + envSpec * fEnv) * matAO;
 
     float3 emissive = obj.emissive.rgb * obj.emissive.w;
     float3 col = diffuse + specular + ambient + emissive;

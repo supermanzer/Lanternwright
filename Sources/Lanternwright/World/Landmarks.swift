@@ -86,47 +86,7 @@ enum Landmarks {
 
     static func addLighthouse(_ scene: Scene, device: MTLDevice) {
         let lh = Layout.lighthouse
-        let white = Surface(color: SIMD3(0.60, 0.575, 0.53), roughness: 0.85)
-        let red = Surface(color: SIMD3(0.42, 0.085, 0.06), roughness: 0.85)
-        let dark = Surface(color: SIMD3(0.05, 0.045, 0.04), roughness: 0.6)
-        let iron = Surface(color: SIMD3(0.08, 0.08, 0.09), roughness: 0.5)
-        var b = MeshBuilder()
-        b.cylinder(radiusTop: 5.0, radiusBottom: 5.3, height: 1.4, segments: 8, smooth: false, surface: Surface(color: SIMD3(0.33, 0.31, 0.28), roughness: 0.9),
-                   transform: translation(SIMD3(0, -0.4, 0)))
-        // Tower: stacked frusta of one continuous taper (r 4.2 -> 2.8 over 24 m), banded white / red / white / red.
-        let bands: [(h: Float, s: Surface)] = [(7, white), (5, red), (7, white), (5, red)]
-        var y: Float = 1.0
-        for band in bands {
-            let r0 = 4.2 - 1.4 * (y - 1) / 24, r1 = 4.2 - 1.4 * (y - 1 + band.h) / 24
-            b.cylinder(radiusTop: r1, radiusBottom: r0, height: band.h, segments: 8, smooth: false, surface: band.s,
-                       transform: translation(SIMD3(0, y, 0)))
-            y += band.h
-        }
-        // y is now 25: gallery deck and rail.
-        b.cylinder(radiusTop: 3.9, radiusBottom: 3.5, height: 0.4, segments: 8, smooth: false, surface: white, transform: translation(SIMD3(0, 24.8, 0)))
-        for i in 0..<16 {
-            let a = Float(i) / 16 * 2 * .pi
-            b.cylinder(radiusTop: 0.04, radiusBottom: 0.05, height: 1.0, segments: 5, surface: iron,
-                       transform: translation(SIMD3(3.75 * cos(a), 25.2, 3.75 * sin(a))))
-        }
-        b.torus(major: 3.75, minor: 0.05, segments: 24, sides: 5, surface: iron, transform: translation(SIMD3(0, 26.2, 0)))
-        // Lantern room frame: 8 thin pillars around the glass, a roof dome and a finial.
-        for i in 0..<8 {
-            let a = (Float(i) + 0.5) / 8 * 2 * .pi
-            b.box(size: SIMD3(0.18, 3.4, 0.18), surface: iron, transform: translation(SIMD3(2.15 * cos(a), 27.0, 2.15 * sin(a))))
-        }
-        b.cylinder(radiusTop: 2.4, radiusBottom: 2.5, height: 0.35, segments: 8, smooth: false, surface: iron, transform: translation(SIMD3(0, 25.2, 0)))
-        b.cone(radius: 3.0, height: 2.0, segments: 8, smooth: false, surface: red, transform: translation(SIMD3(0, 28.7, 0)))
-        b.sphere(radius: 0.22, segments: 8, surface: iron, transform: translation(SIMD3(0, 30.8, 0)))
-        // Door (south face, +Z, toward the approaching player) with a stone surround, and three dark windows.
-        b.bevelBox(size: SIMD3(1.9, 3.1, 0.5), bevel: 0.06, surface: Surface(color: SIMD3(0.40, 0.38, 0.34), roughness: 0.9), transform: translation(SIMD3(0, 1.55, 4.15)))
-        b.box(size: SIMD3(1.4, 2.6, 0.5), surface: Surface(color: SIMD3(0.16, 0.10, 0.06), roughness: 0.8), transform: translation(SIMD3(0, 1.3, 4.25)))
-        for wy: Float in [9, 15, 21] {
-            let r = 4.2 - 1.4 * (wy - 1) / 24
-            b.box(size: SIMD3(0.7, 1.1, 0.4), surface: dark, transform: translation(SIMD3(0, wy, r - 0.1)))
-        }
-        scene.add("lighthouse", mesh: b.build(device: device, label: "lighthouse"),
-                  uniforms: ObjectUniforms(model: translation(lh)))
+        Lighthouse.build(into: scene, device: device)
 
         // Glass of the lantern room (material 2: glossy; it glows once the lighthouse is lit).
         var glass = MeshBuilder()

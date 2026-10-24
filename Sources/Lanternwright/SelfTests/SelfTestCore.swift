@@ -257,6 +257,42 @@ extension SelfTestRunner {
                 check(wet < dry * 0.9, "wading ankle-deep is slower than walking dry (\(wet) m vs \(dry) m in 3 s)")
             } else { check(true, "no shallow spot found to test wading (skipped)") }
         }
+        if name == "all" || name == "builder" {
+            let surf = Surface(color: SIMD3(0.5, 0.5, 0.5))
+            func unitNormals(_ b: MeshBuilder) -> Bool { b.vertices.allSatisfy { abs(simd_length(SIMD3($0.normal.x, $0.normal.y, $0.normal.z)) - 1) < 1e-3 } }
+            func finite(_ b: MeshBuilder) -> Bool { b.vertices.allSatisfy { $0.position.x.isFinite && $0.position.y.isFinite && $0.position.z.isFinite } }
+            // lathe: a plain cylinder wall, outward normals, exact radius.
+            var wall = MeshBuilder(); wall.lathe(profile: [SIMD2(1, 0), SIMD2(1, 2)], segments: 32, surface: surf)
+            check(wall.vertices.count == 64 && wall.indices.count == 32 * 6, "lathe: a 32-segment wall has 64 vertices and 64 triangles")
+            check(wall.vertices.allSatisfy { abs(simd_length(SIMD2($0.position.x, $0.position.z)) - 1) < 1e-4 && $0.position.y >= -1e-5 && $0.position.y <= 2 + 1e-5 }, "lathe: every vertex lies on the profile's radius and height range")
+            check(wall.vertices.allSatisfy { simd_dot(SIMD2($0.normal.x, $0.normal.z), SIMD2($0.position.x, $0.position.z)) > 0.99 } && unitNormals(wall), "lathe: smooth normals are unit and point outward")
+            // A stepped profile keeps its corner crisp: the step's top face points straight up, its riser points outward.
+            var steps = MeshBuilder(); steps.lathe(profile: [SIMD2(2, 0), SIMD2(2, 0.3), SIMD2(1.5, 0.3), SIMD2(1.5, 0.6)], segments: 24, surface: surf)
+            check(steps.vertices.contains { $0.normal.y > 0.99 && abs($0.position.y - 0.3) < 1e-4 } && unitNormals(steps) && finite(steps), "lathe: a stepped profile has a flat upward tread (crisp corners)")
+            // Winding is outward: a triangle's geometric normal agrees with the vertex normal.
+            var agree = 0, total = 0
+            for t in stride(from: 0, to: wall.indices.count, by: 3) {
+                let a = SIMD3(wall.vertices[Int(wall.indices[t])].position.x, wall.vertices[Int(wall.indices[t])].position.y, wall.vertices[Int(wall.indices[t])].position.z)
+                let b = SIMD3(wall.vertices[Int(wall.indices[t + 1])].position.x, wall.vertices[Int(wall.indices[t + 1])].position.y, wall.vertices[Int(wall.indices[t + 1])].position.z)
+                let c = SIMD3(wall.vertices[Int(wall.indices[t + 2])].position.x, wall.vertices[Int(wall.indices[t + 2])].position.y, wall.vertices[Int(wall.indices[t + 2])].position.z)
+                let gn = simd_cross(b - a, c - a), vn = SIMD3(wall.vertices[Int(wall.indices[t])].normal.x, wall.vertices[Int(wall.indices[t])].normal.y, wall.vertices[Int(wall.indices[t])].normal.z)
+                total += 1; if simd_dot(gn, vn) > 0 { agree += 1 }
+            }
+            check(agree == total, "lathe: triangle winding faces outward (\(agree) of \(total))")
+            // tube: tapered straight tube and a bent one.
+            var rod = MeshBuilder(); rod.tube(points: [SIMD3(0, 0, 0), SIMD3(0, 1, 0), SIMD3(0, 2, 0)], radii: [0.5, 0.3, 0.1], sides: 8, surface: surf)
+            let ringR = rod.vertices.filter { abs($0.position.y) < 1e-4 && abs(simd_length(SIMD2($0.position.x, $0.position.z)) - 0.5) < 1e-3 }.count
+            check(ringR >= 8 && rod.vertices.allSatisfy { simd_length(SIMD2($0.position.x, $0.position.z)) <= 0.5 + 1e-4 } && unitNormals(rod), "tube: the ring at the base has radius 0.5 and the tube tapers to 0.1")
+            var bent = MeshBuilder(); bent.tube(points: [SIMD3(0, 0, 0), SIMD3(0, 1, 0), SIMD3(1, 1.5, 0.5), SIMD3(2, 1.6, 1)], radii: [0.2, 0.18, 0.12, 0.05], sides: 6, surface: surf)
+            check(finite(bent) && unitNormals(bent) && bent.indices.count > 0, "tube: a curved path produces finite, unit-normal geometry (parallel transport, no twist artefacts)")
+            // arch: the opening stays clear, the surround rises above it.
+            var door = MeshBuilder(); door.arch(width: 1.4, height: 2.6, depth: 0.5, surface: surf)
+            let spring: Float = 2.6 - 0.7
+            let inside = door.vertices.filter { abs($0.position.x) < 0.7 - 0.01 && $0.position.y < spring - 0.01 }.count
+            let top = door.vertices.map(\.position.y).max() ?? 0
+            check(inside == 0 && top > 2.6 && top < 3.6 && finite(door), "arch: nothing intrudes into the opening, and the voussoirs crown it (top \(top) m)")
+            check((door.vertices.map(\.position.z).max() ?? 0) <= 0.5 * 1.08 / 2 + 1e-3 && door.vertices.count > 300, "arch: depth stays within the keystone and the surround is made of many blocks (\(door.vertices.count) vertices)")
+        }
         if name == "all" || name == "zoom" {
             check(abs(LookCloser.fov(zoom: 0) - LookCloser.baseFov) < 1e-6 && LookCloser.fov(zoom: 1) < LookCloser.baseFov * 0.45 && LookCloser.fov(zoom: 1) > 0.2, "zoom 0 is the normal 60 degrees; full zoom narrows to about 22 degrees")
             var z: Float = 0, steps = 0

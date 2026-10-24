@@ -102,6 +102,110 @@ struct MeshBuilder {
 
     // MARK: Primitives
 
+    /// Revolve a profile of (radius, height) points about the Y axis. Each profile segment is its own band, so corners between
+    /// segments stay crisp (plinth steps, string courses, cornices) while each band is smooth around its ring. Wind the profile
+    /// bottom to top along the outside of the solid.
+    mutating func lathe(profile: [SIMD2<Float>], segments: Int = 32, smooth: Bool = true, surface: Surface,
+                        transform: float4x4 = matrix_identity_float4x4) {
+        let n = max(3, segments)
+        for k in 0..<max(profile.count - 1, 0) {
+            let p0 = profile[k], p1 = profile[k + 1]
+            let d = p1 - p0
+            guard simd_length(d) > 1e-6 else { continue }
+            let n2 = simd_normalize(SIMD2(d.y, -d.x))                    // outward normal in the (r, y) plane
+            var pos: [SIMD3<Float>] = [], nrm: [SIMD3<Float>] = [], idx: [UInt32] = []
+            for i in 0..<n {
+                let a = Float(i) / Float(n) * 2 * .pi, (c, s) = (cos(a), sin(a))
+                pos.append(SIMD3(p0.x * c, p0.y, p0.x * s)); nrm.append(SIMD3(n2.x * c, n2.y, n2.x * s))
+            }
+            for i in 0..<n {
+                let a = Float(i) / Float(n) * 2 * .pi, (c, s) = (cos(a), sin(a))
+                pos.append(SIMD3(p1.x * c, p1.y, p1.x * s)); nrm.append(SIMD3(n2.x * c, n2.y, n2.x * s))
+            }
+            for i in 0..<n {
+                let j = (i + 1) % n
+                let (b0, b1, t0, t1) = (UInt32(i), UInt32(j), UInt32(n + i), UInt32(n + j))
+                idx.append(contentsOf: [b0, t0, t1, b0, t1, b1])
+            }
+            addIndexed(positions: pos, indices: idx, smoothNormals: smooth ? nrm : nil, surface: surface, transform: transform)
+        }
+    }
+
+    /// A tapered tube along a polyline (rails, brackets, branches, trunks). `radii` has one radius per point. The cross-section is
+    /// carried along the path by parallel transport, so it never twists. Ends are capped flat.
+    mutating func tube(points: [SIMD3<Float>], radii: [Float], sides: Int = 6, caps: Bool = true, surface: Surface,
+                       transform: float4x4 = matrix_identity_float4x4) {
+        guard points.count >= 2, radii.count == points.count else { return }
+        let ns = max(3, sides)
+        var pos: [SIMD3<Float>] = [], nrm: [SIMD3<Float>] = [], idx: [UInt32] = []
+        var tangent = simd_normalize(points[1] - points[0])
+        var ref = abs(tangent.y) < 0.9 ? SIMD3<Float>(0, 1, 0) : SIMD3<Float>(1, 0, 0)
+        var u = simd_normalize(simd_cross(tangent, ref)), v = simd_cross(tangent, u)
+        for (k, p) in points.enumerated() {
+            let t = k == 0 ? simd_normalize(points[1] - points[0])
+                : (k == points.count - 1 ? simd_normalize(points[k] - points[k - 1]) : simd_normalize(points[k + 1] - points[k - 1]))
+            if k > 0 {                                                   // parallel transport: rotate the frame by the tangent change
+                let axis = simd_cross(tangent, t)
+                if simd_length(axis) > 1e-6 {
+                    let ang = asin(min(1, simd_length(axis))), q = simd_quatf(angle: ang, axis: simd_normalize(axis))
+                    u = q.act(u); v = q.act(v)
+                }
+                tangent = t
+            }
+            ref = tangent
+            for j in 0..<ns {
+                let a = Float(j) / Float(ns) * 2 * .pi
+                let dir = u * cos(a) + v * sin(a)
+                pos.append(p + dir * radii[k]); nrm.append(dir)
+            }
+        }
+        for k in 0..<(points.count - 1) {
+            for j in 0..<ns {
+                let jn = (j + 1) % ns
+                let a = UInt32(k * ns + j), b = UInt32(k * ns + jn), c = UInt32((k + 1) * ns + j), d = UInt32((k + 1) * ns + jn)
+                idx.append(contentsOf: [a, c, d, a, d, b])
+            }
+        }
+        addIndexed(positions: pos, indices: idx, smoothNormals: nrm, surface: surface, transform: transform)
+        guard caps else { return }
+        for (k, up) in [(0, false), (points.count - 1, true)] {
+            var p: [SIMD3<Float>] = [points[k]], ci: [UInt32] = []
+            for j in 0..<ns { p.append(pos[k * ns + j]) }
+            for j in 0..<ns { let (a, b) = (UInt32(1 + j), UInt32(1 + (j + 1) % ns)); ci.append(contentsOf: up ? [0, a, b] : [0, b, a]) }
+            let axisDir = simd_normalize(up ? points[k] - points[k - 1] : points[k] - points[k + 1])
+            addIndexed(positions: p, indices: ci, smoothNormals: [SIMD3<Float>](repeating: axisDir, count: p.count), surface: surface, transform: transform)
+        }
+    }
+
+    /// The stone surround of an arched opening in the XY plane, facing +Z (the front face is at z = +depth/2): jambs of alternating
+    /// long and short blocks, a semicircular ring of voussoirs and a larger keystone. `width` and `height` are the clear opening.
+    mutating func arch(width: Float, height: Float, depth: Float, voussoirs: Int = 11, blockHeight: Float = 0.36,
+                       surface: Surface, transform: float4x4 = matrix_identity_float4x4) {
+        let bw = 0.30 * max(width, 0.8) / 1.2 + 0.1                      // jamb and voussoir thickness
+        let spring = max(height - width / 2, blockHeight)                // where the curve starts
+        var y: Float = 0, row = 0
+        while y < spring - 1e-3 {
+            let h = min(blockHeight * (row % 2 == 0 ? 1.0 : 0.8), spring - y)
+            let w = bw * (row % 2 == 0 ? 1.0 : 1.35)
+            for side: Float in [-1, 1] {
+                bevelBox(size: SIMD3(w, h * 0.97, depth), bevel: 0.025, surface: surface,
+                         transform: transform * translation(SIMD3(side * (width / 2 + w / 2), y + h / 2, 0)))
+            }
+            y += h; row += 1
+        }
+        let n = max(5, voussoirs | 1)                                    // odd, so there is a keystone at the crown
+        let mid = width / 2 + bw / 2
+        for i in 0..<n {
+            let t = (Float(i) + 0.5) / Float(n)
+            let ang = .pi - t * .pi                                      // from the left springing over the top to the right
+            let arc = .pi * mid / Float(n)
+            let key = i == n / 2
+            let c = SIMD3(cos(ang) * mid, spring + sin(ang) * mid, 0)
+            bevelBox(size: SIMD3(bw * (key ? 1.25 : 1.0), arc * 0.97 * (key ? 1.15 : 1.0), depth * (key ? 1.08 : 1.0)), bevel: 0.02, surface: surface,
+                     transform: transform * translation(c) * rotationZ(ang - .pi / 2))
+        }
+    }
+
     /// A box with its edges chamfered by `bevel`, built as three overlapping boxes each inset on two axes. The steps catch
     /// the light along every edge (a hard-edged box looks like a computer model; a bevelled one looks made). No coplanar faces.
     mutating func bevelBox(size: SIMD3<Float>, bevel: Float, surface: Surface, transform: float4x4 = matrix_identity_float4x4) {

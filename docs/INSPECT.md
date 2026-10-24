@@ -80,3 +80,9 @@ How to play: `scripts/bundle.sh && open Lanternwright.app`. Headless views: `.bu
 | needs-inspection | T55.B1 | The crosshair looks quieter (smaller, soft green) on things already done: solved stones, solved mirror/pane/chime puzzles, heard altar lights | Solve a puzzle, then point at its parts | You can tell done from not-done at a glance; the quiet look is not mistaken for "not clickable" |
 | needs-inspection | T55.B2 | Press R to toggle auto-run; a one-time hint after about 45 s of walking tells you about Shift and R | Walk for a minute without Shift; press R | Hint appears once, politely; auto-run feels right and R again stops it |
 | needs-inspection | T55.B7 | Running widens the view slightly; wading in the shallows slows you | Hold Shift and run along the beach; walk into the shallows | The widening feels like speed, not nausea; the wading drag is gentle and honest. Tell me if you want the widening smaller (`Game.runFovBoost`) |
+
+## Round 3 (R03: lighthouse and trees)
+
+| Status | Task | What changed | How to see / hear it | What to look for |
+|---|---|---|---|---|
+| needs-inspection | T57.1-3 | The lighthouse is rebuilt with real structure and procedural materials: granite blocks with joints and chips, lime-render bands that flake and crack, a planked door with iron straps and a ring handle, framed windows, a corbelled gallery with an iron balustrade, a glazed lantern with a verdigris copper roof | Walk up the lantern path to the lighthouse and stand at the door (the closest you can get is 1.65 m); or `--screenshot shots/x.png --view lh-door` (also `lh-base`, `lh-mid`, `lh-top`, `lh-glass`) | Can you tell granite, render, wood, iron and glass apart, and imagine how each feels? Any shimmer or crawling as you walk (none measured at 1600x900)? Question: the collider keeps you 1.65 m from the wall; do you want it shrunk so you can reach the stone? Is the red band too flaky or the copper roof too dark and patchy? |
