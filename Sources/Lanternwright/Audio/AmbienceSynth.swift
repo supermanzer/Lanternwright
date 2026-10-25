@@ -102,11 +102,26 @@ final class AmbienceSynth {
     /// Distance shaping of the surf (AudioSpace.SurfField): `surfFar` 0...1 (near the shore ... far inland), `surfAirCutoff` the air-absorption low-pass.
     var surfFar: Float = 0
     var surfAirCutoff: Float = 8000
-    /// 0...1: how high the listener stands. Up high the wind loses its broadband rustle and becomes bands: a low rumble, a whistle that moves with the gusts.
-    var windAltitude: Float = 0
-    private var altSmooth: Float = 0, farSmooth: Float = 0, airSmooth: Float = 8000
+    /// The wind at the listener's feet, 0...1: `Wind.strength(at: player, time: game.time)`, pushed in every frame by the engine (F02 A3). The wind's level and its
+    /// brightness are functions of this and of nothing else; a still wind is quiet and a gust is loud. Offline renders set `windSource` instead (a function of the
+    /// synth's own clock), which is evaluated every 64 samples.
+    var windStrength: Float = 0
+    var windSource: ((Float) -> Float)?
+    /// 0...1: how much leaf and grass there is underfoot; the wind rustles only where there is something to rustle.
+    var vegetation: Float = 0
+    /// Linear amplitude of the wind at `windStrength` 1 and `windGain` 1 relative to the unit the level targets are measured in (calibrated by `--selftest wind`).
+    static let windUnit: Float = 0.5
+    /// Level in dB against the surf at the waterline: a lull and a full gust (A3: the lull at most -6 dB, a gust peak at most +2 dB, so at least 12 dB between them).
+    static let windLullDB: Float = -14, windGustDB: Float = -2
+    private var windSm: Float = 0, windTargetSm: Float = 0
+    private var windBrown = [Float](repeating: 0, count: 2), windLP1 = [Float](repeating: 0, count: 2), windLP2 = [Float](repeating: 0, count: 2)
+    private var windW1 = [Float](repeating: 0, count: 2), windW2 = [Float](repeating: 0, count: 2)      // low-passed WHITE noise: the mid-range body that speakers can reproduce
+    private var rustleA = [Float](repeating: 0, count: 2), rustleB = [Float](repeating: 0, count: 2)
+    private var windA: Float = 0.1, windF: Float = 0.1, windAmp: Float = 0
+    private var gallLow: Float = 0, gallBand: Float = 0
+    private var farSmooth: Float = 0, airSmooth: Float = 8000
     private var waveNow = SurfWaves.State(), waveSm = SurfWaves.State(), swellNow: Float = 0.5
-    // Wind formants: two state-variable band-passes (low, band) per channel.
+    // One gentle formant (Q about 1.2: a broad bump, never a whistle), a state-variable band-pass (low, band) per channel.
     private var howlLow = [[Float]](repeating: [0, 0], count: 2), howlBand = [[Float]](repeating: [0, 0], count: 2)
     private var panSmooth: Float = 0, occlusionSmooth: Float = 0
     private var surfMuffle: [Float] = [0, 0]
@@ -231,9 +246,16 @@ final class AmbienceSynth {
             let td = time, t = Float(td)                    // `t` for the slow functions (gusts, waves); `td` for anything that is an audio-rate phase
             panSmooth += (panTarget - panSmooth) * 0.0004
             occlusionSmooth += (occTarget - occlusionSmooth) * 0.0004
-            altSmooth += (windAltitude - altSmooth) * 0.0003; farSmooth += (surfFar - farSmooth) * 0.0003; airSmooth += (surfAirCutoff - airSmooth) * 0.0003
-            // Gust: slow, irregular 0...1 built from three incommensurate sines.
-            let gust = Wind.gust(time: t)
+            farSmooth += (surfFar - farSmooth) * 0.0003; airSmooth += (surfAirCutoff - airSmooth) * 0.0003
+            // Wind (F02 A3): the level and brightness follow the shared wind strength at the listener (smoothed over about 40 ms).
+            if let src = windSource { if i & 63 == 0 { windTargetSm = src(t) } } else { windTargetSm = windStrength }
+            windSm += (windTargetSm - windSm) * 0.0006
+            let ws = min(max(windSm, 0), 1)
+            if i & 15 == 0 {
+                windA = 1 - exp(-2 * .pi * (200 + 700 * ws) / sampleRate)                     // the body's corner rides the gust: 200 Hz in a lull, 900 Hz in a gust
+                windF = 2 * sin(.pi * (280 + 420 * ws) / sampleRate)
+                windAmp = windGain * AmbienceSynth.windUnit * pow(10, (AmbienceSynth.windLullDB + (AmbienceSynth.windGustDB - AmbienceSynth.windLullDB) * pow(ws, 0.9)) / 20)
+            }
             // Surf (F02 A1): discrete waves from SurfWaves (a swash, a crest, a drain, a quiet gap), evaluated every 32 samples and smoothed. Far inland the waves
             // give way to a slow smooth swell (lower level and darker, by the level law and the air-absorption cutoff, not by adding sub-bass).
             if i & 31 == 0 { waveNow = SurfWaves.state(time: t); swellNow = SurfWaves.farSwell(time: t) }
@@ -244,23 +266,17 @@ final class AmbienceSynth {
             let sweepPan = 0.35 * waveSm.sweep * (1 - far)                  // each wave travels along the shore
             var out = [Float](repeating: 0, count: 2)
             for ch in 0..<2 {
-                // --- wind
+                // --- wind: brown noise (about -12 dB/octave, with a 40 Hz floor), low-passed at a corner that rides the gust, one broad formant that only a strong gust
+                // opens (Q 1.2), and a faint high rustle where there is grass or leaf. No narrow resonance anywhere: a high-Q band-pass is a boiling kettle.
                 let w = white(ch)
-                pink[ch][0] = 0.99765 * pink[ch][0] + w * 0.0990460        // Paul Kellet's pink-noise filter
-                pink[ch][1] = 0.96300 * pink[ch][1] + w * 0.2965164
-                pink[ch][2] = 0.57000 * pink[ch][2] + w * 1.0526913
-                let p = (pink[ch][0] + pink[ch][1] + pink[ch][2] + w * 0.1848) * 0.11
-                let cutoff = 250 + 1700 * gust * gust * (1 - 0.6 * altSmooth)
-                let a = 1 - exp(-2 * .pi * cutoff / sampleRate)
-                windLP[ch] += a * (p - windLP[ch])
-                // Up high the rustle gives way to BANDS (F01 W6.3): two resonant band-passes (Q about 7) whose centres ride the gust, so the wind whistles
-                // and moans and changes pitch with each gust; broadband noise at that level is what sounded like static.
-                let f1 = 2 * sin(.pi * (210 + 330 * gust) / sampleRate), f2 = 2 * sin(.pi * (360 + 560 * gust + 40 * sin(t * 0.13)) / sampleRate)
-                howlLow[ch][0] += f1 * howlBand[ch][0]; let hi1 = w * 0.6 - howlLow[ch][0] - howlBand[ch][0] / 7; howlBand[ch][0] += f1 * hi1
-                howlLow[ch][1] += f2 * howlBand[ch][1]; let hi2 = w * 0.6 - howlLow[ch][1] - howlBand[ch][1] / 8; howlBand[ch][1] += f2 * hi2
-                let howl = (howlBand[ch][0] + 0.7 * howlBand[ch][1]) * gust * gust * 0.9
-                let rustle = windLP[ch] * (0.25 + 0.75 * gust) * (1 - 0.7 * altSmooth)
-                let windOut = (rustle + howl * altSmooth * 1.6) * wind * 3.2
+                windBrown[ch] = 0.990 * windBrown[ch] + 0.06 * w
+                windLP1[ch] += windA * (windBrown[ch] - windLP1[ch]); windLP2[ch] += windA * (windLP1[ch] - windLP2[ch])
+                windW1[ch] += windA * (w - windW1[ch]); windW2[ch] += windA * (windW1[ch] - windW2[ch])
+                howlLow[ch][0] += windF * howlBand[ch][0]; let hi1 = w * 0.4 - howlLow[ch][0] - howlBand[ch][0] / 1.2; howlBand[ch][0] += windF * hi1
+                let wr = white(ch)                                                            // its own noise: independent of the body
+                rustleA[ch] += 0.35 * (wr - rustleA[ch]); rustleB[ch] += 0.15 * (wr - rustleB[ch])
+                let rustle = (rustleA[ch] - rustleB[ch]) * ws * ws * vegetation * 2.4
+                let windOut = ((windLP2[ch] * 1.1 + windW2[ch] * 1.4) + howlBand[ch][0] * ws * ws * 0.5 + rustle) * windAmp
 
                 // --- surf. The two channels have independent noise, so the wash has width.
                 brown[ch] = 0.997 * brown[ch] + 0.03 * white(ch)
@@ -329,10 +345,10 @@ final class AmbienceSynth {
                     let s = Float(sin(2 * Double.pi * Double(ToneTable.stoneHz[0] * 0.5 * vib) * td) + 0.7 * sin(2 * Double.pi * Double(ToneTable.stoneHz[1] * 0.5 * vib) * td + 0.5)) * humSmooth.w * 0.028
                     let pn = humPan.w; lmL += s * (1 - pn) * 0.5 * 1.4; lmR += s * (1 + pn) * 0.5 * 1.4
                 }
-                if gallerySmooth > 1e-4 {       // a whistle whose pitch rides the gust, with a breath of noise
-                    let f = 620 + 260 * gust
-                    gallerySinePhase += 2 * Float.pi * f * dt; if gallerySinePhase > 2 * Float.pi { gallerySinePhase -= 2 * Float.pi }
-                    let s = (sin(gallerySinePhase) + 0.25 * whistleNoise()) * gallerySmooth * gust * gust * wind * 0.04
+                if gallerySmooth > 1e-4 {       // wind round the gallery: a soft, broad band of noise (Q 1.5) whose centre rides the gust, never a pure tone
+                    let f = 2 * sin(.pi * (520 + 260 * ws) / sampleRate)
+                    gallLow += f * gallBand; let hi = whistleNoise() * 0.5 - gallLow - gallBand / 1.5; gallBand += f * hi
+                    let s = gallBand * gallerySmooth * ws * ws * windGain * 0.12
                     lmL += s * 0.7; lmR += s * 0.7
                 }
             }

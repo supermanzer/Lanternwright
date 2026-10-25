@@ -208,7 +208,7 @@ inline float cloud_fbm(float3 p, float lod) {
 
 // Returns density 0..1 at ground position `p` (metres, xz) at time t.
 inline float cloud_density(float2 p, float t, float lod) {
-    float2 q = p * 0.00022 + float2(t * 0.0035, t * 0.0012);        // wind drift
+    float2 q = p * 0.00022 + WIND_DIR * (t * 0.0037);        // drifts along the wind (Wind.direction)
     float warp = vnoiseV(float3(q * 2.3, 3.0)) - 0.5;                // warp so shapes aren't blobby
     float n = cloud_fbm(float3(q + warp * 0.35, t * 0.004), lod);    // z drifts slowly: clouds slowly evolve
     return smoothstep(0.43, 0.66, n);                                // threshold sets coverage

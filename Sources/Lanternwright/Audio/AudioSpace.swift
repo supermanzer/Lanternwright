@@ -99,14 +99,14 @@ enum AudioSpace {
         return SurfField(level: surfLevel(distance: nearest) * pow(10, surfSynthTrimDB(distance: nearest) / 20), meanDistance: nearest)
     }
 
-    /// What the ambient bed needs at a place (shared by the engine and the offline measurement).
+    /// What the ambient bed needs at a place (shared by the engine and the offline measurement). The WIND is not here: it is `Wind.strength` at the listener and the
+    /// game's clock, which changes every frame (see AudioEngine.feedWind); `windGain` is only the overall scale (1).
     struct Ambient: Equatable {
-        var windGain: Float, windAltitude: Float, surfGain: Float, surfFar: Float, surfAirCutoff: Float, shoreDistance: Float
+        var windGain: Float, surfGain: Float, surfFar: Float, surfAirCutoff: Float, shoreDistance: Float
     }
     static func ambient(at p: SIMD3<Float>, ground: (Float, Float) -> Float) -> Ambient {
         let field = surfField(at: p, ground: ground)
-        return Ambient(windGain: 0.18 + 0.55 * min(max(p.y / 70, 0), 1), windAltitude: smoothstep(8, 70, p.y),
-                       surfGain: 0.75 * field.level, surfFar: field.farness, surfAirCutoff: field.airCutoff, shoreDistance: field.meanDistance)
+        return Ambient(windGain: 1, surfGain: 0.75 * field.level, surfFar: field.farness, surfAirCutoff: field.airCutoff, shoreDistance: field.meanDistance)
     }
 
     static func read(listener p: SIMD3<Float>, yaw: Float, ground: (Float, Float) -> Float) -> Reading {

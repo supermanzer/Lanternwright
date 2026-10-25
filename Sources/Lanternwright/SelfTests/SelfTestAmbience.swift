@@ -57,9 +57,9 @@ extension SelfTestRunner {
             ("summit", Layout.summitStone),
             ("plinth", SIMD3(Layout.lighthouse.x, 0, Layout.lighthouse.z + 5.4)),
         ].map { ($0.0, SIMD3($0.1.x, ground($0.1.x, $0.1.z), $0.1.z)) }
-        func render(_ amb: AudioSpace.Ambient, surf: Bool, wind: Bool, seconds: Float = 60) -> [Float] {
+        func render(_ amb: AudioSpace.Ambient, at p: SIMD3<Float>, surf: Bool, wind: Bool, seconds: Float = 60) -> [Float] {
             let s = AmbienceSynth(sampleRate: sr)
-            s.windGain = wind ? amb.windGain : 0; s.windAltitude = amb.windAltitude
+            s.windGain = wind ? amb.windGain : 0; s.windSource = { Wind.strength(at: p, time: $0) }
             s.surfGain = surf ? amb.surfGain : 0; s.surfFar = amb.surfFar; s.surfAirCutoff = amb.surfAirCutoff
             s.master = 1
             var out: [Float] = []
@@ -71,8 +71,8 @@ extension SelfTestRunner {
         var table: [(String, AudioSpace.Ambient, AmbienceMeasure, AmbienceMeasure, AmbienceMeasure)] = []
         for (nm, p) in places {
             let amb = AudioSpace.ambient(at: p, ground: ground)
-            table.append((nm, amb, Self.measureAmbience(render(amb, surf: true, wind: false), sampleRate: sr), Self.measureAmbience(render(amb, surf: false, wind: true), sampleRate: sr),
-                          Self.measureAmbience(render(amb, surf: true, wind: true), sampleRate: sr)))
+            table.append((nm, amb, Self.measureAmbience(render(amb, at: p, surf: true, wind: false), sampleRate: sr), Self.measureAmbience(render(amb, at: p, surf: false, wind: true), sampleRate: sr),
+                          Self.measureAmbience(render(amb, at: p, surf: true, wind: true), sampleRate: sr)))
         }
         if name == "ambience" {
             print("place       coast  | surf: rms   centroid depth  >800Hz | wind: rms   centroid flatness | both: rms centroid flatness")

@@ -5,7 +5,7 @@ import Metal
 /// so shaders live as Swift strings and are compiled at runtime with makeLibrary(source:).
 enum ShaderLibrary {
     static var sources: [String] {
-        [CommonShaders.source, SkyShaders.source, MaterialShaders.source, GroundShaders.source, LitShaders.source, GrassShaders.source, WaterShaders.source, CrystalShaders.source, MistShaders.source, BeamShaders.source, PostShaders.source]
+        [CommonShaders.source, WindShaders.source, SkyShaders.source, MaterialShaders.source, GroundShaders.source, LitShaders.source, GrassShaders.source, WaterShaders.source, CrystalShaders.source, MistShaders.source, BeamShaders.source, PostShaders.source]
     }
 
     static func make(device: MTLDevice) -> MTLLibrary {
@@ -42,5 +42,27 @@ enum ShaderLibrary {
             exit(1)
         }
         return f
+    }
+}
+
+/// The wind as Metal: generated from `Wind`'s constants so the grass, the trees, the clouds and the audio can never disagree (F02 A3).
+enum WindShaders {
+    static var source: String {
+        Wind.mslSource + """
+        // Conifer sway (F02 A3). A tree's vertices carry a sway weight q = (height above the ground) / (tree height), 0...1, packed into position.w (see Common/Lit): the
+        // crown leans along the wind by q^2 and rocks a little. The SAME function runs in the main and the shadow vertex shaders, so shadows follow the bend.
+        inline float3 tree_sway(float3 wp, float q, float t) {
+            if (q <= 0.0) return wp;
+            float s = wind_strength(wp, t);
+            float q2 = q * q;
+            wp.xz += WIND_DIR * (q2 * (0.06 + 0.40 * s));
+            wp.xz += float2(sin(t * 1.7 + wp.x * 0.7 + wp.z * 0.5), cos(t * 1.3 + wp.z * 0.6)) * (q2 * 0.06 * (0.3 + s));
+            return wp;
+        }
+        // position.w of a vertex: 1 for ordinary geometry; a tree vertex carries 3 + stagger (stagger -1...1) + 4 * round(7 q).
+        inline float vertex_stagger(float w) { return w > 1.5 ? (w - 2.0) - 4.0 * floor((w - 2.0) / 4.0) - 1.0 : 0.0; }
+        inline float vertex_sway(float w) { return w > 1.5 ? floor((w - 2.0) / 4.0) / 7.0 : 0.0; }
+
+        """
     }
 }

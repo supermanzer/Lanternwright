@@ -18,7 +18,7 @@ final class SelfTestRunner {
 enum SelfTest {
     static func run(_ name: String, device: MTLDevice) -> Bool {
         let r = SelfTestRunner(name: name, device: device)
-        r.runCore(); r.runWorld(); r.runAudio(); r.runGame(); r.runControls(); r.runApproach(); r.runCollision(); r.runSteps(); r.runAmbience(); r.runSurf(); r.runHollowness(); r.runSplash(); r.runBots()
+        r.runCore(); r.runWorld(); r.runAudio(); r.runGame(); r.runControls(); r.runApproach(); r.runCollision(); r.runSteps(); r.runAmbience(); r.runSurf(); r.runWind(); r.runHollowness(); r.runSplash(); r.runBots()
         return r.ok
     }
 }

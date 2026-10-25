@@ -130,7 +130,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, MTKViewDelegate {
         if sampled.escapePressed && overlay.menuOpen { resumePlaying() }
         game.advance(now: now, input: sampled)
         renderer.world = game.world                                        // draw the world the player is in
-        renderer.mistScale = game.mistScale; renderer.beamIntensity = game.beamAmount
+        renderer.mistScale = game.mistScale; renderer.beamIntensity = game.beamAmount; renderer.worldTime = Renderer.windClock(game: game)
         syncOverlay(now: now)
         if now - lastSave > 15 { lastSave = now; writeSave() }          // autosave (position changes constantly)
         if saveDirty { writeSave() }                                    // progress events save immediately

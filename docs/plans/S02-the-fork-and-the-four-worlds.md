@@ -20,7 +20,7 @@ Act II  Tide Archive ► Salt Flats of the Two Lamps ► The Drift ► The Lamp 
         (same four worlds either way; each is met through the chosen sibling's eyes)
 ```
 
-**Hub.** Varrow stays the hub: the player can return between worlds. The exit not chosen stays sealed for this playthrough (the lamp has answered, or the portal has turned, and the other cannot be un-done), and is visible, so the player knows what they did not take.
+**Hub.** Varrow stays the hub: the player can return between worlds. The exit not chosen is **sealed for good** (user decision): the lamp has answered, or the portal has turned, and the other cannot be undone. It stays visible, so the player knows what they did not take, and the only way to take it is to start a new game.
 
 ## 2. The fork
 
@@ -34,7 +34,7 @@ The door that has been locked since the start ("The keeper took the key with her
 A freestanding arch at the end of the dock, dormant since the start (visible from the first frame, unexplained). It opens when the player **turns the lighthouse's sweep beam onto it**: two or three mirror stands on the shore (Glass Wood skill) redirect the beam to a receiver on the arch. Stepping through begins Oren's route.
 
 ### 2.4 After choosing
-The choice is saved (`path_ilse` or `path_oren`). The player may still walk Varrow, read all pages and use the Contradictions notebook. **Optional (decision 1 in section 6): a "Second Reading"** after the finale restarts Act II from the fork with the other perspective, keeping the journal and notebook.
+The choice is saved (`path_ilse` or `path_oren`). The player may still walk Varrow, read all pages and use the Contradictions notebook. **After the ending the game invites the player to start again** and make different decisions (user decision, 2026-10-25). There is no Second Reading mode and no carry-over: the invitation is a quiet closing line and a New Game option, and the choice is sealed for good in a playthrough (section 6).
 
 ## 3. How "perspective" works (same worlds, different eyes)
 
@@ -65,19 +65,36 @@ Each has **one optical or tonal property**, one **key puzzle with two solutions*
 
 **Difficulty ramp.** The slice taught one order. The Glass Wood added reflection. The Tide Archive adds time (tide levels) and a held tone; the Salt Flats two simultaneous systems; the Drift removes the hints the player has come to rely on (darkness, tone only); the finale asks for both skills together. Observable cause and effect always: a failed attempt changes something seen or heard.
 
-**Endings (proposal, decision 2):** the chosen sibling's perspective determines the epilogue world state and the closing page, which is written by the **other** sibling and reveals what they omitted. A third, reconciling ending (the lamp tuned by both tones, which needs the other route's tool, learned by solving the optional second solutions) exists only if the user wants it; it must be a consequence of how much the player understood, not a trap, and must not make either chosen path feel wrong.
+**Endings (decided):** three, and the player is told about only two. The chosen sibling's perspective determines the epilogue world state and the closing page, which is written by the **other** sibling and reveals what they omitted. A **third, reconciling ending** exists and is deliberately **not obvious or clear right away** (user decision): it is drafted in section 8. It is a consequence of how much the player understood, not a trap, and it must not make either chosen path feel wrong.
 
-## 6. Decisions still open for the user
-1. **Second Reading:** after the finale, offer to replay Act II from the fork with the other perspective (keeps journal and notebook)? It doubles how much of the story a player can see.
-2. **Endings:** strictly two (one per route), or two plus a reconciling one reachable by learning both ways?
-3. **The teacher (Maren):** lost and gone, alive in a drifting pocket (the Drift), or left ambiguous?
-4. **Do the exits close each other?** As written, the unchosen exit stays sealed. Alternative: after finishing, the other opens (a New Game Plus without a restart).
+## 6. Decisions (all answered by the user, 2026-10-25)
+1. **Replay:** after the ending the game invites the player to start again and play with different decisions. No Second Reading mode.
+2. **Endings:** two routes plus a reconciling third that is **not obvious or clear right away** (section 8).
+3. **The teacher (Maren):** **left ambiguous.** The Drift must show a pocket with a lantern still faintly burning and no conclusion: no body, no voice, no confirmation either way. Every account of her fate is a belief, never a fact.
+4. **Exits:** the unchosen exit is **sealed for good**; the player must replay to choose differently.
+
+Still open: nothing blocking Phase 1. Section 8's details (the third ending's clues) are drafts for the user to react to.
 
 ## 7. Build order (phases; one plan per phase; each ends with a playtest by the user)
 **Phase 1 (ready for the builder after F02): story infrastructure and the fork.** Data-driven pages with author tags; journal tabs (Ilse, Oren, Notebook) and unread markers; `path_*` and `glyphsKnown` in the save; the gate; the **Lighthouse interior** and the **tone-plate door**; the **dock portal** and the **beam-turning receiver**; the two route entries into the existing Glass Wood world reused as a placeholder destination so the fork is testable now; revisions R1 to R4 and the early Ilse page; the Contradictions notebook with two or three contradictions already available from existing pages; reachability bots for both routes; save-version bump. No new world yet.
 **Phase 2:** The Tide Archive. **Phase 3:** The Salt Flats. **Phase 4:** The Drift. **Phase 5:** The Lamp at the End of the Chain and the endings. Each phase gets its own plan written by the reviewer after the user plays the previous one.
 
 **Hard requirements for all story content:** every page on the critical path is impossible to miss (size, glow, sound, banner, unread marker; see the F02 P0 for pages); no cutscenes, no voice, no external assets; no fail state; the existing eight pages are canon plus the approved revisions; both siblings are defensible, each right about something and wrong about something; story reachability is a selftest.
+
+## 8. The reconciling third ending (draft, for the user to react to)
+
+**Principle.** No menu, no marker, no page that says it exists. A player on either route can finish the game without ever suspecting it. It is found by *noticing*, which fits fair mystery (every clue is in the world, near where it is used), and it is not the "good ending": it has its own cost, and the two sibling endings stay fully valid.
+
+**What it is.** At the Lamp at the End of the Chain two stands are tuned an interval apart: Ilse's stand (patient, in order) and Oren's (turned, reflected). Each ending is completed at its own stand. The third ending is completed **between them**: the two tones played together make a third tone that neither stand makes alone (the interference property from the Salt Flats, a **beat** that only exists when both sound). The chain is then tuned by both siblings' ways at once.
+
+**Requirements (all silent):**
+1. **Both ways known.** The player has solved the *other* sibling's solution in at least three of the four worlds' key puzzles (the optional second solutions of section 3, lever 4). On Ilse's route, that means having turned light; on Oren's, having held tones.
+2. **The three Long Fog contradictions resolved** in the Contradictions notebook toward "neither was at fault: they were apart" (the three-at-a-time confirmation applies).
+3. **Noticing the place.** The midpoint between the stands is marked only by sound: standing there, a faint third tone beats against the drone. The player has been trained to listen for beats in the Salt Flats and the Drift, and the shadow-play tableaux of the Long Fog show the two figures' lamps overlapping once. No prompt tells the player to stand there.
+
+**The cost (so it is not a "best" ending).** The chain holds *and* it can carry, but only as far as two keepers can walk and only while two keep it: neither sibling can leave the other again, and the player, having shown how, is the third who must keep the pair's lamps. The closing page is written by both siblings, in two hands, and says what each gave up. The epilogue world state shows both lamps lit and a path that leads nowhere in particular.
+
+**Risks and checks.** (a) A player who never finds it must still feel the two endings are complete: so nothing in them mentions it. (b) It must not become a walkthrough meme with no weight: the cost keeps it a choice. (c) Selftests: the third ending is reachable from a save that has met all requirements and unreachable otherwise; the beat tone exists only when both stands sound.
 
 ## Appendix: drafts for the approved page revisions (for the user to edit)
 - **Page 5, new first sentence (R1):** "The week before the fog, I went through the lens first."

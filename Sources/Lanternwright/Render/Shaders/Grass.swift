@@ -90,11 +90,12 @@ vertex LitOut grass_vertex(uint vid [[vertex_id]], uint iid [[instance_id]],
     // Wind: a travelling wave plus per-blade flutter, bending the upper part more (bend ~ t^2).
     float time = frame.cameraPos.w;
     float wave = sin(dot(xz, float2(0.35, 0.21)) + time * 1.7) * 0.6 + sin(dot(xz, float2(-0.8, 0.5)) + time * 2.9 + hr * 6.0) * 0.4;
-    float bend = (0.22 + 0.16 * hr) + 0.16 * wave;                              // each blade arcs over a little
+    float bend = (0.22 + 0.16 * hr) + 0.16 * wave * (0.45 + 0.9 * wind_strength(float3(xz.x, y, xz.y), time));                              // each blade arcs over a little
     float3 wp = float3(xz.x, y, xz.y);
     wp.xz += side * sideSign * width * taper;
     wp.xz += facing * (bend * height * t * t);
-    wp.xz += gp.wind.xy * (gp.wind.z * 0.30 * height * t * t);              // the blades lean along the wind, more in a gust
+    float ws = wind_strength(float3(xz.x, y, xz.y), time);                  // THIS blade's wind: a gust is a band travelling across the meadow at 9 m/s (Wind.swift)
+    wp.xz += WIND_DIR * (ws * 0.9 * height * t * t);                       // the blades lean along the wind, much more in a gust
     wp.y += height * t - 0.4 * bend * bend * height * t * t;      // bending shortens the blade slightly
 
     // Colour: the terrain's lush/parched patches (same large-scale noise) with a dark root and a pale tip.

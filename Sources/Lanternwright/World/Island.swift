@@ -295,7 +295,13 @@ enum Island {
                     var cell = cells[lod][key] ?? MeshBuilder()
                     let start = cell.vertices.count
                     cell.append(mesh, transform: m)
-                    cell.adjust(from: start) { $0.position.w = stagger }              // the same stagger on every level of this tree (see tree_lod_level)
+                    // The same stagger on every level of this tree (see tree_lod_level), and the sway weight q (height above the ground over the tree's height, in 7 steps)
+                    // packed on top of it: position.w = 3 + stagger + 4 * round(7 q). Fallen and dead trunks do not sway. Decoded by vertex_stagger/vertex_sway (WindShaders).
+                    let swayTree = !(fallen || dead)
+                    cell.adjust(from: start) { v in
+                        let q = swayTree ? min(max((v.position.y - at.y) / max(height, 1), 0), 1) : 0
+                        v.position.w = stagger + 4 * (q * 7).rounded()
+                    }
                     if lod == 0 && !fallen { placed.append(Placement.record(kind: "trunk", mesh: mesh, transform: m)) }
                     cells[lod][key] = cell
                 }

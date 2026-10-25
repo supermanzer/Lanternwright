@@ -68,7 +68,7 @@ extension Renderer {
         let viewProj = camera.proj(aspect: aspect) * camera.view
         frame.viewProj = viewProj
         frame.invViewProj = viewProj.inverse
-        let t = fixedTime ?? Float(Date().timeIntervalSince(startTime))
+        let t = clock
         frame.cameraPos = SIMD4(camera.position, t)
         let wp = params
         let sun = Renderer.sunDirection(elevationDeg: wp.sunElevation, azimuthDeg: wp.sunAzimuth)

@@ -50,8 +50,16 @@ final class AudioEngine {
         }
     }
 
-    /// Called every frame; does real work about 8 times a second.
+    /// The wind the listener is standing in, 0...1: the shared field at the feet and the GAME's clock (the same inputs the grass and trees get, so a gust you see
+    /// is the gust you hear). Static so the selftests can drive exactly what the engine drives.
+    static func windInput(game: Game) -> Float { Wind.strength(at: game.player.position, time: game.time) }
+    /// How much grass is underfoot (the wind only rustles where there is something to rustle).
+    static func vegetationInput(game: Game) -> Float { game.surfaceMix.mix[StepMaterial.grass.rawValue] }
+
+    /// Called every frame; does real work about 8 times a second (the wind is fed every frame).
     func update(now: Double, game: Game) {
+        synth.windStrength = AudioEngine.windInput(game: game)
+        synth.vegetation = AudioEngine.vegetationInput(game: game)
         if game.footfalls != lastFootfalls {
             lastFootfalls = game.footfalls
             synth.stepSurface = game.currentSurface
@@ -68,11 +76,9 @@ final class AudioEngine {
         // In the Glass Wood the breeze sets the crystal trees shimmering now and then (about once every 8 s).
         if game.world == .glassWood && Float.random(in: 0..<1) < 0.125 / 8 { synth.play(.glassAmbient) }
         let p = game.player.position
-        // Wind is stronger up high and in the open.
         let sc = game.scene
         let amb = AudioSpace.ambient(at: p, ground: { sc.groundHeight(x: $0, z: $1) })
         synth.windGain = amb.windGain
-        synth.windAltitude = amb.windAltitude
         let space = AudioSpace.read(listener: p, yaw: game.player.yaw, ground: { sc.groundHeight(x: $0, z: $1) })
         synth.reverbSeconds = AudioSpace.reverbTime(openness: space.openness)
         synth.surfPan = space.surfPan; synth.surfOcclusion = space.surfOcclusion

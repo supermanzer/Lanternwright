@@ -7,7 +7,9 @@ vertex float4 shadow_vertex(uint vid [[vertex_id]],
                             device const Vertex* verts [[buffer(0)]],
                             constant FrameUniforms& frame [[buffer(1)]],
                             constant ObjectUniforms& obj [[buffer(2)]]) {
-    return frame.sunViewProj * (obj.model * float4(verts[vid].position.xyz, 1.0));
+    float4 wp = obj.model * float4(verts[vid].position.xyz, 1.0);
+    wp.xyz = tree_sway(wp.xyz, vertex_sway(verts[vid].position.w), frame.cameraPos.w);
+    return frame.sunViewProj * wp;
 }
 
 // R09: true only in the pipeline variant that draws tree LOD objects (see ShaderLibrary.function(lodDither:)).
@@ -34,13 +36,14 @@ vertex LitOut lit_vertex(uint vid [[vertex_id]],
         localPos.y += sin(frame.cameraPos.w * 9.0 + obj.tint.w) * wing * 0.32;
     }
     float4 wp = obj.model * float4(localPos, 1.0);
+    wp.xyz = tree_sway(wp.xyz, vertex_sway(v.position.w), frame.cameraPos.w);
     LitOut o;
     o.position = frame.viewProj * wp;
     o.worldPos = wp.xyz;
     o.normal = (obj.model * float4(v.normal.xyz, 0.0)).xyz;   // uniform scale assumed
     o.color = float4(v.color.rgb * obj.tint.rgb, v.color.a);
     o.material = v.normal.w;
-    o.stagger = v.position.w > 1.5 ? v.position.w - 3.0 : 0.0;      // tree vertices carry 3 + stagger (-1...1) in position.w; everything else has w = 1
+    o.stagger = vertex_stagger(v.position.w);      // tree vertices carry 3 + stagger (-1...1) + 4 * round(7 sway) in position.w; everything else has w = 1
     return o;
 }
 

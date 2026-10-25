@@ -45,6 +45,7 @@ struct LaunchOptions {
     var auditPropsOut: String?
     var auditProps = false
     var listPages = false
+    var clock: Float = 12
     var auditSlopes = false
     var approachTarget: String?
     var approachRange: (start: Float, min: Float, factor: Float)?
@@ -70,6 +71,7 @@ struct LaunchOptions {
       --approach <target|all> <out>  Continuous-detail measurement: walk toward a target, write a contact sheet and luma/high-frequency numbers
       --approach-range <start> <min> <factor>  with --approach: override the distances (e.g. 90 30 0.97 to walk through the tree LOD band)
       --hard-lod                   Debug: switch tree LODs instantly (the pre-R09 behaviour), for before/after measurements
+      --clock T                    Screenshot clock in seconds (default 12): the wind, the grass and the trees depend on it
       --list-pages                 Print where each of the eight journal pages stands (world, lectern foot, what makes it appear)
       --audit-props [out.md]       List every scene item with its materials and flag large props drawn flat (docs/PROPS.md)
       --controls-md                Print the README controls table, generated from App/Controls.swift
@@ -124,6 +126,9 @@ struct LaunchOptions {
             case "--dump-overlay": o.dumpOverlayBase = next()
             case "--audit-slopes": o.auditSlopes = true
             case "--list-pages": o.listPages = true
+            case "--clock":
+                guard let t = Float(next()) else { fail("--clock expects seconds") }
+                o.clock = t
             case "--audit-props": o.auditProps = true; if i + 1 < args.count, !args[i + 1].hasPrefix("--") { o.auditPropsOut = next() }
             case "--approach": o.approachTarget = next(); o.approachOut = next()
             case "--approach-range": o.approachRange = (Float(next()) ?? 80, Float(next()) ?? 30, Float(next()) ?? 0.97)
