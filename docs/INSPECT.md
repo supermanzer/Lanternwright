@@ -121,7 +121,8 @@ How to play: `scripts/bundle.sh && open Lanternwright.app`. Headless views: `.bu
 - `--view lh-base` (varied blocks, chipped edges), `--view shore` (patchy meadow, ragged sand edge), `--view dock-close` (grey post tops), `--view ground-slope`, and the islet from the causeway end (paved ring). Settled bench vs before: about +0.2 to +0.35 ms.
 
 ## Questions for the user (not decided by anyone but you)
-1. **The door.** Is the locked door (phase 1: you try it, it rattles, a keeper's line) enough, or do you want the abandoned interior (phase 2) behind it after the island puzzle is solved?
+Decided on 2026-10-25 (F02): **the door** is final as a locked door, the interior is NOT built; **the drone** (A4) uses different tones for different worlds (shore and island, and each Refraction such as the Glass Wood), all from `ToneTable`; **TAA** is accepted (a slight softness on fast turns for stable fine detail).
+1. **The water edge (#29, answered by the builder, still the user's call).** See the F02 section below for what the object is; do you want it to stay as a feature once it looks like water?
 2. **Slipping on steep slopes.** Do you want to try it (a setting, default off): beyond about 40 degrees you slide gently downhill until the ground is gentler, never any harm? What angle feels right?
 3. **Conifers.** Stylised drooping sprays (cheap, clean, painterly) or needle-level (alpha-tested needle cards, which needs alpha-to-coverage or MSAA and costs frame time). Still undecided.
 4. **The ending of the story.** Still yours: nothing has been built or decided.

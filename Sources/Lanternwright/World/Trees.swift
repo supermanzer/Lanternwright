@@ -14,6 +14,8 @@ enum Trees {
     enum Style { case pine, cypress }
     static let variantCount = 16
     static let nominalHeight: Float = 9
+    /// How far (tree-local metres, before the tree's height scale) a trunk continues below its pivot, hidden by the terrain (F02 G1).
+    static let buriedDepth: Float = 1.5
 
     private static var cache: [Int: MeshBuilder] = [:]
     /// A fallen cone lying on its side, 5-9 cm long: its underside (the lower generatrix) at local y = 0, pointing along +Z, base end first. Place with Placement.lay.
@@ -67,7 +69,10 @@ enum Trees {
         func trunkR(_ t: Float) -> Float { r0 * (1 - 0.84 * t) * (1 + 0.6 * exp(-t * 16)) }
         let bark = Surface(color: SIMD3(0.21, 0.145, 0.10) * (0.85 + 0.3 * r(1, 6)), roughness: 0.95, material: lod == 0 ? .bark : .standard)
         let ts: [Float] = lod == 0 ? [0, 0.03, 0.08, 0.18, 0.35, 0.55, 0.75, 0.9, 1.0] : [0, 0.12, 0.5, 1.0]
-        b.tube(points: ts.map(trunkAt), radii: ts.map(trunkR), sides: lod == 0 ? 8 : 5, surface: bark)
+        // F02 G1: the trunk simply carries on straight down below y = 0 (same radius as its base, same bark): the terrain hides the buried part, so no
+        // footing or collar is needed and no gap can show on a slope.
+        let b0 = trunkAt(0)
+        b.tube(points: [SIMD3(b0.x, -buriedDepth, b0.z)] + ts.map(trunkAt), radii: [trunkR(0)] + ts.map(trunkR), sides: lod == 0 ? 8 : 5, surface: bark)
 
         // (The litter at the foot, cones and twigs, is no longer baked in here: on a slope it floated. See Trees.litterCone / litterTwig and Island.addTrees,
         // which place each piece on the terrain under it.)
@@ -211,8 +216,9 @@ enum Trees {
         let r0 = nominalHeight * 0.032
         let ts: [Float] = [0, 0.05, 0.2, 0.45, 0.75, 1.0]
         let lean = SIMD2<Float>(r(1, 2) - 0.5, r(1, 3) - 0.5) * 0.6
-        b.tube(points: ts.map { SIMD3(lean.x * $0 * $0, $0 * H, lean.y * $0 * $0) },
-               radii: ts.map { r0 * (1 - 0.7 * $0) * (1 + 0.5 * exp(-$0 * 14)) }, sides: lod == 0 ? 7 : 5, surface: bark)
+        let rad = { (t: Float) in r0 * (1 - 0.7 * t) * (1 + 0.5 * exp(-t * 14)) }
+        b.tube(points: [SIMD3(0, -buriedDepth, 0)] + ts.map { SIMD3(lean.x * $0 * $0, $0 * H, lean.y * $0 * $0) },
+               radii: [rad(0)] + ts.map(rad), sides: lod == 0 ? 7 : 5, surface: bark)
         for i in 0..<(lod == 0 ? 6 : 3) {
             let t = 0.35 + 0.55 * Float(i) / 6 + 0.05 * r(i, 4)
             let a = r(i, 5) * 2 * .pi

@@ -3,7 +3,7 @@ import simd
 /// How things meet the ground (F01 W3.5 and W3.6). Two rules, both from sampling the terrain under the object's whole footprint, never just its centre:
 ///
 /// - **Props that stand upright** (lanterns, stones, pillars, tree trunks): the pivot sits at the HIGHEST ground under the footprint, the prop stays vertical,
-///   and a **foundation skirt** (a tapering footing plus a soil apron) reaches down to the LOWEST sample plus a margin, so the downhill side is never in the air.
+///   and a straight **foundation extension** (the prop's own base carried down, no flare, no apron) reaches down to the LOWEST sample plus a margin, so the downhill side is never in the air.
 /// - **Pieces that lie on the ground** (cones, twigs, pebbles, shells, driftwood, rocks): the piece takes the slope's tilt and its pivot is dropped to the
 ///   LOWEST residual of the ground against that plane, then sunk a little, so no part floats and the high side is just buried.
 ///
@@ -33,17 +33,14 @@ enum Placement {
         return Samples(centre: c, high: hi, low: lo, normal: terrain.normal(x: x, z: z))
     }
 
-    /// Footing for an upright prop whose pivot is at `high`: local y = 0 is the prop's base, the skirt runs down to the lowest ground + `margin`.
-    /// `radius` is the prop's base radius; `surface` the footing's look (stone for lanterns, bark for trunks).
-    static func skirt(radius: Float, depth: Float, margin: Float = 0.15, apron: Bool = true, surface: Surface, earth: Surface = Surface(color: SIMD3(0.21, 0.15, 0.09), roughness: 0.95)) -> MeshBuilder {
+    /// Footing for an upright prop whose pivot is at `high`: local y = 0 is the prop's base. F02 G1: the embedding is a plain straight extension of the
+    /// prop's own base (same radius, same material, no flare and no separate apron), running down to the lowest ground + `margin`, so no gap can show
+    /// on any slope. The terrain hides the buried part. (Tree trunks do not use this: the trunk tube itself is extended, see Trees.conifer.)
+    static func skirt(radius: Float, depth: Float, margin: Float = 0.3, surface: Surface) -> MeshBuilder {
         var b = MeshBuilder()
         let total = depth + margin
-        // The footing: from just inside the base (so it overlaps it), widening a little toward the bottom.
-        b.cylinder(radiusTop: radius * 1.02, radiusBottom: radius * 1.18, height: total + 0.04, segments: 10, smooth: true, caps: false, surface: surface,
+        b.cylinder(radiusTop: radius, radiusBottom: radius, height: total + 0.04, segments: 10, smooth: true, caps: false, surface: surface,
                    transform: translation(SIMD3(0, -total, 0)))
-        // The apron: a low soil mound around the foot that blends it into the slope (its top edge is a little above the pivot ground).
-        if apron { b.cone(radius: radius * 2.2, height: min(total * 0.55 + 0.05, 0.5), segments: 10, smooth: true, surface: earth,
-               transform: translation(SIMD3(0, -total * 0.9, 0))) }
         return b
     }
 

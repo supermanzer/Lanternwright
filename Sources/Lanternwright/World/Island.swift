@@ -174,16 +174,19 @@ enum Island {
                 if stoneClear {
                     let y = scene.terrain.sampleHeight(x: c.x, z: c.y)
                     let yaw = noise.unit(Int32(c.x), Int32(c.y)) * 2 * .pi
-                    // F01 W3.5: the lantern stays vertical, its pivot at the highest ground under the base, and a stone footing with a soil apron reaches
+                    // F01 W3.5: the lantern stays vertical, its pivot at the highest ground under the base, and a straight stone extension of its own base reaches
                     // down to the lowest, so the base meets the slope on every side.
                     let up = Placement.upright(terrain: scene.terrain, x: c.x, z: c.y, radius: 0.36, yaw: yaw)
                     let m = up.transform
                     body.append(bodyProto, transform: m)
                     core.append(coreProto, transform: m)
-                    let foot = Placement.skirt(radius: 0.30, depth: up.depth, surface: Surface(color: SIMD3(0.50, 0.47, 0.43), roughness: 0.9, material: .dressed))
+                    // The lantern's base is a 0.55 m square stone block: the footing is that same block carried straight down (no flare, no apron).
+                    var foot = MeshBuilder()
+                    let drop = up.depth + 0.3
+                    foot.chamferBox(size: SIMD3(0.55, drop + 0.12, 0.55), chamfer: 0.025, surface: Surface(color: SIMD3(0.58, 0.55, 0.50), roughness: 0.85, material: .dressed),
+                                    transform: translation(SIMD3(0, 0.06 - drop / 2, 0)))
                     body.append(foot, transform: m)
-                    let footing = Placement.skirt(radius: 0.30, depth: up.depth, apron: false, surface: Surface(color: SIMD3(0.50, 0.47, 0.43), roughness: 0.9, material: .dressed))
-                    scene.placed.append(Placement.record(kind: "lantern", mesh: footing, transform: m))
+                    scene.placed.append(Placement.record(kind: "lantern", mesh: foot, transform: m))
                     scene.colliders.addCylinder(center: c, radius: 0.3, minY: y - 1, maxY: y + 2)
                 }
                 s += 18
@@ -278,7 +281,7 @@ enum Island {
                 let la = noise.unit(Int32(count), 73) * 2 * .pi
                 let tilt = fallen ? SIMD2<Float>(0, .pi / 2 - 0.05) : SIMD2(lean * cos(la), lean * sin(la))
                 let shade = SIMD3(repeating: 0.8 + 0.4 * noise.unit(Int32(count), 61)) * SIMD3<Float>(1, 1 + 0.15 * (r2 - 0.5), 1 - 0.1 * (r1 - 0.5))
-                // The pivot sits at the highest ground under the trunk (the trunk is sunk 10 cm there) and a footing reaches down to the lowest (Placement).
+                // The pivot sits at the highest ground under the trunk (the trunk is sunk 10 cm there) and the trunk mesh itself runs on down below the lowest ground under it (F02 G1: no collar).
                 let sm = Placement.samples(terrain: terrain, x: p.x, z: p.y, radius: 0.55 * width)
                 let at = fallen ? SIMD3(p.x, y + 0.25, p.y) : SIMD3(p.x, sm.high - 0.1, p.y)
                 let yaw = r3 * 6.28
@@ -293,17 +296,7 @@ enum Island {
                     let start = cell.vertices.count
                     cell.append(mesh, transform: m)
                     cell.adjust(from: start) { $0.position.w = stagger }              // the same stagger on every level of this tree (see tree_lod_level)
-                    if !fallen {
-                        let foot = Placement.skirt(radius: 0.5 * width, depth: max(0.05, sm.high - 0.1 - sm.low), surface: Surface(color: SIMD3(0.19, 0.13, 0.09) * (0.9 + 0.2 * r1), roughness: 0.95))
-                        let ft = translation(at) * rotationY(yaw)
-                        let s0 = cell.vertices.count
-                        cell.append(foot, transform: ft)
-                        cell.adjust(from: s0) { $0.position.w = stagger }
-                        if lod == 0 {
-                            let footing = Placement.skirt(radius: 0.5 * width, depth: max(0.05, sm.high - 0.1 - sm.low), apron: false, surface: Surface(color: SIMD3(0.19, 0.13, 0.09), roughness: 0.95))
-                            placed.append(Placement.record(kind: "trunk", mesh: footing, transform: ft))
-                        }
-                    }
+                    if lod == 0 && !fallen { placed.append(Placement.record(kind: "trunk", mesh: mesh, transform: m)) }
                     cells[lod][key] = cell
                 }
                 if !fallen { colliders.append((SIMD2(p.x, p.y), y, height)) }

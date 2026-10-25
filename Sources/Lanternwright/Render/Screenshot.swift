@@ -101,14 +101,7 @@ enum Screenshot {
         renderer.autoExposure = options.autoExposure
         if let w = options.world { renderer.world = w } else if options.viewName?.hasPrefix("gw-") == true { renderer.world = .glassWood }
         if let g = applyState(options.state, scenes: renderer.scenes) { renderer.mistScale = g.mistScale; renderer.beamIntensity = g.beamAmount }
-        let camera = options.camera
-            ?? (options.viewName == "tree-close" ? Viewpoints.treeClose(terrain: renderer.scene.terrain) : nil)
-            ?? (options.viewName == "page-close" ? Viewpoints.pageClose(terrain: renderer.scene.terrain) : nil)
-            ?? (options.viewName == "rock-close" ? Viewpoints.rockClose(scene: renderer.scene) : nil)
-            ?? (options.viewName == "lantern-close" ? Viewpoints.lanternClose(scene: renderer.scene) : nil)
-            ?? options.viewName.flatMap { Viewpoints.ground($0, terrain: renderer.scenes[.varrow]!.terrain) }
-            ?? options.viewName.flatMap(Viewpoints.named)
-            ?? Viewpoints.named("overview")!
+        let camera = options.camera ?? Self.viewCamera(options.viewName, renderer: renderer)
 
         // Several frames so time-dependent or temporally accumulated effects settle.
         for _ in 0..<options.frames {
@@ -120,6 +113,23 @@ enum Screenshot {
         }
 
         try writePNG(texture: target, to: path)
+    }
+
+    /// The camera for a named view: the terrain-dependent ones first, then the fixed ones, then the overview.
+    static func viewCamera(_ name: String?, renderer: Renderer) -> Camera {
+        let terrain: Terrain = renderer.scene.terrain
+        guard let name else { return Viewpoints.named("overview")! }
+        switch name {
+        case "tree-close": return Viewpoints.treeClose(terrain: terrain)
+        case "page-close": return Viewpoints.pageClose(terrain: terrain)
+        case "rock-close": return Viewpoints.rockClose(scene: renderer.scene)
+        case "lantern-close": return Viewpoints.lanternClose(scene: renderer.scene)
+        case "pillar-close", "pillar-far": return Viewpoints.pillarClose(terrain: terrain, far: name == "pillar-far")
+        default: break
+        }
+        if let c = Viewpoints.treeBase(terrain: terrain, name: name) { return c }
+        if let c = Viewpoints.ground(name, terrain: renderer.scenes[.varrow]!.terrain) { return c }
+        return Viewpoints.named(name) ?? Viewpoints.named("overview")!
     }
 
     static func writePNG(texture: MTLTexture, to path: String) throws {

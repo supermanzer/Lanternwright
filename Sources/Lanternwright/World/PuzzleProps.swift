@@ -143,10 +143,12 @@ enum PuzzleProps {
             let m = translation(SIMD3(6.5 * cos(a), 0, 6.5 * sin(a))) * rotationY(a + 0.4 * n.unit(Int32(i), 8))
             let rb = 0.55 + 0.1 * n.unit(Int32(i), 9), rt = rb * (0.62 + 0.15 * n.unit(Int32(i), 10))
             b.chamferBox(size: SIMD3(rb * 2.5, 0.35, rb * 2.5), chamfer: 0.06, surface: dark, transform: m * translation(SIMD3(0, 0.0, 0)))              // footing
-            if broken {                                                                    // stump + a fallen upper part lying beside it
-                b.cylinder(radiusTop: rt * 1.1, radiusBottom: rb, height: h * 0.45, segments: 6, smooth: false, surface: stone, transform: m * translation(SIMD3(0, 0.1, 0)))
-                b.cylinder(radiusTop: rt * 0.9, radiusBottom: rt * 1.1, height: h * 0.5, segments: 6, smooth: false, surface: stone,
-                           transform: m * translation(SIMD3(1.3, 0.35, 0.4)) * rotationZ(.pi / 2 - 0.12) * rotationY(0.4))
+            if broken {                                                                    // F02 G2: a stump and a fallen part that respect each other (BrokenPillar)
+                let ground: (Float, Float) -> Float = { x, z in scene.terrain.sampleHeight(x: c.x + x, z: c.z + z) - c.y }
+                let r = BrokenPillar.build(index: i, centre: SIMD3(6.5 * cos(a), 0, 6.5 * sin(a)), yaw: a + 0.4 * n.unit(Int32(i), 8), h: h, rb: rb, rt: rt, outward: a, ground: ground)
+                b.append(r.stump, transform: r.stumpTransform)
+                b.append(r.fallen); b.append(r.chips)
+                scene.placed.append(Placement.record(kind: "pillar", mesh: r.fallen, transform: translation(c)))
             } else {
                 b.cylinder(radiusTop: rt, radiusBottom: rb, height: h, segments: 6, smooth: false, surface: stone, transform: m * rotationZ(lean) * rotationX(lean * 0.5) * translation(SIMD3(0, 0.1, 0)))
                 b.chamferBox(size: SIMD3(rt * 2.0, 0.22, rt * 2.0), chamfer: 0.05, surface: stone, transform: m * rotationZ(lean) * rotationX(lean * 0.5) * translation(SIMD3(0, h + 0.1, 0)))     // a cap block

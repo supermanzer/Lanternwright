@@ -166,6 +166,35 @@ enum Viewpoints {
         return cam3
     }
 
+    /// `tree-base-up` / `tree-base-down` (+ `-2m`): the foot of the conifer on the steepest ground (at most about 35 degrees), seen from 0.5 m (or 2 m) clear
+    /// of the trunk's surface, on the uphill or the downhill side, at knee height, looking at the trunk's base (F02 G1: no collar, no gap).
+    static func treeBase(terrain t: Terrain, name: String) -> Camera? {
+        guard name.hasPrefix("tree-base-") else { return nil }
+        let up = name.hasPrefix("tree-base-up"), far = name.hasSuffix("-2m")
+        let sites = Island.treeSites(terrain: t).prefix(420).filter { t.normal(x: $0.x, z: $0.y).y > 0.80 && t.sampleHeight(x: $0.x, z: $0.y) > 3 }
+        guard let tree = sites.min(by: { t.normal(x: $0.x, z: $0.y).y < t.normal(x: $1.x, z: $1.y).y }) else { return nil }
+        let n = t.normal(x: tree.x, z: tree.y)
+        let down = simd_normalize(SIMD2(n.x, n.z) + SIMD2(1e-5, 0))               // the horizontal part of the normal points downhill
+        let dist: Float = (far ? 2.0 : 0.5) + 0.5
+        let cam = tree + down * (up ? -dist : dist)
+        let eye = t.sampleHeight(x: cam.x, z: cam.y) + (far ? 0.9 : 0.45)
+        let target = SIMD3(tree.x, t.sampleHeight(x: tree.x, z: tree.y) + 0.1, tree.y)
+        let d = target - SIMD3(cam.x, eye, cam.y)
+        return Camera(position: SIMD3(cam.x, eye, cam.y), yaw: atan2(d.x, -d.z), pitch: asin(d.y / simd_length(d)))
+    }
+
+    /// `pillar-close` / `pillar-far`: the islet's broken pillar, its stump and fallen drum, from the lens side at 0.9 m (or 3 m) from the break (F02 G2).
+    static func pillarClose(terrain t: Terrain, far: Bool) -> Camera {
+        let c = Layout.isletCenter
+        let a = Float(3) / 5 * 2 * .pi + 0.3
+        let out = SIMD3<Float>(cos(a), 0, sin(a)), side = SIMD3<Float>(-sin(a), 0, cos(a))
+        let focus = c + out * 7.4 + SIMD3(0, 0.3, 0)
+        let cam = focus + out * (far ? 2.6 : 0.6) - side * (far ? 3.0 : 1.9)
+        let eye = SIMD3(cam.x, t.sampleHeight(x: cam.x, z: cam.z) + (far ? 1.5 : 0.9), cam.z)
+        let d = focus - eye
+        return Camera(position: eye, yaw: atan2(d.x, -d.z), pitch: asin(d.y / simd_length(d)))
+    }
+
     /// `page-close`: 0.8 m above the journal page on the tide stone's plinth, looking down at it (R06).
     static func pageClose(terrain: Terrain) -> Camera {
         let p = PuzzleProps.pagePosition(2, terrain: terrain)

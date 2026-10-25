@@ -2,6 +2,41 @@
 
 Source: `Lanternwright --feedback` entries #1 to #17 (screenshots in `~/Library/Application Support/Lanternwright/feedback/`). The reviewer read all 17 notes and opened the screenshots for #1, #3, #5, #8, #12, #14, #16 and #17. The user played a build that had the lighthouse rework (they said "The lighthouse looks much better, thank you", #9). Everything else they found is below. **Read this file in full, triage it into TASKS.md (accept with an Accept line, or REJECT with a reason), then work it in the order given in "Order of work".** Same rules as always: before/after frames Read and compared, selftests and bots green, commit at each pausing point, INSPECT.md updated, `scripts/bundle.sh` at the end of the run, story ending left to the user.
 
+## Outcome: what was actually implemented (as of commit d976ff8, R10)
+
+This section was added after the work landed. The plan below is kept as written, so you can compare intent with result. Task ids refer to `docs/TASKS.md` ("Playtest plan F01", T64.x; R10 is T65.x). "Needs you" means a person must look or listen, because tests and frames cannot judge it. Details, evidence images and measurements are in each task's `> done:` note and in `docs/INSPECT.md`.
+
+| # | Final solution | Task / commit | Status |
+|---|---|---|---|
+| 1 | Dock rebuilt (43k triangles): boards 0.15 to 0.27 m wide, 5 to 30 mm gaps, per-board lift, twist and cupping, bent or missing nails, two missing planks, one snapped, one replaced and paler, sagging between piles, leaning piles with split tops. New wood material: growth-ring grain with domain warp and knots, checks, silvering, salt, rust streaks, a polished walking line. R10 added grey end grain on post tops. | T64.8, T65.3 / 0966c7d, d976ff8 | Needs you (the lit frame still reads warm; the albedo view shows the grey) |
+| 2 | Hollowness is computed from the clearance under each plank, `smoothstep(0.15, 0.8, deck height - max(terrain, sea))`, so planks on the beach thud (earthen recipe) and planks over water boom. Measured: low-band energy and decay rise monotonically with clearance. | T64.6 / 80b8326 | Needs your ears |
+| 3 | Terrain lattice removed at the source: `vnoise3`/`fbm3` are now gradient noise with rotated octaves; the grass/sand boundary uses a height-blend on a domain-warped mask with a ragged ecotone (R10). | T64.7, T64.9, T65.2 / e1bd7cf, d976ff8 | Needs you |
+| 4 | Green now comes from plants: a turf mat of combed fibres, moss mats in damp places, clover, soil specks, straw and small stones, with three noise bands (2, 8, 30 m) for patches and earthy hollows. Slopes have angular scree with lichen. | T64.9, T65.2 / e1bd7cf, d976ff8 | Partly done: micro-vegetation near the player and the islet's own ground were not built as planned |
+| 5, 15 | Cause found: cones and twigs were baked into the tree mesh at the trunk's height, so on a slope the downhill pieces hovered by up to about 1 m. Now `Placement.lay` aligns each piece to the ground and drops it to the lowest footprint sample, then sinks it. 13 litter pieces per tree, merged per 60 m cell, dithered out with the tree LOD. A selftest checks about 10,000 placed pieces for contact. | T64.2 / 80b8326 | Done, test-backed; check the hillside by eye |
+| 6 | Surf is a line source: 24 rays to 450 m, each shoreline direction weighted `1/(1+(d/20)^2)`, with air absorption (6 kHz exponentially falling to a 220 Hz floor) and a swell that deepens with distance. Measured: the summit surf is 11x quieter than the beach. | T64.5 / 80b8326 | Needs your ears |
+| 7 | Reading a page sets the Pages tab and that page before opening the journal. | T64.1 / 80b8326 | Done, selftest |
+| 8 | Two parts. (a) Slopes: a graded bench is cut along the lantern route (steepest 10 m stretch went from 36 degrees to 24, 0 of 44 segments steeper than 25), a graded descent was added to the causeway, the walking limit is now 40 degrees (was 50) with a pace taper. (b) Lantern bases: `Placement.upright` puts the pivot at the highest ground under the footprint, keeps the prop vertical and builds a tapering footing down to the lowest sample plus 15 cm, with a soil apron. Applied to 12 lanterns and every conifer trunk. | T64.12, T64.3 / 16e72db, 80b8326 | Needs you (walk the final approach) |
+| 9 | Kept. | n/a | n/a |
+| 10 | Could not reproduce "stuck" in over 40 simulated minutes (16 circling runs, random walkers, straight approaches); these are now permanent bots. A real cause was fixed: ground steeper than the limit used to stop you dead, and now you slide along the contour. The "static white noise" was the summit mix: the broadband wind is replaced by two resonant band-passes that follow the gusts. | T64.4, T64.5 / 80b8326 | Needs you. If it still sticks, press F at that spot (the note carries your position) |
+| 11 | Phase 1 only: the door can be tried (reach 4 m), gives a thump and latch ticks, and the banner "Locked. The keeper took the key with her." A keyhole plate was added. The abandoned interior (phase 2) was not built. | T64.14 / 368b1f9 | **Your decision**: locked is enough, or build the interior |
+| 12 | Cause found: the sweep beam was drawn only inside two mist sheets, starting 60 m from the lens. It is now two tapered ribbons that start at the lens in the lantern room, with a glow and faint cross of rays there, hidden by terrain and the tower. | T64.13 / 368b1f9 | Needs you. Not done: a night variant, a light patch where the beam meets land or water |
+| 13 | Built as an optional soft slip behind a pause-menu checkbox that defaults off. | T64.12 / 16e72db | **Your decision**: try it, and say what angle |
+| 14 | Rocks are 3-level displaced icospheres cut by 3 to 5 fracture planes, with strata, pits, lichen, a wet band near the sea, and sunk into the ground. Pebbles, shells and driftwood were rebuilt too. | T64.11 / d24f459 | Needs you |
+| 16 | Fourteen causeway slabs: chamfered, tilted, chipped, with a footing course and a dished top. Algae, barnacles and salt depend on world height, so they dry out as the slabs rise. | T64.11 / d24f459 | Needs you |
+| 17 | Five tapering, leaning, faceted islet pillars with cap blocks and footings (one broken), a stepped lens footing, a flagstone ring in R10. The three remaining flat props (arrival plate, buoy, lens) were given real materials; the audit now lists 0 large flat props. | T64.11, T65.5 / d24f459, d976ff8 | Needs you |
+
+**Added beyond the plan.** R09 continuous detail (dithered tree LOD cross-fade, one visibility rule for material features, grass thinning to zero, an `--approach` measurement mode), R07 leftovers (crack seams, Glass Wood panes, mirror cue, copper tint, wading splash), the R08 controls screen, and R10 (masonry, meadow bands, posts, steep ground, islet).
+
+**Where the build differs from the plan**
+- **W0.3 and W0.4** (the shared `weather()` function and per-object seeds) were not built as abstractions. The builder judged they had nothing to act on until the dock and props existed, and then did not return to them. Each material carries its own weathering instead.
+- **W3.1** produced `--audit-props` and `docs/PROPS.md`, but the `--view prop-gallery` sheet was skipped. `--view material-sheet` and the audit cover the same ground.
+- **W1 micro-vegetation** near the player and the islet's own ground cover are not done.
+- **Dust motes and a draught sound** at the door were skipped.
+- **Frame cost** came to about +0.2 to +0.3 ms after R10 on top of F01's +0.3 to +1.6 ms. Grass density is the first thing to trim.
+- **Still open for you:** the door interior, slip angle, stylised or needle-level conifers, and the story ending. Masonry still reads somewhat like tile and the grass is still soft up close; both are judgement calls.
+
+---
+
 ## The user's notes, mapped to workstreams
 
 | # | Note (short) | Workstream |

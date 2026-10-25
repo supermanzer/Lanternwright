@@ -14,14 +14,15 @@ extension SelfTestRunner {
             check(tris(pine1) > 100 && tris(pine1) < tris(pine0) / 2 && tris(pine2) > 0, "the mid level is far cheaper (\(tris(pine1)) triangles) and a far level exists (\(tris(pine2)))")
             check(mat(pine0, .bark) > 100 && mat(pine0, .foliage) > 500 && mat(pine1, .bark) == 0 && mat(pine1, .foliage) > 50, "full detail has bark and foliage materials; the mid level skips the bark pattern")
             // Structure: a trunk that flares at the root and tapers, a crown that is a mass of clumps wider than the trunk by an order of magnitude.
-            // The trunk is the first tube built: 9 rings of 8 vertices, base to top (see Trees.conifer).
+            // The trunk is the first tube built: 10 rings of 8 vertices, a buried ring first (F02 G1: the trunk runs straight down into the ground), then base to top (see Trees.conifer).
             func ringR(_ k: Int) -> Float {
                 let ring = pine0.vertices[(k * 8)..<(k * 8 + 8)]
                 let cx = ring.map(\.position.x).reduce(0, +) / 8, cz = ring.map(\.position.z).reduce(0, +) / 8
                 return ring.map { simd_length(SIMD2($0.position.x - cx, $0.position.z - cz)) }.reduce(0, +) / 8
             }
-            let rootR = ringR(0), midR = ringR(4), topR = ringR(8)
-            check(rootR > 0.3 && rootR > midR * 1.5 && midR > topR * 1.5 && topR > 0.02 && abs(pine0.vertices[0].position.y) < 0.1, "the trunk flares at the root and tapers to a slender top (rings: root \(rootR) m, mid \(midR) m, top \(topR) m)")
+            let buriedR = ringR(0), rootR = ringR(1), midR = ringR(5), topR = ringR(9)
+            check(rootR > 0.3 && rootR > midR * 1.5 && midR > topR * 1.5 && topR > 0.02 && abs(pine0.vertices[8].position.y) < 0.1 && pine0.vertices[0].position.y < -1, "the trunk flares at the root and tapers to a slender top (rings: root \(rootR) m, mid \(midR) m, top \(topR) m)")
+            check(abs(buriedR - rootR) < 0.05 * rootR, "G1: the buried part of the trunk is no wider than the trunk at the ground (\(buriedR) m vs \(rootR) m): no collar, no flare")
             let crownW = pine0.vertices.filter { abs($0.normal.w - MaterialID.foliage.rawValue) < 0.01 }.map { simd_length(SIMD2($0.position.x, $0.position.z)) }.max() ?? 0
             let height = pine0.vertices.map(\.position.y).max() ?? 0
             check(crownW > 1.2 && crownW < 4.5 && height > 8 && height < 11.5, "the crown is a wide mass of boughs on a tall tree (crown radius \(crownW) m, height \(height) m)")
@@ -87,8 +88,8 @@ extension SelfTestRunner {
             // footings) has its lowest vertices within a few centimetres of the terrain under them, or embedded by no more than the kind allows.
             let sc = Scene.makeWorld(device: device)
             // `touching` = the least embedded of a piece's lowest vertices (must not be in the air, and only shallowly buried); the uphill side may be deeper.
-            let tol: [String: Float] = ["cone": 0.10, "twig": 0.10, "pebble": 0.15, "shell": 0.10, "driftwood": 0.15, "rock": 1.2, "lantern": 0.25, "trunk": 0.35]
-            let hover: [String: Float] = ["cone": 0.05, "twig": 0.05, "pebble": 0.08, "shell": 0.05, "driftwood": 0.05, "rock": 0.07, "lantern": 0.03, "trunk": 0.03]     // how far the least embedded low vertex may be in the air
+            let tol: [String: Float] = ["cone": 0.10, "twig": 0.10, "pebble": 0.15, "shell": 0.10, "driftwood": 0.15, "rock": 1.2, "lantern": 0.45, "trunk": 4.0, "pillar": 0.25]
+            let hover: [String: Float] = ["cone": 0.05, "twig": 0.05, "pebble": 0.08, "shell": 0.05, "driftwood": 0.05, "rock": 0.07, "lantern": 0.03, "trunk": -0.3, "pillar": 0.03]     // how far the least embedded low vertex may be in the air
             var worstUp: [String: Float] = [:], worstDown: [String: Float] = [:], counts: [String: Int] = [:]
             for p in sc.placed {
                 let g = Placement.contact(p, terrain: sc.terrain)
@@ -96,11 +97,39 @@ extension SelfTestRunner {
                 worstUp[p.kind] = max(worstUp[p.kind] ?? -9, g.touching)
                 worstDown[p.kind] = min(worstDown[p.kind] ?? 9, g.touching)
             }
-            check(["cone", "twig", "pebble", "shell", "driftwood", "rock", "lantern", "trunk"].allSatisfy { (counts[$0] ?? 0) > 5 }, "every kind of placed piece is recorded (\(counts))")
+            check(["cone", "twig", "pebble", "shell", "driftwood", "rock", "lantern", "trunk"].allSatisfy { (counts[$0] ?? 0) > 5 } && (counts["pillar"] ?? 0) == 1, "every kind of placed piece is recorded (\(counts))")
             for (kind, t) in tol.sorted(by: { $0.key < $1.key }) {
                 let up = worstUp[kind] ?? 0, down = worstDown[kind] ?? 0
                 check(up <= (hover[kind] ?? 0.03) && down >= -t, "\(kind): nothing hovers (largest gap \(up) m) and the downhill side is embedded by at most \(t) m (deepest \(down) m) over \(counts[kind] ?? 0) pieces")
             }
+        }
+        if name == "all" || name == "pillar" {
+            // F02 G2: the broken islet pillar. Flat ground and a 12 % slope: the fallen piece never overlaps the stump or its footing (2 cm clear), its lowest
+            // vertex is within 2 cm of the ground, and the break is a real fracture (not a flat cap) that both pieces share.
+            for (label, slope) in [("flat", Float(0)), ("sloped", Float(0.12))] {
+                let ground: (Float, Float) -> Float = { x, z in slope * x }
+                let centre = SIMD3<Float>(-4.0, ground(-4.0, 3.0), 3.0)
+                let rb: Float = 0.6, rt: Float = 0.4, h: Float = 3.0, yaw: Float = 0.7
+                let r = BrokenPillar.build(index: 3, centre: centre, yaw: yaw, h: h, rb: rb, rt: rt, outward: 2.5, ground: ground)
+                let inv = (translation(centre) * rotationY(yaw)).inverse
+                var inside = 0, lowest: Float = .infinity
+                for v in r.fallen.vertices {
+                    let w = SIMD3(v.position.x, v.position.y, v.position.z)
+                    let q = inv * SIMD4(w, 1)
+                    let footing = abs(q.x) < r.footingHalf + 0.02 && abs(q.z) < r.footingHalf + 0.02 && q.y > -0.195 && q.y < 0.195
+                    let stump = simd_length(SIMD2(q.x, q.z)) < rb + 0.02 && q.y > 0.0 && q.y < r.stumpTopY + 0.1
+                    if footing || stump { inside += 1 }
+                    lowest = min(lowest, w.y - ground(w.x, w.z))
+                }
+                check(inside == 0, "pillar (\(label) ground): no vertex of the fallen piece lies inside the stump or its footing (\(inside) of \(r.fallen.vertices.count))")
+                check(abs(lowest + 0.015) < 0.02, "pillar (\(label) ground): the fallen piece's lowest vertex rests on the ground (gap \(lowest) m)")
+            }
+            let r = BrokenPillar.build(index: 3, centre: SIMD3(-4, 0, 3), yaw: 0.7, h: 3, rb: 0.6, rt: 0.4, outward: 2.5, ground: { _, _ in 0 })
+            let top = r.stump.vertices.map(\.position.y).filter { $0 > 1.0 }
+            check(top.max()! - top.min()! > 0.06 && top.max()! - top.min()! < 0.45, "the stump's top is a rough, oblique fracture, not a flat cap (relief \(top.max()! - top.min()!) m)")
+            let facets = Set(r.stump.vertices.filter { $0.position.y > 1.0 }.map { String(format: "%.3f", $0.position.y) }).count
+            check(facets > 30, "the break has many distinct heights (\(facets)): jagged, not laser-cut")
+            check(r.fallen.vertices.contains { abs($0.normal.w - MaterialID.rock.rawValue) < 0.01 } && r.chips.vertices.count > 50, "fresh break faces use the rough pale rock material and chips lie around")
         }
         if name == "all" || name == "r06" {
             func tris(_ b: MeshBuilder) -> Int { b.indices.count / 3 }
