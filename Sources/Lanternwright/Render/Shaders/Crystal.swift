@@ -13,7 +13,7 @@ fragment float4 crystal_fragment(LitOut in [[stage_in]],
                                  texture2d<float> skyLUT [[texture(1)]],
                                  texture2d<float> sceneCopy [[texture(2)]],
                                  texture2d<float> distTex [[texture(3)]]) {
-    if (kLodDither && tree_lod_discard(obj.lod, in.worldPos, frame.cameraPos.xyz, in.stagger, in.position.xy)) discard_fragment();
+    if (kLodDither && tree_lod_discard(obj.lod, in.worldPos, frame.cameraPos.xyz, in.stagger, in.position.xy + frame.misc.x * float2(5.588238, 3.14159))) discard_fragment();
     float3 P = in.worldPos;
     float3 toCam = frame.cameraPos.xyz - P;
     float dist = length(toCam);

@@ -46,6 +46,9 @@ extension Renderer {
             return t
         }
         hdrTexture = make(Renderer.hdrFormat, "hdr")
+        taaHistory = make(Renderer.hdrFormat, "taa history")
+        taaResolved = make(Renderer.hdrFormat, "taa resolved")
+        taaHistoryValid = false
         sceneCopy = make(Renderer.hdrFormat, "sceneCopy")
         distanceTexture = make(Renderer.distanceFormat, "distance")
         raysTexture = make(Renderer.hdrFormat, "rays", width / 2, height / 2)
@@ -65,7 +68,27 @@ extension Renderer {
 
     func updateFrame(camera: Camera, width: Int, height: Int) {
         let aspect = Float(width) / Float(height)
-        let viewProj = camera.proj(aspect: aspect) * camera.view
+        let unjittered = camera.proj(aspect: aspect) * camera.view
+        taaCurrentViewProj = unjittered
+        var viewProj = unjittered
+        frame.misc.x = 0
+        if taaEnabled {
+            // A camera cut (a world change, a teleport, a field-of-view jump) invalidates the history: it would be reprojected from somewhere that is not this place.
+            if let last = taaLastCameraPos, simd_length(camera.position - last) > 12 || abs(camera.fovY - taaLastFov) > 0.3 { taaHistoryValid = false }
+            taaLastCameraPos = camera.position; taaLastFov = camera.fovY
+            // Sub-pixel jitter: Halton (2, 3), 8 samples, offsets in (-0.5, 0.5) pixels, applied to the projection so every pass of the frame agrees on it.
+            taaJitter = Renderer.jitterOffset(frame: taaFrameIndex)
+            if taaLastWorld != world { taaHistoryValid = false; taaLastWorld = world }
+            var proj = camera.proj(aspect: aspect)
+            proj.columns.2.x -= 2 * taaJitter.x / Float(width)
+            proj.columns.2.y += 2 * taaJitter.y / Float(height)
+            viewProj = proj * camera.view
+            taaFrameIndex += 1
+            frame.misc.x = Float(taaFrameIndex % 64)             // varies the LOD dither pattern every frame so the temporal resolve averages the cross-fade
+        } else {
+            taaJitter = .zero
+            taaHistoryValid = false
+        }
         frame.viewProj = viewProj
         frame.invViewProj = viewProj.inverse
         let t = clock

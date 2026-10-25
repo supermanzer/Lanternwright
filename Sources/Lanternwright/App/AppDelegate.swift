@@ -29,6 +29,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, MTKViewDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         renderer = Renderer(device: device, options: options)
+        renderer.taaEnabled = true                  // F02 R1 (accepted by the user): temporal anti-aliasing in the game; headless tools opt in with --taa
         game = Game(scenes: renderer.scenes)
         let engine = AudioEngine()
         if engine.start() { audio = engine }
@@ -148,6 +149,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, MTKViewDelegate {
         view.input.sensitivity = s.sensitivity
         view.input.invertY = s.invertY
         Player.slipEnabled = s.slipOnSteep
+        renderer.taaEnabled = s.taa
         view.renderScale = CGFloat(s.renderScale)
         audio?.synth.master = s.volume
     }

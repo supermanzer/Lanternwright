@@ -46,6 +46,8 @@ struct LaunchOptions {
     var auditProps = false
     var listPages = false
     var parallax = false
+    var taa = false
+    var shimmer: Int?
     var parallaxSea = false
     var clock: Float = 12
     var auditSlopes = false
@@ -75,6 +77,8 @@ struct LaunchOptions {
       --hard-lod                   Debug: switch tree LODs instantly (the pre-R09 behaviour), for before/after measurements
       --parallax                   Walk 40 m north from (-39, 140) and report how far the rendered depth disagrees with a pinhole camera (F02 R2)
       --parallax-sea               Walk toward the sea and report how much the far water changes at the ocean disc's snap steps versus the others
+      --shimmer [N]                Measure the crawl of fine detail with TAA off and on against a supersampled reference (N frames, default 60)
+      --taa                        Turn temporal anti-aliasing on for screenshots, benchmarks and tools (always on in the game; use --frames N to let it converge)
       --clock T                    Screenshot clock in seconds (default 12): the wind, the grass and the trees depend on it
       --list-pages                 Print where each of the eight journal pages stands (world, lectern foot, what makes it appear)
       --audit-props [out.md]       List every scene item with its materials and flag large props drawn flat (docs/PROPS.md)
@@ -131,6 +135,8 @@ struct LaunchOptions {
             case "--audit-slopes": o.auditSlopes = true
             case "--list-pages": o.listPages = true
             case "--parallax": o.parallax = true
+            case "--taa": o.taa = true
+            case "--shimmer": if i + 1 < args.count, let n = Int(args[i + 1]) { o.shimmer = n; _ = next() } else { o.shimmer = 60 }
             case "--parallax-sea": o.parallaxSea = true
             case "--clock":
                 guard let t = Float(next()) else { fail("--clock expects seconds") }
@@ -345,6 +351,7 @@ enum Viewpoints {
         case "material-sheet": return Camera(position: Props.sheetOrigin + SIMD3(10.5, 0.25, 12.5), yaw: 0, pitch: 0, fovY: 38 * .pi / 180)     // every material, a sphere and a slab (F01 W0)
         // The dock for F01 W2: 1 m above the planks looking down, low from the beach, and from the water under the deck.
         case "dock-close": return Camera(position: SIMD3(168.5, 1.9, 198.0), yaw: -0.74, pitch: -0.75)
+        case "dock-top": return Camera(position: SIMD3(166.5, 2.4, 195.5), yaw: -0.74, pitch: -1.0)          // looking straight down at the planks: no water in frame (F02 R1 shimmer)
         case "dock-side":  return Camera(position: SIMD3(150, 1.0, 196), yaw: 1.08, pitch: 0.03)
         case "dock-under": return Camera(position: SIMD3(170.5, -0.1, 199.5), yaw: -0.74, pitch: 0.28)
         case "overview": return Camera(position: SIMD3(330, 150, 330), yaw: -0.76, pitch: -0.19)

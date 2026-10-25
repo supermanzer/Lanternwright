@@ -42,6 +42,16 @@ struct ObjectUniforms {
     static let expectedStride = 112
 }
 
+/// The temporal anti-aliasing pass's own uniforms (F02 R1); a mirror of `TaaUniforms` in Shaders/TAA.swift. Kept out of `FrameUniforms` so that struct stays 512 bytes.
+struct TaaUniforms {
+    var prevViewProj = matrix_identity_float4x4
+    var invViewProj = matrix_identity_float4x4
+    var params = SIMD4<Float>(0, 0, 0, 0)    // x, y = jitter in pixels, z = history valid, w = sharpen strength
+    var screen = SIMD4<Float>(1, 1, 1, 1)
+    var tuning = SIMD4<Float>(0.10, 0.22, 1.25, 0)   // x = blend weight of the new frame when still, y = at speed, z = colour-box width (sigma multiples)
+    static let expectedStride = 176
+}
+
 enum MaterialID: Float {
     case standard = 0, terrain = 1, emissiveGlass = 2, foliage = 3, bird = 4
     /// Procedural prop materials (see Shaders/Materials.swift).
@@ -53,5 +63,6 @@ enum GPUTypes {
         precondition(MemoryLayout<Vertex>.stride == Vertex.expectedStride, "Vertex stride mismatch")
         precondition(MemoryLayout<FrameUniforms>.stride == FrameUniforms.expectedStride, "FrameUniforms stride mismatch")
         precondition(MemoryLayout<ObjectUniforms>.stride == ObjectUniforms.expectedStride, "ObjectUniforms stride mismatch")
+        precondition(MemoryLayout<TaaUniforms>.stride == TaaUniforms.expectedStride, "TaaUniforms stride mismatch")
     }
 }

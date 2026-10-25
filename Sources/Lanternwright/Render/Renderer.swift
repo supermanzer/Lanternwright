@@ -75,6 +75,30 @@ final class Renderer {
     let startTime = Date()
 
     var hdrTexture: MTLTexture?
+    // Temporal anti-aliasing (F02 R1, see Shaders/TAA.swift). Off in headless screenshots unless `--taa`, so existing baselines stay comparable.
+    var taaEnabled = false
+    var taaSharpness: Float = 0.8
+    /// Weight of the new frame when still / at speed, and the colour-box width in sigmas (see TAA.swift). Tools can override them with TAA_ALPHA="a b" TAA_GAMMA="g" TAA_SHARP="s".
+    var taaTuning = SIMD4<Float>(0.20, 0.35, 1.5, 0)
+    var taaHistory: MTLTexture?, taaResolved: MTLTexture?
+    var taaHistoryValid = false
+    var taaFrameIndex = 0
+    var taaPrevViewProj = matrix_identity_float4x4
+    var taaCurrentViewProj = matrix_identity_float4x4          // this frame's UNjittered view-projection
+    var taaJitter = SIMD2<Float>(0, 0)                          // this frame's sub-pixel offset, in pixels
+    var taaLastCameraPos: SIMD3<Float>?
+    var taaLastFov: Float = 0
+    let taaResolvePipeline: MTLRenderPipelineState
+    let taaSharpenPipeline: MTLRenderPipelineState
+    /// The sub-pixel jitter of frame `i`: Halton (2, 3) over 8 samples, offsets in (-0.5, 0.5) pixels.
+    static func jitterOffset(frame i: Int) -> SIMD2<Float> {
+        func halton(_ i: Int, _ b: Int) -> Float { var f: Float = 1, r: Float = 0, n = i; while n > 0 { f /= Float(b); r += f * Float(n % b); n /= b }; return r }
+        let k = i % 8 + 1
+        return SIMD2(halton(k, 2) - 0.5, halton(k, 3) - 0.5)
+    }
+    var taaLastWorld: WorldKind?
+    /// Forget the history (a camera cut: travel between worlds, a teleport, a resize). The next frame is rendered without temporal blending.
+    func resetTAA() { taaHistoryValid = false }
     var depthTexture: MTLTexture?
     /// Straight-line camera distance per pixel (1e5 for sky). Read by the water pass.
     var distanceTexture: MTLTexture?
@@ -320,6 +344,8 @@ final class Renderer {
         aoPipeline = monoPipeline("ssao", "ssao_fragment", format: .r16Float)
         aoBlurPipeline = monoPipeline("ssao blur", "ssao_blur_fragment", format: .r16Float)
         aoApplyPipeline = monoPipeline("ssao apply", "ssao_apply_fragment", format: Renderer.hdrFormat)
+        taaResolvePipeline = monoPipeline("taa resolve", "taa_resolve_fragment", format: Renderer.hdrFormat)
+        taaSharpenPipeline = monoPipeline("taa sharpen", "taa_sharpen_fragment", format: Renderer.hdrFormat)
         godRaysPipeline = postPipeline("god rays", "godrays_fragment")
         bloomPrefilterPipeline = postPipeline("bloom prefilter", "bloom_prefilter_fragment")
         bloomDownPipeline = postPipeline("bloom down", "bloom_down_fragment")
@@ -339,6 +365,11 @@ final class Renderer {
         sds.depthCompareFunction = .lessEqual      // sky vertices sit at depth 1: pass only where nothing was drawn
         sds.isDepthWriteEnabled = false
         skyDepthState = device.makeDepthStencilState(descriptor: sds)!
+        taaEnabled = options.taa
+        let env = ProcessInfo.processInfo.environment
+        if let a = env["TAA_ALPHA"] { let v = a.split(separator: " ").compactMap { Float($0) }; if v.count == 2 { taaTuning.x = v[0]; taaTuning.y = v[1] } }
+        if let g = env["TAA_GAMMA"], let v = Float(g) { taaTuning.z = v }
+        if let sh = env["TAA_SHARP"], let v = Float(sh) { taaSharpness = v }
     }
 
     /// Encode a full frame that ends by writing `target` (format `outputFormat`).
@@ -466,7 +497,7 @@ final class Renderer {
         wpass.colorAttachments[0].storeAction = .store
         wpass.depthAttachment.texture = depthTexture
         wpass.depthAttachment.loadAction = .load
-        wpass.depthAttachment.storeAction = .dontCare
+        wpass.depthAttachment.storeAction = .store          // F02 R1: the temporal resolve reprojects from this depth (water and glass included)
         if let enc = commandBuffer.makeRenderCommandEncoder(descriptor: wpass) {
             enc.label = "water"
             enc.setRenderPipelineState(waterPipeline)
@@ -506,7 +537,7 @@ final class Renderer {
                 }
             }
             // Mist sheets: same disc, alpha-blended, two layers at different heights with different noise.
-            let beamHeading = 0.6 + clock * Renderer.beamRate
+            let beamHeading = 0.6 + clock * Renderer.beamRate          // the mist sheets' beam sector direction
             enc.setRenderPipelineState(mistPipeline)
             for (height, strength, seed) in [(Float(1.6), Float(0.85), Float(0.0)), (Float(6.5), Float(0.5), Float(0.37))] {
                 var mu = ocean.uniforms(camera: camera, level: height)
@@ -516,24 +547,6 @@ final class Renderer {
                 enc.setFragmentBytes(&mu, length: MemoryLayout<ObjectUniforms>.stride, index: 2)
                 enc.drawIndexedPrimitives(type: .triangle, indexCount: ocean.mesh.indexCount, indexType: .uint32,
                                           indexBuffer: ocean.mesh.indexBuffer, indexBufferOffset: 0)
-            }
-            // The lit lighthouse's beams and the glow at the lens: real geometry from the lantern room, added as light.
-            if world == .varrow && beamIntensity > 0.001 {
-                enc.setRenderPipelineState(beamPipeline)
-                enc.setDepthStencilState(waterDepthState)
-                enc.setCullMode(.none)
-                enc.setVertexBuffer(beamMesh.vertexBuffer, offset: 0, index: 0)
-                enc.setVertexBytes(&frame, length: MemoryLayout<FrameUniforms>.stride, index: 1)
-                enc.setFragmentBytes(&frame, length: MemoryLayout<FrameUniforms>.stride, index: 1)
-                enc.setFragmentTexture(distanceTexture, index: 3)
-                for (sign, glow) in [(Float(1), Float(0)), (Float(-1), Float(0)), (Float(1), Float(1))] {
-                    var bu = ObjectUniforms()
-                    bu.tint = SIMD4(sign, beamHeading, beamIntensity, 0)
-                    bu.emissive = SIMD4(Landmarks.lensPosition, glow)
-                    enc.setVertexBytes(&bu, length: MemoryLayout<ObjectUniforms>.stride, index: 2)
-                    enc.setFragmentBytes(&bu, length: MemoryLayout<ObjectUniforms>.stride, index: 2)
-                    enc.drawIndexedPrimitives(type: .triangle, indexCount: beamMesh.indexCount, indexType: .uint32, indexBuffer: beamMesh.indexBuffer, indexBufferOffset: 0)
-                }
             }
             enc.endEncoding()
         }
@@ -561,6 +574,68 @@ final class Renderer {
             run("ssao", aoPipeline, target: ao, textures: [dist], needsFrame: true)
             run("ssao blur", aoBlurPipeline, target: blurred, textures: [ao, dist], needsFrame: false)
             run("ssao apply", aoApplyPipeline, target: hdr, textures: [copy, blurred], needsFrame: true)
+        }
+
+        // 1c''. Temporal anti-aliasing: resolve the jittered frame against the history, then sharpen into the scene HDR that bloom and the composite read.
+        if taaEnabled, let hdr = hdrTexture, let hist = taaHistory, let res = taaResolved, let depth = depthTexture {
+            var tu = TaaUniforms(prevViewProj: taaPrevViewProj, invViewProj: taaCurrentViewProj.inverse,
+                                 params: SIMD4(taaJitter.x, taaJitter.y, taaHistoryValid ? 1 : 0, taaSharpness),
+                                 screen: SIMD4(Float(hdr.width), Float(hdr.height), 1 / Float(hdr.width), 1 / Float(hdr.height)), tuning: taaTuning)
+            func fullscreen(_ label: String, _ pipeline: MTLRenderPipelineState, target: MTLTexture, textures: [MTLTexture]) {
+                let pd = MTLRenderPassDescriptor()
+                pd.colorAttachments[0].texture = target
+                pd.colorAttachments[0].loadAction = .dontCare
+                pd.colorAttachments[0].storeAction = .store
+                guard let enc = commandBuffer.makeRenderCommandEncoder(descriptor: pd) else { return }
+                enc.label = label
+                enc.setRenderPipelineState(pipeline)
+                enc.setFragmentBytes(&tu, length: MemoryLayout<TaaUniforms>.stride, index: 0)
+                for (i, t) in textures.enumerated() { enc.setFragmentTexture(t, index: i) }
+                enc.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
+                enc.endEncoding()
+            }
+            fullscreen("taa resolve", taaResolvePipeline, target: res, textures: [hdr, hist, depth])
+            fullscreen("taa sharpen", taaSharpenPipeline, target: hdr, textures: [res])
+            swap(&taaHistory, &taaResolved)                    // the resolved frame is next frame's history
+            taaPrevViewProj = taaCurrentViewProj
+            taaHistoryValid = true
+        }
+
+        // 1c-3. The lit lighthouse's beams and the glow at the lens, added as light AFTER the temporal resolve (F02 R1): they sweep round with no motion vectors, so
+        // temporal filtering would dim their leading edge and trail them; they are soft and additive, so they have nothing to anti-alias anyway.
+        if world == .varrow && beamIntensity > 0.001, let hdr = hdrTexture {
+            let beamHeading = 0.6 + clock * Renderer.beamRate
+            let bpass = MTLRenderPassDescriptor()
+            bpass.colorAttachments[0].texture = hdr
+            bpass.colorAttachments[0].loadAction = .load
+            bpass.colorAttachments[0].storeAction = .store
+            bpass.depthAttachment.texture = depthTexture
+            bpass.depthAttachment.loadAction = .load
+            bpass.depthAttachment.storeAction = .dontCare
+            if let enc = commandBuffer.makeRenderCommandEncoder(descriptor: bpass) {
+                enc.label = "beams"
+                // The resolved image lives in unjittered space, so the beams are drawn with the unjittered camera too.
+                var beamFrame = frame
+                if taaEnabled { beamFrame.viewProj = taaCurrentViewProj; beamFrame.invViewProj = taaCurrentViewProj.inverse }
+            do {
+                enc.setRenderPipelineState(beamPipeline)
+                enc.setDepthStencilState(waterDepthState)
+                enc.setCullMode(.none)
+                enc.setVertexBuffer(beamMesh.vertexBuffer, offset: 0, index: 0)
+                enc.setVertexBytes(&beamFrame, length: MemoryLayout<FrameUniforms>.stride, index: 1)
+                enc.setFragmentBytes(&beamFrame, length: MemoryLayout<FrameUniforms>.stride, index: 1)
+                enc.setFragmentTexture(distanceTexture, index: 3)
+                for (sign, glow) in [(Float(1), Float(0)), (Float(-1), Float(0)), (Float(1), Float(1))] {
+                    var bu = ObjectUniforms()
+                    bu.tint = SIMD4(sign, beamHeading, beamIntensity, 0)
+                    bu.emissive = SIMD4(Landmarks.lensPosition, glow)
+                    enc.setVertexBytes(&bu, length: MemoryLayout<ObjectUniforms>.stride, index: 2)
+                    enc.setFragmentBytes(&bu, length: MemoryLayout<ObjectUniforms>.stride, index: 2)
+                    enc.drawIndexedPrimitives(type: .triangle, indexCount: beamMesh.indexCount, indexType: .uint32, indexBuffer: beamMesh.indexBuffer, indexBufferOffset: 0)
+                }
+            }
+                enc.endEncoding()
+            }
         }
 
         // 1d. God rays (half resolution), then the bloom chain.

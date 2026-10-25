@@ -35,6 +35,12 @@ if options.auditSlopes {
     print(SlopeAudit.report(terrain: renderer.scenes[.varrow]!.terrain)); exit(0)
 }
 
+if let n = options.shimmer {
+    let renderer = Renderer(device: device, options: options)
+    do { _ = try Shimmer.run(renderer: renderer, width: options.width, height: options.height, frames: n); exit(0) }
+    catch { FileHandle.standardError.write(Data("error: \(error)\n".utf8)); exit(1) }
+}
+
 if options.parallaxSea {
     let renderer = Renderer(device: device, options: options)
     do {

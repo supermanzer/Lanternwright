@@ -278,7 +278,7 @@ fragment LitFragOut lit_fragment(LitOut in [[stage_in]],
                              texture2d<float> irradianceMap [[texture(4)]],
                              depth2d<float> shadowNear [[texture(6)]],
                              depth2d<float> shadowMid [[texture(7)]]) {
-    if (kLodDither && tree_lod_discard(obj.lod, in.worldPos, frame.cameraPos.xyz, in.stagger, in.position.xy)) discard_fragment();
+    if (kLodDither && tree_lod_discard(obj.lod, in.worldPos, frame.cameraPos.xyz, in.stagger, in.position.xy + frame.misc.x * float2(5.588238, 3.14159))) discard_fragment();
     float3 n = normalize(in.normal);
     float fpix = max(length(dfdx(in.worldPos)), length(dfdy(in.worldPos)));     // metres per pixel (for band-limited noise)
     float3 albedo = in.color.rgb;

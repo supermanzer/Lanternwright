@@ -7,6 +7,7 @@ struct Settings: Codable, Equatable {
     var volume: Float = 0.5              // master volume 0...1
     var renderScale: Float = 1.0         // 0.5...1: fraction of the (already capped) native resolution
     var slipOnSteep = true               // the soft slip on slopes steeper than ~40 degrees (default ON since F02; the pause-menu checkbox turns it off)
+    var taa = true                       // temporal anti-aliasing (F02 R1): steadier fine detail for a slight softness on fast turns
     var slipDefaultApplied = true        // a blob saved before F02 stored the old default (off): it is switched on once, then the player's choice stands
     var introSeen = false                // the controls screen has been shown on a new game (reset by "New game")
 
@@ -22,6 +23,7 @@ struct Settings: Codable, Equatable {
         let applied = try c.decodeIfPresent(Bool.self, forKey: .slipDefaultApplied) ?? false
         slipOnSteep = applied ? (try c.decodeIfPresent(Bool.self, forKey: .slipOnSteep) ?? slipOnSteep) : true
         slipDefaultApplied = true
+        taa = try c.decodeIfPresent(Bool.self, forKey: .taa) ?? taa
     }
 
     static let key = "lanternwright.settings"
