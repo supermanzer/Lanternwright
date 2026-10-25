@@ -109,7 +109,8 @@ extension SelfTestRunner {
         }
         let ms = [0, 0.25, 0.5, 0.75, 1].map { measure(Float($0)) }
         let mono = zip(ms, ms.dropFirst()).allSatisfy { $1.low >= $0.low * 0.85 && $1.decay >= $0.decay * 0.98 }
-        check(mono && ms[4].low > 2.5 * ms[0].low && ms[4].decay > 3 * ms[0].decay, "dock planks: low-band energy and ring time rise with clearance (energy \(ms.map { String(format: "%.2g", $0.low) }), -30 dB time \(ms.map { String(format: "%.2f", $0.decay) }) s)")
+        check(mono && ms[4].low > 1.1 * ms[0].low && ms[4].decay > 2 * ms[0].decay, "dock planks: low-band energy and ring time still rise with clearance, now within a solid-plank range (energy \(ms.map { String(format: "%.2g", $0.low) }), -30 dB time \(ms.map { String(format: "%.2f", $0.decay) }) s)")
+        check(ms[4].decay < 0.4, "dock planks at hollowness 1: -30 dB decay under 0.4 s (\(String(format: "%.2f", ms[4].decay)) s)")
         let sc = Scene.makeWorld(device: device)
         let s = Layout.dockStrip(), dir = simd_normalize(s.b - s.a), len = simd_length(s.b - s.a)
         let along = [1.0, 3.0, 6.0, 10.0, 14.0, 18.0].map { Float($0) }.filter { $0 < len }

@@ -6,13 +6,13 @@ enum FootstepAnalysis {
     static let sr: Float = 44100
 
     /// `count` consecutive steps of one mix from a fresh voice (fixed seed: deterministic), each rendered for `seconds`, left channel.
-    static func render(mix: StepMix, count: Int = 10, run: Bool = false, plank: Int = 0, pebble: Float = 0, seconds: Float = 0.7, layers: Footsteps.Layers = .all) -> [[Float]] {
+    static func render(mix: StepMix, count: Int = 10, run: Bool = false, plank: Int = 0, pebble: Float = 0, seconds: Float = 0.7, layers: Footsteps.Layers = .all, hollow: Float = 1, toe: Bool = true) -> [[Float]] {
         let feet = Footsteps(sampleRate: sr)
-        feet.layers = layers
+        feet.layers = layers; feet.toeEnabled = toe
         let n = Int(sr * seconds)
         var out: [[Float]] = []
         for k in 0..<count {
-            feet.start(mix: mix, run: run, pan: 0, plank: plank, pebble: pebble)
+            feet.start(mix: mix, run: run, pan: 0, plank: plank, pebble: pebble, hollow: hollow)
             var x = [Float](repeating: 0, count: n)
             for i in 0..<n { let s = feet.render(dt: 1 / sr); x[i] = s.0 + s.1 }
             out.append(x); _ = k
@@ -75,6 +75,32 @@ enum FootstepAnalysis {
     static func dominantPitch(_ x: [Float], _ lo: Float, _ hi: Float) -> Float {
         var best: Float = 0, bestP: Float = -1
         var f = lo; while f <= hi { let p = power(x, f); if p > bestP { bestP = p; best = f }; f += 2 }
+        return best
+    }
+    /// How tonal a set of steps is: the average power spectrum (40 Hz grid), and for each bin between 300 Hz and 6 kHz its three-bin power over the mean of its
+    /// neighbours (6 bins either side, not the nearest 1). Noise gives about 1 (a little more from the averaging's ripple); a ringing partial gives 10 or more.
+    static func tonalProminence(_ steps: [[Float]]) -> Float {
+        let specs = steps.map(spectrum)
+        let avg = (0..<225).map { i in mean(specs.map { $0[i] }) }
+        var worst: Float = 0
+        for i in 7..<(avg.count - 7) {
+            let f = Float(i + 1) * 40
+            guard f >= 300 && f <= 6000 else { continue }
+            let here = (avg[i - 1] + avg[i] + avg[i + 1]) / 3
+            let around = ((i - 7)...(i + 7)).filter { abs($0 - i) > 1 }.map { avg[$0] }
+            worst = max(worst, here / max(mean(around), 1e-20))
+        }
+        return worst
+    }
+    /// Centre frequency (Hz) of the strongest one-third-octave band of a spectrum (bands from 100 Hz to 8 kHz).
+    static func strongestThirdOctave(_ spec: [Float]) -> Float {
+        var best: Float = 0, bestE: Float = -1
+        var fc: Float = 100
+        while fc <= 8000 {
+            let e = band(spec, fc / pow(2, 1.0 / 6), fc * pow(2, 1.0 / 6))
+            if e > bestE { bestE = e; best = fc }
+            fc *= pow(2, 1.0 / 3)
+        }
         return best
     }
     static func mean(_ v: [Float]) -> Float { v.isEmpty ? 0 : v.reduce(0, +) / Float(v.count) }

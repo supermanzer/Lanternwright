@@ -92,7 +92,7 @@ extension SelfTestRunner {
                 let total = A.mean(specs.map { A.band($0, 40, 9000) })
                 let low = A.mean(specs.map { A.band($0, 80, 400) }) / max(total, 1e-12), ring = A.mean(specs.map { A.band($0, 1200, 3000) }) / max(total, 1e-12)
                 let tex = A.render(mix: A.pure(m), layers: .texture), body = A.render(mix: A.pure(m), layers: .body)
-                print("\(m): peak \(pk) run \(pkRun) low \(low) ring \(ring) centroid \(A.mean(specs.map(A.centroid))) decay30low \(A.mean(steps.map { A.decayTime($0, lowpass: 400, dB: 30) })) attack \(A.mean(steps.map(A.attackTime))) grains(texture only) \(A.mean(tex.map { Float(A.grainCount($0)) })) bodyDecay20 \(A.mean(body.map { A.decayTime($0, lowpass: 400, dB: 20) }))")
+                print("\(m): peak \(pk) run \(pkRun) low \(low) ring \(ring) mid1-4k \(A.mean(specs.map { A.band($0, 1000, 4000) }) / max(total, 1e-12)) centroid \(A.mean(specs.map(A.centroid))) decay30low \(A.mean(steps.map { A.decayTime($0, lowpass: 400, dB: 30) })) attack \(A.mean(steps.map(A.attackTime))) grains(texture only) \(A.mean(tex.map { Float(A.grainCount($0)) })) bodyDecay20 \(A.mean(body.map { A.decayTime($0, lowpass: 400, dB: 20) })) full-band -30 dB \(A.mean(steps.map { A.decayTime($0, lowpass: 12000, dB: 30) })) heel-only \(A.mean(A.render(mix: A.pure(m), toe: false).map { A.decayTime($0, lowpass: 12000, dB: 30) })) tonal \(A.tonalProminence(steps)) third-octave peak \(A.mean(specs.map(A.strongestThirdOctave))) Hz")
             }
         }
         if name == "all" || name == "footsteps" {
@@ -113,8 +113,15 @@ extension SelfTestRunner {
             let stone = summary(A.pure(.stone)), rock = summary(A.pure(.rock)), grass = summary(A.pure(.grass))
             let others = [dry, wet, earth, stone, rock, grass]
             // wood: suspended planks, hollow
-            check(wood.low > 0.9 && others.allSatisfy { wood.low > $0.low * 1.15 }, "wood: nearly all the energy is in the 80-400 Hz cavity band, clearly more than any other surface (\(wood.low) vs best other \(others.map(\.low).max() ?? 0))")
-            check(wood.decay30 > 0.2 && wood.bodyDecay > 0.2, "wood: the hollow body rings on (-30 dB after \(wood.decay30) s)")
+            check(wood.low > 0.75 && others.allSatisfy { wood.low > $0.low * 1.1 } , "wood: still a low, woody knock: most of the energy is in the 80-400 Hz band, more than any other surface (\(wood.low) vs best other \(others.map(\.low).max() ?? 0))")
+            // F02 A2 (#31): the dock is solid planks on beams, not a drum. Absolute targets at hollowness 1 (the seaward end).
+            let cavity = FootstepRecipe.table[M.wood.rawValue].modes.first { $0.cavity }!
+            check(cavity.gain <= 0.4 * 0.62 + 1e-4 && cavity.decay <= 0.12, "wood: the hollow cavity is at most 40 % of its old gain (\(cavity.gain) vs 0.62) and decays in at most 0.12 s (\(cavity.decay) s)")
+            check(wood.decay30 < 0.4 && wood.bodyDecay < 0.4, "wood: even at the seaward end the step is gone (-30 dB) in under 0.4 s (\(wood.decay30) s)")
+            let knock = FootstepRecipe.table[M.wood.rawValue].modes.filter { !$0.cavity && $0.hz >= 150 && $0.hz <= 400 }
+            check(knock.count >= 2 && knock.allSatisfy { 3.45 * $0.decay >= 0.04 && 3.45 * $0.decay <= 0.09 }, "wood: a solid knock at 150-400 Hz that lasts 40-90 ms to -30 dB sits on every dock step (\(knock.map { "\($0.hz) Hz \(Int(3450 * $0.decay)) ms" }))")
+            let landward = A.render(mix: A.pure(.wood), hollow: 0)
+            check(A.mean(landward.map { A.decayTime($0, lowpass: 400, dB: 30) }) < wood.decay30, "wood: planks resting on the ground are a shorter dull thud than over the water")
             func plankPitch(_ i: Int) -> Float { A.mean(A.render(mix: A.pure(.wood), count: 10, plank: i, seconds: 0.8, layers: .body).map { A.dominantPitch($0, 90, 190) }) }
             var planks: [(Int, Float)] = []; for i in 0..<40 { planks.append((i, Footsteps.plankHash(i, salt: 1))) }
             let lowP = planks.min { $0.1 < $1.1 }!, highP = planks.max { $0.1 < $1.1 }!
@@ -130,12 +137,25 @@ extension SelfTestRunner {
             check(earth.grains > 4 && earth.grains < dry.grains * 0.5, "earth: some crunch, far fewer grains than sand (\(earth.grains) vs \(dry.grains))")
             let pebbly = summary(A.pure(.earth), pebble: 1)
             check(pebbly.grains > earth.grains * 1.4, "earth: pebbles on the path add crunch (\(earth.grains) -> \(pebbly.grains) grains)")
-            // stone: hard, bright, a ring
+            // stone and rock (F02 A2, #21 #24): a smack, not a bell. Absolute targets from the offline render of 10 steps each.
             check(others.allSatisfy { stone.rise <= $0.rise } && stone.rise < 0.0012, "stone: the sharpest contact of any surface (rise \(stone.rise) s)")
-            check([wood, dry, earth, wet].allSatisfy { stone.centroid > $0.centroid * 1.1 }, "stone: the brightest of wood, sand and earth (centroid \(stone.centroid) Hz vs sand \(dry.centroid), earth \(earth.centroid))")
-            let ringBody = A.render(mix: A.pure(.stone), count: 6, seconds: 0.4, layers: .body).map { A.dominantPitch($0, 1000, 4000) }
-            check(ringBody.allSatisfy { $0 >= 1200 && $0 <= 3000 }, "stone: a ring partial between 1.2 and 3 kHz (\(A.mean(ringBody)) Hz)")
-            check(stone.ring > 0.5 && rock.ring < stone.ring, "stone rings more than rock (ring share \(stone.ring) vs \(rock.ring))")
+            check([wood, dry, earth, wet].allSatisfy { stone.centroid > $0.centroid * 1.05 || $0.centroid < 2500 } && stone.centroid > 1800, "stone: bright and dry, brighter than wood and earth (centroid \(stone.centroid) Hz vs sand \(dry.centroid), earth \(earth.centroid))")
+            for (label, mat) in [("stone", M.stone), ("rock", M.rock)] {
+                let steps = A.render(mix: A.pure(mat), count: 10), heel = A.render(mix: A.pure(mat), count: 10, toe: false)
+                let tonal = A.tonalProminence(steps)
+                let noiseRef = A.tonalProminence(A.render(mix: A.pure(.drySand), count: 10))          // a noise-like surface sets the scale: 1.5-2
+                check(tonal < 3.5 && tonal < 0.5 * A.tonalProminence(A.render(mix: A.pure(.wood), count: 10)), "\(label): no tonal peak above 300 Hz (prominence \(tonal), noise-like sand \(noiseRef), plank wood \(A.tonalProminence(A.render(mix: A.pure(.wood), count: 10))))")
+                let decay = A.mean(heel.map { A.decayTime($0, lowpass: 12000, dB: 30) })
+                check(decay < 0.08, "\(label): the contact is gone (-30 dB) in under 80 ms (\(Int(decay * 1000)) ms)")
+                let strongest = A.mean(steps.map { A.strongestThirdOctave(A.spectrum($0)) })
+                let specs = steps.map(A.spectrum), tot = A.mean(specs.map { A.band($0, 40, 9000) })
+                let lowShare = A.mean(specs.map { A.band($0, 40, 400) }) / tot, midShare = A.mean(specs.map { A.band($0, 1000, 4000) }) / tot
+                check(midShare > 1.8 * lowShare && lowShare < 0.3, "\(label): mostly 1-4 kHz with only a small low thump (1-4 kHz share \(String(format: "%.2f", midShare)), below 400 Hz \(String(format: "%.2f", lowShare)))")
+                check(strongest <= 4000, "\(label): the strongest one-third-octave band is at or below 4 kHz (\(Int(strongest)) Hz)")
+                let r = FootstepRecipe.table[mat.rawValue]
+                check(r.modes.allSatisfy { $0.hz <= 600 }, "\(label): no body mode above 600 Hz (\(r.modes.map(\.hz)))")
+                check(Set(steps.map { String(format: "%.4f", $0.map { abs($0) }.max() ?? 0) }).count == steps.count, "\(label): no two steps are identical (level, grit and band centre vary)")
+            }
             check(grass.peak < 0.5 * [dry, earth, stone, wood, rock].map(\.peak).min()!, "grass is the quietest surface (peak \(grass.peak))")
             // blends: a mixed step lies between its pure steps
             var half = StepMix(repeating: 0); half[M.drySand.rawValue] = 0.5; half[M.grass.rawValue] = 0.5

@@ -44,10 +44,11 @@ enum Trees {
         return m
     }
     private static var snagCache: [Int: MeshBuilder] = [:]
-    static func snagVariant(_ index: Int, lod: Int) -> MeshBuilder {
-        let key = index * 10 + lod
+    /// `buried` false for a trunk that lies on its side: it has no root to carry into the ground (the extension would stick out of its base end as a stub).
+    static func snagVariant(_ index: Int, lod: Int, buried: Bool = true) -> MeshBuilder {
+        let key = index * 10 + lod + (buried ? 0 : 100_000)
         if let c = snagCache[key] { return c }
-        let m = snag(seed: UInt32(9100 + index * 71), lod: lod)
+        let m = snag(seed: UInt32(9100 + index * 71), lod: lod, buried: buried)
         snagCache[key] = m
         return m
     }
@@ -207,7 +208,7 @@ enum Trees {
     }
 
     /// A dead snag: a bare trunk broken off short, with a few broken limbs and stubs.
-    static func snag(seed: UInt32, lod: Int) -> MeshBuilder {
+    static func snag(seed: UInt32, lod: Int, buried: Bool = true) -> MeshBuilder {
         let n = Noise(seed: seed)
         func r(_ i: Int, _ j: Int) -> Float { n.unit(Int32(i), Int32(j)) }
         let H = nominalHeight * (0.7 + 0.2 * r(1, 1))
@@ -217,8 +218,8 @@ enum Trees {
         let ts: [Float] = [0, 0.05, 0.2, 0.45, 0.75, 1.0]
         let lean = SIMD2<Float>(r(1, 2) - 0.5, r(1, 3) - 0.5) * 0.6
         let rad = { (t: Float) in r0 * (1 - 0.7 * t) * (1 + 0.5 * exp(-t * 14)) }
-        b.tube(points: [SIMD3(0, -buriedDepth, 0)] + ts.map { SIMD3(lean.x * $0 * $0, $0 * H, lean.y * $0 * $0) },
-               radii: [rad(0)] + ts.map(rad), sides: lod == 0 ? 7 : 5, surface: bark)
+        b.tube(points: (buried ? [SIMD3(0, -buriedDepth, 0)] : []) + ts.map { SIMD3(lean.x * $0 * $0, $0 * H, lean.y * $0 * $0) },
+               radii: (buried ? [rad(0)] : []) + ts.map(rad), sides: lod == 0 ? 7 : 5, surface: bark)
         for i in 0..<(lod == 0 ? 6 : 3) {
             let t = 0.35 + 0.55 * Float(i) / 6 + 0.05 * r(i, 4)
             let a = r(i, 5) * 2 * .pi

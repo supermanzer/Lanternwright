@@ -136,6 +136,9 @@ Your saves showed pages 2 and 3 only. A bot now collects all eight by real click
 
 Views: `--view page-stand-N` / `page-far-N` (pages 1-4), `--view gw-page-stand-N` / `gw-page-far-N` (5-8). Please check: is the light thread too strong or too thin? Is the marker too prominent? Is the chime distinct from the puzzle chimes?
 
+## F02 A2: footsteps on stone and planks (a person must listen)
+Stone and rock are now a dry, short smack with no ring; the dock is a solid plank knock with only a small, short hollow beneath. Numbers are in TASKS T66.4. Please walk (or `--dump-audio out.wav` and `afplay` it) and tell me if any of these is still wrong, in this order: the causeway slabs, the summit rock, the lighthouse plinth, the shore-end planks, mid-dock, the dock end. Does anything still "plink" or "ring"? Is the dock end still too hollow?
+
 ## Questions for the user (not decided by anyone but you)
 Decided on 2026-10-25 (F02): **the door** is final as a locked door, the interior is NOT built; **the drone** (A4) uses different tones for different worlds (shore and island, and each Refraction such as the Glass Wood), all from `ToneTable`; **TAA** is accepted (a slight softness on fast turns for stable fine detail).
 1. **The water edge (#29, answered by the builder, still the user's call).** See the F02 section below for what the object is; do you want it to stay as a feature once it looks like water?

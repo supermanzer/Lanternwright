@@ -288,7 +288,7 @@ enum Island {
                 let stagger = 3 + (noise.unit(Int32(count), 97) * 2 - 1)                // position.w = 3 + stagger in -1...1
                 let i = Int(floor(p.x / treeCell)), j = Int(floor(p.y / treeCell))
                 for lod in 0..<3 {
-                    let mesh: MeshBuilder = (dead || fallen) ? Trees.snagVariant(variantIndex, lod: min(lod, 1)).tinted(SIMD3(repeating: 1))
+                    let mesh: MeshBuilder = (dead || fallen) ? Trees.snagVariant(variantIndex, lod: min(lod, 1), buried: !fallen).tinted(SIMD3(repeating: 1))
                         : Trees.variant(pine ? .pine : .cypress, variantIndex, lod: lod).tinted(shade)
                     let m = translation(at) * rotationY(yaw) * rotationX(tilt.x) * rotationZ(tilt.y) * scaling(SIMD3(width, h, width))
                     let key = "trees_L\(lod)_\(i)_\(j)"
