@@ -155,6 +155,10 @@ enum PuzzleProps {
             }
             scene.colliders.addCylinder(center: SIMD2(c.x + 6.5 * cos(a), c.z + 6.5 * sin(a)), radius: 0.7, minY: c.y - 1, maxY: c.y + h)
         }
+        // F02 M1: the lens base's three tiers (lathe radii 2.0 / 1.75 / 1.35 above the islet's level; tops 0.18 / 0.42 / 0.62) can be climbed.
+        for (r, top) in [(Float(2.0), Float(0.18)), (1.75, 0.42), (1.35, 0.62)] {
+            scene.platforms.append(Scene.Platform(center: SIMD2(c.x, c.z), radius: r - 0.03, top: c.y + top))
+        }
         scene.add("islet", mesh: b.build(device: device, label: "islet"), uniforms: ObjectUniforms(model: translation(c)))
 
         // The lens: a floating ring of glass around a bright core. Both hover above the pedestal.

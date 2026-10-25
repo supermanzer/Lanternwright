@@ -292,6 +292,10 @@ enum GlassPuzzleProps {
                             transform: translation(SIMD3(cos(ang) * 5.05, 0.555, sin(ang) * 5.05)) * rotationY(-ang))
         }
         dais.torus(major: 4.6, minor: 0.05, segments: 64, sides: 6, surface: pale, transform: translation(SIMD3(0, 0.55, 0)))
+        // F02 M1 (#28): the dais is walkable at exactly the heights it is drawn: three discs (lathe radii 6.7 / 6.1 / 5.5, tops 0.18 / 0.37 / 0.55).
+        for (r, top) in [(Float(6.7), Float(0.18)), (6.1, 0.37), (5.5, 0.55)] {
+            scene.platforms.append(Scene.Platform(center: SIMD2(a.x, a.z), radius: r - 0.03, top: a.y + top))
+        }
         scene.add("gw_altar_dais", mesh: dais.build(device: device, label: "altar dais"), uniforms: ObjectUniforms(model: translation(a)))
         var glowRing = MeshBuilder()
         glowRing.torus(major: 4.0, minor: 0.035, segments: 64, sides: 6, surface: Surface(color: SIMD3(1, 1, 1), roughness: 0.3), transform: translation(SIMD3(0, 0.56, 0)))

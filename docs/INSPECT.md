@@ -123,9 +123,9 @@ How to play: `scripts/bundle.sh && open Lanternwright.app`. Headless views: `.bu
 ## Questions for the user (not decided by anyone but you)
 Decided on 2026-10-25 (F02): **the door** is final as a locked door, the interior is NOT built; **the drone** (A4) uses different tones for different worlds (shore and island, and each Refraction such as the Glass Wood), all from `ToneTable`; **TAA** is accepted (a slight softness on fast turns for stable fine detail).
 1. **The water edge (#29, answered by the builder, still the user's call).** See the F02 section below for what the object is; do you want it to stay as a feature once it looks like water?
-2. **Slipping on steep slopes.** Do you want to try it (a setting, default off): beyond about 40 degrees you slide gently downhill until the ground is gentler, never any harm? What angle feels right?
-3. **Conifers.** Stylised drooping sprays (cheap, clean, painterly) or needle-level (alpha-tested needle cards, which needs alpha-to-coverage or MSAA and costs frame time). Still undecided.
-4. **The ending of the story.** Still yours: nothing has been built or decided.
+2. **Slipping on steep slopes (decided: ON by default, you will test the feel).** Beyond about 40 degrees you slide gently downhill; the pause-menu checkbox turns it off. Tell me if the angle (40) or the speed (1.6 m/s) feels wrong.
+3. **Conifers (decided: needle-level near LOD after TAA, T66.13).** Stylised spray stays as the far LOD.
+4. **The ending of the story.** Being planned separately by the reviewer: nothing has been built or decided here and nothing will be touched.
 
 ## Round 9 (R09): detail arrives gradually
 - `Lanternwright --approach all shots/x/after --size 1600x900` walks toward ten targets and writes a contact sheet each (far to near, row by row, 10 per row) plus luma / high-frequency numbers; `scripts/sheet_metrics.py before after <targets>` compares two runs. Read the sheets: detail should grow, never arrive in one step.

@@ -33,6 +33,16 @@ struct Player {
     /// Gait phase: +1 per footfall (left, right, left...). Bob and sway are functions of it.
     private(set) var stepPhase: Float = 0
     private var bobAmount: Float = 0
+    /// F02 M1: the eye's vertical offset from where the feet put it (m). A step up of 18 cm leaves it at -0.18 (it never lags more than `maxEyeLag`: 0.35 m, because the lighthouse plinth has 0.3 m risers and a 15 cm cap would pop the eye 15 cm in one frame) and a critically
+    /// damped spring (omega 22 rad/s: about 0.09 s) brings it back to 0; a drop does the reverse. Slopes and flat ground do not use it.
+    private(set) var eyeLag: Float = 0
+    private var eyeVel: Float = 0
+    static let eyeOmega: Float = 22
+    static let maxEyeLag: Float = 0.35
+    /// A ground change of more than this in one fixed tick (7 cm in 1/120 s: even the steepest walkable slope at a run is 4.6 cm) is a step, not a slope.
+    static let stepJump: Float = 0.07
+    /// Where the eye is before the head bob: feet + eyeHeight + the spring's offset (what the step selftest watches).
+    var eyeBase: Float { position.y + Player.eyeHeight + eyeLag }
     /// Increments once per footfall; audio watches it.
     private(set) var stepCount = 0
     /// Whether the latest footfall was a run step (a harder, shorter impact).
@@ -58,7 +68,7 @@ struct Player {
         let bob = -cos(stepPhase * 2 * .pi) * (0.026 + 0.04 * run) * bobAmount
         let sway = sin(stepPhase * .pi) * (0.012 + 0.016 * run) * bobAmount
         let right = SIMD3<Float>(cos(yaw), 0, sin(yaw))
-        return Camera(position: position + SIMD3(0, Player.eyeHeight + bob, 0) + right * sway, yaw: yaw, pitch: pitch)
+        return Camera(position: position + SIMD3(0, Player.eyeHeight + eyeLag + bob, 0) + right * sway, yaw: yaw, pitch: pitch)
     }
 
     /// Mouse look is applied once per rendered frame, not per fixed step, so it feels immediate.
@@ -131,10 +141,17 @@ struct Player {
         if !canMove(from: from, to: pos, scene: scene) { pos = from }
         position.x = pos.x; position.z = pos.y
 
-        // Follow the ground: smooth vertical motion so stairs and dock edges don't snap the camera.
+        // F02 M1: the FEET are physical, always on the ground that is drawn (Scene.groundHeight: terrain, boards, platforms). The CAMERA's vertical offset
+        // is what is smoothed: a riser or a drop moves the feet at once and the eye follows with a critically damped spring (see `eyeLag`).
         let ground = scene.groundHeight(x: pos.x, z: pos.y)
-        position.y += (ground - position.y) * min(1, dt * 18)
-        if abs(ground - position.y) < 0.001 { position.y = ground }
+        let dy = ground - position.y
+        position.y = ground
+        if abs(dy) > Player.stepJump { eyeLag = min(max(eyeLag - dy, -Player.maxEyeLag), Player.maxEyeLag) }      // a step: the eye stays where it was
+        let decay = exp(-Player.eyeOmega * dt)
+        let c2 = eyeVel + Player.eyeOmega * eyeLag
+        eyeLag = (eyeLag + c2 * dt) * decay
+        eyeVel = (eyeVel - Player.eyeOmega * c2 * dt) * decay
+        if abs(eyeLag) < 0.0002 && abs(eyeVel) < 0.002 { eyeLag = 0; eyeVel = 0 }
 
         // Gait: advance the step phase by distance walked / step length; a footfall happens at each whole number.
         let moving = speed > 0.3
