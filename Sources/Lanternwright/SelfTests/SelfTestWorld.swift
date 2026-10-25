@@ -103,6 +103,23 @@ extension SelfTestRunner {
                 check(up <= (hover[kind] ?? 0.03) && down >= -t, "\(kind): nothing hovers (largest gap \(up) m) and the downhill side is embedded by at most \(t) m (deepest \(down) m) over \(counts[kind] ?? 0) pieces")
             }
         }
+        if name == "treelod" {
+            func ext(_ m: MeshBuilder) -> (top: Float, rad: Float, r50: Float, base: SIMD2<Float>) {
+                let pts = m.vertices.map { SIMD3($0.position.x, $0.position.y, $0.position.z) }.filter { $0.y > -0.5 }
+                let top = pts.map(\.y).max() ?? 0
+                func radAt(_ lo: Float, _ hi: Float) -> Float { pts.filter { $0.y >= lo * top && $0.y <= hi * top }.map { simd_length(SIMD2($0.x, $0.z)) }.max() ?? 0 }
+                let low = pts.filter { $0.y < 0.2 }
+                let c = low.isEmpty ? SIMD2<Float>(0, 0) : low.reduce(SIMD2<Float>(0, 0)) { $0 + SIMD2($1.x, $1.z) } / Float(low.count)
+                return (top, radAt(0, 1), radAt(0.4, 0.6), c)
+            }
+            for style in [Trees.Style.pine, .cypress] {
+                for v in 0..<Trees.variantCount {
+                    var line = "\(style) v\(v): "
+                    for lod in 0..<3 { let e = ext(Trees.variant(style, v, lod: lod)); line += String(format: "L%d top %.2f rad %.2f r@50%% %.2f | ", lod, e.top, e.rad, e.r50) }
+                    print(line)
+                }
+            }
+        }
         if name == "poolprofile" {
             let gw = Scene.make(.glassWood, device: device)
             for deg in stride(from: 0, to: 360, by: 45) {

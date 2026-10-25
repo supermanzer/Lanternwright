@@ -35,6 +35,26 @@ if options.auditSlopes {
     print(SlopeAudit.report(terrain: renderer.scenes[.varrow]!.terrain)); exit(0)
 }
 
+if options.parallaxSea {
+    let renderer = Renderer(device: device, options: options)
+    do {
+        let r = try Parallax.seaSteps(renderer: renderer)
+        let snapSet = Set(r.snaps)
+        let atSnap = r.snaps.compactMap { $0 < r.changes.count ? r.changes[$0] : nil }, others = r.changes.enumerated().filter { !snapSet.contains($0.offset) }.map(\.element)
+        func mean(_ v: [Float]) -> Float { v.isEmpty ? 0 : v.reduce(0, +) / Float(v.count) }
+        print(String(format: "sea: %d steps, %d disc snaps at steps %@. Far-water change per step (mean abs luma of the band): at the snap steps %.3f (max %.3f), other steps %.3f (max %.3f)",
+                     r.changes.count, r.snaps.count, "\(r.snaps)" as NSString, mean(atSnap), atSnap.max() ?? 0, mean(others), others.max() ?? 0))
+        print("per step: " + r.changes.map { String(format: "%.2f", $0) }.joined(separator: " "))
+        exit(0)
+    } catch { FileHandle.standardError.write(Data("error: \(error)\n".utf8)); exit(1) }
+}
+
+if options.parallax {
+    let renderer = Renderer(device: device, options: options)
+    do { try Parallax.run(renderer: renderer, width: options.width, height: options.height); exit(0) }
+    catch { FileHandle.standardError.write(Data("error: \(error)\n".utf8)); exit(1) }
+}
+
 if options.listPages {
     let renderer = Renderer(device: device, options: options)
     let t = renderer.scenes[.varrow]!.terrain!

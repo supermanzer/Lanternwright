@@ -39,9 +39,40 @@ enum Trees {
     static func variant(_ style: Style, _ index: Int, lod: Int) -> MeshBuilder {
         let key = (style == .pine ? 0 : 1000) + index * 10 + lod
         if let c = cache[key] { return c }
-        let m = conifer(seed: UInt32(7000 + index * 131 + (style == .pine ? 17 : 0)), style: style, lod: lod)
+        var m = conifer(seed: UInt32(7000 + index * 131 + (style == .pine ? 17 : 0)), style: style, lod: lod)
+        if lod >= 1 { m = Trees.matchSilhouette(m, to: variant(style, index, lod: 0)) }
         cache[key] = m
         return m
+    }
+
+    /// Silhouette numbers of a tree mesh above the ground: its height, its widest radius, and its radius at half height.
+    static func silhouette(_ m: MeshBuilder) -> (top: Float, rad: Float, mid: Float) {
+        var top: Float = 0, rad: Float = 0, mid: Float = 0
+        for v in m.vertices where v.position.y > -0.5 { top = max(top, v.position.y) }
+        for v in m.vertices where v.position.y > -0.5 {
+            let r = simd_length(SIMD2(v.position.x, v.position.z))
+            rad = max(rad, r)
+            if v.position.y >= 0.4 * top && v.position.y <= 0.6 * top { mid = max(mid, r) }
+        }
+        return (top, rad, mid)
+    }
+
+    /// F02 R2 (user note #26: distant details "jump back" as you walk toward them): each level of detail of a tree must have the same size as the near one, or the
+    /// swap is a visible change of size. Measured before this: the far cone silhouette (LOD2) was about HALF the width of the full tree (pine radius 2.1 m against
+    /// 4.3 m, 1.4 m against 3.6 m at half height) and the mid level 20 % wider. This scales a level about the trunk axis so its widest radius and its half-height radius
+    /// are, on average, those of level 0, and its height the same (normals are corrected for the non-uniform scale).
+    static func matchSilhouette(_ lod: MeshBuilder, to ref: MeshBuilder) -> MeshBuilder {
+        let a = silhouette(lod), b = silhouette(ref)
+        guard a.rad > 0.01, a.mid > 0.01, a.top > 0.01 else { return lod }
+        let sxz = min(max(0.5 * (b.rad / a.rad + b.mid / a.mid), 0.5), 3.0), sy = min(max(b.top / a.top, 0.8), 1.25)
+        var out = lod
+        out.adjust { v in
+            v.position.x *= sxz; v.position.z *= sxz; v.position.y *= v.position.y > 0 ? sy : 1
+            let n = SIMD3(v.normal.x / sxz, v.normal.y / sy, v.normal.z / sxz)
+            let l = max(simd_length(n), 1e-6)
+            v.normal.x = n.x / l; v.normal.y = n.y / l; v.normal.z = n.z / l
+        }
+        return out
     }
     private static var snagCache: [Int: MeshBuilder] = [:]
     /// `buried` false for a trunk that lies on its side: it has no root to carry into the ground (the extension would stick out of its base end as a stub).

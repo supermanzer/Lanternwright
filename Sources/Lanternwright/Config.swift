@@ -45,6 +45,8 @@ struct LaunchOptions {
     var auditPropsOut: String?
     var auditProps = false
     var listPages = false
+    var parallax = false
+    var parallaxSea = false
     var clock: Float = 12
     var auditSlopes = false
     var approachTarget: String?
@@ -71,6 +73,8 @@ struct LaunchOptions {
       --approach <target|all> <out>  Continuous-detail measurement: walk toward a target, write a contact sheet and luma/high-frequency numbers
       --approach-range <start> <min> <factor>  with --approach: override the distances (e.g. 90 30 0.97 to walk through the tree LOD band)
       --hard-lod                   Debug: switch tree LODs instantly (the pre-R09 behaviour), for before/after measurements
+      --parallax                   Walk 40 m north from (-39, 140) and report how far the rendered depth disagrees with a pinhole camera (F02 R2)
+      --parallax-sea               Walk toward the sea and report how much the far water changes at the ocean disc's snap steps versus the others
       --clock T                    Screenshot clock in seconds (default 12): the wind, the grass and the trees depend on it
       --list-pages                 Print where each of the eight journal pages stands (world, lectern foot, what makes it appear)
       --audit-props [out.md]       List every scene item with its materials and flag large props drawn flat (docs/PROPS.md)
@@ -126,6 +130,8 @@ struct LaunchOptions {
             case "--dump-overlay": o.dumpOverlayBase = next()
             case "--audit-slopes": o.auditSlopes = true
             case "--list-pages": o.listPages = true
+            case "--parallax": o.parallax = true
+            case "--parallax-sea": o.parallaxSea = true
             case "--clock":
                 guard let t = Float(next()) else { fail("--clock expects seconds") }
                 o.clock = t
