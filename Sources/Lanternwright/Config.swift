@@ -44,6 +44,7 @@ struct LaunchOptions {
     var benchFrames: Int?
     var auditPropsOut: String?
     var auditProps = false
+    var listPages = false
     var auditSlopes = false
     var approachTarget: String?
     var approachRange: (start: Float, min: Float, factor: Float)?
@@ -69,6 +70,7 @@ struct LaunchOptions {
       --approach <target|all> <out>  Continuous-detail measurement: walk toward a target, write a contact sheet and luma/high-frequency numbers
       --approach-range <start> <min> <factor>  with --approach: override the distances (e.g. 90 30 0.97 to walk through the tree LOD band)
       --hard-lod                   Debug: switch tree LODs instantly (the pre-R09 behaviour), for before/after measurements
+      --list-pages                 Print where each of the eight journal pages stands (world, lectern foot, what makes it appear)
       --audit-props [out.md]       List every scene item with its materials and flag large props drawn flat (docs/PROPS.md)
       --controls-md                Print the README controls table, generated from App/Controls.swift
       --feedback                   Print all saved player feedback and exit
@@ -121,6 +123,7 @@ struct LaunchOptions {
             case "--feedback-dir": o.showFeedbackDir = true
             case "--dump-overlay": o.dumpOverlayBase = next()
             case "--audit-slopes": o.auditSlopes = true
+            case "--list-pages": o.listPages = true
             case "--audit-props": o.auditProps = true; if i + 1 < args.count, !args[i + 1].hasPrefix("--") { o.auditPropsOut = next() }
             case "--approach": o.approachTarget = next(); o.approachOut = next()
             case "--approach-range": o.approachRange = (Float(next()) ?? 80, Float(next()) ?? 30, Float(next()) ?? 0.97)
@@ -193,6 +196,26 @@ enum Viewpoints {
         let eye = SIMD3(cam.x, t.sampleHeight(x: cam.x, z: cam.z) + (far ? 1.5 : 0.9), cam.z)
         let d = focus - eye
         return Camera(position: eye, yaw: atan2(d.x, -d.z), pitch: asin(d.y / simd_length(d)))
+    }
+
+    /// `page-stand-N` / `page-far-N` (home pages 1-4) and `gw-page-stand-N` / `gw-page-far-N` (Glass Wood pages 5-8): the page's lectern seen from 3 m or 14 m
+    /// on the side it faces, at eye height (F02 P0: could a player walking past miss it?).
+    static func pageView(scene: Scene, name: String) -> Camera? {
+        var n = name
+        if n.hasPrefix("gw-") { n.removeFirst(3) }
+        guard n.hasPrefix("page-stand-") || n.hasPrefix("page-far-"), let number = Int(n.split(separator: "-").last ?? "") else { return nil }
+        let far = n.hasPrefix("page-far-")
+        let home = number <= 4
+        let base = home ? PuzzleProps.pageBase(number, terrain: scene.terrain) : GlassPuzzleProps.pageBase(number)
+        let face = home ? PuzzleProps.pageFacing(number, terrain: scene.terrain) : GlassPuzzleProps.pageFacing(number)
+        let yaw = PageStands.yaw(from: base, toward: face)
+        let out = SIMD3<Float>(sin(yaw), 0, cos(yaw))
+        let d: Float = far ? 14 : 3
+        let cam = base + out * d
+        let eye = SIMD3(cam.x, scene.groundHeight(x: cam.x, z: cam.z) + 1.7, cam.z)
+        let target = base + SIMD3(0, PageStands.pageHeight, 0)
+        let v = target - eye
+        return Camera(position: eye, yaw: atan2(v.x, -v.z), pitch: asin(v.y / simd_length(v)))
     }
 
     /// `page-close`: 0.8 m above the journal page on the tide stone's plinth, looking down at it (R06).

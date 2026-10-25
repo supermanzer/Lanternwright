@@ -120,6 +120,22 @@ How to play: `scripts/bundle.sh && open Lanternwright.app`. Headless views: `.bu
 ## R10
 - `--view lh-base` (varied blocks, chipped edges), `--view shore` (patchy meadow, ragged sand edge), `--view dock-close` (grey post tops), `--view ground-slope`, and the islet from the causeway end (paved ring). Settled bench vs before: about +0.2 to +0.35 ms.
 
+## F02 P0: journal pages (where each one is, what to look for)
+Your saves showed pages 2 and 3 only. A bot now collects all eight by real clicks, so they were reachable; they were just easy to miss. Every page now stands on a small stone lectern at waist height, larger, with a pulsing glow, a thin light thread you can see from about 14 m and two rising motes. When a page appears while you play you hear three soft rising bell notes (D, A, D) and read "A page has come loose.", and a small `J  a page is waiting` marker sits in the top-right corner until you read it. `.build/release/Lanternwright --list-pages` prints the same list with coordinates.
+
+| Page | World | Where (lectern foot x, y, z) | Appears |
+|---|---|---|---|
+| 1 | Varrow | on the dock, 8.5 m from the landward end, left of the path (154.8, 1.4, 177.1) | from the start |
+| 2 | Varrow | by the tide stone, 2.4 m beside the way in (120.7, 2.9, 117.8) | from the start |
+| 3 | Varrow | by the wind stone, beside the way in (42.4, 33.9, 53.9) | from the start |
+| 4 | Varrow | beside the lighthouse door steps, on the open ground east of them (-26.9, 67.8, -40.8) | from the start (it used to sit at the foot of the steps) |
+| 5 | Glass Wood | by the arrival pad (2.6, 4.7, 153.6) | on your first arrival (announced) |
+| 6 | Glass Wood | by the receiver orb in the mirror court (-78.1, 11.4, 25.9) | when the mirrors are solved |
+| 7 | Glass Wood | at the chime ring (70.0, 11.1, 14.6) | when the chimes are solved |
+| 8 | Glass Wood | by the altar (1.9, 6.4, -88.6) | when both are solved |
+
+Views: `--view page-stand-N` / `page-far-N` (pages 1-4), `--view gw-page-stand-N` / `gw-page-far-N` (5-8). Please check: is the light thread too strong or too thin? Is the marker too prominent? Is the chime distinct from the puzzle chimes?
+
 ## Questions for the user (not decided by anyone but you)
 Decided on 2026-10-25 (F02): **the door** is final as a locked door, the interior is NOT built; **the drone** (A4) uses different tones for different worlds (shore and island, and each Refraction such as the Glass Wood), all from `ToneTable`; **TAA** is accepted (a slight softness on fast turns for stable fine detail).
 1. **The water edge (#29, answered by the builder, still the user's call).** See the F02 section below for what the object is; do you want it to stay as a feature once it looks like water?

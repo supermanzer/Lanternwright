@@ -35,6 +35,21 @@ if options.auditSlopes {
     print(SlopeAudit.report(terrain: renderer.scenes[.varrow]!.terrain)); exit(0)
 }
 
+if options.listPages {
+    let renderer = Renderer(device: device, options: options)
+    let t = renderer.scenes[.varrow]!.terrain!
+    func f(_ p: SIMD3<Float>) -> String { String(format: "(%.1f, %.1f, %.1f)", p.x, p.y, p.z) }
+    let how = ["on the dock, 8.5 m from the landward end, left of the path", "by the tide stone, beside the way in", "by the wind stone, beside the way in",
+               "beside the lighthouse's door steps, on the open ground east of them", "at the Glass Wood arrival pad (announced on arrival)",
+               "by the receiver orb (appears when the mirror court is solved)", "at the chime ring (appears when the chimes are solved)",
+               "at the altar (appears when both are solved)"]
+    for n in 1...8 {
+        let base = n <= 4 ? PuzzleProps.pageBase(n, terrain: t) : GlassPuzzleProps.pageBase(n)
+        print("page \(n)  \(n <= 4 ? "Varrow" : "Glass Wood")  lectern foot \(f(base))  \(how[n - 1])")
+    }
+    exit(0)
+}
+
 if options.auditProps {
     let renderer = Renderer(device: device, options: options)
     do { try PropAudit.run(renderer: renderer, out: options.auditPropsOut); exit(0) }

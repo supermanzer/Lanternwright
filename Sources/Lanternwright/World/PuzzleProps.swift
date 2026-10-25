@@ -51,27 +51,39 @@ enum PuzzleProps {
 
     // MARK: Pages
 
-    /// World position of each journal page (lying where the player will pass).
-    static func pagePosition(_ number: Int, terrain: Terrain) -> SIMD3<Float> {
+    /// Where each journal page's lectern stands (its foot, in world space) and what it faces. F02 P0: the old spots were small sheets on the ground; page 4 sat
+    /// at the front edge of the lowest door step and was half buried in it.
+    static func pageBase(_ number: Int, terrain: Terrain) -> SIMD3<Float> {
         switch number {
         case 1:   // on the dock, near the landward end, by the right-hand edge
             let strip = Layout.dockStrip()
             let dir = normalize(strip.b - strip.a), side = SIMD2(-dir.y, dir.x)
             let along: Float = 8.5
-            let p = strip.a + dir * along - side * 0.7
+            let p = strip.a + dir * along - side * 0.75
             let y = strip.y0 + (strip.y1 - strip.y0) * along / simd_length(strip.b - strip.a)
-            return SIMD3(p.x, y + 0.02, p.y)
-        case 2, 3:   // on the stone's plinth, on the arrival side
+            return SIMD3(p.x, y, p.y)
+        case 2, 3:   // by the stone, on the arrival side, a few steps off the line you walk in on
             let id: StoneID = number == 2 ? .tide : .wind
             let toward = normalize(SIMD2(id.approachFrom.x - id.position.x, id.approachFrom.z - id.position.z))
             let right = SIMD2(toward.y, -toward.x)
-            let p = SIMD2(id.position.x, id.position.z) + toward * 1.15 + right * 0.5
-            return SIMD3(p.x, terrain.sampleHeight(x: p.x, z: p.y) + 0.28, p.y)
-        default:     // on the lighthouse doorstep
-            let p = SIMD2(Layout.lighthouse.x + 1.6, Layout.lighthouse.z + 6.3)
-            return SIMD3(p.x, terrain.sampleHeight(x: p.x, z: p.y) + 0.02, p.y)
+            let p = SIMD2(id.position.x, id.position.z) + toward * 1.2 + right * 2.4          // beside the way in, never on it
+            return SIMD3(p.x, terrain.sampleHeight(x: p.x, z: p.y), p.y)
+        default:     // beside the lighthouse's door steps (clear of the plinth, on the ground you cross to reach the door)
+            let p = SIMD2(Layout.lighthouse.x + 3.1, Layout.lighthouse.z + 7.2)
+            return SIMD3(p.x, terrain.sampleHeight(x: p.x, z: p.y), p.y)
         }
     }
+    /// The point a lectern faces (where a reader arrives from).
+    static func pageFacing(_ number: Int, terrain: Terrain) -> SIMD3<Float> {
+        switch number {
+        case 1: let s = Layout.dockStrip(); return SIMD3(s.b.x, 0, s.b.y)
+        case 2: return SIMD3(StoneID.tide.approachFrom.x, 0, StoneID.tide.approachFrom.z)
+        case 3: return SIMD3(StoneID.wind.approachFrom.x, 0, StoneID.wind.approachFrom.z)
+        default: return SIMD3(Layout.summitStone.x, 0, Layout.summitStone.z)
+        }
+    }
+    /// The page's centre (on the lectern's slab): what the interactable box and the motes use.
+    static func pagePosition(_ number: Int, terrain: Terrain) -> SIMD3<Float> { PageStands.pagePosition(base: pageBase(number, terrain: terrain)) }
 
     // MARK: Build
 
@@ -226,13 +238,23 @@ enum PuzzleProps {
     }
 
     static func addPages(_ scene: Scene, device: MTLDevice) {
+        let stone = Surface(color: SIMD3(0.50, 0.47, 0.43), roughness: 0.85, material: .dressed)
+        let trim = Surface(color: SIMD3(0.40, 0.38, 0.35), roughness: 0.9, material: .dressed)
+        let standMesh = PageStands.mesh(stone: stone, trim: trim).build(device: device, label: "page stand")
         let mesh = pageMesh().build(device: device, label: "page")
+        let mote = PageStands.moteMesh().build(device: device, label: "page mote")
+        let beacon = PageStands.beaconMesh().build(device: device, label: "page beacon")
         for n in 1...4 {
-            let p = pagePosition(n, terrain: scene.terrain)
-            let yaw = Island.noise.unit(Int32(n), 17) * 2 * .pi
+            let base = pageBase(n, terrain: scene.terrain)
+            let yaw = PageStands.yaw(from: base, toward: pageFacing(n, terrain: scene.terrain))
+            scene.add("page_stand_\(n)", mesh: standMesh, uniforms: ObjectUniforms(model: PageStands.standTransform(base: base, yaw: yaw)))
+            scene.colliders.addCylinder(center: SIMD2(base.x, base.z), radius: PageStands.colliderRadius, minY: base.y - 0.5, maxY: base.y + 1.2)
             scene.add("page_\(n)", mesh: mesh,
-                      uniforms: ObjectUniforms(model: translation(p) * rotationY(yaw) * rotationX(0.04),
-                                               tint: SIMD4(1, 1, 1, 1), emissive: SIMD4(0.95, 0.85, 0.6, 0.25)))
+                      uniforms: ObjectUniforms(model: PageStands.pageTransform(base: base, yaw: yaw), tint: SIMD4(1, 1, 1, 1), emissive: SIMD4(0.95, 0.85, 0.6, 2.2)))
+            scene.add("page_beacon_\(n)", mesh: beacon, uniforms: ObjectUniforms(model: PageStands.beaconTransform(centre: PageStands.pagePosition(base: base)), tint: SIMD4(1, 1, 1, 1), emissive: SIMD4(1.0, 0.82, 0.5, 1.8)))
+            for k in 0..<2 {
+                scene.add("page_mote_\(n)_\(k)", mesh: mote, uniforms: ObjectUniforms(model: translation(PageStands.pagePosition(base: base) + SIMD3(0.12 - 0.24 * Float(k), 0.45 + 0.5 * Float(k), 0.05)), tint: SIMD4(1, 1, 1, 1), emissive: SIMD4(1.0, 0.85, 0.55, 7)))
+            }
         }
     }
 }

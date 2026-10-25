@@ -681,7 +681,7 @@ extension SelfTestRunner {
             for n in 1...4 {
                 let p = PuzzleProps.pagePosition(n, terrain: g.scene.terrain)
                 let gnd = g.scene.groundHeight(x: p.x, z: p.z)
-                check(p.y >= gnd - 0.01 && p.y - gnd < 0.7, "page \(n) lies on the ground (\(String(format: "%.2f", p.y - gnd)) m above it)")
+                check(p.y - gnd > 0.6 && p.y - gnd < 1.1, "page \(n) lies on its lectern at waist height (\(String(format: "%.2f", p.y - gnd)) m above the ground)")
             }
         }
         if name == "all" || name == "input" {

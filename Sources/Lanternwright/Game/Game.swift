@@ -46,7 +46,7 @@ final class Game {
         puzzle = LighthousePuzzle(scene: scenes[.varrow]!, state: state, animator: animator) { [weak self] in self?.pending.append($0) }
         if let gw = scenes[.glassWood] {
             glass = GlassWoodLogic(scene: gw, state: state, animator: animator, emit: { [weak self] in self?.pending.append($0) },
-                                   revealPage: { [weak self] n in self?.revealPage(n) },
+                                   revealPage: { [weak self] n, announce in self?.revealPage(n, announce: announce) },
                                    showBanner: { [weak self] t in self?.showBanner(t) },
                                    setEnabled: { [weak self] id, on in self?.setInteractable(id, enabled: on) })
         }
@@ -64,11 +64,26 @@ final class Game {
         }
     }
 
-    /// Make a hidden journal page visible and readable (puzzles call this as a reward).
-    private func revealPage(_ n: Int) {
+    /// Pages that are standing in their world right now (1-4 on Varrow, 5 at the Glass Wood's arrival, 6-8 once their puzzle has revealed them).
+    private(set) var shownPages: Set<Int> = [1, 2, 3, 4, 5]
+    /// Pages that appeared while the player was playing (not from the start) and have not been collected yet: the HUD marks the journal for these.
+    private(set) var announcedPages = Set<Int>()
+    var pageWaiting: Bool { !announcedPages.isEmpty }
+
+    /// Make a hidden journal page visible and readable (puzzles call this as a reward). F02 P0: when it appears live it is announced: a soft rising chime
+    /// and the line "A page has come loose."
+    private func revealPage(_ n: Int, announce: Bool) {
         guard !state.has("page_\(n)") else { return }
+        shownPages.insert(n)
         scenes[.glassWood]?.update("page_\(n)") { $0.hidden = false }
+        for k in 0..<2 { scenes[.glassWood]?.update("page_mote_\(n)_\(k)") { $0.hidden = false } }
+        scenes[.glassWood]?.update("page_beacon_\(n)") { $0.hidden = false }
         setInteractable("page_\(n)", enabled: true)
+        if announce {
+            announcedPages.insert(n)
+            pending.append(.chime(.pageAppears))
+            showBanner("A page has come loose.")
+        }
     }
 
     /// Varrow only (most tests need nothing else).
@@ -121,8 +136,8 @@ final class Game {
         }
         for n in 1...4 {
             let p = PuzzleProps.pagePosition(n, terrain: varrow.terrain)
-            list.append(Interactable(id: "page_\(n)", min: p - SIMD3(0.35, 0.1, 0.35), max: p + SIMD3(0.35, 0.3, 0.35),
-                                     prompt: "Read the page", reach: 3.2))
+            list.append(Interactable(id: "page_\(n)", min: p - SIMD3(0.5, 0.3, 0.5), max: p + SIMD3(0.5, 0.4, 0.5),
+                                     prompt: "Read the page", reach: 3.4))
         }
         // F01 W4.2 phase 1: the lighthouse door can be tried. It is locked (what is behind it is the user's choice: see INSPECT.md).
         let lh = Layout.lighthouse, doorZ = lh.z + 4.25
@@ -137,8 +152,8 @@ final class Game {
             gwList += glass?.interactables() ?? []
             for n in 5...8 {
                 let p = GlassPuzzleProps.pagePosition(n)
-                gwList.append(Interactable(id: "page_\(n)", min: p - SIMD3(0.35, 0.1, 0.35), max: p + SIMD3(0.35, 0.3, 0.35),
-                                           prompt: "Read the page", reach: 3.2, enabled: n == 5))     // 6-8 are revealed by the puzzles
+                gwList.append(Interactable(id: "page_\(n)", min: p - SIMD3(0.5, 0.3, 0.5), max: p + SIMD3(0.5, 0.4, 0.5),
+                                           prompt: "Read the page", reach: 3.4, enabled: n == 5))     // 6-8 are revealed by the puzzles
             }
             worldInteractables[.glassWood] = gwList
         }
@@ -186,7 +201,12 @@ final class Game {
     func restorePage(_ n: Int) {
         state.set("page_\(n)")
         journal.collect(n)
-        for sc in scenes.values { sc.update("page_\(n)") { $0.hidden = true } }       // the page lives in whichever world it belongs to
+        for sc in scenes.values {                                                      // the page lives in whichever world it belongs to
+            sc.update("page_\(n)") { $0.hidden = true }
+            for k in 0..<2 { sc.update("page_mote_\(n)_\(k)") { $0.hidden = true } }
+            sc.update("page_beacon_\(n)") { $0.hidden = true }
+        }
+        announcedPages.remove(n)
         setInteractable("page_\(n)", enabled: false)
     }
 
@@ -219,8 +239,17 @@ final class Game {
             guard let self else { return }
             self.travel(to: kind)
             self.animator.tween(delay: Game.holdSeconds, duration: Game.fadeInSeconds, ease: .inOutCubic, apply: { [weak self] t in self?.whiteout = 1 - t },
-                                completion: { [weak self] in self?.isTraveling = false; self?.whiteCaption = nil })
+                                completion: { [weak self] in self?.isTraveling = false; self?.whiteCaption = nil; if kind == .glassWood { self?.cueArrivalPage() } })
         })
+    }
+
+    /// The first time you arrive in the Glass Wood, the page by the arrival pad is announced like the others (it used to be there with no sign at all).
+    func cueArrivalPage() {
+        guard !state.has("page_5"), !state.has("gw_page5_cued") else { return }
+        state.set("gw_page5_cued")
+        announcedPages.insert(5)
+        pending.append(.chime(.pageAppears))
+        showBanner("A page has come loose.")
     }
 
     /// Put the player in `kind` at its arrival point. (Instant; `fadeThrough` hides it behind white.)
@@ -298,9 +327,15 @@ final class Game {
         for p in puzzles { p.updateVisuals(time: time) }
         updateDiscoveries()
         Birds.update(scene, time: time)
-        // Uncollected pages glow faintly so they read as "pick me up", even in shadow.
-        for n in (world == .varrow ? 1...4 : 5...8) where !state.has("page_\(n)") {
-            scene.update("page_\(n)") { $0.uniforms.emissive.w = 0.25 + 0.15 * sin(self.time * 2.4 + Float(n)) }
+        // Uncollected pages glow and shed two slow motes of light, so they read as "pick me up" even in shadow and from afar (F02 P0).
+        for n in (world == .varrow ? 1...4 : 5...8) where !state.has("page_\(n)") && shownPages.contains(n) {
+            let centre = world == .varrow ? PuzzleProps.pagePosition(n, terrain: scene.terrain) : GlassPuzzleProps.pagePosition(n)
+            scene.update("page_\(n)") { $0.uniforms.emissive.w = 2.0 + 0.5 * sin(self.time * 2.4 + Float(n)) }
+            scene.update("page_beacon_\(n)") { $0.uniforms.emissive.w = 1.6 + 0.5 * sin(self.time * 1.7 + Float(n)) }
+            for k in 0..<2 {
+                let m = PageStands.mote(centre: centre, page: n, k: k, time: self.time)
+                scene.update("page_mote_\(n)_\(k)") { $0.uniforms.model = translation(m.position); $0.uniforms.emissive.w = 7 * m.brightness }
+            }
         }
         // The lens floats and turns while it waits.
         let bob = sin(time * 1.2) * 0.08

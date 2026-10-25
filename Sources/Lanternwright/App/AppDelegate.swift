@@ -269,6 +269,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, MTKViewDelegate {
         set(&overlay.whiteout, CGFloat(game.whiteout))
         set(&overlay.whiteoutCaption, game.whiteCaption)
         set(&overlay.bannerText, game.banner)
+        set(&overlay.pageWaiting, game.pageWaiting)
         if overlay.pages.map(\.number) != journal.collectedPages.map(\.number) { overlay.pages = journal.collectedPages; dirty = true }
         if overlay.step(dt: dt) { dirty = true }
         if dirty { overlay.needsDisplay = true }

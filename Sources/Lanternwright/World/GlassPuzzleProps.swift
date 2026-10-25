@@ -189,23 +189,42 @@ enum GlassPuzzleProps {
 
     /// Oren's journal pages: 5 at the arrival pad, 6 at the receiver (appears when the mirrors are solved), 7 at the chime ring
     /// (when the chimes are solved), 8 at the altar (when both are).
-    static func pagePosition(_ number: Int) -> SIMD3<Float> {
+    static func pageBase(_ number: Int) -> SIMD3<Float> {
         switch number {
-        case 5: return GlassLayout.arrival + SIMD3(2.3, 0.02, 1.2)
-        case 6: return MirrorCourt.world(MirrorCourt.receiver) + SIMD3(1.5, 0.02, 0.6)
-        case 7: return GlassLayout.chimeRing + SIMD3(0, 0.02, 4.2)
-        default: return GlassLayout.altar + SIMD3(1.6, 0.02, 2.4)
+        case 5: return GlassLayout.arrival + SIMD3(2.6, 0, 1.6)
+        case 6: return MirrorCourt.world(MirrorCourt.receiver) + SIMD3(1.9, 0, 0.9)
+        case 7: return GlassLayout.chimeRing + SIMD3(0, 0, 4.6)
+        default: return GlassLayout.altar + SIMD3(1.9, 0, 3.4)
         }
     }
+    /// Where each lectern faces (the side a reader arrives from): the arrival pad, the court, the ring, the altar's near edge.
+    static func pageFacing(_ number: Int) -> SIMD3<Float> {
+        switch number {
+        case 5: return GlassLayout.arrival
+        case 6: return GlassLayout.path[min(3, GlassLayout.path.count - 1)]
+        case 7: return GlassLayout.path[min(6, GlassLayout.path.count - 1)]
+        default: return GlassLayout.path[min(max(GlassLayout.path.count - 2, 0), GlassLayout.path.count - 1)]
+        }
+    }
+    static func pagePosition(_ number: Int) -> SIMD3<Float> { PageStands.pagePosition(base: pageBase(number)) }
 
     static func addPages(_ scene: Scene, device: MTLDevice) {
+        let standMesh = PageStands.mesh(stone: frost(1.15), trim: frost(0.9)).build(device: device, label: "page stand")
         let mesh = PuzzleProps.pageMesh().build(device: device, label: "page")
+        let mote = PageStands.moteMesh().build(device: device, label: "page mote")
+        let beacon = PageStands.beaconMesh().build(device: device, label: "page beacon")
         for n in 5...8 {
-            let p = pagePosition(n)
+            let base = pageBase(n)
+            let yaw = PageStands.yaw(from: base, toward: pageFacing(n))
+            scene.add("page_stand_\(n)", mesh: standMesh, uniforms: ObjectUniforms(model: PageStands.standTransform(base: base, yaw: yaw)))
+            scene.colliders.addCylinder(center: SIMD2(base.x, base.z), radius: PageStands.colliderRadius, minY: base.y - 0.5, maxY: base.y + 1.2)
             scene.add("page_\(n)", mesh: mesh,
-                      uniforms: ObjectUniforms(model: translation(p) * rotationY(Island.noise.unit(Int32(n), 17) * 2 * .pi) * rotationX(0.04),
-                                               tint: SIMD4(1, 1, 1, 1), emissive: SIMD4(0.7, 0.9, 1.0, 0.35)),
+                      uniforms: ObjectUniforms(model: PageStands.pageTransform(base: base, yaw: yaw), tint: SIMD4(1, 1, 1, 1), emissive: SIMD4(0.7, 0.9, 1.0, 2.2)),
                       hidden: n != 5)
+            scene.add("page_beacon_\(n)", mesh: beacon, uniforms: ObjectUniforms(model: PageStands.beaconTransform(centre: PageStands.pagePosition(base: base)), tint: SIMD4(1, 1, 1, 1), emissive: SIMD4(0.65, 0.85, 1.0, 1.8)), hidden: n != 5)
+            for k in 0..<2 {
+                scene.add("page_mote_\(n)_\(k)", mesh: mote, uniforms: ObjectUniforms(model: translation(PageStands.pagePosition(base: base) + SIMD3(0.12 - 0.24 * Float(k), 0.45 + 0.5 * Float(k), 0.05)), tint: SIMD4(1, 1, 1, 1), emissive: SIMD4(0.6, 0.85, 1.0, 7)), hidden: n != 5)
+            }
         }
     }
 

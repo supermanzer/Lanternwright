@@ -127,6 +127,7 @@ enum Screenshot {
         case "pillar-close", "pillar-far": return Viewpoints.pillarClose(terrain: terrain, far: name == "pillar-far")
         default: break
         }
+        if let c = Viewpoints.pageView(scene: renderer.scene, name: name) { return c }
         if let c = Viewpoints.treeBase(terrain: terrain, name: name) { return c }
         if let c = Viewpoints.ground(name, terrain: renderer.scenes[.varrow]!.terrain) { return c }
         return Viewpoints.named(name) ?? Viewpoints.named("overview")!

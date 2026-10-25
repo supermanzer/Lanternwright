@@ -22,6 +22,8 @@ final class OverlayView: NSView {
     var whiteoutCaption: String?
     /// A line of story text near the top of the screen ("Ilse: ..."), set by the game.
     var bannerText: String?
+    /// A page has appeared (or was announced) and has not been read yet: a small journal marker sits in the corner until it is collected (F02 P0).
+    var pageWaiting = false
     /// Draws a stand-in scene behind the overlay (only used by the headless snapshot).
     var debugBackdrop: NSColor?
 
@@ -130,6 +132,7 @@ final class OverlayView: NSView {
         if feedbackOpen { drawFeedbackCard() }
         if let toast { drawToast(toast) }
         if let bannerText, !journalOpen, !feedbackOpen, !menuOpen, !titleOpen, !introOpen { drawBanner(bannerText) }
+        if pageWaiting, !journalOpen, !feedbackOpen, !menuOpen, !titleOpen, !introOpen, whiteout < 0.5 { drawPageMarker() }
         if whiteout > 0 { drawWhiteout() }
     }
 
@@ -453,6 +456,25 @@ final class OverlayView: NSView {
         (text as NSString).draw(in: NSRect(x: r.minX + 24, y: r.minY + 18, width: width - 48, height: size.height + 4), withAttributes: attrs)
     }
 
+    /// The journal marker: a small key cap "J", an amber diamond and "a page is waiting", in the bottom-right corner.
+    private func drawPageMarker() {
+        let label = "a page is waiting"
+        let attrs: [NSAttributedString.Key: Any] = [.font: serif(15), .foregroundColor: NSColor(calibratedRed: 1.0, green: 0.88, blue: 0.6, alpha: 0.95)]
+        let size = (label as NSString).size(withAttributes: attrs)
+        let w = size.width + 78, h: CGFloat = 34
+        let r = NSRect(x: bounds.maxX - w - 22, y: 22, width: w, height: h)
+        NSColor.black.withAlphaComponent(0.5).setFill()
+        NSBezierPath(roundedRect: r, xRadius: 10, yRadius: 10).fill()
+        let key = NSRect(x: r.minX + 9, y: r.minY + 7, width: 20, height: 20)
+        NSColor.white.withAlphaComponent(0.85).setStroke()
+        let kp = NSBezierPath(roundedRect: key, xRadius: 4, yRadius: 4); kp.lineWidth = 1.2; kp.stroke()
+        ("J" as NSString).draw(at: NSPoint(x: key.minX + 5.5, y: key.minY + 2), withAttributes: [.font: NSFont.systemFont(ofSize: 12, weight: .semibold), .foregroundColor: NSColor.white.withAlphaComponent(0.9)])
+        let d = NSBezierPath(); let c = NSPoint(x: r.minX + 46, y: r.midY)
+        d.move(to: NSPoint(x: c.x, y: c.y + 6)); d.line(to: NSPoint(x: c.x + 5, y: c.y)); d.line(to: NSPoint(x: c.x, y: c.y - 6)); d.line(to: NSPoint(x: c.x - 5, y: c.y)); d.close()
+        NSColor(calibratedRed: 1.0, green: 0.78, blue: 0.35, alpha: 1).setFill(); d.fill()
+        (label as NSString).draw(at: NSPoint(x: r.minX + 58, y: r.midY - size.height / 2), withAttributes: attrs)
+    }
+
     private func drawToast(_ text: String) {
         let attrs: [NSAttributedString.Key: Any] = [.font: serif(17), .foregroundColor: NSColor.white]
         let size = (text as NSString).size(withAttributes: attrs)
@@ -518,6 +540,8 @@ enum OverlayDump {
         try v.snapshot(to: base + "-intro-small.png")
         v = make(); v.bannerText = "Oren: \"She would not follow, so I went ahead, and I have waited here since.\""
         try v.snapshot(to: base + "-banner.png")
+        v = make(); v.captured = true; v.pageWaiting = true; v.step(dt: 1)
+        try v.snapshot(to: base + "-page-marker.png")
         v = make(); v.showFeedback(); v.setFeedbackString("The surf sounds much better, but the dock feels a bit narrow.")
         try v.snapshot(to: base + "-feedback.png")
     }

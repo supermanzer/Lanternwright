@@ -10,7 +10,8 @@ final class GlassWoodLogic: WorldPuzzle {
     private let animator: Animator
     private let emit: (GameEvent) -> Void
     /// Make a hidden journal page visible and readable (implemented by Game, which owns interactables).
-    private let revealPage: (Int) -> Void
+    /// (page number, announce): `announce` is true when the page appears live (sound and banner), false when a saved game restores it.
+    private let revealPage: (Int, Bool) -> Void
     /// Show a line of text over the world for a few seconds, and enable/disable an interactable by id (both provided by Game).
     private let showBanner: (String) -> Void
     private let setEnabled: (String, Bool) -> Void
@@ -37,7 +38,7 @@ final class GlassWoodLogic: WorldPuzzle {
     private var chimeColumn: Float = 0
     var chimesSolved: Bool { state.has("gw_chimes") }
 
-    init(scene: Scene, state: PuzzleState, animator: Animator, emit: @escaping (GameEvent) -> Void, revealPage: @escaping (Int) -> Void,
+    init(scene: Scene, state: PuzzleState, animator: Animator, emit: @escaping (GameEvent) -> Void, revealPage: @escaping (Int, Bool) -> Void,
          showBanner: @escaping (String) -> Void, setEnabled: @escaping (String, Bool) -> Void) {
         self.scene = scene
         self.state = state
@@ -173,7 +174,7 @@ final class GlassWoodLogic: WorldPuzzle {
         animator.after(1.3) { [weak self] in self?.emit(.chime(.ignite)) }
         scene.update("gw_column_chimes") { $0.hidden = false }
         animator.tween(delay: 0.8, duration: 3.0, ease: .inOutCubic) { [weak self] t in self?.chimeColumn = t }
-        animator.after(2.0) { [weak self] in self?.revealPage(7) }
+        animator.after(2.0) { [weak self] in self?.revealPage(7, true) }
         animator.after(3.5) { [weak self] in self?.checkAltar() }
     }
 
@@ -183,7 +184,7 @@ final class GlassWoodLogic: WorldPuzzle {
         for k in GlassWoodLogic.chimeSolution { chimeLit[k] = 1 }
         chimeColumn = 1
         scene.update("gw_column_chimes") { $0.hidden = false }
-        revealPage(7)
+        revealPage(7, false)
     }
 
     // MARK: The altar of two accounts
@@ -203,7 +204,7 @@ final class GlassWoodLogic: WorldPuzzle {
         animator.tween(delay: 0.5, duration: 3.5, ease: .inOutCubic) { [weak self] t in self?.altarRise = t }
         animator.tween(delay: 1.0, duration: 3.0, ease: .inOutCubic) { [weak self] t in self?.altarColumn = t }
         animator.after(4.0) { [weak self] in
-            self?.revealPage(8)
+            self?.revealPage(8, true)
             self?.setEnabled("gw_altar_ilse", true); self?.setEnabled("gw_altar_oren", true)
         }
     }
@@ -232,7 +233,7 @@ final class GlassWoodLogic: WorldPuzzle {
         altarRise = 1; altarColumn = 1
         for name in ["ilse", "oren"] { scene.update("gw_altar_\(name)") { $0.hidden = false } }
         scene.update("gw_column_altar") { $0.hidden = false }
-        revealPage(8)
+        revealPage(8, false)
         setEnabled("gw_altar_ilse", true); setEnabled("gw_altar_oren", true)
     }
 
@@ -247,7 +248,7 @@ final class GlassWoodLogic: WorldPuzzle {
         animator.after(1.6) { [weak self] in self?.emit(.chime(.ignite)) }
         scene.update("gw_column") { $0.hidden = false }
         animator.tween(delay: 0.8, duration: 3.0, ease: .inOutCubic) { [weak self] t in self?.columnGrowth = t }
-        animator.after(2.0) { [weak self] in self?.revealPage(6) }
+        animator.after(2.0) { [weak self] in self?.revealPage(6, true) }
         animator.after(3.5) { [weak self] in self?.checkAltar() }
     }
 
@@ -268,7 +269,7 @@ final class GlassWoodLogic: WorldPuzzle {
         refreshBeams()
         columnGrowth = 1
         scene.update("gw_column") { $0.hidden = false }
-        revealPage(6)
+        revealPage(6, false)
     }
 
     // MARK: WorldPuzzle
