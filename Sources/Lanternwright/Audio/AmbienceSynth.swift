@@ -63,6 +63,18 @@ final class AmbienceSynth {
     private var rumbleLP: Float = 0
     private var rumbleBrown: Float = 0
 
+    // The soft pad (F02 A4, see PadScore): a few sustained, slowly crossfading sines from the world's own score.
+    /// 0...1: how present the pad is here (AudioSpace.padLevel), and which world's score it plays.
+    var padGain: Float = 0
+    var padScore: PadScore = .varrow
+    /// Linear amplitude of the pad at padGain 1 (calibrated by `--selftest pad` so the plateau is AudioSpace.padPlateauDB under the wind lull).
+    static let padUnit: Float = 0.00081
+    private struct PadVoice { var hz: Float; var level: Float = 0; var target: Float = 1; var p1: Float = 0, p2: Float = 0, p3: Float = 0 }
+    private var padVoices: [PadVoice] = []
+    private var padChord = -1, padSm: Float = 0
+    /// Selftests only: the pad's sounding notes and their levels.
+    var padDebug: [(hz: Float, level: Float, target: Float)] { padVoices.map { ($0.hz, $0.level, $0.target) } }
+
     // Sonic landmarks (see SonicLandmarks): set by the main thread, smoothed here so nothing zippers.
     var humGain = SIMD4<Float>(repeating: 0)        // stones 0-2 and the lit lighthouse
     var humPan = SIMD4<Float>(repeating: 0)
@@ -302,6 +314,36 @@ final class AmbienceSynth {
                 surfOut = surfMuffle[ch] * (1 - 0.4 * occlusionSmooth) * (1 + (ch == 0 ? -0.55 : 0.55) * max(-1, min(1, panSmooth + sweepPan)))
                 out[ch] = windOut + surfOut
             }
+
+            // --- the pad: sustained notes from this world's score, each crossfading in and out over several seconds (a note that stays in the next chord just stays)
+            if i & 2047 == 0 {
+                let c = padScore.chord(at: td)
+                if c.number != padChord {
+                    padChord = c.number
+                    for k in 0..<padVoices.count { padVoices[k].target = c.notes.contains { abs($0 - padVoices[k].hz) < 0.01 } ? 1 : 0 }
+                    for n in c.notes where !padVoices.contains(where: { abs($0.hz - n) < 0.01 && $0.target > 0 }) { padVoices.append(PadVoice(hz: n, level: 0, target: 1)) }
+                }
+            }
+            padSm += (padGain - padSm) * 0.00005
+            var pad: Float = 0
+            if padSm > 1e-5 || !padVoices.isEmpty {
+                let tau = 1 / (4.0 * sampleRate)                                                  // about a 4 s time constant: long attacks and releases
+                for k in 0..<padVoices.count {
+                    padVoices[k].level += (padVoices[k].target - padVoices[k].level) * tau
+                    let v = padVoices[k]
+                    if v.level < 1e-4 { continue }
+                    let w = 2 * Float.pi * v.hz / sampleRate
+                    padVoices[k].p1 += w; padVoices[k].p2 += w * 1.0017; padVoices[k].p3 += w * 0.9980        // a slow chorus: +3 and -3 cents
+                    if padVoices[k].p1 > 2 * .pi { padVoices[k].p1 -= 2 * .pi }
+                    if padVoices[k].p2 > 2 * .pi { padVoices[k].p2 -= 2 * .pi }
+                    if padVoices[k].p3 > 2 * .pi { padVoices[k].p3 -= 2 * .pi }
+                    let breathe = 0.85 + 0.15 * sin(t * (0.09 + 0.013 * Float(k)) + Float(k))
+                    pad += (sin(padVoices[k].p1) + 0.8 * sin(padVoices[k].p2) + 0.8 * sin(padVoices[k].p3) + 0.12 * sin(2 * padVoices[k].p1)) * v.level * breathe
+                }
+                padVoices.removeAll { $0.target == 0 && $0.level < 1e-4 }
+                pad *= padSm * AmbienceSynth.padUnit
+            }
+            out[0] += pad; out[1] += pad
 
             // --- footsteps: impact + body + grains per surface (see Footsteps.swift)
             let (stepL, stepR) = feet.render(dt: dt)

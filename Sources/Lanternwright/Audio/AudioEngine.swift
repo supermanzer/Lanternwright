@@ -85,6 +85,8 @@ final class AudioEngine {
         // Surf as a line source: every shoreline direction in view contributes with an inverse-square-ish law, the air darkens it with distance, and far
         // inland it is a slow low swell (AudioSpace.surfField).
         synth.surfGain = amb.surfGain
+        synth.padScore = PadScore.score(for: game.world)
+        synth.padGain = AudioSpace.padLevel(shoreDistance: amb.shoreDistance)
         synth.surfFar = amb.surfFar; synth.surfAirCutoff = amb.surfAirCutoff
         // Sonic landmarks: where each source is relative to the listener.
         let lv = SonicLandmarks.levels(listener: p, yaw: game.player.yaw, world: game.world, lighthouseLit: game.state.has("lighthouseLit"))
