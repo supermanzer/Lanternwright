@@ -105,6 +105,7 @@ final class AmbienceSynth {
     /// 0...1: how high the listener stands. Up high the wind loses its broadband rustle and becomes bands: a low rumble, a whistle that moves with the gusts.
     var windAltitude: Float = 0
     private var altSmooth: Float = 0, farSmooth: Float = 0, airSmooth: Float = 8000
+    private var waveNow = SurfWaves.State(), waveSm = SurfWaves.State(), swellNow: Float = 0.5
     // Wind formants: two state-variable band-passes (low, band) per channel.
     private var howlLow = [[Float]](repeating: [0, 0], count: 2), howlBand = [[Float]](repeating: [0, 0], count: 2)
     private var panSmooth: Float = 0, occlusionSmooth: Float = 0
@@ -114,7 +115,11 @@ final class AmbienceSynth {
     private var chimeFollow: Float = 0
 
     private let sampleRate: Float
-    private var time: Float = 0
+    /// Seconds since the synth started. A DOUBLE: a Float clock stepped by 1/44100 s stops advancing at 507 s (its spacing outgrows the step), which froze the
+    /// wind's gusts, the surf's waves and every drone and hum phase after about eight and a half minutes of play (F02 A1/A3).
+    private var time: Double = 0
+    /// Selftests only: jump the clock (so a render can start ten minutes in without rendering ten minutes first).
+    func setClock(seconds: Double) { time = seconds }
 
     // Per-channel noise and filter state (index 0 = left, 1 = right, decorrelated for stereo width).
     private var rng: [UInt32] = [0x1234567, 0x7654321]
@@ -223,19 +228,20 @@ final class AmbienceSynth {
         let panTarget = surfPan, occTarget = surfOcclusion
 
         for i in 0..<frames {
-            let t = time
+            let td = time, t = Float(td)                    // `t` for the slow functions (gusts, waves); `td` for anything that is an audio-rate phase
             panSmooth += (panTarget - panSmooth) * 0.0004
             occlusionSmooth += (occTarget - occlusionSmooth) * 0.0004
             altSmooth += (windAltitude - altSmooth) * 0.0003; farSmooth += (surfFar - farSmooth) * 0.0003; airSmooth += (surfAirCutoff - airSmooth) * 0.0003
             // Gust: slow, irregular 0...1 built from three incommensurate sines.
             let gust = Wind.gust(time: t)
-            // Surf: three swells of different periods drift in and out of phase, so the sea never repeats audibly.
-            // Each swell takes ~40 % of its period to build, then drains slowly.
-            let swell: (Float, Float) -> Float = { period, phase in
-                let x = t / period + phase
-                let f = x - floor(x)
-                return smoothstep(0, 0.42, f) * exp(-max(f - 0.42, 0) * 2.6)
-            }
+            // Surf (F02 A1): discrete waves from SurfWaves (a swash, a crest, a drain, a quiet gap), evaluated every 32 samples and smoothed. Far inland the waves
+            // give way to a slow smooth swell (lower level and darker, by the level law and the air-absorption cutoff, not by adding sub-bass).
+            if i & 31 == 0 { waveNow = SurfWaves.state(time: t); swellNow = SurfWaves.farSwell(time: t) }
+            waveSm.body += (waveNow.body - waveSm.body) * 0.02; waveSm.hiss += (waveNow.hiss - waveSm.hiss) * 0.02
+            waveSm.cutoff += (waveNow.cutoff - waveSm.cutoff) * 0.02; waveSm.sweep += (waveNow.sweep - waveSm.sweep) * 0.01
+            let far = farSmooth
+            let env = max(0.04, (1 - far) * min(waveSm.body, 1) + far * (0.12 + 0.88 * swellNow))
+            let sweepPan = 0.35 * waveSm.sweep * (1 - far)                  // each wave travels along the shore
             var out = [Float](repeating: 0, count: 2)
             for ch in 0..<2 {
                 // --- wind
@@ -256,37 +262,28 @@ final class AmbienceSynth {
                 let rustle = windLP[ch] * (0.25 + 0.75 * gust) * (1 - 0.7 * altSmooth)
                 let windOut = (rustle + howl * altSmooth * 1.6) * wind * 3.2
 
-                // --- surf. Right channel's swells are offset in phase for width.
-                let o: Float = ch == 1 ? 0.07 : 0
-                let e1 = swell(7.3, 0.00 + o), e2 = swell(10.1, 0.37 + o), e3 = swell(13.7, 0.71 + o)
-                var env = min(1, 0.12 + 0.55 * e1 + 0.40 * e2 + 0.30 * e3)
-                env = pow(env, 1 + 1.6 * farSmooth)                               // far away the swells keep their depth: a slow breathing, not a steady wash
-                func drainOf(_ period: Float, _ phase: Float, _ e: Float) -> Float {
-                    let x = t / period + phase + o
-                    return e * smoothstep(0.45, 0.7, x - floor(x))
-                }
-                let drain = 0.5 * (drainOf(7.3, 0, e1) + drainOf(10.1, 0.37, e2))
+                // --- surf. The two channels have independent noise, so the wash has width.
                 brown[ch] = 0.997 * brown[ch] + 0.03 * white(ch)
-                // Body: two cascaded one-pole low-passes (12 dB/oct). The cutoff stays under 1 kHz: real surf is a
-                // low-mid wash, and the bright hiss of a high cutoff is exactly what sounds like static.
-                let sc = 260 + 700 * env
+                // Body: two cascaded one-pole low-passes (12 dB/oct). The cutoff stays under 1 kHz: real surf is a low-mid wash, and the bright hiss of a high
+                // cutoff is exactly what sounds like static. As a wave drains back its low-pass falls (waveSm.cutoff).
+                let sc = (260 + 700 * env) * (0.4 + 0.6 * waveSm.cutoff)
                 let sa = 1 - exp(-2 * .pi * sc / sampleRate)
                 surfLP1[ch] += sa * (brown[ch] * 2.2 - surfLP1[ch])
                 surfLP2[ch] += sa * (surfLP1[ch] - surfLP2[ch])
-                // Rumble: the sub-bass of mass moving.
+                // Rumble: the sub-bass of mass moving (not raised with distance: far away the sea is quieter, never boomier).
                 surfRumble[ch] += 0.012 * (brown[ch] * 3.0 - surfRumble[ch])
-                // Foam fizz: a narrow, quiet band (about 1.2-3 kHz), only while the water drains back.
+                // Foam fizz: a narrow, quiet band (about 1.2-3 kHz), only at the crest of each wave.
                 let fw = white(ch)
                 fizzA[ch] += 0.35 * (fw - fizzA[ch]); fizzB[ch] += 0.15 * (fw - fizzB[ch])
-                let fizz = (fizzA[ch] - fizzB[ch]) * drain * 0.10 * (1 - farSmooth)
-                let body = surfLP2[ch] * (0.15 + 0.85 * env) * 2.6 * (1 - 0.65 * farSmooth)
-                let rumble = surfRumble[ch] * env * env * 1.1 * (1 + 1.8 * farSmooth)
+                let fizz = (fizzA[ch] - fizzB[ch]) * waveSm.hiss * 0.14 * (1 - far)
+                let body = surfLP2[ch] * (0.15 + 0.85 * env) * 2.6
+                let rumble = surfRumble[ch] * env * env * 1.1
                 var surfOut = (body + rumble + fizz) * surf * 0.42
                 // A hill between you and the sea muffles the surf (one-pole low-pass, 8 kHz open down to ~400 Hz behind a ridge) and
                 // thins it; the surf is placed left or right toward the nearest shore.
                 let muffleCut = min(8000 - 7750 * occlusionSmooth, airSmooth)           // a hill and the distance (air absorption) both darken the surf
                 surfMuffle[ch] += (1 - exp(-2 * .pi * muffleCut / sampleRate)) * (surfOut - surfMuffle[ch])
-                surfOut = surfMuffle[ch] * (1 - 0.4 * occlusionSmooth) * (1 + (ch == 0 ? -0.55 : 0.55) * panSmooth)
+                surfOut = surfMuffle[ch] * (1 - 0.4 * occlusionSmooth) * (1 + (ch == 0 ? -0.55 : 0.55) * max(-1, min(1, panSmooth + sweepPan)))
                 out[ch] = windOut + surfOut
             }
 
@@ -301,13 +298,13 @@ final class AmbienceSynth {
                     droneGain[v] += (droneTarget[v] * (droneBloomLeft > 0 ? 1.5 : 1) - droneGain[v]) * (droneSour > 0 ? 0.0004 : rate)
                     if droneGain[v] > 1e-5 {
                         let f = AmbienceSynth.droneHz[v] * (1 - 0.018 * droneSour)               // sour = sliding flat
-                        let ph = 2 * Float.pi * f * t
-                        let s1 = sin(ph) + sin(ph * 1.0007 + 0.4) + 0.25 * sin(2 * ph)
+                        let ph = 2 * Double.pi * Double(f) * td
+                        let s1 = Float(sin(ph) + sin(ph * 1.0007 + 0.4) + 0.25 * sin(2 * ph))
                         drone += s1 * 0.5 * droneGain[v] * 0.12
                     }
                 }
                 droneThirdGain += (bloomOn - droneThirdGain) * 0.00005
-                if droneThirdGain > 1e-5 { drone += sin(2 * Float.pi * AmbienceSynth.droneThirdHz * t) * droneThirdGain * 0.08 }
+                if droneThirdGain > 1e-5 { drone += Float(sin(2 * Double.pi * Double(AmbienceSynth.droneThirdHz) * td)) * droneThirdGain * 0.08 }
                 if droneSour > 0 { droneSour = max(0, droneSour - dt / 1.6) }
                 if droneBloomLeft > 0 {
                     droneBloomLeft -= dt
@@ -324,12 +321,12 @@ final class AmbienceSynth {
                 for v in 0..<3 where humSmooth[v] > 1e-4 {
                     let f = ToneTable.stoneHz[v] * 0.5
                     let trem = 0.75 + 0.25 * sin(t * (0.21 + 0.05 * Float(v)) + Float(v))
-                    let s = (sin(2 * Float.pi * f * t) + 0.35 * sin(2 * Float.pi * f * 2.003 * t + 1)) * humSmooth[v] * trem * 0.022
+                    let s = Float(sin(2 * Double.pi * Double(f) * td) + 0.35 * sin(2 * Double.pi * Double(f) * 2.003 * td + 1)) * humSmooth[v] * trem * 0.022
                     let pn = humPan[v]; lmL += s * (1 - pn) * 0.5 * 1.4; lmR += s * (1 + pn) * 0.5 * 1.4
                 }
                 if humSmooth.w > 1e-4 {         // the lit lighthouse: a slow open fifth, D3 + A3, with a gentle vibrato
                     let vib = 1 + 0.002 * sin(t * 0.7)
-                    let s = (sin(2 * Float.pi * ToneTable.stoneHz[0] * 0.5 * vib * t) + 0.7 * sin(2 * Float.pi * ToneTable.stoneHz[1] * 0.5 * vib * t + 0.5)) * humSmooth.w * 0.028
+                    let s = Float(sin(2 * Double.pi * Double(ToneTable.stoneHz[0] * 0.5 * vib) * td) + 0.7 * sin(2 * Double.pi * Double(ToneTable.stoneHz[1] * 0.5 * vib) * td + 0.5)) * humSmooth.w * 0.028
                     let pn = humPan.w; lmL += s * (1 - pn) * 0.5 * 1.4; lmR += s * (1 + pn) * 0.5 * 1.4
                 }
                 if gallerySmooth > 1e-4 {       // a whistle whose pitch rides the gust, with a breath of noise
@@ -376,7 +373,7 @@ final class AmbienceSynth {
             // Soft clip: tanh keeps any pile-up of sounds from ever hard-clipping the speakers.
             left[i] = tanh((out[0] + stepL * 1.4) * m)
             right[i] = tanh((out[1] + stepR * 1.4) * m)
-            time += dt
+            time += 1.0 / Double(sampleRate)
         }
     }
 }

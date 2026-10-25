@@ -63,36 +63,40 @@ enum AudioSpace {
         return samples > 0 ? min(blocked / max(samples * 0.25, 1), 1) : 0
     }
 
-    /// The sea as a LINE source (F01 W6.2): 24 rays out to 450 m, each finding where it first meets water; every shoreline direction contributes
-    /// `1 / (1 + (d / 20)^2)` (steeper than 1/d, so surf falls off properly), summed over the coast that is in view. `level` is the normalised sum
-    /// to the power 0.7 (0...1: 1 at the water's edge, falling steeply inland, about -30 dB on the summit), `meanDistance` the contribution-weighted distance
-    /// to the coast, which drives how dark and how slow the surf has become (air absorption: a distant sea is a low rumble, never a hiss).
+    /// The sea's level against distance from the nearest water (F02 A1, user notes #6, #10, #18: it was still loud 130 m inland). One curve, amplitude
+    /// `(1 + d / 50)^-2.74`, 1 at the waterline: -14.0 dB at 40 m, -26.1 dB at 100 m, -38.3 dB at 200 m, -46 dB at 300 m (beyond the first few metres a
+    /// steep fall: spreading plus the absorption of air and ground). Everything that sets how loud the surf is reads this one function.
+    static func surfLevel(distance d: Float) -> Float { pow(1 + max(d, 0) / 50, -2.74) }
+    static func surfLevelDB(distance d: Float) -> Float { 20 * log10(surfLevel(distance: d)) }
+    /// What the SYNTH needs for the heard level to follow the law (a calibration, measured by `--selftest surf`): the surf's energy is mostly below 220 Hz, so the
+    /// air-absorption low-pass removes far less RMS than the law says is lost; the gain is trimmed by the shortfall (0 at the water, 9 dB by 280 m).
+    static func surfSynthTrimDB(distance d: Float) -> Float { -9 * smoothstep(0, 280, d) }
+
+    /// The sea seen from the listener: 24 rays out to 450 m, each finding where it first meets water. `meanDistance` is the distance to the NEAREST water
+    /// (the closest ray), `level` is `surfLevel` of it (1 at the water's edge) trimmed for the synth (`surfSynthTrimDB`), and `farness` and `airCutoff` follow the same distance: far inland the waves
+    /// smear into a slow dark swell (a low-pass of air absorption, never a hiss).
     struct SurfField: Equatable {
         var level: Float = 0
         var meanDistance: Float = 450
         /// 0 at the shore ... 1 far inland (about 200 m): how much the surf has become a slow, dark swell.
         var farness: Float { smoothstep(20, 200, meanDistance) }
-        /// Air absorption: the surf's low-pass cutoff (Hz): 6 kHz on the beach, about 400 Hz at 150 m, never below 220 Hz.
+        /// Air absorption: the surf's low-pass cutoff (Hz): 6 kHz on the beach, about 1 kHz at 100 m, never below 220 Hz.
         var airCutoff: Float { max(220, 6000 * exp(-meanDistance / 55)) }
     }
     static func surfField(at p: SIMD3<Float>, ground: (Float, Float) -> Float, maxRadius: Float = 450) -> SurfField {
         if ground(p.x, p.z) < 0 { return SurfField(level: 1, meanDistance: 0) }
-        var sum: Float = 0, weighted: Float = 0
-        for k in 0..<24 {
-            let a = Float(k) / 24 * 2 * .pi
+        var nearest = maxRadius
+        for k in 0..<48 {
+            let a = Float(k) / 48 * 2 * .pi
             let d = SIMD2(cos(a), sin(a))
-            var r: Float = 3
-            while r < maxRadius {
-                if ground(p.x + d.x * r, p.z + d.y * r) < 0 {
-                    let w = 1 / (1 + (r / 20) * (r / 20))
-                    sum += w; weighted += w * r
-                    break
-                }
-                r *= 1.1
+            var r: Float = 2
+            while r < nearest {
+                if ground(p.x + d.x * r, p.z + d.y * r) < 0 { nearest = r; break }
+                r *= 1.06
             }
         }
-        guard sum > 0 else { return SurfField() }
-        return SurfField(level: pow(min(1, 3 * sum / 24), 0.7), meanDistance: weighted / sum)
+        guard nearest < maxRadius else { return SurfField() }
+        return SurfField(level: surfLevel(distance: nearest) * pow(10, surfSynthTrimDB(distance: nearest) / 20), meanDistance: nearest)
     }
 
     /// What the ambient bed needs at a place (shared by the engine and the offline measurement).
@@ -102,7 +106,7 @@ enum AudioSpace {
     static func ambient(at p: SIMD3<Float>, ground: (Float, Float) -> Float) -> Ambient {
         let field = surfField(at: p, ground: ground)
         return Ambient(windGain: 0.18 + 0.55 * min(max(p.y / 70, 0), 1), windAltitude: smoothstep(8, 70, p.y),
-                       surfGain: 0.75 * field.level + (field.meanDistance < 1 ? 0.1 : 0), surfFar: field.farness, surfAirCutoff: field.airCutoff, shoreDistance: field.meanDistance)
+                       surfGain: 0.75 * field.level, surfFar: field.farness, surfAirCutoff: field.airCutoff, shoreDistance: field.meanDistance)
     }
 
     static func read(listener p: SIMD3<Float>, yaw: Float, ground: (Float, Float) -> Float) -> Reading {

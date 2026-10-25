@@ -1,6 +1,8 @@
 # S01: story, worlds and the sibling choice (a proposal for the user)
 
-**Status: proposal. Nothing here is built, and it is not for the builder yet.** It needs the user's decisions (listed at the end) first. Written by the reviewer from the user's direction on 2026-10-25:
+**Update 2026-10-25: the user answered this proposal; the decisions and a revised structure (the fork after the Glass Wood and four more worlds) are in `S02-the-fork-and-the-four-worlds.md`, which supersedes sections 2, 4, 6 and 9 here. Research (section 1), the siblings (section 3) and the Long Fog backstory stand.**
+
+**Status (original): proposal. Nothing here is built.** It needs the user's decisions (listed at the end) first. Written by the reviewer from the user's direction on 2026-10-25:
 
 > Side with either sibling; a mechanism for the choice; expose the player to both perspectives; this still feels like the start of the game, so more levels and harder puzzles; the player goes deeper into a sibling's story and learns about Lanternwrights, the lighthouse and its purpose, and what it means to be the last Lanternwright; play on the lantern light moving between worlds (purpose or side-effect of a true purpose, perhaps inter-dimensional guideposts); each sibling needs more character before the choice.
 
