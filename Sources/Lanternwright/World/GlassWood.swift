@@ -35,7 +35,8 @@ enum GlassTerrain {
     static let center = SIMD2<Float>(0, 20)
     static let radius: Float = 215
     static let pool = SIMD2<Float>(0, 25)
-    static let poolRadius: Float = 40
+    static let poolRadius: Float = 44
+    static let poolFloor: Float = -14, shelfDepth: Float = -0.8, shelfTop: Float = 0.35
     static let seaFloor: Float = -24
 
     /// A gentle dome (11 m at the middle falling to the sea at 215 m) with a round pool dug into the middle.
@@ -47,7 +48,18 @@ enum GlassTerrain {
         var h: Float = d < radius
             ? 11 * pow(1 - smoothstep(30, radius, d), 1.2) + 2.5 * (1 - smoothstep(radius * 0.8, radius, d)) * smoothstep(0, 1, 1 - d / radius)
             : seaFloor * smoothstep(radius, radius + 110, d)
-        h -= 26 * (1 - smoothstep(14, poolRadius, length(p - pool)))      // deep enough that the water goes dark
+        // F02 G3 (user note #29): the pool used to be a crater whose wall met the water at 56 degrees (13 m deep a few metres out): a bowl cut out of the paving, with no
+        // shallows to wade into and nothing for the water's edge to soften. Now: a deep floor, a drop-off, a 6 m SHELF at the waterline that is 0.8 m deep at its outer
+        // edge and rises gently (11 degrees) to 0.35 m above the water, then a bank that blends into the dome over 18 m (44 degrees at its steepest).
+        let rp = length(p - pool)
+        if rp < poolRadius {
+            let shelf: Float
+            if rp < 10 { shelf = poolFloor }
+            else if rp < 22 { shelf = poolFloor + (shelfDepth - poolFloor) * smoothstep(10, 22, rp) }
+            else if rp < 28 { shelf = shelfDepth + (shelfTop - shelfDepth) * (rp - 22) / 6 }
+            else { shelf = shelfTop }
+            h = shelf + (h - shelf) * smoothstep(26, poolRadius, rp)
+        }
         return h
     }
 }

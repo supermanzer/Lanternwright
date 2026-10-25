@@ -103,6 +103,18 @@ extension SelfTestRunner {
                 check(up <= (hover[kind] ?? 0.03) && down >= -t, "\(kind): nothing hovers (largest gap \(up) m) and the downhill side is embedded by at most \(t) m (deepest \(down) m) over \(counts[kind] ?? 0) pieces")
             }
         }
+        if name == "poolprofile" {
+            let gw = Scene.make(.glassWood, device: device)
+            for deg in stride(from: 0, to: 360, by: 45) {
+                let a = Float(deg) * .pi / 180
+                var line = "dir \(deg): "
+                for r in stride(from: 14, through: 48, by: 2) {
+                    let x = GlassTerrain.pool.x + cos(a) * Float(r), z = GlassTerrain.pool.y + sin(a) * Float(r)
+                    line += String(format: "%.1f ", gw.terrain.sampleHeight(x: x, z: z))
+                }
+                print(line)
+            }
+        }
         if name == "all" || name == "pillar" {
             // F02 G2: the broken islet pillar. Flat ground and a 12 % slope: the fallen piece never overlaps the stump or its footing (2 cm clear), its lowest
             // vertex is within 2 cm of the ground, and the break is a real fracture (not a flat cap) that both pieces share.

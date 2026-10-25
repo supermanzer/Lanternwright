@@ -6,6 +6,7 @@ final class AudioEngine {
     private let engine = AVAudioEngine()
     private var source: AVAudioSourceNode?
     private var lastUpdate = 0.0
+    private var water = WaterContact()
     private var lastFootfalls = 0
     private var buoyStrikes = 0
     private var buoyNext: Double = 0
@@ -56,9 +57,18 @@ final class AudioEngine {
     /// How much grass is underfoot (the wind only rustles where there is something to rustle).
     static func vegetationInput(game: Game) -> Float { game.surfaceMix.mix[StepMaterial.grass.rawValue] }
 
+    /// Water contact every frame (F02 A5): events once per entry and exit, and the wash and lap levels. Static so the selftests drive what the engine drives.
+    static func feedWater(_ water: inout WaterContact, into synth: AmbienceSynth, game: Game) {
+        let p = game.player.position
+        let speed = game.player.speed
+        if let e = water.update(groundY: game.scene.groundHeight(x: p.x, z: p.z), speed: speed) { synth.waterEvent(e) }
+        synth.waterDrag = water.drag(speed: speed); synth.waterLap = water.lap(speed: speed)
+    }
+
     /// Called every frame; does real work about 8 times a second (the wind is fed every frame).
     func update(now: Double, game: Game) {
         synth.windStrength = AudioEngine.windInput(game: game)
+        AudioEngine.feedWater(&water, into: synth, game: game)
         synth.vegetation = AudioEngine.vegetationInput(game: game)
         if game.footfalls != lastFootfalls {
             lastFootfalls = game.footfalls

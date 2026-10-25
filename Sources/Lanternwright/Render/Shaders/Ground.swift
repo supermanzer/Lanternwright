@@ -70,7 +70,7 @@ inline GroundOut ground_meadow(float3 P, float fpix, float3 meanCol, float moist
 }
 
 // ---- Sand: grains of several tones, shell grit, a few pebbles, soft ripple relief. `meanCol` is the old sand colour (wet or dry).
-inline GroundOut ground_sand(float3 P, float fpix, float3 meanCol, float wetSand) {
+inline GroundOut ground_sand(float3 P, float fpix, float3 meanCol, float wetSand, float glassK) {
     GroundOut o;
     float v3 = featVis(0.03, fpix), v03 = featVis(0.0015, fpix), v1 = featVis(0.012, fpix);
     float2 xz = P.xz;
@@ -84,8 +84,9 @@ inline GroundOut ground_sand(float3 P, float fpix, float3 meanCol, float wetSand
     float stone = (1.0 - smoothstep(0.04, 0.10 + 0.20 * fract(pc.w * 13.7), pc.z)) * step(0.55 - 0.3 * cluster, pc.w) * 0.9 * v3;
     float4 fc = cell2n(xz * 85.0 + 21.0);
     float fleck = (1.0 - smoothstep(0.08, 0.16, fc.z)) * step(0.80 - 0.25 * cluster, fc.w) * v1;
-    col = mix(col, float3(0.30, 0.28, 0.25) * (0.7 + 0.6 * pc.w), stone);
-    col = mix(col, float3(0.85, 0.82, 0.74), fleck * 0.8);
+    // In the Glass Wood (glassK = 1) the pebbles and grit are cool, close to the sand's own tone: black specks on pale sand were harsh (F02 G3).
+    col = mix(col, mix(float3(0.30, 0.28, 0.25), float3(0.20, 0.22, 0.34), glassK) * (0.7 + 0.6 * pc.w), stone);
+    col = mix(col, mix(float3(0.85, 0.82, 0.74), float3(0.50, 0.58, 0.76), glassK), fleck * 0.8);
     // Fine ripples: soft ridges about 6 cm apart, bent by a slow noise (the terrain shader adds the wind ripples at 1 m).
     float rip = sin((dot(xz, float2(0.8, 0.6)) + 0.6 * (rfbm3(P * 1.6, 2) - 0.5)) * 105.0);
     o.albedo = col * (1.0 + 0.03 * rip * v1);

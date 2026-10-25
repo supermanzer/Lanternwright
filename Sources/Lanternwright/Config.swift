@@ -233,6 +233,26 @@ enum Viewpoints {
         return Camera(position: cam, yaw: atan2(d.x, -d.z), pitch: asin(d.y / simd_length(d)))
     }
 
+    /// The Glass Wood's pool (F02 G3, note #29): `gw-pool-user` is the user's own spot and view (4.7, -3.4, looking down at the waterline), `gw-pool` stands on the bank
+    /// 4 m from the water looking across it, `gw-pool-shelf` stands in the shallows looking along the shore, `gw-pool-far` is the view from the path to the pool.
+    static func poolView(terrain t: Terrain, name: String) -> Camera? {
+        func ground(_ x: Float, _ z: Float) -> Float { t.sampleHeight(x: x, z: z) }
+        let c = GlassTerrain.pool
+        switch name {
+        case "gw-pool-user": return Camera(position: SIMD3(4.7, ground(4.7, -3.4) + Player.eyeHeight, -3.4), yaw: -2.94, pitch: -1.09)
+        case "gw-pool":
+            let p = SIMD2(c.x, c.y) + SIMD2(0, -33)
+            return Camera(position: SIMD3(p.x, ground(p.x, p.y) + Player.eyeHeight, p.y), yaw: .pi, pitch: -0.42)
+        case "gw-pool-shelf":
+            let p = SIMD2(c.x, c.y) + SIMD2(0, -26)
+            return Camera(position: SIMD3(p.x, ground(p.x, p.y) + 1.4, p.y), yaw: -1.2, pitch: -0.35)
+        case "gw-pool-far":
+            let p = SIMD2(c.x, c.y) + SIMD2(-12, -70)
+            return Camera(position: SIMD3(p.x, ground(p.x, p.y) + 3.0, p.y), yaw: 2.9, pitch: -0.12)
+        default: return nil
+        }
+    }
+
     /// `page-close`: 0.8 m above the journal page on the tide stone's plinth, looking down at it (R06).
     static func pageClose(terrain: Terrain) -> Camera {
         let p = PuzzleProps.pagePosition(2, terrain: terrain)

@@ -46,6 +46,11 @@ struct FootstepRecipe {
                                        grainMin: 16, grainMax: 28, grainWindow: 0.26, grainFreqLo: 500, grainFreqHi: 2400, grainLenLo: 0.004, grainLenHi: 0.014,
                                        grainGain: 0.055, grainSweep: 0.55, grainSwish: 0.6, grainCrunch: 0.5, reverbSend: 0.10)
 
+    /// A foot coming out of the water: a few drips, high and light, falling in pitch over about half a second (F02 A5).
+    static let drip = FootstepRecipe(impactAttack: 0.002, impactDecay: 0.01, impactCutoff: 1200, impactGain: 0.0,
+                                     grainMin: 7, grainMax: 12, grainWindow: 0.6, grainFreqLo: 900, grainFreqHi: 2800, grainLenLo: 0.008, grainLenHi: 0.024,
+                                     grainGain: 0.07, grainSweep: 0.55, grainSwish: 0.0, grainCrunch: 0.7, reverbSend: 0.10)
+
     /// Indexed by `StepMaterial.rawValue`.
     static let table: [FootstepRecipe] = [
         // grass: the quietest, a soft swish with a few faint stalk crackles
@@ -156,6 +161,15 @@ final class Footsteps {
                 emit(FootstepRecipe.table[StepMaterial.earth.rawValue], level: level * solid, vary: vary, bright: bright, delay: 0, toe: false, run: run, pan: pan, plank: plank, pebble: 0, hollow: 1)
             }
         }
+    }
+
+    /// F02 A5: the player enters the water (a splash scaled by `strength` 0...1: a harder, brighter, bigger one at speed) or leaves it (drips).
+    func startWaterEntry(strength: Float, pan: Float = 0) {
+        let vary = 0.9 + 0.2 * rnd(), bright = 0.85 + 0.5 * strength
+        emit(FootstepRecipe.splash, level: 0.5 + 2.6 * strength, vary: vary, bright: bright, delay: 0, toe: false, run: strength > 0.7, pan: pan, plank: 0, pebble: 0)
+    }
+    func startWaterExit(pan: Float = 0) {
+        emit(FootstepRecipe.drip, level: 1, vary: 0.9 + 0.2 * rnd(), bright: 0.9 + 0.2 * rnd(), delay: 0.05, toe: false, run: false, pan: pan, plank: 0, pebble: 0)
     }
 
     private func emit(_ r: FootstepRecipe, level: Float, vary: Float, bright: Float, delay: Float, toe: Bool, run: Bool, pan: Float, plank: Int, pebble: Float, hollow: Float = 1) {

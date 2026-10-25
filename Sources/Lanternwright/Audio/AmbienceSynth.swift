@@ -36,6 +36,13 @@ final class AmbienceSynth {
     var stepMix: StepMix?
     var stepPlank = 0
     var stepHollow: Float = 1
+    // Water contact (F02 A5, see WaterContact): requests from the main thread, and two continuous layers, the wash while wading and the lap while standing.
+    private let waterLock = NSLock()
+    private var pendingWater: [WaterContact.Event] = []
+    func waterEvent(_ e: WaterContact.Event) { waterLock.lock(); pendingWater.append(e); waterLock.unlock() }
+    var waterDrag: Float = 0, waterLap: Float = 0
+    private var dragSm: Float = 0, lapSm: Float = 0
+    private var dragLP = [Float](repeating: 0, count: 2), dragLP2 = [Float](repeating: 0, count: 2), lapLP = [Float](repeating: 0, count: 2)
     /// 0...1: how deep the foot is in the water (ankle-deep and wading): adds the splash voice.
     var stepSplash: Float = 0
     var stepPebble: Float = 0
@@ -244,6 +251,12 @@ final class AmbienceSynth {
     /// Render `frames` stereo samples (one-pole filters are cheap, so this is far under the audio deadline).
     func render(frames: Int, left: UnsafeMutablePointer<Float>, right: UnsafeMutablePointer<Float>) {
         if stepCounter != seenSteps { seenSteps = stepCounter; feet.start(mix: stepMix ?? FootstepRecipe.pure(FootstepRecipe.material(for: stepSurface)), run: stepRun, pan: stepPan, plank: stepPlank, pebble: stepPebble, hollow: stepHollow, splash: stepSplash) }
+        if waterLock.try() {
+            let queued = pendingWater
+            pendingWater.removeAll()
+            waterLock.unlock()
+            for e in queued { switch e { case .enter(let s): feet.startWaterEntry(strength: s, pan: stepPan); case .leave: feet.startWaterExit(pan: stepPan) } }
+        }
         if chimeLock.try() {
             let queued = pendingChimes
             pendingChimes.removeAll()
@@ -344,6 +357,24 @@ final class AmbienceSynth {
                 pad *= padSm * AmbienceSynth.padUnit
             }
             out[0] += pad; out[1] += pad
+
+            // --- water against the legs: a low wash while wading (louder with depth and speed), a quiet lap while standing; both exactly silent out of the water
+            dragSm += (waterDrag - dragSm) * 0.0008; lapSm += (waterLap - lapSm) * 0.0004
+            var waterL: Float = 0, waterR: Float = 0
+            if dragSm > 1e-4 || lapSm > 1e-4 {
+                let pushPhase: Double = td * 2 * Double.pi * 1.9 + 0.6 * sin(td * 0.7)
+                let push: Float = 0.55 + 0.45 * Float(sin(pushPhase))                                     // the water being pushed aside, about twice a second
+                let slapA: Float = sin(t * 2 * .pi * 0.53), slapB: Float = sin(t * 2 * .pi * 0.31 + 1)
+                let slap: Float = pow(max(0, slapA * slapB), 2)
+                for ch in 0..<2 {
+                    let w = white(ch)
+                    dragLP[ch] += (0.03 + 0.06 * dragSm) * (w - dragLP[ch]); dragLP2[ch] += (0.03 + 0.06 * dragSm) * (dragLP[ch] - dragLP2[ch])      // two poles, about 200-600 Hz: a wash, never a hiss
+                    lapLP[ch] += 0.03 * (w - lapLP[ch])
+                    let v = dragLP2[ch] * dragSm * push * 0.8 + lapLP[ch] * lapSm * slap * 0.16
+                    if ch == 0 { waterL = v } else { waterR = v }
+                }
+            }
+            out[0] += waterL; out[1] += waterR
 
             // --- footsteps: impact + body + grains per surface (see Footsteps.swift)
             let (stepL, stepR) = feet.render(dt: dt)

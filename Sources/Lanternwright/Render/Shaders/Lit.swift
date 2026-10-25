@@ -88,7 +88,7 @@ float3 terrain_surface(float3 P, float3 Ng, float pathW, float wet, float duff, 
     // edge (rock poking through grass) rather than a soft linear fade.
     rockMask = mix(rockMask, smoothstep(0.30, 0.70, rockMask + ((meso - 0.5) * 0.55 + (micro - 0.5) * 0.25) * min(rockMask * 4.0, 1.0)), 0.5);   // half-sharpened: grain acts only where rock is already likely
     float wetSand = 1.0 - smoothstep(-0.1, 0.5, P.y);
-    float3 sand = mix(glass ? float3(0.46, 0.48, 0.62) : float3(0.56, 0.47, 0.31), glass ? float3(0.20, 0.21, 0.32) : float3(0.30, 0.235, 0.15), wetSand) * (0.94 + 0.12 * micro) * (0.86 + 0.28 * meso) * (0.92 + 0.16 * macro);
+    float3 sand = mix(glass ? float3(0.21, 0.24, 0.35) : float3(0.56, 0.47, 0.31), glass ? float3(0.20, 0.21, 0.32) : float3(0.30, 0.235, 0.15), wetSand) * (0.94 + 0.12 * micro) * (0.86 + 0.28 * meso) * (0.92 + 0.16 * macro);
     // The grass/sand boundary (F01 W0.2, note #3): a coarse mask from a warped fractal (the old threshold on 11 cm noise is what drew the pixel pattern), and
     // at close range the boundary is decided by the layers' HEIGHTS, so sand drifts into the grass and grass tufts stand in the sand along irregular lines.
     float sandCoarse = 0.0;
@@ -108,7 +108,7 @@ float3 terrain_surface(float3 P, float3 Ng, float pathW, float wet, float duff, 
         float wMeadow = (1.0 - sandCoarse) * (1.0 - rockMask);
         float moisture = saturate(0.5 * fbmV(P * 0.045 + 3.0) + 0.45 * (1.0 - smoothstep(3.0, 24.0, P.y)) + 0.35 * pathProx - 0.05);
         if (wMeadow > 0.01) gm = ground_meadow(P, fpix, grass, moisture, glass);
-        if (sandCoarse > 0.01) gs = ground_sand(P, fpix, sand, wetSand);
+        if (sandCoarse > 0.01) gs = ground_sand(P, fpix, sand, wetSand, glass ? 1.0 : 0.0);
         if (rockMask > 0.01) gr = ground_scree(P, Ng, fpix, rock);
         if (wMeadow > 0.01 && sandCoarse > 0.01) {
             float hg = saturate(gm.h * 80.0), hsd = saturate(0.35 + gs.h * 60.0);

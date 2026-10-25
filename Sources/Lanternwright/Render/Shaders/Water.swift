@@ -121,6 +121,13 @@ fragment float4 water_fragment(WaterOut in [[stage_in]],
     float3 sunDir = normalize(frame.sunDir.xyz);
     float3 lightUp = skyLUT.sample(skySampler, float2(0.5, 0.0), level(5)).rgb + frame.sunColor.rgb * frame.sunColor.w / M_PI_F * max(sunDir.y, 0.0) * 0.25;
     float3 deep = float3(0.02, 0.10, 0.12) * lightUp * 1.5;       // light scattered back up out of the water
+    // Shallow-water caustics (F02 G3): where the bed is within a few metres, a slow net of bright lines on it (two noise layers' crossings), fading out with depth.
+    float shallow = 1.0 - smoothstep(0.4, 3.5, thick);
+    if (shallow > 0.01) {
+        float c1 = vnoiseV(float3(P.xz * 1.9 + float2(t * 0.21, -t * 0.13), t * 0.1)), c2 = vnoiseV(float3(P.xz * 2.6 + float2(-t * 0.17, t * 0.2), 4.0 + t * 0.08));
+        float caustic = pow(saturate(1.0 - abs(c1 - c2) * 3.2), 5.0);
+        sceneCol += float3(0.9, 1.0, 1.1) * caustic * shallow * 0.13 * (0.4 + 0.6 * saturate(dot(sceneCol, float3(0.33)) * 6.0));
+    }
     float3 refracted = sceneCol * transmit + deep * (1.0 - transmit);
 
     // Sun glint: GGX specular lobe on the rippled surface.
@@ -142,7 +149,11 @@ fragment float4 water_fragment(WaterOut in [[stage_in]],
     float n1 = vnoiseV(float3(P.xz * 1.3, t * 0.4));
     float n2 = vnoiseV(float3(P.xz * 4.1, -t * 0.6));
     float surge = 0.5 + 0.5 * sin(t * 0.9 + n1 * 6.0);                // foam line advances and retreats
-    float foam = smoothstep(0.55 + 0.25 * surge, 0.0, vDepth + (n1 - 0.5) * 0.3) * (0.55 + 0.45 * n2);
+    // Surf-washed beaches get a wide, lively foam line; the Glass Wood's still pool gets a thin, irregular, faint meniscus (F02 G3: a 6 m shelf under the beach foam rule
+    // drew a surf ring round a pool that has no surf).
+    bool calm = frame.worldB.x > 0.5;
+    float foamReach = calm ? 0.10 + 0.06 * surge : 0.55 + 0.25 * surge;
+    float foam = smoothstep(foamReach, 0.0, vDepth + (n1 - 0.5) * (calm ? 0.12 : 0.3)) * (0.55 + 0.45 * n2) * (calm ? 0.55 : 1.0);
     foam *= smoothstep(0.0, 0.08, vDepth);                            // clean edge where water meets land
     float3 foamLit = (lightUp + E * max(sunDir.y, 0.0) / M_PI_F * 0.5) * 0.7;
     // Whitecaps: foam on crests that are folding (Jacobian below ~0.8). Fine, soft flecks (two noise octaves, wide threshold) in a
