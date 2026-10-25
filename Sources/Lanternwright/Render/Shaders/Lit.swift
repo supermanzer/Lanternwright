@@ -296,7 +296,7 @@ fragment LitFragOut lit_fragment(LitOut in [[stage_in]],
         // Position in the object's own frame (origin and orientation of its model matrix: the lighthouse axis, the dock's length, a stone's face).
         float3x3 Rm = float3x3(obj.model.columns[0].xyz, obj.model.columns[1].xyz, obj.model.columns[2].xyz);
         float3 Pl = transpose(Rm) * (in.worldPos - obj.model.columns[3].xyz);
-        MatOut mo = material_surface(mid, Pl, in.worldPos, n, albedo, rough, fpix);
+        MatOut mo = material_surface(mid, Pl, in.worldPos, n, albedo, rough, clamp((in.material - float(mid)) / 0.4, -1.0, 1.0), fpix);
         albedo = mo.albedo; rough = mo.rough; metal = mo.metal; n = mo.N; matAO = mo.ao;
         if (mid == 14 || mid == 20) {
             float3 Vw = normalize(frame.cameraPos.xyz - in.worldPos);

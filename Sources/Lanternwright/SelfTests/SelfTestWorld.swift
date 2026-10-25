@@ -83,6 +83,41 @@ extension SelfTestRunner {
             let probe = Scene.makeWorld(device: device)
             check(probe.items.first { $0.name == "dock" } != nil, "the dock exists")
         }
+        if name == "all" || name == "dockboards" {
+            // F02 G4 (#32): the deck boards are sawn by hand, not drawn with a ruler.
+            let surf = Surface(color: SIMD3(0.3, 0.2, 0.1), roughness: 0.5, material: .plank)
+            var wobbly = 0, skewed = 0, chipped = 0, lifted = 0, encoded = 0, total = 0
+            var minNormW: Float = 99, maxNormW: Float = -99
+            for k in 0..<80 {
+                let depth: Float = 0.15 + 0.12 * Island.noise.unit(Int32(k), 101), w: Float = 2.3
+                let bd = Landmarks.sawnBoard(k: Int32(k), w: w, depth: depth, thick: 0.05, chamfer: 0.016, cup: 0.003, bow: 0.002, surface: surf)
+                total += 1
+                // the +z long edge: the z of the perimeter points whose z is near +depth/2, along the board
+                let longEdge = bd.outline.filter { $0.y > depth / 2 - 0.02 && abs($0.x) < w / 2 - 0.1 }.map(\.y)
+                if let lo = longEdge.min(), let hi = longEdge.max(), hi - lo >= 0.002 { wobbly += 1 }
+                let leftEnd = bd.outline.filter { $0.x < -w / 2 + 0.04 }.map(\.x), rightEnd = bd.outline.filter { $0.x > w / 2 - 0.04 }.map(\.x)
+                if (leftEnd.max() ?? 0) - (leftEnd.min() ?? 0) > 0.004 || (rightEnd.max() ?? 0) - (rightEnd.min() ?? 0) > 0.004 { skewed += 1 }
+                if (leftEnd.max() ?? -w / 2) > -w / 2 + 0.02 || (rightEnd.min() ?? w / 2) < w / 2 - 0.02 { chipped += 1 }
+                if bd.lift >= 0.004 { lifted += 1 }
+                for v in bd.mesh.vertices { minNormW = min(minNormW, v.normal.w); maxNormW = max(maxNormW, v.normal.w) }
+                if bd.mesh.vertices.contains(where: { $0.normal.w > 12.2 }) && bd.mesh.vertices.contains(where: { $0.normal.w < 11.8 }) { encoded += 1 }
+                if k == 0 { check(bd.mesh.indices.count / 3 > 200 && bd.mesh.indices.count / 3 < 700, "a deck board is a few hundred triangles (\(bd.mesh.indices.count / 3))") }
+            }
+            check(wobbly >= 70, "the long edges are sawn, not ruled: at least 2 mm of wobble along them on \(wobbly) of \(total) boards")
+            check(skewed >= 50, "the ends are cut off square on \(skewed) of \(total) boards (over 4 mm across the width)")
+            check(chipped >= 15 && chipped <= 60, "corners are splintered off on \(chipped) of \(total) boards (over 2 cm)")
+            check(lifted >= 3 && lifted <= 14, "a corner is lifted 4 mm or more on \(lifted) of \(total) boards")
+            check(minNormW >= 11.55 && maxNormW <= 12.45 && encoded >= 60, "every board vertex carries its cross coordinate in the material id (12 +- 0.4: \(minNormW) to \(maxNormW)), so the grain runs along its own board")
+            let gaps = (0..<400).map { Landmarks.deckGap(Int32($0)) }
+            let jammed = gaps.filter { $0 == 0 }.count, sprung = gaps.filter { $0 >= 0.03 }.count
+            check(Float(jammed) / 400 > 0.07 && Float(jammed) / 400 < 0.17 && Float(sprung) / 400 > 0.04 && Float(sprung) / 400 < 0.12 && Set(gaps.map { Int($0 * 1000) }).count > 15,
+                  "the gaps are uneven: \(jammed) of 400 boards jammed tight, \(sprung) sprung 3 cm or more, and many sizes between")
+            let kinds = (0..<400).map { Landmarks.nailRoll(Int32($0)) }
+            let nk = [kinds.filter { $0 < 0.5 }.count, kinds.filter { $0 >= 0.5 && $0 < 0.75 }.count, kinds.filter { $0 >= 0.75 && $0 < 0.88 }.count, kinds.filter { $0 >= 0.88 }.count]
+            check(nk.allSatisfy { $0 > 15 }, "nails are round-headed, square-cut, worked loose or sunk (\(nk) of 400), never one repeated octagon")
+            let src = MaterialShaders.source
+            check(src.lowercased().contains("flat-sawn") && src.contains("float dpt =") && !src.contains("ringPos += knot * 5.0"), "the plank grain is the flat-sawn arch model (a pith depth that varies along the board), not the old concentric-ring one with swirling knots")
+        }
         if name == "all" || name == "placement" {
             // F01 W3.5/W3.6: nothing placed on the ground floats. Every recorded piece (cones, twigs, pebbles, shells, driftwood, rocks, lantern and trunk
             // footings) has its lowest vertices within a few centimetres of the terrain under them, or embedded by no more than the kind allows.

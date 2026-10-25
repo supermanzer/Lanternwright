@@ -10,8 +10,9 @@ A Myst-like exploration and puzzle game for macOS, built in Swift with a custom 
 3. Verify against the task's **Accept** line:
    - Run `.build/release/Lanternwright --selftest` and keep every check passing. Add a selftest case for any new logic.
    - For visual tasks, run `.build/release/Lanternwright --screenshot shots/<task>.png --view <name>`, then **open the PNG with the Read tool and look at it**. A clean build does not prove that a frame looks right.
-4. Tick the box and add the `> done:` note in TASKS.md. Record anything that later tasks need to know.
-5. Stop. Report what changed and what you saw in the screenshot.
+4. **Independent review.** Before ticking anything, have a separate reviewer agent check the work, following `docs/REVIEW-STEP.md` (brief it fully: task text, the plan it belongs to and why, what you changed, how to verify). It must confirm the task meets its requirements and that it fits the goals of its section. Fix every required change it lists before moving on.
+5. Tick the box and add the `> done:` note in TASKS.md, including the line `review: pass` (or the unresolved item). Record anything that later tasks need to know.
+6. Stop. Report what changed, what you saw in the screenshot, and the reviewer's verdict.
 
 ## Player feedback
 Playtest feedback is saved by the game (press **F**) to `~/Library/Application Support/Lanternwright/feedback/`. At the start of a session run `.build/release/Lanternwright --feedback` to read it (text, context, screenshot path; open the PNGs with Read). Turn anything actionable into a task in `docs/TASKS.md`, citing the entry id, and do not delete entries.
