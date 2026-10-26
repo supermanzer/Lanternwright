@@ -89,6 +89,18 @@ extension SelfTestRunner {
             if name == "taa" { print(String(format: "  beam: %d covered pixels; TAA frame against the true frame on them: with the beam %.1f, with no beam %.1f", covered, withErr, withoutErr)) }
             check(covered > 200 && withErr < withoutErr + 25, "no trail or dimming on the rotating beam: on the \(covered / 6) pixels it covers, the TAA frame is as close to the true frame as without the beam (mse \(String(format: "%.1f", withErr)) vs \(String(format: "%.1f", withoutErr)))")
         }
+        // F02 T66.13: converged TAA frames of the needle foliage must be steady. A clean resolve of a still camera changes very little from one frame to the next; plain
+        // dither stipple (stochastic alpha that the temporal blend cannot average out) shows as frame-to-frame change. Compared at 5 m, 8 m and 11 m from the foliage edge.
+        // (The same measurement with NO_NEEDLES=1, i.e. the old sprays alone, is 6.94 / 9.18 / 6.69: the remaining noise is the R09 dither and the grass, and the needles must add none.)
+        for (label, view, bound) in [("5 m", "tree-needle-5m", Float(7.5)), ("8 m", "tree-at-10", Float(9.7)), ("11 m", "tree-at-13", Float(7.3))] {
+            let cam = Screenshot.viewCamera(view, renderer: renderer)
+            renderer.resetTAA()
+            var last: [Float] = [], prev: [Float] = []
+            for _ in 0..<22 { prev = last; last = frame(cam, taa: true) }
+            let change = mse(last, prev)
+            if name == "taa" { print(String(format: "  needle foliage steadiness (%@): frame-to-frame mse of the converged TAA frame %.2f", label, change)) }
+            check(change < bound, "TAA: the needle foliage adds no shimmer at \(label) (converged frame-to-frame mse \(String(format: "%.2f", change)), under \(bound); the old sprays alone measure about the same)")
+        }
         // A world change is a camera cut: the first frame in the new world must not carry the old world's history. Compare it with a frame rendered with no history at all.
         do {
             renderer.world = .varrow; renderer.resetTAA()

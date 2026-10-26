@@ -118,6 +118,31 @@ extension SelfTestRunner {
             let src = MaterialShaders.source
             check(src.lowercased().contains("flat-sawn") && src.contains("float dpt =") && !src.contains("ringPos += knot * 5.0"), "the plank grain is the flat-sawn arch model (a pith depth that varies along the board), not the old concentric-ring one with swirling knots")
         }
+        if name == "all" || name == "needles" {
+            // F02 T66.13: needle-level conifer foliage (near level only; the stylised sprays stay as the foliage of every other level).
+            func finite(_ b: MeshBuilder) -> Bool { b.vertices.allSatisfy { $0.position.x.isFinite && $0.position.y.isFinite && $0.position.z.isFinite && abs(simd_length(SIMD3($0.normal.x, $0.normal.y, $0.normal.z)) - 1) < 1e-2 } }
+            for style in [Trees.Style.pine, .cypress] {
+                let nd = Trees.needleVariant(style, 0), l0 = Trees.variant(style, 0, lod: 0)
+                let cards = nd.vertices.count / 4
+                check(cards >= 600 && cards <= 6000 && nd.indices.count / 3 == cards * 2, "\(style) needle level: \(cards) cards (\(nd.indices.count / 3) triangles), a few hundred to a few thousand")
+                check(nd.vertices.allSatisfy { $0.normal.w >= 22.55 && $0.normal.w <= 23.45 && $0.color.w >= -1e-4 && $0.color.w <= 1 + 1e-4 } && finite(nd), "\(style) needles: every vertex is material 23 with its card coordinates (v in the id's fraction, u in the alpha), finite and unit normals")
+                let sn = Trees.silhouette(nd), s0 = Trees.silhouette(l0)
+                check(sn.rad < 1.2 * s0.rad && sn.rad > 0.82 * s0.rad && sn.top < 1.1 * s0.top && sn.top > 0.9 * s0.top, "\(style) needles sit on the same branches: widest radius \(String(format: "%.2f", sn.rad)) m against the sprays' \(String(format: "%.2f", s0.rad)) m, height \(String(format: "%.2f", sn.top)) vs \(String(format: "%.2f", s0.top)) m")
+            }
+            let sc = Scene.makeWorld(device: device)
+            let needleItems = sc.items.filter { $0.name.hasPrefix("needles_") }
+            let treeCells = sc.items.filter { $0.name.hasPrefix("trees_L0_") }
+            check(needleItems.count > 10 && needleItems.count <= treeCells.count && needleItems.allSatisfy { $0.uniforms.lod.w > 0.5 && $0.uniforms.lod.x > 0.5 && $0.uniforms.lod.y < 0.5 }, "every tree cell has its needle cards as a near-level extra flagged lod.w = 1 (\(needleItems.count) of \(treeCells.count) cells)")
+            check(sc.lodGroups.allSatisfy { g in g.extras.filter { $0.hasPrefix("needles_") }.count <= 1 } && sc.lodGroups.contains { $0.extras.contains { $0.hasPrefix("needles_") } }, "the needles are drawn wherever level 0 is (they are in the cell's extras)")
+            // The dissolve: spray foliage of level 0 and the needle cards are dithered complementarily with one noise value, and needles are two-sided, alpha-tested, never in the shadow pass.
+            let lit = LitShaders.source, common = CommonShaders.source
+            check(lit.contains("ign(px2) >= nW") && lit.contains("ign(px2) < nW") && lit.contains("midN == 3") && lit.contains("needle_cover(") && lit.contains("needle_threshold(") && common.contains("needle_weight"), "the shader dissolves needles and the level-0 sprays complementarily (one noise value, opposite tests) and alpha-tests the needle pattern")
+            let r = try? String(contentsOfFile: "Sources/Lanternwright/Render/Renderer.swift", encoding: .utf8)
+            check(r?.contains("item.uniforms.lod.w < 0.5, sunFrustum") == true && r?.contains("item.uniforms.lod.w > 0.5 ? .none : .back") == true, "needle cards are drawn two-sided and cast no shadow")
+            // needle_weight in Swift terms: 1 inside about 13 m, 0 beyond about 17 m, for the nominal tree.
+            func nw(_ d: Float) -> Float { 1 - smoothstep(13 - 2, 13 + 2, d) }
+            check(nw(5) == 1 && nw(20) == 0 && nw(13) > 0.4 && nw(13) < 0.6, "the needle level covers the first 13 m and is gone by 17 m")
+        }
         if name == "all" || name == "placement" {
             // F01 W3.5/W3.6: nothing placed on the ground floats. Every recorded piece (cones, twigs, pebbles, shells, driftwood, rocks, lantern and trunk
             // footings) has its lowest vertices within a few centimetres of the terrain under them, or embedded by no more than the kind allows.

@@ -279,6 +279,21 @@ fragment LitFragOut lit_fragment(LitOut in [[stage_in]],
                              depth2d<float> shadowNear [[texture(6)]],
                              depth2d<float> shadowMid [[texture(7)]]) {
     if (kLodDither && tree_lod_discard(obj.lod, in.worldPos, frame.cameraPos.xyz, in.stagger, in.position.xy + frame.misc.x * float2(5.588238, 3.14159))) discard_fragment();
+    if (kLodDither) {
+        // F02 T66.13: needle cards (lod.w = 1) and the spray foliage of level 0 give way to each other within about 16 m, complementarily through one noise value;
+        // a needle card is also alpha-tested with its herringbone pattern, stochastically, so the temporal resolve turns it into smooth needle coverage.
+        float fpN = max(length(dfdx(in.worldPos)), length(dfdy(in.worldPos)));      // metres per pixel (derivatives taken before any discard)
+        float nW = needle_weight(length(in.worldPos.xz - frame.cameraPos.xz), in.stagger);
+        float2 px2 = in.position.xy + frame.misc.x * float2(3.7, 8.1) + float2(31.7, 12.3);
+        int midN = int(in.material + 0.5);
+        if (obj.lod.w > 0.5) {
+            if (ign(px2) >= nW) discard_fragment();
+            float cover = needle_cover(in.color.a, clamp((in.material - 23.0) / 0.4, -1.0, 1.0), fract(in.color.r * 91.7 + in.color.g * 37.1), fpN);
+            if (cover < needle_threshold(fpN, ign(px2 + float2(7.3, 19.9)))) discard_fragment();
+        } else if (obj.lod.y < 0.5 && midN == 3 && ign(px2) < nW) {
+            discard_fragment();
+        }
+    }
     float3 n = normalize(in.normal);
     float fpix = max(length(dfdx(in.worldPos)), length(dfdy(in.worldPos)));     // metres per pixel (for band-limited noise)
     float3 albedo = in.color.rgb;

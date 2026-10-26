@@ -84,21 +84,66 @@ enum Trees {
         return m
     }
 
+    /// A conifer's frame: the trunk curve and radius, the crown's size and the layout of its branches. Shared by the stylised sprays (`conifer`) and the needle cards
+    /// (`needleCards`), so both always sit on the same branches.
+    struct Branch { var base: SIMD3<Float>; var mid: SIMD3<Float>; var tip: SIMD3<Float>; var ang: Float; var len: Float; var t: Float }
+    struct Skeleton {
+        var n: Noise
+        var H: Float, pine: Bool
+        var trunkAt: (Float) -> SIMD3<Float>
+        var trunkR: (Float) -> Float
+        var tStart: Float, crownR: Float, droop: Float
+        var branches: [Branch]
+        func r(_ i: Int, _ j: Int) -> Float { n.unit(Int32(i), Int32(j)) }
+        static func make(seed: UInt32, style: Style) -> Skeleton {
+            let n = Noise(seed: seed)
+            func r(_ i: Int, _ j: Int) -> Float { n.unit(Int32(i), Int32(j)) }
+            let H = nominalHeight, pine = style == .pine
+            // Trunk: slight curve, strong taper, root flare.
+            let bend = SIMD2<Float>(r(1, 1) - 0.5, r(1, 2) - 0.5) * 0.9
+            func trunkAt(_ t: Float) -> SIMD3<Float> {
+                SIMD3(bend.x * t * t * 0.9 + 0.08 * sin(t * 6 + r(1, 3) * 6), t * H * 0.97, bend.y * t * t * 0.9 + 0.08 * cos(t * 5 + r(1, 4) * 6))
+            }
+            let r0 = H * 0.034 * (0.85 + 0.3 * r(1, 5))
+            func trunkR(_ t: Float) -> Float { r0 * (1 - 0.84 * t) * (1 + 0.6 * exp(-t * 16)) }
+            // Crown: whorls of branches, shorter toward the top.
+            let tStart: Float = pine ? 0.27 : 0.15
+            let crownR = H * (pine ? 0.27 : 0.135) * (0.85 + 0.3 * r(2, 2))
+            let whorls = pine ? 9 : 11
+            let perWhorl = pine ? 5 : 4
+            let droop: Float = (pine ? 0.26 : 0.12) * (0.8 + 0.4 * r(2, 3))
+            var branches: [Branch] = []
+            for w in 0..<whorls {
+                let t = tStart + (0.97 - tStart) * (Float(w) + 0.5) / Float(whorls)
+                let p0 = trunkAt(t)
+                let taper = pow(max(1 - (t - tStart) / (1 - tStart), 0.05), pine ? 0.8 : 0.95)
+                let reach = crownR * taper * (0.75 + 0.5 * r(w, 3)) + 0.25
+                let phase = r(w, 4) * 2 * .pi
+                for k in 0..<perWhorl {
+                    let ang = phase + (Float(k) + 0.3 * (r(w * 7 + k, 5) - 0.5)) * 2 * .pi / Float(perWhorl)
+                    let dir = SIMD3<Float>(cos(ang), 0, sin(ang))
+                    let len = reach * (0.8 + 0.4 * r(w * 7 + k, 6))
+                    let mid = p0 + dir * len * 0.5 + SIMD3(0, -droop * len * 0.30 + 0.05 * len, 0)
+                    let tip = p0 + dir * len + SIMD3(0, -droop * len * 0.5 + 0.12 * len, 0)
+                    branches.append(Branch(base: p0, mid: mid, tip: tip, ang: ang, len: len, t: t))
+                }
+            }
+            return Skeleton(n: n, H: H, pine: pine, trunkAt: trunkAt, trunkR: trunkR, tStart: tStart, crownR: crownR, droop: droop, branches: branches)
+        }
+    }
+
     /// One conifer of height `nominalHeight`, standing on y = 0 at the origin.
     static func conifer(seed: UInt32, style: Style, lod: Int) -> MeshBuilder {
         if lod >= 2 { return style == .pine ? Props.pine(seed: seed, height: nominalHeight) : Props.cypress(seed: seed, height: nominalHeight) }
-        let n = Noise(seed: seed)
-        func r(_ i: Int, _ j: Int) -> Float { n.unit(Int32(i), Int32(j)) }
-        let H = nominalHeight, pine = style == .pine
+        let sk = Skeleton.make(seed: seed, style: style)
+        let n = sk.n
+        func r(_ i: Int, _ j: Int) -> Float { sk.r(i, j) }
+        let H = sk.H, pine = sk.pine
+        let trunkAt = sk.trunkAt, trunkR = sk.trunkR
+        let tStart = sk.tStart, crownR = sk.crownR, droop = sk.droop, branches = sk.branches
         var b = MeshBuilder()
 
-        // ---- Trunk: slight curve, strong taper, root flare, bark material at full detail.
-        let bend = SIMD2<Float>(r(1, 1) - 0.5, r(1, 2) - 0.5) * 0.9
-        func trunkAt(_ t: Float) -> SIMD3<Float> {
-            SIMD3(bend.x * t * t * 0.9 + 0.08 * sin(t * 6 + r(1, 3) * 6), t * H * 0.97, bend.y * t * t * 0.9 + 0.08 * cos(t * 5 + r(1, 4) * 6))
-        }
-        let r0 = H * 0.034 * (0.85 + 0.3 * r(1, 5))
-        func trunkR(_ t: Float) -> Float { r0 * (1 - 0.84 * t) * (1 + 0.6 * exp(-t * 16)) }
+        // ---- Trunk: bark material at full detail.
         let bark = Surface(color: SIMD3(0.21, 0.145, 0.10) * (0.85 + 0.3 * r(1, 6)), roughness: 0.95, material: lod == 0 ? .bark : .standard)
         let ts: [Float] = lod == 0 ? [0, 0.03, 0.08, 0.18, 0.35, 0.55, 0.75, 0.9, 1.0] : [0, 0.12, 0.5, 1.0]
         // F02 G1: the trunk simply carries on straight down below y = 0 (same radius as its base, same bark): the terrain hides the buried part, so no
@@ -109,31 +154,8 @@ enum Trees {
         // (The litter at the foot, cones and twigs, is no longer baked in here: on a slope it floated. See Trees.litterCone / litterTwig and Island.addTrees,
         // which place each piece on the terrain under it.)
 
-        // ---- Crown: whorls of branches, shorter toward the top.
-        let tStart: Float = pine ? 0.27 : 0.15
-        let crownR = H * (pine ? 0.27 : 0.135) * (0.85 + 0.3 * r(2, 2))
         // The mid level keeps the near level's branch layout (same whorls, same branches), only with fewer and larger sprays, so the crown's mass
         // and outline match across the dithered cross-fade (R09).
-        let whorls = pine ? 9 : 11
-        let perWhorl = pine ? 5 : 4
-        let droop: Float = (pine ? 0.26 : 0.12) * (0.8 + 0.4 * r(2, 3))
-        struct Branch { var base: SIMD3<Float>; var mid: SIMD3<Float>; var tip: SIMD3<Float>; var ang: Float; var len: Float; var t: Float }
-        var branches: [Branch] = []
-        for w in 0..<whorls {
-            let t = tStart + (0.97 - tStart) * (Float(w) + 0.5) / Float(whorls)
-            let p0 = trunkAt(t)
-            let taper = pow(max(1 - (t - tStart) / (1 - tStart), 0.05), pine ? 0.8 : 0.95)
-            let reach = crownR * taper * (0.75 + 0.5 * r(w, 3)) + 0.25
-            let phase = r(w, 4) * 2 * .pi
-            for k in 0..<perWhorl {
-                let ang = phase + (Float(k) + 0.3 * (r(w * 7 + k, 5) - 0.5)) * 2 * .pi / Float(perWhorl)
-                let dir = SIMD3<Float>(cos(ang), 0, sin(ang))
-                let len = reach * (0.8 + 0.4 * r(w * 7 + k, 6))
-                let mid = p0 + dir * len * 0.5 + SIMD3(0, -droop * len * 0.30 + 0.05 * len, 0)
-                let tip = p0 + dir * len + SIMD3(0, -droop * len * 0.5 + 0.12 * len, 0)
-                branches.append(Branch(base: p0, mid: mid, tip: tip, ang: ang, len: len, t: t))
-            }
-        }
         if lod == 0 {
             for br in branches {
                 let rb = trunkR(br.t) * 0.4
@@ -182,6 +204,86 @@ enum Trees {
             let dist = simd_length(SIMD2(p.x - centre.x, p.z - centre.z)) / max(crownR, 0.5)
             let lightness = simd_mix(0.5, 1.25, smoothstep(0.08, 1.0, dist)) * (0.85 + 0.3 * (bent.y * 0.5 + 0.5)) * (0.9 + 0.2 * (p.y / H))
             v.color = SIMD4(v.color.x * lightness, v.color.y * lightness, v.color.z * lightness, v.color.w)
+        }
+        return b
+    }
+
+    private static var needleCache: [Int: MeshBuilder] = [:]
+    static func needleVariant(_ style: Style, _ index: Int) -> MeshBuilder {
+        let key = (style == .pine ? 0 : 1000) + index
+        if let c = needleCache[key] { return c }
+        let m = needleCards(seed: UInt32(7000 + index * 131 + (style == .pine ? 17 : 0)), style: style)
+        needleCache[key] = m
+        return m
+    }
+
+    /// The needle-level foliage of a conifer (F02 T66.13, the user's decision: needle-level conifers now that TAA is in, near level only): hundreds of small cards along every
+    /// branch, two crossed pairs per station, each carrying a procedural herringbone of needles that the fragment shader turns into ALPHA (material 23, stochastic alpha-test
+    /// so the temporal resolve anti-aliases the needle edges). Card coordinates travel with the vertices: u along the card (0...1) in the colour's alpha, v across (-1...1) in
+    /// the fraction of the material id (23 + 0.4 v). Sits on the same branches as the stylised sprays (`Skeleton`), which stay as the foliage of the other levels and give way to
+    /// these inside about 16 m (see the fragment shader's needle_weight).
+    static func needleCards(seed: UInt32, style: Style) -> MeshBuilder {
+        let sk = Skeleton.make(seed: seed, style: style)
+        let n = sk.n
+        func r(_ i: Int, _ j: Int) -> Float { n.unit(Int32(i), Int32(j)) }
+        let hue = sk.r(3, 1)
+        let leaf = SIMD3<Float>(0.105 + 0.03 * hue, 0.255 + 0.06 * hue, 0.085 + 0.02 * sk.r(3, 2))
+        let centre = sk.trunkAt(sk.tStart + (1 - sk.tStart) * 0.45)
+        let up = SIMD3<Float>(0, 1, 0)
+        var pos: [SIMD3<Float>] = [], nrm: [SIMD3<Float>] = [], idx: [UInt32] = [], uv: [SIMD2<Float>] = [], tint: [SIMD3<Float>] = []
+        var card = 0
+        func addCard(at p: SIMD3<Float>, dir: SIMD3<Float>, width: Float, length: Float, tilt: Float) {
+            let d = simd_normalize(dir)
+            var w = simd_cross(d, up); w = simd_length(w) < 1e-3 ? SIMD3(1, 0, 0) : simd_normalize(w)
+            let nrmCard = simd_cross(w, d)                                               // roughly up
+            w = simd_normalize(w * cos(tilt) + nrmCard * sin(tilt))                      // the second card of a pair is tipped up out of the first's plane
+            var nc = simd_cross(d, w); if nc.y < 0 { nc = -nc }
+            let away = simd_normalize(p + d * length * 0.5 - centre)
+            let normal = simd_normalize(simd_mix(simd_normalize(nc), away, SIMD3(repeating: 0.7)))
+            let jitter = 0.78 + 0.5 * r(card, 7)
+            let dist = simd_length(SIMD2(p.x - centre.x, p.z - centre.z)) / max(sk.crownR, 0.5)
+            let light = simd_mix(0.5, 1.25, smoothstep(0.08, 1.0, dist)) * (0.85 + 0.3 * (normal.y * 0.5 + 0.5)) * (0.9 + 0.2 * (p.y / sk.H))
+            let base = UInt32(pos.count)
+            for (u, v) in [(Float(0), Float(-1)), (0, 1), (1, 1), (1, -1)] {
+                pos.append(p + d * length * u + w * width * v); nrm.append(normal); uv.append(SIMD2(u, v)); tint.append(leaf * jitter * light)
+            }
+            idx += [base, base + 1, base + 2, base, base + 2, base + 3]
+            card += 1
+        }
+        for (bi, br) in sk.branches.enumerated() {
+            let out = SIMD3<Float>(cos(br.ang), 0, sin(br.ang)), side = SIMD3<Float>(-out.z, 0, out.x)
+            let dirB = simd_normalize(br.tip - br.base)
+            let stations = max(4, Int(br.len / (sk.pine ? 0.14 : 0.12)))
+            for i in 0..<stations {
+                let f = 0.22 + 0.98 * Float(i) / Float(stations - 1)                       // past the branch tip (the sprays reach beyond it too)
+                let at = f < 0.5 ? br.base + (br.mid - br.base) * (f * 2) : (f < 1 ? br.mid + (br.tip - br.mid) * (f * 2 - 1) : br.tip + dirB * br.len * (f - 1) * 1.0)
+                for sgn: Float in [-1, 1] {
+                    let yaw = sgn * (0.75 + 0.45 * r(bi * 31 + i, 11))
+                    let d = dirB * 0.5 + side * yaw + SIMD3(0, -(0.18 + 0.30 * r(bi * 31 + i, 12)), 0)
+                    let len = (sk.pine ? 0.52 : 0.38) * (0.75 + 0.5 * r(bi * 31 + i, 13)) * (1.1 - 0.4 * f)
+                    addCard(at: at, dir: d, width: len * 0.34, length: len, tilt: 0)
+                    addCard(at: at, dir: d + SIMD3(0, 0.30, 0), width: len * 0.34, length: len * 0.9, tilt: 0.9)
+                }
+            }
+        }
+        // The leader: a tuft of upward cards along the top of the trunk (the sprays have one too), so the needle crown reaches the height of the spray crown.
+        for k in 0..<10 {
+            let t = 0.84 + 0.145 * Float(k) / 9
+            let at = sk.trunkAt(t)
+            let a = Float(k) * 2.4 + 0.7
+            let q = Float(k) / 9
+            let d = SIMD3<Float>(cos(a) * 0.55 * (1 - 0.8 * q), 0.85 + 0.15 * q, sin(a) * 0.55 * (1 - 0.8 * q))
+            let len = 0.45 + 0.9 * q * q
+            addCard(at: at, dir: d, width: len * 0.34, length: len, tilt: Float(k % 3) * 0.7)
+        }
+        var b = MeshBuilder()
+        b.addIndexed(positions: pos, indices: idx, smoothNormals: nrm, surface: Surface(color: SIMD3(1, 1, 1), roughness: 0.9, material: .needles), transform: matrix_identity_float4x4)
+        var i = 0
+        b.adjust { v in
+            let q = uv[i], c = tint[i]
+            v.normal.w = MaterialID.needles.rawValue + 0.4 * q.y
+            v.color = SIMD4(c.x, c.y, c.z, q.x)                                          // alpha channel = u along the card
+            i += 1
         }
         return b
     }

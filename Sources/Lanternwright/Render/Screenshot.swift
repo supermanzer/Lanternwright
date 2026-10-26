@@ -55,12 +55,13 @@ enum Screenshot {
         renderer.fixedTime = nil
         print("benchmark at \(options.width)x\(options.height), \(options.benchFrames ?? 0) frames per view")
         if let w = options.world { renderer.world = w }
-        let views = renderer.world == .glassWood ? ["gw-arrival", "gw-overview", "gw-court", "gw-altar"] : ["dock", "overview", "shore", "summit"]
+        var views = renderer.world == .glassWood ? ["gw-arrival", "gw-overview", "gw-court", "gw-altar"] : ["dock", "overview", "shore", "summit"]
+        if let v = options.viewName { views = [v] }                // --bench N --view NAME: just that view (F02 T66.13: the cost near trees)
         let glassTris = renderer.scene.items.filter { $0.refractive }.reduce(0) { $0 + $1.mesh.indexCount / 3 }
         let allTris = renderer.scene.items.reduce(0) { $0 + $1.mesh.indexCount / 3 }
         print("triangles: glass \(glassTris), scene total \(allTris)")
         for name in views {
-            let camera = Viewpoints.named(name)!
+            let camera = Viewpoints.named(name) ?? Screenshot.viewCamera(name, renderer: renderer)
             var times: [Double] = []
             for i in 0..<((options.benchFrames ?? 60) + 5) {
                 guard let cb = renderer.queue.makeCommandBuffer() else { throw Failure.texture }
@@ -128,6 +129,7 @@ enum Screenshot {
         case "pillar-close", "pillar-far": return Viewpoints.pillarClose(terrain: terrain, far: name == "pillar-far")
         default: break
         }
+        if let c = Viewpoints.treeNeedle(terrain: terrain, name: name) { return c }
         if let c = Viewpoints.poolView(terrain: terrain, name: name) { return c }
         if let c = Viewpoints.pageView(scene: renderer.scene, name: name) { return c }
         if let c = Viewpoints.treeBase(terrain: terrain, name: name) { return c }

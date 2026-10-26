@@ -403,7 +403,7 @@ final class Renderer {
             let sunFrustum = Frustum(viewProj: matrix)
             for item in scene.items {
                 let b = item.worldBounds
-                guard !item.hidden, !item.refractive, sunFrustum.intersects(min: b.min, max: b.max) else { continue }
+                guard !item.hidden, !item.refractive, item.uniforms.lod.w < 0.5, sunFrustum.intersects(min: b.min, max: b.max) else { continue }          // needle cards cast no shadow (the sprays of the same trees do)
                 lastShadowDraws += 1
                 var u = item.uniforms
                 enc.setVertexBuffer(item.mesh.vertexBuffer, offset: 0, index: 0)
@@ -451,6 +451,7 @@ final class Renderer {
                     let b = item.worldBounds
                     guard !item.hidden, !item.refractive, (item.uniforms.lod.x > 0.5) == lodSweep, camFrustum.intersects(min: b.min, max: b.max) else { continue }
                     lastOpaqueDraws += 1
+                    enc.setCullMode(item.uniforms.lod.w > 0.5 ? .none : .back)              // needle cards are two-sided
                     var u = item.uniforms
                     enc.setVertexBuffer(item.mesh.vertexBuffer, offset: 0, index: 0)
                     enc.setVertexBytes(&u, length: MemoryLayout<ObjectUniforms>.stride, index: 2)

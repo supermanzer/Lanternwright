@@ -156,11 +156,14 @@ Fine detail should now hold still when you walk and turn. It is on in the game, 
 ## F02 G4: the dock planks (note #32)
 Every deck board now has its own wobbly sawn edges, off-square splintered ends, uneven gaps (some jammed, some 3-4 cm), a flat-sawn grain that runs along the board in long arches, and varied oblique nails with rust. Look at: `--view dock-plank` (0.5 m over the planks), `dock-top`, `dock-close`, `dock`, and walk the dock. Tell me if the grain is still too regular or too contrasty, if there are too few knots, and if the nails are too small to read.
 
+## F02 T66.13: needle-level conifers
+Inside about 13 m a conifer's foliage is built from hundreds of small needle cards (a herringbone of needles up to about 6 m, a solid frond beyond that), dissolving into the old stylised sprays at 13-17 m. Views: `tree-needle-05` (0.5 m from the foliage edge), `-near`, `-2m`, `-mid`, `-5m`, `-far`, and `tree-at-10/13/16/20` through the dissolve. Look at: the lower crown from 2-6 m; walking toward a tree through 17 to 10 m (any visible swap?); the cost in a dense stand (about 1.2 ms more than before).
+
 ## Questions for the user (not decided by anyone but you)
 Decided on 2026-10-25 (F02): **the door** is final as a locked door, the interior is NOT built; **the drone** (A4) uses different tones for different worlds (shore and island, and each Refraction such as the Glass Wood), all from `ToneTable`; **TAA** is accepted (a slight softness on fast turns for stable fine detail).
 1. **The water edge (#29, answered by the builder, still the user's call).** See the F02 section below for what the object is; do you want it to stay as a feature once it looks like water?
 2. **Slipping on steep slopes (decided: ON by default, you will test the feel).** Beyond about 40 degrees you slide gently downhill; the pause-menu checkbox turns it off. Tell me if the angle (40) or the speed (1.6 m/s) feels wrong.
-3. **Conifers (decided: needle-level near LOD after TAA, T66.13).** Stylised spray stays as the far LOD.
+3. **Conifers (decided; built as T66.13).** Needle-level foliage inside about 13 m, the stylised sprays beyond. Please judge it by eye: from 2-6 m do the trees read as needled conifers? At arm's length the cards read as fern-like fronds with visible ends; the area is dearer by about 1.2 ms in views among trees. Tell me if you want the range shorter, the cards smaller, or the old sprays back.
 4. **The ending of the story.** Being planned separately by the reviewer: nothing has been built or decided here and nothing will be touched.
 
 ## Round 9 (R09): detail arrives gradually

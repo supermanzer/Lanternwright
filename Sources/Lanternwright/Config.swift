@@ -14,7 +14,7 @@ enum LookDefaults {
     static let godRayStrength: Float = 0.32
     static let aoStrength: Float = 0.9
     static let aoRadius: Float = 1.6
-    static let grassCell: Float = 0.29
+    static let grassCell: Float = 0.31
 }
 
 /// Command-line options. Parsed once in main.swift.
@@ -263,6 +263,28 @@ enum Viewpoints {
             return Camera(position: SIMD3(p.x, ground(p.x, p.y) + 3.0, p.y), yaw: 2.9, pitch: -0.12)
         default: return nil
         }
+    }
+
+    /// `tree-needle-05` (0.5 m), `-near` (1.5 m), `-2m`, `-mid` (3.5 m), `-5m` and `-far` (6 m): a conifer's lower crown seen from that far, at the height of its lowest whorl, looking at the foliage
+    /// (F02 T66.13: the needle-level foliage and its dissolve into the stylised sprays).
+    static func treeNeedle(terrain t: Terrain, name: String) -> Camera? {
+        let dist: Float
+        switch name { case "tree-needle-05": dist = 0.5; case "tree-needle-near": dist = 1.5; case "tree-needle-2m": dist = 2; case "tree-needle-mid": dist = 3.5; case "tree-needle-5m": dist = 5; case "tree-needle-far": dist = 6; default:
+            // `tree-at-N`: N metres from the trunk (10, 13, 16, 20: through the needle dissolve, F02 T66.13)
+            guard name.hasPrefix("tree-at-"), let n = Float(name.dropFirst(8)) else { return nil }
+            dist = n - 2.2
+        }
+        let sites = Island.treeSites(terrain: t).prefix(420).filter { t.sampleHeight(x: $0.x, z: $0.y) > 6 && t.sampleHeight(x: $0.x, z: $0.y) < 26 && t.normal(x: $0.x, z: $0.y).y > 0.93 }
+        let from = SIMD2(Layout.dockShore.x, Layout.dockShore.z)
+        guard let tree = sites.filter({ simd_length($0 - from) > 25 }).min(by: { simd_length($0 - from) < simd_length($1 - from) }) else { return nil }
+        let toward = simd_normalize(from - tree)
+        let reach: Float = 2.2                                              // roughly the lowest whorl's reach: the camera stands this far PAST the foliage edge
+        let cam = tree + toward * (reach + dist)
+        let g = t.sampleHeight(x: cam.x, z: cam.y)
+        let target = SIMD3(tree.x, t.sampleHeight(x: tree.x, z: tree.y) + 3.2, tree.y)
+        let eye = SIMD3(cam.x, g + 3.0, cam.y)
+        let d = target - eye
+        return Camera(position: eye, yaw: atan2(d.x, -d.z), pitch: asin(d.y / simd_length(d)))
     }
 
     /// `page-close`: 0.8 m above the journal page on the tide stone's plinth, looking down at it (R06).

@@ -467,6 +467,42 @@ inline float4 cell2n(float2 p) {
     return float4(v, sqrt(d1), id);
 }
 
+// ---- Needles (F02 T66.13): the near conifer foliage. A card of 0.15-0.3 m with a herringbone of needles: slanted bands either side of a midrib, tapering toward the card's
+// tip. `needle_cover` is the coverage 0...1 (stochastically alpha-tested by the caller); far away, where a needle is narrower than a pixel, it fades to the pattern's mean
+// density so the card keeps its tone instead of aliasing.
+inline float needle_cover(float u, float v, float cs, float fpix) {
+    float av = abs(v);
+    float a = (u - av * 0.34) * 22.0 + cs * 6.0;
+    float band = floor(a);
+    float jit = fract(sin(band * 12.9898 + cs * 78.233) * 43758.5453);                // every needle has its own thickness and offset
+    float f = fract(a) + (jit - 0.5) * 0.30;
+    float w = (0.52 + 0.32 * jit) * (1.0 - 0.35 * av);
+    float edge = 0.14;
+    float line = smoothstep(0.0, edge, f) * smoothstep(w, w - edge, f);
+    float inside = smoothstep(1.0, 0.82, av) * smoothstep(0.0, 0.05, u) * smoothstep(1.0, 0.88, u) * (0.75 + 0.25 * jit);
+    float rib = (1.0 - smoothstep(0.04, 0.09, av)) * smoothstep(0.0, 0.04, u) * smoothstep(1.0, 0.9, u);
+    float cover = max(line * inside, rib);
+    // A needle is about 1.4 cm across a card, so the herringbone is resolved when a pixel is under about 5 mm (up to about 6 m). Beyond that the pattern would only alias into
+    // noise (a stochastic 'mean density' test left visible stipple at 8 m even after temporal blending), so the card becomes a plain SOLID frond: the card's own tapered outline,
+    // hard-tested at 0.5. Far from the camera that is what the stylised sprays are, too, which also hides the dissolve into them.
+    float vis = featVis(0.014, fpix);
+    float solid = smoothstep(0.30, 0.60, inside + rib);
+    return mix(solid, cover, vis);
+}
+// The alpha-test threshold for a needle fragment: a plain 0.5. Where a needle spans several pixels the temporal resolve's sub-pixel jitter supersamples the edge; where it
+// would be sub-pixel the card is solid (needle_cover). Noise here only ever left stipple that a 20 % temporal blend cannot average out.
+inline float needle_threshold(float fpix, float noise) { return 0.5; }          // always a hard test: resolved needles are supersampled by the TAA jitter, unresolved cards are solid (see needle_cover)
+inline MatOut mat_needles(float3 base, float u, float v, float3 N, float fpix) {
+    MatOut o;
+    float av = abs(v);
+    o.albedo = base * (0.85 + 0.55 * smoothstep(0.0, 0.8, av) * (0.7 + 0.3 * u)) * mix(0.72, 1.0, featVis(0.014, fpix));       // a solid far card carries the mean density of the needles it stands for          // darker at the midrib, fresher at the tips
+    o.rough = 0.9;
+    o.metal = 0.0;
+    o.N = N;
+    o.ao = 0.7 + 0.3 * smoothstep(0.0, 0.7, av);
+    return o;
+}
+
 // ---- Deck planks (F01 W2, grain rebuilt in F02 G4): weathered deck boards. `seed` (0..1, the vertex roughness channel; exactly 1 = a replacement board) selects the board's own
 // tone, grain, knots and checks; `v` (-1...1) is the cross coordinate on THIS board (carried in the fraction of the material id), so the grain runs along the board and
 // stops at its edges. The grain is FLAT-SAWN: the board's face cuts the log's growth rings at a shallow angle, so the rings appear as long nested arches (cathedral
@@ -668,6 +704,7 @@ inline MatOut material_surface_raw(int id, float3 Pl, float3 P, float3 N, float3
     else if (id == 13) o = mat_timber(P, N, base, fpix);
     else if (id == 21) o = mat_rock(P, N, base, fpix);
     else if (id == 22) o = mat_slab(Pl, P, N, base, fpix);
+    else if (id == 23) o = mat_needles(base, rough, aux, N, fpix);                // needle cards: u in the vertex alpha (`rough`), v in the id's fraction (`aux`)
     else o = mat_bark(P, N, base, fpix);
     return o;
 }

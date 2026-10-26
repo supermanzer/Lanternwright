@@ -257,7 +257,7 @@ enum Island {
 
     /// The three level-of-detail batches of every tree cell, and the trunk colliders: deterministic, so built once per run and shared by
     /// every scene (the selftests build dozens).
-    private static var treeCache: (cells: [[String: MeshBuilder]], colliders: [(c: SIMD2<Float>, y: Float, h: Float)], litter: [String: MeshBuilder], placed: [Placement.PlacedProp])?
+    private static var treeCache: (cells: [[String: MeshBuilder]], colliders: [(c: SIMD2<Float>, y: Float, h: Float)], litter: [String: MeshBuilder], placed: [Placement.PlacedProp], needles: [String: MeshBuilder])?
     static let treeCell: Float = 60
 
     static func addTrees(_ scene: Scene, device: MTLDevice) {
@@ -268,6 +268,7 @@ enum Island {
             var colliders: [(c: SIMD2<Float>, y: Float, h: Float)] = []
             var litter: [String: MeshBuilder] = [:]
             var placed: [Placement.PlacedProp] = []
+            var needleCells: [String: MeshBuilder] = [:]
             for (count, p) in sites.prefix(420).enumerated() {
                 let r1 = noise.unit(Int32(count), 11), r2 = noise.unit(Int32(count), 29), r3 = noise.unit(Int32(count), 47), r4 = noise.unit(Int32(count), 83)
                 let y = terrain.sampleHeight(x: p.x, z: p.y)
@@ -305,6 +306,19 @@ enum Island {
                     if lod == 0 && !fallen { placed.append(Placement.record(kind: "trunk", mesh: mesh, transform: m)) }
                     cells[lod][key] = cell
                 }
+                // F02 T66.13: the needle-level foliage of a live conifer, in the same cell, packed with the same stagger and sway weight.
+                if !(dead || fallen) {
+                    let nkey = "needles_\(i)_\(j)"
+                    var cell = needleCells[nkey] ?? MeshBuilder()
+                    let start = cell.vertices.count
+                    let m = translation(at) * rotationY(yaw) * rotationX(tilt.x) * rotationZ(tilt.y) * scaling(SIMD3(width, h, width))
+                    cell.append(Trees.needleVariant(pine ? .pine : .cypress, variantIndex).tinted(shade), transform: m)
+                    cell.adjust(from: start) { v in
+                        let q = min(max((v.position.y - at.y) / max(height, 1), 0), 1)
+                        v.position.w = stagger + 4 * (q * 7).rounded()
+                    }
+                    needleCells[nkey] = cell
+                }
                 if !fallen { colliders.append((SIMD2(p.x, p.y), y, height)) }
                 // Fallen cones and twigs on the ground around the trunk, each placed on the terrain under it (they used to be baked into the tree and floated).
                 if !fallen {
@@ -340,7 +354,7 @@ enum Island {
                     }
                 }
             }
-            treeCache = (cells, colliders, litter, placed)
+            treeCache = (cells, colliders, litter, placed, needleCells)
         }
         let cache = treeCache!
         for c in cache.colliders { scene.colliders.addCylinder(center: c.c, radius: 0.3, minY: c.y - 1, maxY: c.y + c.h) }
@@ -359,6 +373,12 @@ enum Island {
             if let lit = cache.litter["litter\(suffix)"], !lit.isEmpty {
                 let n = "litter\(suffix)"
                 scene.add(n, mesh: lit.build(device: device, label: n), uniforms: ObjectUniforms(lod: SIMD4(1, 0, 0, 0)), hidden: false)
+                extras.append(n)
+            }
+            // The needle cards are an extra of the near level too (drawn wherever level 0 is), with lod.w = 1 so the shader treats them as needles.
+            if ProcessInfo.processInfo.environment["NO_NEEDLES"] == nil, let nd = cache.needles["needles\(suffix)"], !nd.isEmpty {         // NO_NEEDLES=1: tool switch for measuring the needles' cost
+                let n = "needles\(suffix)"
+                scene.add(n, mesh: nd.build(device: device, label: n), uniforms: ObjectUniforms(lod: SIMD4(1, 0, 0, 1)), hidden: false)
                 extras.append(n)
             }
             let parts = suffix.split(separator: "_").compactMap { Int($0) }

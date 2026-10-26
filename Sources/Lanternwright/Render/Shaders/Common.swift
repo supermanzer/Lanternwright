@@ -63,6 +63,12 @@ inline float tree_lod_level(float d, float stagger) {
     float s = stagger * 10.0;
     return smoothstep(45.0 + s - 3.4, 45.0 + s + 3.4, d) + smoothstep(130.0 + s - 9.75, 130.0 + s + 9.75, d);
 }
+// How much of a tree's near foliage is needles rather than stylised sprays, 1 close and 0 beyond about 13 m (shifted per tree by `stagger`, x 4 m, over a 15 % band like the
+// other levels). The spray foliage of level 0 and the needle cards are dithered complementarily with this weight, so every pixel belongs to exactly one of them (F02 T66.13).
+inline float needle_weight(float d, float stagger) {
+    float s = stagger * 4.0;
+    return 1.0 - smoothstep(13.0 + s - 2.0, 13.0 + s + 2.0, d);
+}
 inline bool tree_lod_discard(float4 lod, float3 worldPos, float3 eye, float stagger, float2 pixel) {
     if (lod.x < 0.5) return false;
     float level = tree_lod_level(length(worldPos.xz - eye.xz), stagger);

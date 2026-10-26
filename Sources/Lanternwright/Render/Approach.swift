@@ -59,7 +59,7 @@ enum Approach {
         }
     }
 
-    static let names = ["dock", "lh-door", "lh-shaft", "stone", "path", "conifer", "meadow", "sand", "crystal-tree", "gw-grass"]
+    static let names = ["dock", "lh-door", "lh-shaft", "stone", "path", "conifer", "conifer-foliage", "meadow", "sand", "crystal-tree", "gw-grass"]
 
     // MARK: Targets
 
@@ -105,6 +105,14 @@ enum Approach {
             guard let tree = sites.filter({ simd_length($0 - from) > 25 }).min(by: { simd_length($0 - from) < simd_length($1 - from) }) else { return nil }
             let y = v.sampleHeight(x: tree.x, z: tree.y)
             return Target(name: name, world: .varrow, point: SIMD3(tree.x, y + 5, tree.y), dir: simd_normalize(from - tree), start: 100, base: -3.3, rise: 0.08, crop: 64)
+        case "conifer-foliage":
+            // F02 T66.13: the whole lower crown of the same tree in a wide crop (240 px), so the stylised sprays and the needle cards both fill it; the plain "conifer" target
+            // frames only the stem, where foliage never appears.
+            let sites = Island.treeSites(terrain: v).prefix(420).filter { v.sampleHeight(x: $0.x, z: $0.y) > 6 && v.sampleHeight(x: $0.x, z: $0.y) < 26 && v.normal(x: $0.x, z: $0.y).y > 0.93 }        // the same tree as the tree-needle views
+            let from = SIMD2(Layout.dockShore.x, Layout.dockShore.z)
+            guard let tree = sites.filter({ simd_length($0 - from) > 25 }).min(by: { simd_length($0 - from) < simd_length($1 - from) }) else { return nil }
+            let y = v.sampleHeight(x: tree.x, z: tree.y)
+            return Target(name: name, world: .varrow, point: SIMD3(tree.x, y + 3.6, tree.y), dir: simd_normalize(from - tree), start: 30, base: -0.5, rise: 0.0, crop: 240, minDistance: 5)
         case "meadow":
             let p = scan(v, near: SIMD2(20, 40), radius: 150) { x, z in
                 let h = v.sampleHeight(x: x, z: z)

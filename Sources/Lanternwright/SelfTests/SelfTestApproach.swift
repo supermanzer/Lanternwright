@@ -23,6 +23,12 @@ extension SelfTestRunner {
                 check(r.diffSpike < 3.0, "\(target): no single step differs far more than the rest through the LOD band (spike \(r.diffSpike))")
             } else { check(false, "\(target): approach target exists") }
         }
+        // F02 T66.13: through the needle band (the sprays of level 0 give way to needle cards inside about 13 m), framing a whole live crown: no brightness jump, no step that
+        // towers over the rest, no sudden growth of fine detail. (Without needles the same walk measures 2.5 % / 1.07 / 1.18, so the swap adds almost nothing to the steps.)
+        if let r = run("conifer-foliage", start: 30, minD: 5, factor: 0.96) {
+            check(r.maxLumaStep < 0.06, "conifer needles: no brightness jump through the needle band (largest step \(r.maxLumaStep * 100) %)")
+            check(r.diffSpike < 2.5 && r.maxHFRatio < 1.6, "conifer needles: no single step differs far more than the rest, and fine detail grows gradually (spike \(r.diffSpike), largest HF ratio \(r.maxHFRatio))")
+        } else { check(false, "conifer-foliage: approach target exists for the needle band") }
         // Ground and surfaces: no brightness jump, and detail grows (energy does not collapse) as you approach.
         for (target, lumaBound, ratioBound) in [("meadow", Float(0.10), Float(2.6)), ("sand", 0.06, 2.2), ("path", 0.10, 2.2), ("gw-grass", 0.07, 2.6)] {
             if let r = run(target, start: target == "path" ? 50 : 120, minD: 3) {
