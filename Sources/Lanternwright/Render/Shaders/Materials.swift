@@ -503,21 +503,13 @@ inline MatOut mat_needles(float3 base, float u, float v, float3 N, float fpix) {
     return o;
 }
 
-// ---- Deck planks (F01 W2, grain rebuilt in F02 G4): weathered deck boards. `seed` (0..1, the vertex roughness channel; exactly 1 = a replacement board) selects the board's own
-// tone, grain, knots and checks; `v` (-1...1) is the cross coordinate on THIS board (carried in the fraction of the material id), so the grain runs along the board and
-// stops at its edges. The grain is FLAT-SAWN: the board's face cuts the log's growth rings at a shallow angle, so the rings appear as long nested arches (cathedral
-// figures) whose sharpness changes along the board (a deep pith gives near-straight lines, a shallow one tight points), warped by noise, never as circles; knots push the
-// lines apart round themselves into an eye shape; a fine fibre streak runs along the board and the soft earlywood weathers away between harder latewood bands.
-// Silvered grey on top, dark and mossy low and wet, salt crust, rust under nail heads, a worn walking line. Board axis is local x; the dock runs along local z.
 inline float taa_h1(float n) { return fract(sin(n) * 43758.5453); }
-inline MatOut mat_plank(float3 Pl, float3 P, float3 N, float3 base, float seed, float v, float fpix) {
-    MatOut o;
-    bool fresh = seed > 0.995;
-    float hp = fract(seed * 7.13), hq = fract(seed * 13.7 + 0.3);
-    float vGrain = featVis(0.02, fpix), vFib = featVis(0.004, fpix), vKnot = featVis(0.08, fpix);
+struct WoodGrain { float late; float fibre; float check; float knot; };
+// The flat-sawn grain of F02 G4 as a function of the position ALONG the grain (xs, metres) and ACROSS it (c, metres from the centre line), a seed (0..1) and its two hashes.
+// The deck boards call it with their own coordinates; the mooring posts (mat_timber) call it along their height and around their circumference, so both read as one timber.
+inline WoodGrain wood_grain(float xs, float c, float seed, float hp, float hq, float fpix) {
+    float vFib = featVis(0.004, fpix), vKnot = featVis(0.08, fpix);
     float seedN = seed * 53.0;
-    float xs = Pl.x;                                         // along the board
-    float c = v * 0.11;                                      // metres across the board from its centre line
     // Knots (a board in two has one, a few have two): the lines are pushed apart round each into an eye, and the knot itself is a dark, hard disc.
     float knot = 0.0, push = 0.0;
     for (int kk = -1; kk <= 1; kk++) {
@@ -544,6 +536,25 @@ inline MatOut mat_plank(float3 Pl, float3 P, float3 N, float3 base, float seed, 
     // Checks: long cracks along the grain, opening toward the ends of the board.
     float checkLine = 1.0 - smoothstep(0.0, 0.05 + fpix * 3.0, abs(vnoise3(float3(xs * 0.4, c * 50.0 + seedN, seed * 9.0 + 2.0)) - 0.5));
     float check = checkLine * smoothstep(0.42, 0.7, vnoise3(float3(xs * 1.1 + 4.0, c * 9.0, seed * 4.0))) * step(0.35, hq) * featVis(0.012, fpix);
+    WoodGrain g; g.late = late; g.fibre = fibre; g.check = check; g.knot = knot;
+    return g;
+}
+
+// ---- Deck planks (F01 W2, grain rebuilt in F02 G4): weathered deck boards. `seed` (0..1, the vertex roughness channel; exactly 1 = a replacement board) selects the board's own
+// tone, grain, knots and checks; `v` (-1...1) is the cross coordinate on THIS board (carried in the fraction of the material id), so the grain runs along the board and
+// stops at its edges. The grain is FLAT-SAWN: the board's face cuts the log's growth rings at a shallow angle, so the rings appear as long nested arches (cathedral
+// figures) whose sharpness changes along the board (a deep pith gives near-straight lines, a shallow one tight points), warped by noise, never as circles; knots push the
+// lines apart round themselves into an eye shape; a fine fibre streak runs along the board and the soft earlywood weathers away between harder latewood bands.
+// Silvered grey on top, dark and mossy low and wet, salt crust, rust under nail heads, a worn walking line. Board axis is local x; the dock runs along local z.
+inline MatOut mat_plank(float3 Pl, float3 P, float3 N, float3 base, float seed, float v, float fpix) {
+    MatOut o;
+    bool fresh = seed > 0.995;
+    float hp = fract(seed * 7.13), hq = fract(seed * 13.7 + 0.3);
+    float vGrain = featVis(0.02, fpix), vFib = featVis(0.004, fpix), vKnot = featVis(0.08, fpix);
+    float xs = Pl.x;                                         // along the board
+    float c = v * 0.11;                                      // metres across the board from its centre line
+    WoodGrain wg = wood_grain(xs, c, seed, hp, hq, fpix);
+    float late = wg.late, fibre = wg.fibre, check = wg.check, knot = wg.knot;
     // Colour: the board's own tone, silvered by the sun, darker where wet (seaward, low), salt-bleached patches, a worn walking line.
     float silver = saturate(0.55 + 0.45 * (hp - 0.5) * 2.0 + 0.3 * (vnoise3(P * 0.7) - 0.5));
     float3 wood = base * (0.55 + 0.75 * mix(0.5, hp, featVis(0.15, fpix)));
@@ -601,6 +612,95 @@ inline MatOut mat_timber(float3 P, float3 N, float3 base, float fpix) {
     o.metal = 0.0;
     o.N = bump_normal(P, N, 0.003 * (fibre - 0.5) + 0.006 * barn, 1.0);
     o.ao = 1.0 - 0.25 * barn;
+    return o;
+}
+
+// ---- Mooring posts (F02 R11): the deck boards' grain (wood_grain) wrapped round a leaning shaft. The vertex carries the angle round the shaft in `aux`
+// (-1...1, seam-duplicated) and, on the cap, the radial fraction in the vertex alpha. Weathered silver-grey toward the top, dark and green where the tide
+// reaches it; the cap is end grain: concentric rings with radial splits opening at the rim. -------------------------------------------------
+inline MatOut mat_post(float3 Pl, float3 P, float3 N, float3 base, float alpha, float aux, float fpix) {
+    MatOut o;
+    float rf = min(alpha, 1.0), depth = max(alpha - 1.0, 0.0);                           // cap radius fraction; metres below the cap on the shaft
+    float pid = floor((Pl.z - 0.8) / 4.0 + 0.5) * 2.0 + (Pl.x > 0.0 ? 1.0 : 0.0);     // posts stand at x = +-1.1, z = 0.8 + 8k in the dock's frame
+    float seed = taa_h1(pid * 12.9898 + 4.1) * 0.9 + 0.05;
+    float hp = taa_h1(seed * 17.0 + 1.0), hq = taa_h1(seed * 31.0 + 0.3);
+    float theta = (aux + 1.0) * 3.14159265;
+    // Along the shaft the grain runs with height; across it, the position across the shaft seen end-on (cos of the angle): smooth, with no fold or seam.
+    float c = 0.16 * cos(theta);
+    float fc = max(fpix * 2.0, 3.0 * length(float2(dfdx(c), dfdy(c))));                  // c is squeezed round the curve: at a grazing edge one pixel spans many millimetres of it, so filter by its true footprint
+    WoodGrain wg = wood_grain(P.y + seed * 40.0, c, seed, hp, hq, fc);
+    float3 grey = float3(0.19, 0.20, 0.205), brown = base * float3(0.50, 0.45, 0.38);       // a cool grey: the low sun is warm and would turn a neutral one tan
+    float high = 1.0 - smoothstep(0.08, 1.0, depth);                                      // sun-silvered grey under the cap, damp brown by the deck, darker still toward the water
+    float3 albedo = mix(brown, grey, 0.10 + 0.85 * high) * (0.55 + 0.70 * wg.fibre);
+    albedo *= 1.0 - 0.52 * wg.late * (1.0 - 0.35 * high);
+    albedo *= 1.0 - 0.80 * wg.check - 0.55 * wg.knot;
+    // Vertical streaks: rain tracks and dark stains run down the shaft, brighter above.
+    float streak = vnoise3(float3(theta * 3.0, P.y * 0.35, seed * 9.0)) * 0.7 + 0.3 * vnoise3(float3(theta * 11.0, P.y * 1.1, seed * 5.0));
+    albedo *= 0.58 + 0.70 * mix(0.5, streak, featVis(0.02, fpix));
+    // Water: wet dark wood, a weed band at the waterline, barnacles above it.
+    float wet = max(1.0 - smoothstep(0.05, 1.05, P.y), 0.75 * smoothstep(0.6, 2.2, depth));   // the tide's reach and the damp wicked up above it: darker toward the water
+    albedo *= mix(1.0, 0.45, wet) * mix(float3(1.0), float3(0.68, 1.0, 0.62), 0.8 * wet);       // and greener
+    float barn = 0.0;
+    if (P.y < 1.05) {                                                                        // weed and barnacles only where the water or its damp can reach
+        float weedN = fbm3(P * 5.0 + 2.0);
+        float weed = smoothstep(0.55, 0.05, P.y) * smoothstep(-0.7, -0.1, P.y) * smoothstep(0.30, 0.65, weedN + 0.3);
+        albedo = mix(albedo, float3(0.05, 0.12, 0.04) * (0.7 + 0.6 * weedN), max(weed * 0.9, 0.5 * wet * smoothstep(0.35, 0.7, weedN)));
+        barn = (1.0 - smoothstep(0.10, 0.22, worley(P * 40.0))) * smoothstep(0.9, 0.4, P.y) * smoothstep(-0.2, 0.1, P.y);
+        barn = mix(0.07 * smoothstep(0.9, 0.4, P.y) * smoothstep(-0.2, 0.1, P.y), barn, featVis(0.025, fpix));
+        albedo = mix(albedo, float3(0.62, 0.60, 0.55), barn * 0.85);
+    }
+    // The cap: end grain (only evaluated where the surface faces up).
+    float top = smoothstep(0.55, 0.9, N.y);
+    float rings = 0.5, crack = 0.0;
+    if (top > 0.001) {
+        float r = rf * 0.105;
+        float ringPos = (r + 0.012 * (vnoise3(float3(theta * 1.5, rf * 3.0, seed * 7.0)) - 0.5)) * 210.0 + hq * 6.0;
+        rings = 0.5 + 0.5 * sin(ringPos);
+        for (int i = 0; i < 6; i++) {
+            float fi = float(i);
+            float a0 = taa_h1(seed * 7.3 + fi * 3.7) * 6.2831853;
+            float da = abs(fract((theta - a0) / 6.2831853 + 0.5) - 0.5) * 6.2831853;
+            float len = 0.35 + 0.6 * taa_h1(fi * 5.1 + seed * 2.0);                       // how far in from the rim the split runs (fraction of the radius)
+            float jag = 0.0012 * (vnoise3(float3(r * 120.0, fi, seed * 9.0)) - 0.5);
+            float across = da * max(r, 0.004) + jag;
+            float widthM = (0.0016 + 0.0022 * taa_h1(fi * 1.3 + seed)) * (0.35 + rf);
+            crack = max(crack, (1.0 - smoothstep(widthM * 0.35, widthM, across)) * smoothstep(1.0 - len, 1.0 - len + 0.14, rf));
+        }
+        crack *= featVis(0.004, fpix);
+        float stain = vnoise3(float3(P.x * 14.0, P.z * 14.0, seed)) * 0.5 + 0.5 * vnoise3(P * 40.0);
+        float3 cap = float3(0.43, 0.395, 0.35) * (0.72 + 0.32 * rings) * (0.72 + 0.4 * stain);
+        cap *= 1.0 - 0.78 * crack;
+        cap *= 1.0 - 0.35 * smoothstep(0.82, 1.0, rf);                                       // the rim: wetter, darker
+        albedo = mix(albedo, cap, top);
+    }
+    o.albedo = albedo;
+    o.rough = clamp(0.90 - 0.22 * wet + 0.1 * barn + 0.04 * top, 0.4, 1.0);
+    o.metal = 0.0;
+    float relief = 1.0 - smoothstep(0.004, 0.012, fc);                                  // relief fades where the grain is squeezed to nothing at a grazing edge (thin lines through the bump derivative made a comb)
+    float hShaft = relief * (0.0032 * (wg.late - 0.5) * featVis(0.02, fpix) + 0.0025 * (wg.fibre - 0.5) + 0.002 * wg.knot) + 0.006 * barn;
+    float hCap = 0.0035 * (rings - 0.5) - 0.012 * crack;
+    o.N = bump_normal(P, N, mix(hShaft, hCap, top), 1.0);
+    o.ao = (1.0 - 0.3 * barn) * (1.0 - 0.6 * crack * top) * (1.0 - 0.35 * wg.check);
+    return o;
+}
+
+// ---- Rope (F02 R11): three strands laid in a twist. The vertex carries the angle round the rope in `aux` and the length along it in the alpha
+// (alpha 1 = 6 m, DockFurniture.ropeScale), so the stripes run continuously over every turn of the coil. -------------------------------------------
+inline MatOut mat_rope(float3 P, float3 N, float3 base, float sn, float aux, float fpix) {
+    MatOut o;
+    float s = sn * 6.0, phi = aux * 3.14159265;
+    float strand = 0.5 + 0.5 * cos(3.0 * phi - 6.2831853 * s / 0.052);                   // 1 on the crown of a strand, 0 in the groove between two
+    float vT = featVis(0.011, fpix);
+    strand = mix(0.5, strand, vT);
+    float fibre = mix(0.5, vnoise3(float3(s * 260.0, phi * 5.0, 1.0)) * 0.6 + 0.4 * vnoise3(float3(s * 90.0, phi * 9.0, 3.0)), featVis(0.003, fpix));
+    float dirt = vnoise3(P * 9.0);
+    float3 albedo = base * (0.50 + 0.65 * strand) * (0.78 + 0.34 * fibre) * (0.80 + 0.32 * dirt);
+    albedo = mix(albedo, albedo * float3(0.7, 0.78, 0.62), smoothstep(0.7, 0.2, P.y));      // damp and greened near the water
+    o.albedo = albedo;
+    o.rough = 0.95;
+    o.metal = 0.0;
+    o.N = bump_normal(P, N, 0.0030 * (strand - 0.5) * vT + 0.0012 * (fibre - 0.5), 1.0);
+    o.ao = 0.45 + 0.55 * strand;
     return o;
 }
 
@@ -704,6 +804,8 @@ inline MatOut material_surface_raw(int id, float3 Pl, float3 P, float3 N, float3
     else if (id == 13) o = mat_timber(P, N, base, fpix);
     else if (id == 21) o = mat_rock(P, N, base, fpix);
     else if (id == 22) o = mat_slab(Pl, P, N, base, fpix);
+    else if (id == 24) o = mat_post(Pl, P, N, base, rough, aux, fpix);
+    else if (id == 25) o = mat_rope(P, N, base, rough, aux, fpix);
     else if (id == 23) o = mat_needles(base, rough, aux, N, fpix);                // needle cards: u in the vertex alpha (`rough`), v in the id's fraction (`aux`)
     else o = mat_bark(P, N, base, fpix);
     return o;

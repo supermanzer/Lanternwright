@@ -57,7 +57,6 @@ enum Landmarks {
         let deck = Surface(color: SIMD3(0.30, 0.20, 0.115), roughness: 0.85, material: .plank)
         let timber = Surface(color: SIMD3(0.20, 0.14, 0.09), roughness: 0.9, material: .timber)
         let iron = Surface(color: SIMD3(0.16, 0.15, 0.14), roughness: 0.5, material: .iron)
-        let rope = Surface(color: SIMD3(0.46, 0.38, 0.26), roughness: 1.0)
         // F01 W2: a deck that has stood in salt air for decades. Every board is different: width 0.15-0.27 m, gaps of 5-30 mm, a few millimetres of lift and
         // twist, cupped across its width, a bow along it; two boards are missing (the stringers and the water show), one is broken off short, one has been
         // replaced and is paler, the deck sags a little between piles. Board identity (0..1) goes into the vertex roughness channel, where the plank material
@@ -131,27 +130,25 @@ enum Landmarks {
             b.box(size: SIMD3(2.3, 0.10, 0.12), surface: timber, transform: translation(SIMD3((n.unit(ci, 111) - 0.5) * 0.04, deckY(cz) - 0.15 - 0.008 * n.unit(ci, 112), cz)) * tilt * rotationY((n.unit(ci, 113) - 0.5) * 0.02))
             cz += 1.1; ci += 1
         }
-        // Piles every 4 m on both sides, reaching well below the water; every other one stands above the deck as a mooring post with
-        // a coil of rope, a cap, and an iron cleat on the nearest beam.
+        // Piles every 4 m on both sides, reaching well below the water; every other one stands above the deck as a mooring post (R11: its own
+        // weathered, leaning, grained shaft with a worn cap, a coil of rope that touches it, and a horn cleat on the deck beside it).
         var pz: Float = 0.8, idx = 0
         while pz < len {
             for sx: Float in [-1.1, 1.1] {
                 let post = idx % 2 == 0
-                let top = deckY(pz) + (post ? 0.55 : -0.12)
-                let lean = (Island.noise.unit(Int32(idx * 2) + (sx > 0 ? 1 : 0), 120) - 0.5) * 0.05
-                b.cylinder(radiusTop: 0.10, radiusBottom: 0.12, height: top + 3.0, segments: 10, surface: timber, transform: translation(SIMD3(sx, -3.0, pz)) * rotationZ(lean) * rotationX(lean * 0.6))
-                if !post {                                                                         // a split, ragged top: two uneven splinters
-                    for q in 0..<3 { b.box(size: SIMD3(0.04, 0.05 + 0.08 * Island.noise.unit(Int32(idx) * 3 + Int32(q), 121), 0.07), surface: timber, transform: translation(SIMD3(sx + (Float(q) - 1) * 0.05, top + 0.02, pz + (Island.noise.unit(Int32(idx) * 3 + Int32(q), 122) - 0.5) * 0.06)) * rotationY(Float(q))) }
-                }
+                let pileSeed = Int32(idx * 2) + (sx > 0 ? 1 : 0)
                 if post {
-                    b.cylinder(radiusTop: 0.085, radiusBottom: 0.108, height: 0.05, segments: 10, smooth: false, surface: timber, transform: translation(SIMD3(sx, top, pz)))
-                    for c in 0..<4 {
-                        b.torus(major: 0.125, minor: 0.017, segments: 16, sides: 5, surface: rope,
-                                transform: translation(SIMD3(sx, top - 0.10 - 0.034 * Float(c), pz)) * rotationY(Float(c) * 0.4))
-                    }
+                    let p = DockFurniture.Post(x: sx, z: pz, top: deckY(pz) + 0.55, seed: pileSeed)
+                    b.append(DockFurniture.postMesh(p))
+                    b.append(DockFurniture.ropeMesh(p))
                     let side: Float = sx < 0 ? 1 : -1
-                    b.chamferBox(size: SIMD3(0.07, 0.04, 0.22), chamfer: 0.008, surface: iron,
-                                 transform: translation(SIMD3(sx + side * 0.24, deckY(pz) - 0.02, pz)) * tilt)                        // a cleat on the deck edge
+                    let yaw = side * (0.35 + 0.5 * n.unit(pileSeed, 153))
+                    b.append(DockFurniture.cleatMesh(seed: pileSeed), transform: translation(SIMD3(sx + side * 0.30, deckY(pz) + 0.0016, pz + (n.unit(pileSeed, 154) - 0.5) * 0.12)) * tilt * rotationY(yaw))
+                } else {
+                    let top = deckY(pz) - 0.12
+                    let lean = (Island.noise.unit(pileSeed, 120) - 0.5) * 0.05
+                    b.cylinder(radiusTop: 0.10, radiusBottom: 0.12, height: top + 3.0, segments: 10, surface: timber, transform: translation(SIMD3(sx, -3.0, pz)) * rotationZ(lean) * rotationX(lean * 0.6))
+                    for q in 0..<3 { b.box(size: SIMD3(0.04, 0.05 + 0.08 * Island.noise.unit(Int32(idx) * 3 + Int32(q), 121), 0.07), surface: timber, transform: translation(SIMD3(sx + (Float(q) - 1) * 0.05, top + 0.02, pz + (Island.noise.unit(Int32(idx) * 3 + Int32(q), 122) - 0.5) * 0.06)) * rotationY(Float(q))) }   // a split, ragged top: two uneven splinters
                 }
             }
             pz += 4; idx += 1

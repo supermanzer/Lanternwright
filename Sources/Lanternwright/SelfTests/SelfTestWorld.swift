@@ -83,6 +83,97 @@ extension SelfTestRunner {
             let probe = Scene.makeWorld(device: device)
             check(probe.items.first { $0.name == "dock" } != nil, "the dock exists")
         }
+        if name == "all" || name == "dockfurniture" {
+            let src = MaterialShaders.source
+            // R11: the mooring post is not a clean cylinder, the rope touches it, the cleat is a horn cleat. Several posts, as the dock builds them.
+            var posts: [DockFurniture.Post] = []
+            for i in 0..<6 {
+                let sx: Float = i % 2 == 0 ? -1.1 : 1.1
+                posts.append(DockFurniture.Post(x: sx, z: 0.8 + 8 * Float(i / 2), top: 1.55 - 0.1 * Float(i), seed: Int32(i)))
+            }
+            let meshes = posts.map { DockFurniture.postMesh($0) }
+            func finite(_ b: MeshBuilder) -> Bool { b.vertices.allSatisfy { $0.position.x.isFinite && $0.position.y.isFinite && $0.position.z.isFinite && abs(simd_length(SIMD3($0.normal.x, $0.normal.y, $0.normal.z)) - 1) < 1e-2 } }
+            check(meshes.allSatisfy(finite), "post meshes have finite positions and unit normals")
+            check(meshes.allSatisfy { $0.vertices.allSatisfy { Int($0.normal.w + 0.5) == 24 } } && meshes.allSatisfy { $0.vertices.contains { $0.normal.w > 24.3 } && $0.vertices.contains { $0.normal.w < 23.7 } },
+                  "post vertices use material 24 and carry the angle round the shaft (-1...1) in the id fraction")
+            // Silhouette: radius varies round and along the shaft by well over the facet error of a cylinder, and the axis leans a degree or two.
+            var worstRatio: Float = 99, bestRatio: Float = 0
+            for p in posts {
+                var lo: Float = 9, hi: Float = 0
+                var y: Float = 0.2; while y < p.top - 0.1 { for k in 0..<36 { let r = p.radius(y, Float(k) / 36 * 2 * .pi); lo = min(lo, r); hi = max(hi, r) }; y += 0.1 }
+                worstRatio = min(worstRatio, hi / lo); bestRatio = max(bestRatio, hi / lo)
+            }
+            check(worstRatio > 1.08, "every post's silhouette is irregular: max/min shaft radius at least 1.08 (least \(String(format: "%.3f", worstRatio)))")
+            let leans = posts.map { atan(simd_length($0.lean)) * 180 / .pi }
+            check(leans.allSatisfy { $0 >= 0.95 && $0 <= 2.05 }, "posts lean one to two degrees (\(leans.map { String(format: "%.2f", $0) }.joined(separator: ", ")))")
+            // Smooth silhouette: neighbouring samples differ by millimetres, so no stair-steps in the outline.
+            var worstStep: Float = 0
+            for p in posts {
+                var y: Float = 0.1; while y < p.top - 0.1 {
+                    for k in 0..<64 {
+                        let th = Float(k) / 64 * 2 * .pi
+                        worstStep = max(worstStep, abs(p.radius(y, th) - p.radius(y, th + 2 * .pi / 64)), abs(p.radius(y, th) - p.radius(y + 0.05, th)))
+                    }
+                    y += 0.05
+                }
+            }
+            check(worstStep < 0.003, "the radius changes smoothly round and along the shaft (largest step \(String(format: "%.2f", worstStep * 1000)) mm between neighbouring samples)")
+            // The cap: end grain in the vertex alpha (0 at the middle, up to 1 at the rim), a worn irregular top, splinter-free but never flat.
+            let capHeights = posts.map { p -> Float in
+                let ys = (0..<36).map { p.capY(Float($0) / 36 * 2 * .pi, 0.95) }; return ys.max()! - ys.min()!
+            }
+            check(capHeights.allSatisfy { $0 > 0.015 }, "the cap's rim is uneven by at least 1.5 cm (least \(String(format: "%.1f", capHeights.min()! * 100)) cm)")
+            var alphaOK = true
+            for m in meshes {
+                let al: [Float] = m.vertices.map { $0.color.w }
+                if !(al.contains(0) && al.contains { $0 > 1.5 } && al.allSatisfy { $0 >= 0 }) { alphaOK = false }
+            }
+            check(alphaOK, "cap vertices carry radius fractions from 0, shaft vertices carry 1 + depth below the cap")
+            // The rope: every turn touches the shaft (centreline at post radius + rope radius, within 5 mm of the true surface offset), the turns touch each other.
+            var worstGap: Float = 0, worstTurn: Float = 0, turnsN = 0
+            for p in posts {
+                let coil = DockFurniture.coilCentreline(p)
+                turnsN += coil.points.count
+                for c in coil.points.dropFirst(8) {                                                          // (the first few samples sink into the shaft on purpose)
+                    var best: Float = 9
+                    var y = c.y - 0.05; while y <= c.y + 0.05 { for k in 0..<180 { best = min(best, simd_distance(c, p.surfacePoint(y, Float(k) / 180 * 2 * .pi))) }; y += 0.005 }
+                    worstGap = max(worstGap, abs(best - DockFurniture.ropeRadius))
+                }
+                for k in 0..<(coil.points.count - coil.perTurn) {                                          // the same angle one turn lower
+                    let a = coil.points[k], b = coil.points[k + coil.perTurn]
+                    worstTurn = max(worstTurn, simd_length(a - b) - 2 * DockFurniture.ropeRadius)
+                }
+            }
+            check(turnsN > 300 && worstGap < 0.006, "the rope touches the post all the way round: its centreline lies one rope radius off the surface, worst error \(String(format: "%.1f", worstGap * 1000)) mm")
+            check(worstTurn < 0.012, "each turn lies against the one below it (gap at most \(String(format: "%.1f", worstTurn * 1000)) mm)")
+            let rope = DockFurniture.ropeMesh(posts[0])
+            let ys: [Float] = rope.vertices.map { $0.position.y }
+            let ropeVerts = rope.vertices.filter { Int($0.normal.w + 0.5) == 25 }
+            let ropeAlphaOK = ropeVerts.allSatisfy { $0.color.w >= 0 && $0.color.w <= 1.0001 }
+            check(finite(rope) && !ropeVerts.isEmpty && ropeAlphaOK, "the rope is material 25 with its length along it in the alpha (never above 1 = \(DockFurniture.ropeScale) m)")
+            check(ys.min()! < posts[0].top - 0.118 - 0.25, "the loose end hangs at least 25 cm below the first turn")
+            // Seam: duplicated columns leave no gap in the surface.
+            let nuPlus1 = 17, pv = meshes[0].vertices
+            var seamGap: Float = 0
+            for j in 0..<(pv.count / nuPlus1) {
+                let a = pv[j * nuPlus1].position, b = pv[j * nuPlus1 + 16].position
+                seamGap = max(seamGap, simd_length(SIMD3(a.x - b.x, a.y - b.y, a.z - b.z)))
+            }
+            check(pv.count % nuPlus1 == 0 && seamGap < 1e-4, "the post's seam closes: the first and last columns of every ring coincide")
+            // The cleat: two horns on a bolted foot, about 27 cm long, low, tapering toward the tips.
+            let cleat = DockFurniture.cleatMesh(seed: 1)
+            let czs = cleat.vertices.map(\.position.z), cys = cleat.vertices.map(\.position.y)
+            let barWidth = { (lo: Float, hi: Float) -> Float in
+                let xs = cleat.vertices.filter { $0.position.y > 0.03 && abs($0.position.z) >= lo && abs($0.position.z) < hi }.map(\.position.x); return (xs.max() ?? 0) - (xs.min() ?? 0) }
+            check(finite(cleat) && czs.max()! - czs.min()! > 0.25 && czs.max()! - czs.min()! < 0.32 && cys.max()! < 0.075,
+                  "the cleat is a horn cleat about 27 cm long and under 7.5 cm tall")
+            check(barWidth(0, 0.03) > 1.5 * barWidth(0.115, 0.14), "the horns taper: the bar is at least 1.5x wider at the waist than near the tips")
+            check(cleat.vertices.filter { Int($0.normal.w + 0.5) == 7 && $0.position.y > 0.007 && $0.position.y < 0.013 && abs($0.position.z) > 0.055 && abs($0.position.z) < 0.085 }.count > 20,
+                  "bolt heads and washers sit on both ends of the foot")
+            // One grain function serves the deck boards and the posts (so both read as the same timber).
+            check(src.components(separatedBy: "wood_grain(").count - 1 >= 3 && src.contains("id == 24") && src.contains("id == 25"), "the plank and post materials share wood_grain; ids 24 and 25 are dispatched")
+            check(MaterialID.post.rawValue == 24 && MaterialID.rope.rawValue == 25, "post and rope material ids are 24 and 25")
+        }
         if name == "all" || name == "dockboards" {
             // F02 G4 (#32): the deck boards are sawn by hand, not drawn with a ruler.
             let surf = Surface(color: SIMD3(0.3, 0.2, 0.1), roughness: 0.5, material: .plank)

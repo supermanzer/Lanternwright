@@ -375,6 +375,10 @@ enum Viewpoints {
         case "dock-close": return Camera(position: SIMD3(168.5, 1.9, 198.0), yaw: -0.74, pitch: -0.75)
         case "dock-plank": return Camera(position: SIMD3(167.2, 2.05, 196.4), yaw: -0.74, pitch: -1.15)          // 0.5 m over the planks, looking down (F02 G4: grain, edges, nails)
         case "dock-top": return Camera(position: SIMD3(166.5, 2.4, 195.5), yaw: -0.74, pitch: -1.0)          // looking straight down at the planks: no water in frame (F02 R1 shimmer)
+        // R11: the mooring post at the seaward end, from the water side at 1.5 m, from above its cap, and the cleat beside it from the deck.
+        case "dock-post": return Camera(position: SIMD3(166.8, 1.55, 198.5), yaw: 0.924, pitch: -0.15)
+        case "dock-posttop": return Camera(position: SIMD3(168.42, 2.07, 197.31), yaw: -2.218, pitch: -0.95)
+        case "dock-cleat": return Camera(position: SIMD3(168.66, 1.42, 197.13), yaw: -2.218, pitch: -0.75)
         case "dock-side":  return Camera(position: SIMD3(150, 1.0, 196), yaw: 1.08, pitch: 0.03)
         case "dock-under": return Camera(position: SIMD3(170.5, -0.1, 199.5), yaw: -0.74, pitch: 0.28)
         case "overview": return Camera(position: SIMD3(330, 150, 330), yaw: -0.76, pitch: -0.19)
