@@ -142,7 +142,7 @@ extension SelfTestRunner {
         let walked = timeRoute(run: false)
         let ran = timeRoute(run: true)
         check(walked.ok && ran.ok, "nav varrow: the centre line from the dock to the lighthouse can be walked and run with the real controller")
-        check(walked.toLighthouse < 200 && ran.toLighthouse < 130, "nav varrow: TIMES dock -> lighthouse along the network: walking \(Int(walked.toLighthouse.rounded())) s, running \(Int(ran.toLighthouse.rounded())) s (the plan's target of 60 s is not reachable: the straight line is \(Int(simd_length(SIMD2(Layout.dockEnd.x - Layout.lighthouse.x, Layout.dockEnd.z - Layout.lighthouse.z)))) m, 142 s at 2.3 m/s)")
+        check(walked.toLighthouse < 150 && ran.toLighthouse < 90, "nav varrow: TIMES dock -> lighthouse along the network: walking \(Int(walked.toLighthouse.rounded())) s, running \(Int(ran.toLighthouse.rounded())) s (the plan's target of 60 s is not reachable: the straight line is \(Int(simd_length(SIMD2(Layout.dockEnd.x - Layout.lighthouse.x, Layout.dockEnd.z - Layout.lighthouse.z)))) m, 125 s at 2.6 m/s: the trail is 329 m, 1 % over it; the rest of the time is the climb)")
         game.puzzle.forceSolved(); game.simulate(seconds: LighthousePuzzle.Timing.total + 1)
         let plan = PuzzleProps.causewayPlan(terrain: scene.terrain)
         let toCauseway = w.walk(to: route[5], within: 3, run: false), toIslet = w.walk(to: SIMD2(Layout.isletCenter.x, Layout.isletCenter.z), within: 3, run: false)

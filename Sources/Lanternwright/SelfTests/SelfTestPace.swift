@@ -13,22 +13,22 @@ extension SelfTestRunner {
         // The new constants, on flat dry ground.
         let flat = Player.wishSpeed(run: false, pace: Player.paceFactor(slope: 0), wading: Player.wading(ground: 2))
         let run = Player.wishSpeed(run: true, pace: Player.paceFactor(slope: 0), wading: Player.wading(ground: 2))
-        check(near(flat, 2.3, 1e-5) && near(run, 3.6, 1e-5), "pace: walk 2.3 m/s and run 3.6 m/s on flat ground (\(flat), \(run))")
+        check(near(flat, 2.6, 1e-5) && near(run, 4.4, 1e-5), "pace: walk 2.6 m/s and run 4.4 m/s on flat ground (\(flat), \(run))")
 
         // A 25 degree slope: the existing paceFactor is kept, so a climb is about 74 % of the flat pace, a descent about 8 % quicker at most.
         let up = Player.wishSpeed(run: false, pace: Player.paceFactor(slope: tan(25 * .pi / 180)), wading: 1)
         let down = Player.wishSpeed(run: false, pace: Player.paceFactor(slope: -tan(25 * .pi / 180)), wading: 1)
-        check(near(up, 2.3 * 0.738, 0.01) && down > flat && down <= 2.3 * 1.081, "pace: a 25 degree climb is \(up) m/s (about 74 % of 2.3), the descent \(down) m/s")
+        check(near(up, 2.6 * 0.738, 0.01) && down > flat && down <= 2.6 * 1.081, "pace: a 25 degree climb is \(up) m/s (about 74 % of 2.6), the descent \(down) m/s")
         let upRun = Player.wishSpeed(run: true, pace: Player.paceFactor(slope: tan(25 * .pi / 180)), wading: 1)
-        check(near(upRun, 3.6 * 0.738, 0.015), "pace: running up a 25 degree slope is \(upRun) m/s")
+        check(near(upRun, 4.4 * 0.738, 0.015), "pace: running up a 25 degree slope is \(upRun) m/s")
 
         // The shallows: 60 % at ankle depth and below, none on dry sand.
         let wade = Player.wishSpeed(run: false, pace: 1, wading: Player.wading(ground: -0.3))
-        check(near(wade, 2.3 * 0.6, 1e-4) && near(Player.wading(ground: 0.5), 1, 1e-6), "pace: wading slows to 60 % (\(wade) m/s) and dry ground does not")
+        check(near(wade, 2.6 * 0.6, 1e-4) && near(Player.wading(ground: 0.5), 1, 1e-6), "pace: wading slows to 60 % (\(wade) m/s) and dry ground does not")
 
         // The setting scales walk and run together and is clamped; the cadence follows it.
         Player.paceScale = 1.3
-        check(near(Player.wishSpeed(run: false, pace: 1, wading: 1), 2.99, 1e-4) && near(Player.wishSpeed(run: true, pace: 1, wading: 1), 4.68, 1e-4), "pace: the pace setting 1.3 scales both speeds")
+        check(near(Player.wishSpeed(run: false, pace: 1, wading: 1), 3.38, 1e-4) && near(Player.wishSpeed(run: true, pace: 1, wading: 1), 5.72, 1e-4), "pace: the pace setting 1.3 scales both speeds")
         let fast = Player.stepLength(speed: Player.scaledWalkSpeed)
         Player.paceScale = 0.7
         let slow = Player.stepLength(speed: Player.scaledWalkSpeed)
@@ -41,9 +41,9 @@ extension SelfTestRunner {
         let old = try? JSONDecoder().decode(Settings.self, from: Data(#"{"volume":0.2}"#.utf8))
         check(old?.pace == 1 && old?.volume == 0.2, "pace: a settings blob saved before M10.2 loads with pace 1")
 
-        // Gait: walking is about 1.9 steps/s, running about 2.4 (the stride lengthens and the cadence quickens, each by about 1.25x).
+        // Gait: walking is about 2.2 steps/s, running about 2.9 (the stride lengthens and the cadence quickens).
         let walkRate = Player.walkSpeed / Player.stepLength(speed: Player.walkSpeed), runRate = Player.runSpeed / Player.stepLength(speed: Player.runSpeed)
-        check(walkRate > 1.7 && walkRate < 2.1 && runRate > 1.2 * walkRate && runRate < 2.6, "pace: cadence follows the speed (walk \(walkRate), run \(runRate) steps/s)")
+        check(walkRate > 1.9 && walkRate < 2.4 && runRate > 1.2 * walkRate && runRate < 3.2, "pace: cadence follows the speed (walk \(walkRate), run \(runRate) steps/s)")
 
         // A real walk along the dock through Player.step: the eased start, the steady speed, the eased stop.
         let scene = Scene.makeWorld(device: device)
@@ -54,11 +54,11 @@ extension SelfTestRunner {
         var t63: Float = -1, steps = 0
         for k in 0..<Int(4 / Game.tick) {
             if pl.step(dt: Game.tick, input: go, scene: scene) { steps += 1 }
-            if t63 < 0 && pl.speed >= 0.632 * 2.3 * 0.99 { t63 = Float(k + 1) * Game.tick }
+            if t63 < 0 && pl.speed >= 0.632 * 2.6 * 0.99 { t63 = Float(k + 1) * Game.tick }
         }
-        check(near(pl.speed, 2.3, 0.1), "pace: walking the dock settles at 2.3 m/s (\(pl.speed))")
+        check(near(pl.speed, 2.6, 0.1), "pace: walking the dock settles at 2.6 m/s (\(pl.speed))")
         check(t63 > 0.08 && t63 < 0.2, "pace: it takes about 0.12 s to reach 63 % of walking speed (\(t63) s)")
-        check(steps >= 6 && steps <= 8, "pace: 4 s of walking is \(steps) footfalls (about 1.9 per second)")
+        check(steps >= 7 && steps <= 10, "pace: 4 s of walking is \(steps) footfalls (about 2.2 per second)")
         var stop = InputState(); stop.move = .zero
         var tStop: Float = -1
         let v0 = pl.speed
@@ -70,7 +70,7 @@ extension SelfTestRunner {
         var runner = Player(position: from, yaw: yaw); runner.position.y = scene.groundHeight(x: from.x, z: from.z)
         go.run = true
         for _ in 0..<Int(3 / Game.tick) { runner.step(dt: Game.tick, input: go, scene: scene) }
-        check(near(runner.speed, 3.6, 0.15), "pace: running the dock settles at 3.6 m/s (\(runner.speed))")
+        check(near(runner.speed, 4.4, 0.15), "pace: running the dock settles at 4.4 m/s (\(runner.speed))")
         Player.paceScale = savedPace
     }
 }

@@ -57,8 +57,10 @@ extension SelfTestRunner {
         check(bot.follow([leave, start], within: 3), "bot: walks back down the hill to the start of the causeway (along the graded descent)")
         check(bot.walk(to: PuzzleProps.lensRestPosition, within: 3.2, timeout: 90), "bot: crosses the causeway to the islet")
         check(bot.click("lens"), "bot: clicks the lens")
+        let varrowSeconds = bot.elapsed                                                  // spawn to the lens click: the whole of Varrow, waits included
         bot.wait(Game.fadeOutSeconds + Game.holdSeconds + Game.fadeInSeconds + 0.5)
-        check(g.world == .glassWood && g.state.has("lensTouched"), "bot: the lens carries it to the Glass Wood")
+        let glassStart = bot.elapsed
+        check(g.world == .glassWood && g.state.has("lensTouched"), "bot: the lens carries it to the Glass Wood (Varrow took \(Int(varrowSeconds.rounded())) s of play, spawn to the lens)")
 
         // --- The Glass Wood: mirror court by real clicks, chimes by ear-order, the altar, then home.
         let gp = GlassLayout.path
@@ -107,7 +109,7 @@ extension SelfTestRunner {
             heard = heard && bot.walk(to: (bot.interactable(id).map { ($0.min + $0.max) * 0.5 }) ?? GlassLayout.altar, within: 2.6, timeout: 45)
             heard = heard && bot.click(id); bot.wait(1)
         }
-        check(heard && g.state.has("gw_end"), "bot: hears both accounts and reaches the end of the second world")
+        check(heard && g.state.has("gw_end"), "bot: hears both accounts and reaches the end of the second world (the Glass Wood took \(Int((bot.elapsed - glassStart).rounded())) s of play, arrival to the second account)")
         collectGW(8)
         check(g.journal.collectedPages.map(\.number) == Array(1...8), "bot: every one of the eight pages was found by walking the normal route (\(g.journal.collectedPages.map(\.number)))")
 

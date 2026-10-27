@@ -942,13 +942,13 @@ extension SelfTestRunner {
             around.position.y = ground(around)
             for _ in 0..<(6 * 120) { around.step(dt: dt, input: InputState(move: SIMD2(0, 1)), scene: scene) }
             check(distance(flat(around.position), lh) > Lighthouse.colliderRadius + Player.radius - 0.1 && around.position.y < Layout.lighthouse.y + 0.65, "from the east the plinth is climbed to its second tread and the wall stops you, without clipping into it")
-            // 5. Speeds: walking settles at 2.3 m/s, running at 3.6 m/s (M10.2).
+            // 5. Speeds: walking settles at 2.6 m/s, running at 4.4 m/s (M10.2, retuned).
             p = Player(position: SIMD3(40, 34, 55), yaw: 0)
             for _ in 0..<(3 * 120) { p.step(dt: dt, input: InputState(move: SIMD2(1, 0)), scene: scene) }
             let walk = p.speed
             var r = InputState(); r.move = SIMD2(1, 0); r.run = true
             for _ in 0..<(3 * 120) { p.step(dt: dt, input: r, scene: scene) }
-            check(abs(walk - 2.3) < 0.3 && abs(p.speed - 3.6) < 0.5, "walk \(String(format: "%.2f", walk)) m/s, run \(String(format: "%.2f", p.speed)) m/s (on a slope)")
+            check(abs(walk - 2.6) < 0.3 && abs(p.speed - 4.4) < 0.5, "walk \(String(format: "%.2f", walk)) m/s, run \(String(format: "%.2f", p.speed)) m/s (on a slope)")
 
             // 5b. Gait: walking is an unhurried ~1.9 steps/s; running lengthens the stride (1.25x) and quickens it (1.25x) rather than only stepping faster.
             func cadence(run: Bool) -> Float {

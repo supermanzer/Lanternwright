@@ -8,10 +8,12 @@ import simd
 final class PlaythroughBot {
     let game: Game
     private var now = 1000.0
+    /// Game seconds the bot has played so far (60 ticks a second), waits included: how long this run took a player who never hesitates.
+    private(set) var elapsed: Float = 0
     init(_ game: Game) { self.game = game }
 
     func tick(_ input: InputState = InputState()) {
-        now += 1.0 / 60; game.advance(now: now, input: input)
+        now += 1.0 / 60; elapsed += 1.0 / 60; game.advance(now: now, input: input)
         if let net = Layout.Navigation.active(for: game.world) { strayed = max(strayed, net.signedDistance(SIMD2(game.player.position.x, game.player.position.z))) }
     }
     /// M10.6: the furthest the feet have been beyond a corridor edge since the last `forgetStray()` (negative: always inside; the margin is `Player.marginWidth`).
