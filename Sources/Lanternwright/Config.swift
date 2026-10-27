@@ -52,6 +52,7 @@ struct LaunchOptions {
     var parallax = false
     var taa = false
     var shimmer: Int?
+    var shimmerLayers: Int?
     var parallaxSea = false
     var clock: Float = 12
     var auditSlopes = false
@@ -81,6 +82,8 @@ struct LaunchOptions {
       --hard-lod                   Debug: switch tree LODs instantly (the pre-R09 behaviour), for before/after measurements
       --parallax                   Walk 40 m north from (-39, 140) and report how far the rendered depth disagrees with a pinhole camera (F02 R2)
       --parallax-sea               Walk toward the sea and report how much the far water changes at the ocean disc's snap steps versus the others
+      --shimmer-layers [N]         Shimmer attribution (G10.0.2): the same moving-world walk (wind on, clock advancing, TAA on) with each layer switched off in turn; ranked table
+      --layers-off <list>          Debug: switch off layers (grass,trees,water,glass,props,sky,shadows) for any view or tool
       --shimmer [N]                Measure the crawl of fine detail with TAA off and on against a supersampled reference (N frames, default 60)
       --taa                        Turn temporal anti-aliasing on for screenshots, benchmarks and tools (always on in the game; use --frames N to let it converge)
       --clock T                    Screenshot clock in seconds (default 12): the wind, the grass and the trees depend on it
@@ -139,6 +142,8 @@ struct LaunchOptions {
                 o.world = k
             case "--hide": Scene.hideNamed = next()
             case "--no-grass": Renderer.skipGrass = true
+            case "--layers-off": guard let set = RenderLayer.parse(next()) else { fail("--layers-off expects a comma list of: \(RenderLayer.allCases.map(\.rawValue).joined(separator: ", "))") }; RenderLayer.off = set
+            case "--shimmer-layers": if i + 1 < args.count, let n = Int(args[i + 1]) { o.shimmerLayers = n; _ = next() } else { o.shimmerLayers = 60 }
             case "--new": o.newGame = true
             case "--feedback": o.showFeedback = true
             case "--feedback-dir": o.showFeedbackDir = true

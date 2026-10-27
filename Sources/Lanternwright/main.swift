@@ -41,6 +41,12 @@ if let n = options.shimmer {
     catch { FileHandle.standardError.write(Data("error: \(error)\n".utf8)); exit(1) }
 }
 
+if let n = options.shimmerLayers {
+    let renderer = Renderer(device: device, options: options)
+    do { print(Shimmer.report(try Shimmer.attribute(renderer: renderer, width: options.width, height: options.height, frames: n), width: options.width, height: options.height, frames: n)); exit(0) }
+    catch { FileHandle.standardError.write(Data("error: \(error)\n".utf8)); exit(1) }
+}
+
 if options.parallaxSea {
     let renderer = Renderer(device: device, options: options)
     do {

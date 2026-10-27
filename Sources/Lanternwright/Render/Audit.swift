@@ -33,7 +33,7 @@ enum PropAudit {
                 let glowing = item.uniforms.emissive.w > 0.5 || item.refractive
                 let isTerrain = (counts[1] ?? 0) > n / 2
                 out.append(Row(world: kind.rawValue, name: item.name, triangles: item.mesh.indexCount / 3, size: ext, flatShare: flat,
-                               materials: Dictionary(uniqueKeysWithValues: counts.map { (materialName($0.key), $0.value) }),
+                               materials: Dictionary(counts.map { (materialName($0.key), $0.value) }, uniquingKeysWith: +),          // ids past the last name all read 'slab'
                                largeFlat: !merged && !glowing && !isTerrain && flat > 0.6 && sorted[0] * sorted[1] > 0.30, merged: merged))
             }
         }

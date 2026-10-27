@@ -412,7 +412,7 @@ final class Renderer {
             enc.setVertexBytes(&f, length: MemoryLayout<FrameUniforms>.stride, index: 1)
             // Cull against the SUN's box, not the camera's: things behind you can still shadow what you see.
             let sunFrustum = Frustum(viewProj: matrix)
-            for item in scene.items {
+            for item in scene.items where !RenderLayer.isOff(.shadows) {
                 let b = item.worldBounds
                 guard !item.hidden, !item.refractive, item.uniforms.lod.w < 0.5, sunFrustum.intersects(min: b.min, max: b.max) else { continue }          // needle cards cast no shadow (the sprays of the same trees do)
                 lastShadowDraws += 1
@@ -482,7 +482,7 @@ final class Renderer {
             enc.setVertexTexture(terrainTextures[world], index: 5)
             var identity = ObjectUniforms()
             enc.setFragmentBytes(&identity, length: MemoryLayout<ObjectUniforms>.stride, index: 2)
-            if !Renderer.skipGrass { enc.drawPrimitives(type: .triangleStrip, vertexStart: 0, vertexCount: 7, instanceCount: grassCellsPerSide * grassCellsPerSide) }
+            if !Renderer.skipGrass && !RenderLayer.isOff(.grass) { enc.drawPrimitives(type: .triangleStrip, vertexStart: 0, vertexCount: 7, instanceCount: grassCellsPerSide * grassCellsPerSide) }
             enc.setCullMode(.back)
 
             // Sky last, so the depth test rejects it everywhere geometry was drawn (saves shading those pixels).
@@ -491,7 +491,7 @@ final class Renderer {
             enc.setDepthStencilState(skyDepthState)
             enc.setCullMode(.none)
             enc.setFragmentTexture(skyLUT, index: 1)
-            enc.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
+            if !RenderLayer.isOff(.sky) { enc.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3) }
             enc.endEncoding()
         }
 
@@ -524,8 +524,8 @@ final class Renderer {
             enc.setFragmentTexture(skyLUT, index: 1)
             enc.setFragmentTexture(sceneCopy, index: 2)
             enc.setFragmentTexture(distanceTexture, index: 3)
-            enc.drawIndexedPrimitives(type: .triangle, indexCount: ocean.mesh.indexCount, indexType: .uint32,
-                                      indexBuffer: ocean.mesh.indexBuffer, indexBufferOffset: 0)
+            if !RenderLayer.isOff(.water) { enc.drawIndexedPrimitives(type: .triangle, indexCount: ocean.mesh.indexCount, indexType: .uint32,
+                                      indexBuffer: ocean.mesh.indexBuffer, indexBufferOffset: 0) }
             // Glass (crystal trees etc.): refracts the scene copy, so it is drawn after the water has been laid down.
             let glass = scene.items.filter { $0.refractive && !$0.hidden }
             if !glass.isEmpty {
@@ -555,7 +555,7 @@ final class Renderer {
             // drawn with the ocean's indices over a crystal tree's vertices, a faint faceted ghost in the sky near the horizon).
             enc.setVertexBuffer(ocean.mesh.vertexBuffer, offset: 0, index: 0)
             enc.setRenderPipelineState(mistPipeline)
-            for (height, strength, seed) in [(Float(1.6), Float(0.85), Float(0.0)), (Float(6.5), Float(0.5), Float(0.37))] {
+            for (height, strength, seed) in [(Float(1.6), Float(0.85), Float(0.0)), (Float(6.5), Float(0.5), Float(0.37))] where !RenderLayer.isOff(.water) {
                 var mu = ocean.uniforms(camera: camera, level: height)
                 mu.tint = SIMD4(strength * mistScale, beamHeading, world == .varrow ? beamIntensity : 0, seed)
                 mu.emissive = SIMD4(Landmarks.lensPosition, 0)
