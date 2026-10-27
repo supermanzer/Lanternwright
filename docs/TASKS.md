@@ -567,6 +567,13 @@ User decisions (2026-10-26): the dropped-pages approach comes back (P1 reverses 
   > done: 2026-10-26. SelfTestFoley DeckPin: ten steps of the wood recipe on plank 5 at hollow 1: low share 0.944 (+-0.02), 1.2-3 kHz 0.005 (+-0.002), centroid 266 Hz (+-5 %), -30 dB at 0.271 s (+-5 %), peak 0.230 (+-6 %). Footsteps.swift's wood path is untouched (only the splash lines changed).
   review: pass (round 2: it required the tolerances tightened; a second plank/hollow value is optional).
 
+### G10 (graphics architecture audit: docs/plans/G10-graphics-audit.md; owner builder A, after F03; coordination in docs/plans/X00-roadmap-and-coordination.md)
+Started 2026-10-27 when F03 closed (main at a9ae0a3, bundle built from it). Order: stream 0 (measure, no behaviour change), then 1 to 4 as the plan sets them; B (worktree lanternwright-b, TASKS-B.md) owns M10 and later the grass stream; the region consumers G10.3.6-3.9 wait for B's M10.6 on main. Rules: measure first; byte-identical frames for stream 1; a change that cannot show a gain is reverted; INSPECT.md under `## From builder A`.
+- [ ] **G10.0.1 Per-pass GPU timer.** Accept: `--bench` prints a (pass, ms) table from MTLCounterSampleBuffer stage-boundary timestamps (collected a frame late); falls back cleanly where counters are unsupported; the F-key context may carry it.
+- [ ] **G10.0.2 Shimmer attribution.** Accept: `--shimmer` with a moving world (wind on, clock advancing, camera walking) and per-layer on/off (grass, trees, water, glass, props, sky, shadows) reports a ranked flicker table; it sets the order of stream 2.
+- [ ] **G10.0.3 Banding probe.** Accept: the count of distinct 8-bit levels and the largest step along a vertical gradient strip in the sky/dusk views, recorded as the baseline for G10.2.3.
+- [ ] G10.1.x to G10.4.x: see the plan; each is added here when stream 0 has produced its numbers (the order of stream 2 depends on G10.0.2).
+
 ### REJECTED (with reasons)
 - **R-A2 Keep the correct prefix lit permanently after a wrong strike.** It turns a 3-stone order puzzle into a linear search (each stone needs at most two tries), which defeats A1's goal; the audible drone (T55.2) gives the same learning signal without trivialising it.
 - **R-A3 A real tide that gates the Tide stone.** Breaks pillar 4 (no timers / forced waiting); the water level is baked into terrain, dock, causeway, player wading limit and audio, so it is also high-risk for little gain.
