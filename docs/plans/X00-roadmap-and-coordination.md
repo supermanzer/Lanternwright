@@ -20,6 +20,9 @@ Written 2026-10-26 after the user's request for (1) a graphics architecture audi
 6. Both builders keep the per-task review step (`docs/REVIEW-STEP.md`) and the frame-reading rule.
 7. **Bundles.** `scripts/bundle.sh` in the worktree builds `Lanternwright.app` in the worktree: the user's playable app is only ever the one in the main checkout. B never bundles into the main checkout. A bundles after merges.
 
+## Git (supersedes rules 1, 4 and 7 above where they differ)
+See `docs/GIT-WORKFLOW.md`: remote `origin` is on GitHub, one worktree per builder (A moves out of the integration checkout at its next pausing point), work branches `a/<topic>` / `b/<topic>`, `main` integration-only with ff-only merges under a board merge lock, push and tag at the end of each plan phase, the merging builder bundles in the integration checkout.
+
 ## Decisions already taken (the user asked the reviewer to proceed without approval)
 
 - Slow camera and limited freedom are wanted; implement, make the amount of freedom a setting so the feedback key can correct it.

@@ -23,7 +23,7 @@ Playtest feedback is saved by the game (press **F**) to `~/Library/Application S
 - Follow the coordinate conventions in TASKS.md §0 (Y up, north = −Z, yaw 0 = north). Put landmark positions only in `World/Layout.swift`.
 - World generation is deterministic: use the seeded noise only.
 - Never run the windowed app in the foreground from an agent shell, because it blocks. Use `--screenshot` instead. Use `scripts/bundle.sh && open Lanternwright.app` only for human play-testing.
-- Do not commit unless the user asks.
+- Git: follow `docs/GIT-WORKFLOW.md` (one worktree per agent, `main` is integration-only, ff-only merges, commit by path with selftest green, push at the end of each plan phase; the user has asked for this).
 - No third-party dependencies.
 
 ## Layout
