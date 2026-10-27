@@ -42,8 +42,16 @@ extension SelfTestRunner {
             let a = try Banding.measure(renderer: renderer, view: v, width: 640, height: 360)
             let b = try Banding.measure(renderer: renderer, view: v, width: 640, height: 360)
             let g = a.channels["green"]!
-            check(a.columns >= 10 && a.rows > 40 && g.levels >= 20 && g.longestRun >= 1 && g.zeroShare >= 0 && g.zeroShare <= 1, "banding: the probe finds sky strips (\(a.columns) columns, up to \(a.rows) rows) and counts \(g.levels) green levels, longest run \(g.longestRun)")
-            check(a.channels.mapValues { [$0.levels, $0.maxStep, $0.longestRun] } == b.channels.mapValues { [$0.levels, $0.maxStep, $0.longestRun] }, "banding: the probe gives the same numbers twice (reproducible)")
+            check(a.columns >= 10 && a.rows > 40 && g.fill > 0.3 && g.longestRun >= 1 && g.flat >= 0 && g.flat <= 1 && abs(g.steps.reduce(0, +) - 1) < 1e-4, "banding: the probe finds sky strips (\(a.columns) columns, up to \(a.rows) rows), green: longest run \(g.longestRun), flat \(Int(g.flat * 100)) %, fill \(String(format: "%.2f", g.fill))")
+            check(a.channels.mapValues { [$0.longestRun, Int($0.flat * 1e4), Int($0.fill * 1e4)] } == b.channels.mapValues { [$0.longestRun, Int($0.flat * 1e4), Int($0.fill * 1e4)] }, "banding: the probe gives the same numbers twice (reproducible)")
+            // The control: a slow ramp (one level per 150 rows, as in the high dusk sky) quantised plainly, and the same ramp with triangular +-1 LSB noise before quantising. The headline numbers must move the right way.
+            var rng = FoleyNoise(seed: 7)
+            let rows = 900, slope: Float = 1.0 / 150
+            let plain = (0..<20).map { _ in (0..<rows).map { Int((Float($0) * slope).rounded(.down)) } }
+            let dithered = (0..<20).map { _ in (0..<rows).map { Int((Float($0) * slope + (rng.next() + rng.next()) * 0.5 + 0.5).rounded(.down)) } }
+            let p = Banding.summarize(plain), d = Banding.summarize(dithered)
+            check(p.longestRun >= 140 && p.flat > 0.95 && d.longestRun < p.longestRun / 4 && d.flat < p.flat - 0.15 && d.steps[1] > p.steps[1] && d.fill >= p.fill - 0.01,
+                  "banding: the control ramp: plain quantising has runs of \(p.longestRun) rows and \(Int(p.flat * 100)) % flat; with triangular noise \(d.longestRun) rows and \(Int(d.flat * 100)) % flat, more steps of 1 (\(Int(p.steps[1] * 100)) % -> \(Int(d.steps[1] * 100)) %)")
         } catch { check(false, "banding: probe failed: \(error)") }
     }
 }

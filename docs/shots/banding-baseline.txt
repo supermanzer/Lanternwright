@@ -1,23 +1,23 @@
 # G10.0.3 baseline. Command: Lanternwright --banding (main after G10.0.2)
-banding probe (G10.0.3): the final 8-bit image of smooth sky strips, 1600x900, TAA on, 32 columns per view. levels = distinct values used by a channel in the strip; max step = the biggest change
-between adjacent rows; longest run = most identical rows in a row; flat = share of adjacent rows with no change at all (a smooth ramp that uses every level has flat close to 0 where the gradient is
-steep, and runs of 1 to 4 where it is shallow; bands are long runs). Dithering (G10.2.3) should raise the levels and cut the runs.
-A strip is cut where adjacent rows differ by more than 3, so a max step is at most 3 by construction; 2 or 3 inside a smooth strip is itself a band edge.
+banding probe (G10.0.3): the final 8-bit image of smooth sky strips, 1600x900, TAA on, up to 40 columns per view, the longest smooth sky strip in each.
+HEADLINE for G10.2.3: longest run (most identical rows in a row) and flat (share of adjacent rows with no change at all). Banding = long runs and a high flat share; dither must cut both.
+steps = share of adjacent rows whose largest channel step is 0 / 1 / 2 / 3+ (strips are cut at steps over 3). fill = distinct levels used / levels spanned by the strip (max - min + 1), mean over strips:
+a banded ramp is already near 1 (it visits every level), so fill is context, not the target. Clouds and the sun's glow are included wherever they are smooth enough.
 
-dusk-away: 30 columns of up to 705 sky rows
-    red levels 162   max step 3   longest run  27 rows   flat 62.3 %
-    green levels 128   max step 3   longest run  19 rows   flat 56.2 %
-    blue levels 106   max step 3   longest run  16 rows   flat 52.5 %
-dusk-toward: 30 columns of up to 683 sky rows
-    red levels 189   max step 3   longest run  16 rows   flat 52.8 %
-    green levels 164   max step 3   longest run  14 rows   flat 50.1 %
-    blue levels 129   max step 3   longest run  13 rows   flat 48.2 %
-dusk-high: 30 columns of up to 900 sky rows
-    red levels 176   max step 3   longest run 165 rows   flat 75.5 %
-    green levels 145   max step 3   longest run 133 rows   flat 68.0 %
-    blue levels 104   max step 3   longest run  99 rows   flat 61.6 %
-glass-night: 30 columns of up to 867 sky rows
-    red levels 130   max step 3   longest run 275 rows   flat 73.9 %
-    green levels 132   max step 3   longest run 144 rows   flat 67.0 %
-    blue levels 131   max step 3   longest run  44 rows   flat 56.8 %
+dusk-away: 30 columns, strips up to 705 rows
+    red longest run  27 rows   flat 61.4 %   steps 0/1/2/3+ 61.4 / 31.0 /  6.3 /  1.4 %   fill 0.93
+    green longest run  16 rows   flat 55.0 %   steps 0/1/2/3+ 55.0 / 39.7 /  4.9 /  0.4 %   fill 0.96
+    blue longest run  16 rows   flat 50.9 %   steps 0/1/2/3+ 50.9 / 44.8 /  4.1 /  0.1 %   fill 0.97
+dusk-toward: 30 columns, strips up to 683 rows
+    red longest run  16 rows   flat 50.6 %   steps 0/1/2/3+ 50.6 / 41.7 /  6.6 /  1.1 %   fill 0.92
+    green longest run  14 rows   flat 48.4 %   steps 0/1/2/3+ 48.4 / 44.7 /  6.4 /  0.5 %   fill 0.95
+    blue longest run  13 rows   flat 47.0 %   steps 0/1/2/3+ 47.0 / 47.0 /  5.8 /  0.2 %   fill 0.97
+dusk-high: 30 columns, strips up to 900 rows
+    red longest run 165 rows   flat 75.1 %   steps 0/1/2/3+ 75.1 / 22.3 /  2.1 /  0.5 %   fill 0.92
+    green longest run 133 rows   flat 67.0 %   steps 0/1/2/3+ 67.0 / 31.2 /  1.6 /  0.2 %   fill 0.95
+    blue longest run  99 rows   flat 60.5 %   steps 0/1/2/3+ 60.5 / 37.9 /  1.6 /  0.0 %   fill 0.98
+glass-night: 30 columns, strips up to 867 rows
+    red longest run 275 rows   flat 67.7 %   steps 0/1/2/3+ 67.7 / 28.0 /  3.7 /  0.6 %   fill 0.90
+    green longest run 144 rows   flat 61.1 %   steps 0/1/2/3+ 61.1 / 33.9 /  4.2 /  0.7 %   fill 0.91
+    blue longest run  37 rows   flat 52.3 %   steps 0/1/2/3+ 52.3 / 41.1 /  5.8 /  0.9 %   fill 0.91
 
