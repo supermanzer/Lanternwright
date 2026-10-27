@@ -23,10 +23,16 @@ struct WaterContact {
         if !wet && was { return .leave }
         return nil
     }
-    /// 0.1 at a crawl, about 0.5 at a walk (3.2 m/s), 1 at a run (6.5 m/s).
-    static func entryStrength(speed: Float) -> Float { min(max(speed / 6.5, 0.1), 1) }
-    /// 0...1: the wash of water against the legs while moving; exactly 0 out of the water or standing still.
-    func drag(speed: Float) -> Float { wet ? min(1, (0.3 + depth / 0.35) * min(speed / 3.2, 1.2)) * (speed > 0.3 ? 1 : 0) : 0 }
+    /// The speeds the wading levels were tuned at, before M10.2 slowed the player (3.2 walk, 6.5 run). The levels belong to the player's pace, not to those numbers.
+    static let oldWalk: Float = 3.2, oldRun: Float = 6.5
+    /// 0.1 at a crawl, `oldWalk / oldRun` (about 0.49) at the player's walking pace, 1 at the running pace: the same levels at the walk and the run as before M10, whatever the pace is now.
+    static func entryStrength(speed: Float) -> Float {
+        let walk = Player.walkSpeed, run = Player.runSpeed, atWalk = oldWalk / oldRun
+        let s = speed <= walk ? atWalk * speed / walk : atWalk + (1 - atWalk) * (speed - walk) / (run - walk)
+        return min(max(s, 0.1), 1)
+    }
+    /// 0...1: the wash of water against the legs while moving; exactly 0 out of the water or standing still. Full strength at the walking pace, 1.2 times that at most.
+    func drag(speed: Float) -> Float { wet ? min(1, (0.3 + depth / 0.35) * min(speed / Player.walkSpeed, 1.2)) * (speed > 0.3 ? 1 : 0) : 0 }
     /// 0...1: the quiet lap while standing in the water; exactly 0 out of it or while moving.
     func lap(speed: Float) -> Float { wet && speed <= 0.3 ? min(1, 0.4 + depth / 0.4) : 0 }
 }
