@@ -46,7 +46,11 @@ struct Player {
     /// A player further than this beyond the margin got there some other way (a teleport, a load, a world change): they are moved to the nearest connected inside point.
     static let strandedSlack: Float = 0.5
     /// Off for tools and free roam (M10.7 turns this into the Guided / Loose / Free setting).
-    nonisolated(unsafe) static var confinementEnabled = true
+    nonisolated(unsafe) static var guidance: Guidance = .guided
+    /// True unless in free roam. (Setting it is for tests and tools: true means Guided.)
+    static var confinementEnabled: Bool { get { guidance != .free } set { guidance = newValue ? .guided : .free } }
+    /// The margin in force: `marginWidth`, doubled in Loose.
+    static var margin: Float { guidance == .loose ? marginWidth * Guidance.looseMargin : marginWidth }
     /// 0 inside a corridor, rising smoothly to 1 at the hard limit: the ambient cue (a faint closing-in of the fog and the ambience, builder A's G10.3.9) reads this.
     private(set) var marginPressure: Float = 0
 
@@ -143,13 +147,13 @@ struct Player {
         if let nav {
             let feet = SIMD2(position.x, position.z)
             sdHere = nav.signedDistance(feet)
-            if sdHere > Player.marginWidth + Player.strandedSlack {
+            if sdHere > Player.margin + Player.strandedSlack {
                 let landing = nav.nearestReachable(feet)
                 position.x = landing.x; position.z = landing.y
                 velocity = .zero
                 sdHere = nav.signedDistance(landing)
             }
-            marginPressure = smoothstep(0, Player.marginWidth, max(sdHere, 0))
+            marginPressure = smoothstep(0, Player.margin, max(sdHere, 0))
         } else { marginPressure = 0 }
         // Wish velocity in world space. Yaw 0 faces north (-Z); positive yaw turns toward +X.
         let forward = SIMD2(sin(yaw), -cos(yaw))
@@ -208,15 +212,15 @@ struct Player {
         // never stuck on); if that cannot be walked, the player stays where they were, which is inside by induction.
         if let nav {
             let sd = nav.signedDistance(pos)
-            if sd > Player.marginWidth {
+            if sd > Player.margin {
                 let outward = normalize(pos - nav.nearestInside(pos))
-                pos -= outward * (sd - Player.marginWidth)
+                pos -= outward * (sd - Player.margin)
             }
         }
         // The push-out must not shove us into the sea or up a cliff either.
         if !canMove(from: from, to: pos, scene: scene) { pos = from }
         // The backstop: whatever happened above (a player placed just past the limit where the projection cannot be walked), the feet never end a tick beyond it.
-        if let nav, nav.signedDistance(pos) > Player.marginWidth + 1e-3 { pos = nav.nearestReachable(pos) }
+        if let nav, nav.signedDistance(pos) > Player.margin + 1e-3 { pos = nav.nearestReachable(pos) }
         position.x = pos.x; position.z = pos.y
 
         // F02 M1: the FEET are physical, always on the ground that is drawn (Scene.groundHeight: terrain, boards, platforms). The CAMERA's vertical offset

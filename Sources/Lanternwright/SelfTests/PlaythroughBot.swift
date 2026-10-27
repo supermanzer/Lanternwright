@@ -12,7 +12,7 @@ final class PlaythroughBot {
 
     func tick(_ input: InputState = InputState()) {
         now += 1.0 / 60; game.advance(now: now, input: input)
-        if Player.confinementEnabled { strayed = max(strayed, Layout.Navigation.network(for: game.world).signedDistance(SIMD2(game.player.position.x, game.player.position.z))) }
+        if let net = Layout.Navigation.active(for: game.world) { strayed = max(strayed, net.signedDistance(SIMD2(game.player.position.x, game.player.position.z))) }
     }
     /// M10.6: the furthest the feet have been beyond a corridor edge since the last `forgetStray()` (negative: always inside; the margin is `Player.marginWidth`).
     private(set) var strayed: Float = -.infinity
@@ -36,10 +36,10 @@ final class PlaythroughBot {
     @discardableResult
     func walk(to target: SIMD3<Float>, within r: Float, timeout: Float = 150, straight: Bool = false) -> Bool {
         var legs: [SIMD2<Float>] = []
-        if !straight && Player.confinementEnabled && simd_length(flat(target) - flat(feet)) >= r {
+        if !straight, let net = Layout.Navigation.active(for: game.world), simd_length(flat(target) - flat(feet)) >= r {
             // Route nodes that lie inside, or hard against, a collider (the lighthouse's axis is a plaza centre) cannot be walked to: skip them.
             let cylinders = game.scene.colliders.cylinders
-            legs = Layout.Navigation.network(for: game.world).route(from: flat(feet), to: flat(target))
+            legs = net.route(from: flat(feet), to: flat(target))
                 .filter { n in !cylinders.contains { simd_length(n - $0.center) < $0.radius + Player.radius + 0.8 } }
         }
         legs.append(flat(target))

@@ -81,6 +81,21 @@ extension Layout {
             }
         }
 
+        /// M10.7: the loose versions (trails and plazas 1.6x wider), built once (a network builds its graph when it is made: never per tick).
+        static let varrowLoose = varrow.widened(by: Guidance.looseWidth)
+        static let glassWoodLoose = glassWood.widened(by: Guidance.looseWidth)
+
+        /// The network for a guidance setting (nil in free roam).
+        static func network(for kind: WorldKind, guidance: Guidance) -> NavNetwork? {
+            switch guidance {
+            case .free: return nil
+            case .guided: return network(for: kind)
+            case .loose: return kind == .varrow ? varrowLoose : glassWoodLoose
+            }
+        }
+        /// What the player is confined to right now (`Player.guidance`): nil in free roam.
+        static func active(for kind: WorldKind) -> NavNetwork? { network(for: kind, guidance: Player.guidance) }
+
         /// Varrow: dock -> beach -> shore path -> tide stone -> ridge -> wind stone -> summit route -> lighthouse -> north descent -> causeway -> islet.
         static let varrow: NavNetwork = {
             let r = Layout.route.map(xz)                       // dockShore, tide, wind, summit, lighthouse, causewayStart

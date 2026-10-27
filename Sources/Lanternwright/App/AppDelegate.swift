@@ -149,6 +149,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, MTKViewDelegate {
         view.input.sensitivity = s.effectiveSensitivity
         LookFilter.calm = s.calmCamera
         Player.paceScale = s.pace
+        Player.guidance = options.freeRoam ? .free : s.guidance                  // --freeroam wins over the saved setting
+        Settings.current = s
         view.input.invertY = s.invertY
         Player.slipEnabled = s.slipOnSteep
         renderer.taaEnabled = s.taa

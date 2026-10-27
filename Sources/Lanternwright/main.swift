@@ -61,6 +61,7 @@ if options.parallax {
     catch { FileHandle.standardError.write(Data("error: \(error)\n".utf8)); exit(1) }
 }
 
+if options.freeRoam { Player.guidance = .free }
 if options.navAudit { exit(NavigationAudit.main(device: device, out: options.navAuditOut) ? 0 : 1) }
 
 if let path = options.navOverlayPath {

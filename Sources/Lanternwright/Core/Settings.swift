@@ -12,6 +12,7 @@ struct Settings: Codable, Equatable {
     var introSeen = false                // the controls screen has been shown on a new game (reset by "New game")
     var lookSpeed: Float = 0.7           // M10.1: turn speed as a fraction of `Settings.baseSensitivity` (0.5...1.5); the pause-menu slider (the old `sensitivity` field is kept so saved blobs decode)
     var pace: Float = 1.0                // M10.2: walking pace multiplier (0.7...1.3); scales walk and run speed together
+    var guidance: Guidance = .guided     // M10.7: Guided / Loose / Free roam (the way back to the old free movement)
     var calmCamera: Float = 0.6          // M10.1: 0 = raw mouse, 1 = calmest; scales the look smoothing time and the soft limit on flicks
 
     init() {}
@@ -30,9 +31,12 @@ struct Settings: Codable, Equatable {
         lookSpeed = try c.decodeIfPresent(Float.self, forKey: .lookSpeed) ?? lookSpeed
         calmCamera = try c.decodeIfPresent(Float.self, forKey: .calmCamera) ?? calmCamera
         pace = try c.decodeIfPresent(Float.self, forKey: .pace) ?? pace
+        guidance = (try? c.decodeIfPresent(Guidance.self, forKey: .guidance)) ?? .guided           // an unknown value falls back to Guided
     }
 
     static let key = "lanternwright.settings"
+    /// The settings in force (the app sets it whenever they change); the feedback context reads it.
+    nonisolated(unsafe) static var current = Settings()
     /// Radians of turn per mouse count at `lookSpeed` 1 (the pre-M10 default).
     static let baseSensitivity: Float = 0.0022
     /// What the input layer uses: `lookSpeed` x the base.

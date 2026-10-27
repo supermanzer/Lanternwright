@@ -47,6 +47,7 @@ struct LaunchOptions {
     var listPages = false
     var navOverlayPath: String?
     var navAudit = false
+    var freeRoam = false
     var navAuditOut: String?
     var parallax = false
     var taa = false
@@ -84,6 +85,7 @@ struct LaunchOptions {
       --taa                        Turn temporal anti-aliasing on for screenshots, benchmarks and tools (always on in the game; use --frames N to let it converge)
       --clock T                    Screenshot clock in seconds (default 12): the wind, the grass and the trees depend on it
       --list-pages                 Print where each of the eight journal pages stands (world, lectern foot, what makes it appear)
+      --freeroam                   Ignore the navigation corridors (free roam), whatever the saved Guidance setting says (M10.7)
       --nav-audit [out.txt]        Check that every interactable, page and vantage is reachable and visible inside the navigation corridors; print the region numbers (M10.6)
       --nav-overlay <path.png>     Write a top-down map of each world's navigation corridors to <path>-varrow.png and <path>-glasswood.png (M10.3)
       --audit-props [out.md]       List every scene item with its materials and flag large props drawn flat (docs/PROPS.md)
@@ -144,6 +146,7 @@ struct LaunchOptions {
             case "--audit-slopes": o.auditSlopes = true
             case "--list-pages": o.listPages = true
             case "--nav-overlay": o.navOverlayPath = next()
+            case "--freeroam": o.freeRoam = true
             case "--nav-audit": o.navAudit = true; if i + 1 < args.count, !args[i + 1].hasPrefix("--") { o.navAuditOut = next() }
             case "--parallax": o.parallax = true
             case "--taa": o.taa = true

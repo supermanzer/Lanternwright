@@ -29,8 +29,12 @@ struct ReachableRegion {
         maxEyeHeight = top + Player.eyeHeight
     }
 
-    static func make(_ kind: WorldKind, scene: Scene, margin: Float = Player.marginWidth) -> ReachableRegion {
-        var r = ReachableRegion(network: Layout.Navigation.network(for: kind), margin: margin, groundHeight: { scene.groundHeight(x: $0, z: $1) })
+    /// The region for a guidance setting (Guided by default; Loose is wider with a deeper margin). The region does not change by itself when the player changes the
+    /// setting: rebuild it then. Free roam has no region.
+    static func make(_ kind: WorldKind, scene: Scene, guidance: Guidance = .guided, margin: Float? = nil) -> ReachableRegion {
+        let net = Layout.Navigation.network(for: kind, guidance: guidance == .free ? .guided : guidance)!
+        let margin = margin ?? (guidance == .loose ? Player.marginWidth * Guidance.looseMargin : Player.marginWidth)
+        var r = ReachableRegion(network: net, margin: margin, groundHeight: { scene.groundHeight(x: $0, z: $1) })
         r.itemDistances = scene.items.map { item in
             let box = item.worldBounds
             return r.distance(toSphere: (box.min + box.max) / 2, radius: length(box.max - box.min) / 2)

@@ -242,3 +242,21 @@ struct NavNetwork {
         return best
     }
 }
+
+/// M10.7: how much the corridors guide the player (the pause-menu setting, saved in `Settings`). Guided: the corridors as authored with a 4 m margin. Loose: trails and
+/// plazas 1.6x wider and the margin twice as deep. Free roam: no region at all (the player's way back if guidance ever feels like a cage).
+enum Guidance: String, Codable, CaseIterable {
+    case guided, loose, free
+    var title: String { switch self { case .guided: return "Guided"; case .loose: return "Loose"; case .free: return "Free roam" } }
+    static let looseWidth: Float = 1.6
+    static let looseMargin: Float = 2
+}
+
+extension NavNetwork {
+    /// The same network with every trail's half-widths and every plaza's radius multiplied by `factor` (a superset of the original, so everything reachable stays reachable).
+    func widened(by factor: Float) -> NavNetwork {
+        NavNetwork(trails: trails.map { Trail($0.name, $0.points, halfWidths: $0.halfWidths.map { $0 * factor }) },
+                   plazas: plazas.map { Plaza(name: $0.name, center: $0.center, radius: $0.radius * factor) },
+                   vantages: vantages, spawn: spawn, arrivals: arrivals)
+    }
+}
