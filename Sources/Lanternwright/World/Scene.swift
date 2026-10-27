@@ -205,6 +205,8 @@ final class Scene {
         return Int(floor(simd_dot(SIMD2(x, z) - s.a, ab / simd_length(ab)) / 0.275))
     }
     func isOnPlatform(_ p: SIMD2<Float>) -> Bool { platforms.contains { $0.contains(p) } }
+    /// True where the ground under `p` is something built to be stepped onto: a platform (stair, plinth, dais) or a deck (the dock, the causeway once it has risen).
+    func isOnStep(_ p: SIMD2<Float>) -> Bool { isOnPlatform(p) || walkables.contains { $0.height(at: p) != nil } }
 
     static func make(_ kind: WorldKind, device: MTLDevice) -> Scene {
         switch kind {

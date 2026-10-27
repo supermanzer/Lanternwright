@@ -8,7 +8,8 @@ struct Player {
     static let runSpeed: Float = 6.5
     /// Highest ledge that can be stepped onto in one move (dock edge, kerb), and the steepest walkable slope
     /// (rise/run; 0.84 is about 40 degrees).
-    static let maxStep: Float = 0.5
+    /// F03 M1 (#35): the highest single step up the player will take: 0.42 m (a knee-high kerb, a stair, the dock's first board; was 0.5). Higher is refused as a wall.
+    static let maxStep: Float = 0.42
     static let maxSlope: Float = 0.84
     /// F01 W5.4: an OPTIONAL soft slip (the user's idea, default off, a setting): on ground steeper than `maxSlope` you slide gently downhill, never any harm.
     nonisolated(unsafe) static var slipEnabled = false
@@ -88,7 +89,7 @@ struct Player {
         let rise = g1 - g0
         if rise > Player.maxStep { return false }
         let run = max(length(to - from), 1e-4)
-        if rise / run > Player.maxSlope && rise > 0.02 && !scene.isOnPlatform(to) { return false }       // stairs are steps, not slopes
+        if rise / run > Player.maxSlope && rise > 0.02 && !scene.isOnStep(to) { return false }       // stairs and decks are steps, not slopes (F03 #35: the dock's first board was refused as a 'slope')
         return true
     }
 
