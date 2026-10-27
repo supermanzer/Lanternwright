@@ -41,4 +41,24 @@ extension SelfTestRunner {
         check(timer.summary.hasPrefix("frame ") && timer.summary.contains("opaque + sky"), "passtimer: the one-line summary for the F-key context reads '\(timer.summary.prefix(70))...'")
         renderer.passTimer = nil
     }
+
+    /// G10.1.2 and G10.1.3: the frame is a fixed list of passes, and no pass writes the renderer's frame uniforms (each gets a value copy in its FrameContext).
+    func runFrameGraph() {
+        guard name == "all" || name == "framegraph" else { return }
+        guard let device = MTLCreateSystemDefaultDevice() else { check(false, "framegraph: no Metal device"); return }
+        let renderer = Renderer(device: device, options: LaunchOptions.parse(["lanternwright"]))
+        check(renderer.passes.map(\.name) == ["shadow", "opaque", "water", "ao", "taa", "beams", "god rays", "bloom", "composite"],
+              "framegraph: the passes in order: \(renderer.passes.map(\.name).joined(separator: ", "))")
+        let dir = "Sources/Lanternwright/Render/Passes"
+        let files = (try? FileManager.default.contentsOfDirectory(atPath: dir))?.filter { $0.hasSuffix("Pass.swift") && $0 != "RenderPass.swift" } ?? []
+        var offenders: [String] = []
+        for f in files {
+            let text = (try? String(contentsOfFile: dir + "/" + f, encoding: .utf8)) ?? ""
+            if text.contains("r.frame") { offenders.append(f) }
+        }
+        check(files.count == 9 && offenders.isEmpty, "framegraph: no pass touches the renderer's frame uniforms (\(files.count) pass files, offenders: \(offenders))")
+        let enc = (try? String(contentsOfFile: "Sources/Lanternwright/Render/Renderer.swift", encoding: .utf8)) ?? ""
+        let body = enc.components(separatedBy: "    func encode(commandBuffer: MTLCommandBuffer, target: MTLTexture, camera: Camera) {").last?.components(separatedBy: "\n    }\n").first ?? ""
+        check(!body.isEmpty && body.split(separator: "\n").count < 60, "framegraph: Renderer.encode is under 60 lines (\(body.split(separator: "\n").count))")
+    }
 }

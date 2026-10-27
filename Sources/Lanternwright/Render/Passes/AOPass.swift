@@ -1,11 +1,11 @@
 import Metal
 import simd
 
-/// G10.1.2: a o pass. Moved out of `Renderer.encode` unchanged: it reads the renderer's pipelines and state through `r` and gets its own copy of the frame uniforms.
+/// G10.1.2: AO pass. Moved out of `Renderer.encode` unchanged: it reads the renderer's pipelines and state through `r` and gets its own copy of the frame uniforms.
 final class AOPass: RenderPass {
     unowned let r: Renderer
     init(_ renderer: Renderer) { r = renderer }
-    let name = "a o"
+    let name = "ao"
 
     func encode(_ c: FrameContext) {
         let commandBuffer = c.commandBuffer

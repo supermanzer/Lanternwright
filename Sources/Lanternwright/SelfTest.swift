@@ -18,7 +18,7 @@ final class SelfTestRunner {
 enum SelfTest {
     static func run(_ name: String, device: MTLDevice) -> Bool {
         let r = SelfTestRunner(name: name, device: device)
-        r.runCore(); r.runWorld(); r.runAudio(); r.runGame(); r.runControls(); r.runApproach(); r.runParallax(); r.runTAA(); r.runCollision(); r.runSteps(); r.runAmbience(); r.runSurf(); r.runWind(); r.runPad(); r.runWater(); r.runHollowness(); r.runSplash(); r.runBots(); r.runTrees(); r.runNeedles(); r.runFoley(); r.runGrassCoverage(); r.runGrassWalk(); r.runPages(); r.runShore(); r.runLook(); r.runPace(); r.runNav(); r.runConfine(); r.runFraming(); r.runNavAudit(); r.runGuidance(); r.runPassTimer(); r.runLayers(); r.runBanding()
+        r.runCore(); r.runWorld(); r.runAudio(); r.runGame(); r.runControls(); r.runApproach(); r.runParallax(); r.runTAA(); r.runCollision(); r.runSteps(); r.runAmbience(); r.runSurf(); r.runWind(); r.runPad(); r.runWater(); r.runHollowness(); r.runSplash(); r.runBots(); r.runTrees(); r.runNeedles(); r.runFoley(); r.runGrassCoverage(); r.runGrassWalk(); r.runPages(); r.runShore(); r.runLook(); r.runPace(); r.runNav(); r.runConfine(); r.runFraming(); r.runNavAudit(); r.runGuidance(); r.runPassTimer(); r.runLayers(); r.runBanding(); r.runFrameGraph()
         return r.ok
     }
 }

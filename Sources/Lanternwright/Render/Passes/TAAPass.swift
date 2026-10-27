@@ -1,11 +1,11 @@
 import Metal
 import simd
 
-/// G10.1.2: t a a pass. Moved out of `Renderer.encode` unchanged: it reads the renderer's pipelines and state through `r` and gets its own copy of the frame uniforms.
+/// G10.1.2: TAA pass. Moved out of `Renderer.encode` unchanged: it reads the renderer's pipelines and state through `r` and gets its own copy of the frame uniforms.
 final class TAAPass: RenderPass {
     unowned let r: Renderer
     init(_ renderer: Renderer) { r = renderer }
-    let name = "t a a"
+    let name = "taa"
 
     func encode(_ c: FrameContext) {
         let commandBuffer = c.commandBuffer
