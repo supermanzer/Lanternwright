@@ -7,45 +7,6 @@ struct LitFragOut {
     float dist [[color(1)]];
 };
 
-// Tree LOD (R09, F02 T66.13): the dithered hand-over between the spray foliage and the needle cards. Discards fragments; only the LOD pipeline variant does anything.
-inline void lit_lod_dissolve(LitOut in, constant ObjectUniforms& obj, constant FrameUniforms& frame) {
-    if (kLodDither && tree_lod_discard(obj.lod, in.worldPos, frame.cameraPos.xyz, in.stagger, in.position.xy + frame.misc.x * float2(5.588238, 3.14159))) discard_fragment();
-    if (kLodDither) {
-        // F02 T66.13: needle cards (lod.w = 1) and the spray foliage of level 0 give way to each other within about 16 m, complementarily through one noise value;
-        // a needle card is also alpha-tested with its herringbone pattern, stochastically, so the temporal resolve turns it into smooth needle coverage.
-        float fpN = max(length(dfdx(in.worldPos)), length(dfdy(in.worldPos)));      // metres per pixel (derivatives taken before any discard)
-        float nW = needle_weight(length(in.worldPos.xz - frame.cameraPos.xz), in.stagger);
-        float2 px2 = in.position.xy + frame.misc.x * float2(3.7, 8.1) + float2(31.7, 12.3);
-        int midN = int(in.material + 0.5);
-        if (obj.lod.w > 0.5) {
-            if (ign(px2) >= nW) discard_fragment();
-            float cover = needle_cover(in.color.a, clamp((in.material - 23.0) / 0.4, -1.0, 1.0), fract(in.color.r * 91.7 + in.color.g * 37.1), fpN);
-            if (cover < needle_threshold(fpN, ign(px2 + float2(7.3, 19.9)))) discard_fragment();
-        } else if (obj.lod.y < 0.5 && midN == 3 && ign(px2) < nW) {
-            discard_fragment();
-        }
-    }
-}
-
-// Foliage lighting: wrap lighting and a back-lit translucency term, no glossy highlight; the normal is softened toward the sky for the ambient lookup.
-inline void foliage_shading(thread float3& n, float3 L, float3 V, float3 albedo, float3 E, thread float3& diffuse, thread float3& specular) {
-    // Leaves are thin and bushy: light wraps around them and shines through. Plain N.L would make a conifer
-    // black on its shaded side. Wrap lighting + a back-lit translucency term, no glossy highlight.
-    float wrap = saturate((dot(n, L) + 0.45) / 1.45);
-    float trans = pow(saturate(dot(V, -L)), 3.0) * saturate(0.6 - n.y * 0.5);
-    diffuse = albedo / M_PI_F * E * (wrap + 0.6 * trans);
-    specular = float3(0.0);
-    n = normalize(mix(n, float3(0.0, 1.0, 0.0), 0.5));          // soft, sky-facing ambient
-}
-
-// Warm ground bounce: the sun-lit ground re-radiates into everything that faces down or sideways (see the notes at the call).
-inline float3 ground_bounce(constant FrameUniforms& frame, float3 L, float3 n, float3 albedo, float metal, float matAO) {
-    bool glassWorld = frame.worldB.x > 0.5;
-    float3 groundAlb = glassWorld ? float3(0.22, 0.24, 0.34) : float3(0.36, 0.28, 0.18);
-    float3 bounce = groundAlb * frame.sunColor.rgb * frame.sunColor.w * max(L.y, 0.10) / M_PI_F * 1.6;
-    return albedo * (1.0 - metal) * bounce * saturate(0.5 - 0.5 * n.y) * matAO;
-}
-
 fragment LitFragOut lit_fragment(LitOut in [[stage_in]],
                              constant FrameUniforms& frame [[buffer(1)]],
                              constant ObjectUniforms& obj [[buffer(2)]],
