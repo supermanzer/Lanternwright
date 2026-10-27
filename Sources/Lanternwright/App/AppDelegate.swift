@@ -29,6 +29,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, MTKViewDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         renderer = Renderer(device: device, options: options)
+        renderer.passTimer = PassTimer(device: device)          // G10.0.1: read back one frame late; its table goes into the F-key context
         renderer.taaEnabled = true                  // F02 R1 (accepted by the user): temporal anti-aliasing in the game; headless tools opt in with --taa
         game = Game(scenes: renderer.scenes)
         let engine = AudioEngine()
@@ -225,13 +226,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, MTKViewDelegate {
         game.journal.isOpen = false
         view.releaseMouse()
         let size = view.drawableSize
+        let timer = renderer.passTimer; renderer.passTimer = nil          // the snapshot frame must not replace the game's own table
         try? Screenshot.snapshot(renderer: renderer, camera: game.camera, width: Int(size.width), height: Int(size.height), to: FeedbackStore.pendingScreenshotURL)
+        renderer.passTimer = timer
         overlay.showFeedback()
     }
 
     private func submitFeedback(_ text: String) {
         do {
-            let entry = try FeedbackStore.save(text: text, context: game.feedbackContext())
+            let entry = try FeedbackStore.save(text: text, context: game.feedbackContext(extra: renderer.passTimer.map { $0.summary }.map { ["pass ms": $0] } ?? [:]))
             closeFeedback(saved: "Thank you. Saved as \(entry.id)")
         } catch {
             closeFeedback(saved: "Could not save feedback: \(error.localizedDescription)")

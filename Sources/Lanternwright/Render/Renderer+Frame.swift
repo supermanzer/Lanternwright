@@ -11,7 +11,7 @@ extension Renderer {
         comp.colorAttachments[0].texture = target
         comp.colorAttachments[0].loadAction = .dontCare
         comp.colorAttachments[0].storeAction = .store
-        guard let enc = commandBuffer.makeRenderCommandEncoder(descriptor: comp) else { return }
+        guard let enc = renderEncoder(commandBuffer, comp) else { return }
         enc.label = "debug view"
         enc.setRenderPipelineState(compositePipeline)
         enc.setFragmentTexture(source, index: 0)
@@ -146,14 +146,14 @@ extension Renderer {
         pass.colorAttachments[0].texture = skyLUT
         pass.colorAttachments[0].loadAction = .dontCare
         pass.colorAttachments[0].storeAction = .store
-        if let enc = commandBuffer.makeRenderCommandEncoder(descriptor: pass) {
+        if let enc = renderEncoder(commandBuffer, pass) {
             enc.label = "sky LUT"
             enc.setRenderPipelineState(skyLUTPipeline)
             enc.setFragmentBytes(&frame, length: MemoryLayout<FrameUniforms>.stride, index: 1)
             enc.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
             enc.endEncoding()
         }
-        if let blit = commandBuffer.makeBlitCommandEncoder() {
+        if let blit = blitEncoder(commandBuffer) {
             blit.label = "sky LUT mips"
             blit.generateMipmaps(for: skyLUT)
             blit.endEncoding()
@@ -163,7 +163,7 @@ extension Renderer {
         ip.colorAttachments[0].texture = irradianceMap
         ip.colorAttachments[0].loadAction = .dontCare
         ip.colorAttachments[0].storeAction = .store
-        if let enc = commandBuffer.makeRenderCommandEncoder(descriptor: ip) {
+        if let enc = renderEncoder(commandBuffer, ip) {
             enc.label = "irradiance"
             enc.setRenderPipelineState(irradiancePipeline)
             enc.setFragmentTexture(skyLUT, index: 0)
@@ -178,7 +178,7 @@ extension Renderer {
         pd.colorAttachments[0].texture = target
         pd.colorAttachments[0].loadAction = load
         pd.colorAttachments[0].storeAction = .store
-        guard let enc = cb.makeRenderCommandEncoder(descriptor: pd) else { return }
+        guard let enc = renderEncoder(cb, pd) else { return }
         enc.label = label
         enc.setRenderPipelineState(pipeline)
         enc.setFragmentTexture(source, index: 0)

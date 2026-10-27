@@ -374,8 +374,17 @@ final class Renderer {
         if let sh = env["TAA_SHARP"], let v = Float(sh) { taaSharpness = v }
     }
 
+    /// G10.0.1: the per-pass GPU timer, when a tool (`--bench`) or the game has switched it on. Nil costs nothing.
+    var passTimer: PassTimer?
+    func renderEncoder(_ cb: MTLCommandBuffer, _ descriptor: MTLRenderPassDescriptor) -> MTLRenderCommandEncoder? {
+        passTimer?.renderEncoder(cb, descriptor) ?? cb.makeRenderCommandEncoder(descriptor: descriptor)
+    }
+    func blitEncoder(_ cb: MTLCommandBuffer) -> MTLBlitCommandEncoder? { passTimer?.blitEncoder(cb) ?? cb.makeBlitCommandEncoder() }
+
     /// Encode a full frame that ends by writing `target` (format `outputFormat`).
     func encode(commandBuffer: MTLCommandBuffer, target: MTLTexture, camera: Camera) {
+        passTimer?.begin(commandBuffer)
+        defer { passTimer?.end() }
         scene.applyLOD(eye: camera.position)
         ensureTargets(width: target.width, height: target.height)
         updateFrame(camera: camera, width: target.width, height: target.height)
@@ -391,7 +400,7 @@ final class Renderer {
             sp.depthAttachment.loadAction = .clear
             sp.depthAttachment.clearDepth = 1
             sp.depthAttachment.storeAction = .store
-            guard let enc = commandBuffer.makeRenderCommandEncoder(descriptor: sp) else { continue }
+            guard let enc = renderEncoder(commandBuffer, sp) else { continue }
             enc.label = "shadow \(texture.width)"
             enc.setRenderPipelineState(shadowPipeline)
             enc.setDepthStencilState(depthState)
@@ -430,7 +439,7 @@ final class Renderer {
         pass.depthAttachment.loadAction = .clear
         pass.depthAttachment.clearDepth = 1
         pass.depthAttachment.storeAction = .store          // the water pass depth-tests against it
-        if let enc = commandBuffer.makeRenderCommandEncoder(descriptor: pass) {
+        if let enc = renderEncoder(commandBuffer, pass) {
             enc.label = "opaque"
             enc.setRenderPipelineState(litPipeline)
             enc.setDepthStencilState(depthState)
@@ -487,7 +496,7 @@ final class Renderer {
         }
 
         // 1b. Snapshot the colour so later passes (water) can read the scene while drawing over it.
-        if let blit = commandBuffer.makeBlitCommandEncoder(), let src = hdrTexture, let dst = sceneCopy {
+        if let blit = blitEncoder(commandBuffer), let src = hdrTexture, let dst = sceneCopy {
             blit.label = "scene copy"
             blit.copy(from: src, to: dst)
             blit.endEncoding()
@@ -501,7 +510,7 @@ final class Renderer {
         wpass.depthAttachment.texture = depthTexture
         wpass.depthAttachment.loadAction = .load
         wpass.depthAttachment.storeAction = .store          // F02 R1: the temporal resolve reprojects from this depth (water and glass included)
-        if let enc = commandBuffer.makeRenderCommandEncoder(descriptor: wpass) {
+        if let enc = renderEncoder(commandBuffer, wpass) {
             enc.label = "water"
             enc.setRenderPipelineState(waterPipeline)
             enc.setDepthStencilState(waterDepthState)
@@ -560,7 +569,7 @@ final class Renderer {
 
         // 1c'. SSAO: occlusion from the distance buffer (half res), blurred, multiplied into the scene.
         if let ao = aoTexture, let blurred = aoBlurred, let dist = distanceTexture, let hdr = hdrTexture, let copy = sceneCopy {
-            if let blit = commandBuffer.makeBlitCommandEncoder() {
+            if let blit = blitEncoder(commandBuffer) {
                 blit.label = "scene copy for AO"
                 blit.copy(from: hdr, to: copy)
                 blit.endEncoding()
@@ -570,7 +579,7 @@ final class Renderer {
                 pd.colorAttachments[0].texture = target
                 pd.colorAttachments[0].loadAction = .dontCare
                 pd.colorAttachments[0].storeAction = .store
-                guard let enc = commandBuffer.makeRenderCommandEncoder(descriptor: pd) else { return }
+                guard let enc = renderEncoder(commandBuffer, pd) else { return }
                 enc.label = label
                 enc.setRenderPipelineState(pipeline)
                 for (i, t) in textures.enumerated() { enc.setFragmentTexture(t, index: i) }
@@ -593,7 +602,7 @@ final class Renderer {
                 pd.colorAttachments[0].texture = target
                 pd.colorAttachments[0].loadAction = .dontCare
                 pd.colorAttachments[0].storeAction = .store
-                guard let enc = commandBuffer.makeRenderCommandEncoder(descriptor: pd) else { return }
+                guard let enc = renderEncoder(commandBuffer, pd) else { return }
                 enc.label = label
                 enc.setRenderPipelineState(pipeline)
                 enc.setFragmentBytes(&tu, length: MemoryLayout<TaaUniforms>.stride, index: 0)
@@ -619,7 +628,7 @@ final class Renderer {
             bpass.depthAttachment.texture = depthTexture
             bpass.depthAttachment.loadAction = .load
             bpass.depthAttachment.storeAction = .dontCare
-            if let enc = commandBuffer.makeRenderCommandEncoder(descriptor: bpass) {
+            if let enc = renderEncoder(commandBuffer, bpass) {
                 enc.label = "beams"
                 // The resolved image lives in unjittered space, so the beams are drawn with the unjittered camera too.
                 var beamFrame = frame
@@ -651,7 +660,7 @@ final class Renderer {
             rp.colorAttachments[0].texture = rays
             rp.colorAttachments[0].loadAction = .dontCare
             rp.colorAttachments[0].storeAction = .store
-            if let enc = commandBuffer.makeRenderCommandEncoder(descriptor: rp) {
+            if let enc = renderEncoder(commandBuffer, rp) {
                 enc.label = "god rays"
                 enc.setRenderPipelineState(godRaysPipeline)
                 enc.setFragmentTexture(hdr, index: 0)
@@ -669,7 +678,7 @@ final class Renderer {
         comp.colorAttachments[0].texture = target
         comp.colorAttachments[0].loadAction = .dontCare
         comp.colorAttachments[0].storeAction = .store
-        if let enc = commandBuffer.makeRenderCommandEncoder(descriptor: comp) {
+        if let enc = renderEncoder(commandBuffer, comp) {
             enc.label = "composite"
             if options.debugView == "depth" {
                 enc.setRenderPipelineState(depthVizPipeline)

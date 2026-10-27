@@ -60,19 +60,33 @@ enum Screenshot {
         let glassTris = renderer.scene.items.filter { $0.refractive }.reduce(0) { $0 + $1.mesh.indexCount / 3 }
         let allTris = renderer.scene.items.reduce(0) { $0 + $1.mesh.indexCount / 3 }
         print("triangles: glass \(glassTris), scene total \(allTris)")
+        renderer.passTimer = PassTimer(device: renderer.device)
+        if renderer.passTimer == nil { print("pass timer: this device cannot sample GPU counters at stage boundaries; no per-pass table") }
+        defer { renderer.passTimer = nil }
         for name in views {
             let camera = Viewpoints.named(name) ?? Screenshot.viewCamera(name, renderer: renderer)
             var times: [Double] = []
+            var passOrder: [String] = [], passSums: [String: Double] = [:], passFrames = 0
             for i in 0..<((options.benchFrames ?? 60) + 5) {
                 guard let cb = renderer.queue.makeCommandBuffer() else { throw Failure.texture }
                 renderer.encode(commandBuffer: cb, target: target, camera: camera)
                 cb.commit(); cb.waitUntilCompleted()
                 if i >= 5 { times.append((cb.gpuEndTime - cb.gpuStartTime) * 1000) }      // skip warm-up frames
+                if let t = renderer.passTimer, i >= 5 {
+                    t.drain(cb)
+                    passFrames += 1
+                    for (pass, ms) in t.latest { if passSums[pass] == nil { passOrder.append(pass) }; passSums[pass, default: 0] += ms }
+                }
             }
             times.sort()
             let avg = times.reduce(0, +) / Double(times.count)
             print(String(format: "  %-9@ avg %.2f ms (%.0f fps)  median %.2f  worst %.2f  draws opaque %d shadow %d",
                          name as NSString, avg, 1000 / avg, times[times.count / 2], times.last!, renderer.lastOpaqueDraws, renderer.lastShadowDraws))
+            if passFrames > 0 {
+                var total = 0.0
+                for pass in passOrder { let ms = passSums[pass]! / Double(passFrames); total += ms; print(String(format: "      %-22@ %6.3f ms  %4.1f %%", pass as NSString, ms, 100 * ms / avg)) }
+                print(String(format: "      %-22@ %6.3f ms  of the frame's %.2f ms (%+.1f %%; each pass is charged from the previous pass's end, so the sum is the GPU busy time)", "sum of passes" as NSString, total, avg, 100 * (total - avg) / avg))
+            }
         }
     }
 
