@@ -53,13 +53,18 @@ enum Foley {
 
     /// The loose rattle after the knock: `count` (2...4) damped impacts of planks and ironwork a few ms apart, each a short band-limited burst (about 0.5 to 2.6 kHz) that is
     /// gone in about 10 ms, together decaying within 300 ms of the knock. No tonal ringing: the bursts are noise.
-    static func doorRattle(count: Int, strength: Float, sampleRate sr: Float, seed: UInt32 = 0xD00C) -> [Float] {
+    static func doorRattle(count: Int, strength: Float, sampleRate sr: Float, seed: UInt32 = 0xD00C) -> [Float] { doorRattleWithTimes(count: count, strength: strength, sampleRate: sr, seed: seed).0 }
+
+    /// The same, with the start time (s) of each impact (the selftests check their number, spacing and that each one is audible).
+    static func doorRattleWithTimes(count: Int, strength: Float, sampleRate sr: Float, seed: UInt32 = 0xD00C) -> ([Float], [Float]) {
         var n = FoleyNoise(seed: seed)
         let len = Int(0.30 * sr)
         var out = [Float](repeating: 0, count: len)
         var at: Float = 0.05 + 0.01 * n.unit()                                                           // the first loose impact follows the knock closely
         let s = 0.35 + 0.65 * strength
+        var times: [Float] = []
         for k in 0..<max(2, min(count, 4)) {
+            times.append(at)
             let f = 700 + 1900 * n.unit(), amp = (0.55 - 0.1 * Float(k)) * (0.75 + 0.5 * n.unit()) * s
             var bp = Biquad.bandpass(f, q: 2.2, sampleRate: sr), low = Biquad.bandpass(380 + 200 * n.unit(), q: 1.6, sampleRate: sr)
             let start = Int(at * sr), dur = Int(0.022 * sr)
@@ -70,7 +75,7 @@ enum Foley {
             }
             at += 0.016 + 0.026 * n.unit() - 0.003 * Float(k)                                               // each follow-up arrives a little sooner as the door settles
         }
-        return out
+        return (out, times)
     }
 
     /// The whole wood-on-stone event: the knock, then the rattle. How many rattles follow depends on how hard the attempt was.

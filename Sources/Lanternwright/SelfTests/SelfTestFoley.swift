@@ -27,18 +27,23 @@ extension SelfTestRunner {
         check(k.low > 0.45 && k.low > k.mid && k.low > k.hi, "the door's knock is a dull low thunk: its energy is mostly in 80-200 Hz (\(Int(k.low * 100)) % of the power; 200-1000 Hz \(Int(k.mid * 100)) %, 1-3 kHz \(Int(k.hi * 100)) %)")
         check(early > 0.12 * peakK && early > 3 * late, "with a short bright transient in 1-3 kHz at its start (\(String(format: "%.3f", early)) in the first 8 ms against \(String(format: "%.3f", late)) after 30 ms; knock peak \(String(format: "%.3f", peakK)))")
         check(t40 >= 0.040 && t40 <= 0.080, "the knock is over (-40 dB) in 40 to 80 ms (\(String(format: "%.0f", t40 * 1000)) ms)")
-        func impactCount(_ x: [Float]) -> Int {
-            let e = A.envelope(A.onePoleHigh(x, 500), tau: 0.0015), top = e.max() ?? 0
-            var n = 0, lastPeak = -1000
-            for i in 2..<(e.count - 2) where e[i] > 0.22 * top && e[i] >= e[i - 1] && e[i] > e[i + 1] && i - lastPeak > Int(0.007 * sr) { n += 1; lastPeak = i }
-            return n
+        let rt = (2...4).map { Foley.doorRattleWithTimes(count: $0, strength: 1, sampleRate: sr) }
+        let rat = rt.map { $0.0 }
+        let counts = rt.map { $0.1.count }
+        // Each impact is audible: the envelope within 12 ms of its start rises to at least 20 % of the rattle's peak; and the spacing is a few ms to a few tens of ms.
+        var audible = true, spacingOK = true
+        for (buf, times) in rt {
+            let e = A.envelope(A.onePoleHigh(buf, 500), tau: 0.002), top = e.max() ?? 1
+            for (i, t) in times.enumerated() {
+                let i0 = Int(t * sr), i1 = min(e.count, i0 + Int(0.012 * sr))
+                if (e[i0..<i1].max() ?? 0) < 0.2 * top { audible = false }
+                if i > 0 { let g = t - times[i - 1]; if g < 0.008 || g > 0.05 { spacingOK = false } }
+            }
         }
-        let rat = (2...4).map { Foley.doorRattle(count: $0, strength: 1, sampleRate: sr) }
-        let counts = rat.map(impactCount)
         let r4 = rat[2], er = A.envelope(r4, tau: 0.004), topR = er.max() ?? 0
         let lastLoud = (0..<er.count).last { er[$0] > topR * 0.01 }.map { Float($0) / sr } ?? 0
-        if verbose { print("door rattle: impacts \(counts) for counts 2, 3, 4; -40 dB by \(String(format: "%.0f", lastLoud * 1000)) ms") }
-        check(counts[0] == 2 && counts[1] == 3 && counts[2] == 4, "the loose rattle is 2 to 4 quick impacts (counted \(counts) for requests 2, 3, 4)")
+        if verbose { print("door rattle: impacts \(counts) for counts 2, 3, 4 at \(rt[2].1.map { String(format: "%.0f", $0 * 1000) }) ms; -40 dB by \(String(format: "%.0f", lastLoud * 1000)) ms") }
+        check(counts == [2, 3, 4] && audible && spacingOK, "the loose rattle is 2 to 4 quick impacts, each audible, 8 to 50 ms apart (\(counts) for requests 2, 3, 4; times \(rt[2].1.map { String(format: "%.0f", $0 * 1000) }) ms)")
         check(lastLoud < 0.30, "the whole rattle has decayed (-40 dB) within 300 ms of the knock (\(String(format: "%.0f", lastLoud * 1000)) ms)")
         let whole = Foley.doorLocked(strength: 1, sampleRate: sr)
         let wholeSp = A.spectrum(whole)

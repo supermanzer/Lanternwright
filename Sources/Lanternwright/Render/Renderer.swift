@@ -106,6 +106,8 @@ final class Renderer {
     var sceneCopy: MTLTexture?
     let depthVizPipeline: MTLRenderPipelineState
     let bloomPrefilterPipeline: MTLRenderPipelineState
+    /// Debug (`--no-grass`, and the grass coverage selftest): draw no grass.
+    nonisolated(unsafe) static var skipGrass = false
     let godRaysPipeline: MTLRenderPipelineState
     let mistPipeline: MTLRenderPipelineState
     /// The lighthouse beams and the glow at the lens (additive; see Beam.swift) and their ribbon mesh.
@@ -471,7 +473,7 @@ final class Renderer {
             enc.setVertexTexture(terrainTextures[world], index: 5)
             var identity = ObjectUniforms()
             enc.setFragmentBytes(&identity, length: MemoryLayout<ObjectUniforms>.stride, index: 2)
-            enc.drawPrimitives(type: .triangleStrip, vertexStart: 0, vertexCount: 7, instanceCount: grassCellsPerSide * grassCellsPerSide)
+            if !Renderer.skipGrass { enc.drawPrimitives(type: .triangleStrip, vertexStart: 0, vertexCount: 7, instanceCount: grassCellsPerSide * grassCellsPerSide) }
             enc.setCullMode(.back)
 
             // Sky last, so the depth test rejects it everywhere geometry was drawn (saves shading those pixels).
