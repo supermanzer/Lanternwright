@@ -41,11 +41,11 @@ enum Shore {
     static func shadow(x: Float, z: Float, ground: (Float, Float) -> Float) -> Float {
         let dx = cos(waveDirection), dz = sin(waveDirection)
         var len: Float = 0
-        for i in 1...shadowSteps { if ground(x - dx * shadowStep * Float(i), z - dz * shadowStep * Float(i)) > -2 { len += shadowStep } }
-        return len
+        for i in 1...shadowSteps { len += shadowStep * smoothstep(-6, -1, ground(x - dx * shadowStep * Float(i), z - dz * shadowStep * Float(i))) }       // continuous in the ground: no steps
+        return len * (1 - smoothstep(30, 70, -ground(x, z)))                       // and it fades out with depth instead of switching off (a hard switch drew a seam across the sea)
     }
     /// Seconds later the crests reach a point in the lee (they refract and diffract round the island: a longer path at the swell's speed), and how much smaller they are.
-    static func leeDelay(shadow m: Float) -> Float { min(14, 0.55 * m / swellSpeed) }
+    static func leeDelay(shadow m: Float) -> Float { min(8, 0.35 * m / swellSpeed) }
     static func leeAmplitude(shadow m: Float) -> Float { 1 - 0.45 * smoothstep(0, 140, m) }
 
     /// The shape of one swash cycle, 0...1 of its period: a fast run-up (28 % of the cycle) and a slow drain (72 %), as 0...1 of the run-up.
@@ -59,13 +59,24 @@ enum Shore {
         return 0.3 + 0.7 * a * (0.65 + 0.35 * sin(x * 0.007 + z * 0.011 + 0.031 * t))
     }
 
-    /// The level (m above the sea) the swash sheet stands at, at a place with ground `depth` m under the sea (negative on land) and slope `s`, at time `t`.
-    /// It is the sea's level plus the tongue; the ground above it hides the sheet, so the contact line is where the ground equals this level.
-    static func swashLevel(x: Float, z: Float, time t: Float, depth h: Float, slope s: Float) -> Float {
-        let tt = t - delay(depth: 0, slope: s)                                    // the swash arrives with the delay of the whole beach
+    /// Where the swash's edge stands, as a ground height above the sea (m): it runs UP the beach to the group's run-up and DRAWS DOWN below the sea's contact between surges
+    /// (the waterline retreats `drawDown` m down the beach, exposing sand), at the swash cycle (fast up, slow down) delayed by the beach's own shallow-water delay.
+    static let drawDown: Float = 0.22, filmThickness: Float = 0.05
+    static func swashEdge(x: Float, z: Float, time t: Float, slope s: Float) -> Float {
+        let tt = t - delay(depth: 0, slope: s)
         let u = tt / swashPeriod - floor(tt / swashPeriod)
-        let take = 1 - smoothstep(0.1, swashDepth, h)                            // the swash owns the sheet where it is shallower than this
-        return swashMax * (0.4 + 0.6 * group(x: x, z: z, time: t)) * runup(phase: u) * take
+        let run = swashMax * (0.4 + 0.6 * group(x: x, z: z, time: t))
+        let r = runup(phase: u)
+        return -drawDown + (run + drawDown) * r
+    }
+    /// How much the swash owns the sheet at ground height `T` (m above the sea): none in the open sea (T < -0.8), all of it near and above the waterline (T > -0.3).
+    static func swashOwns(ground T: Float) -> Float { smoothstep(-0.8, -0.3, T) }
+    /// The height of the sheet at a place whose ground is `T` m above the sea: the open sea's own level `seaY` (the waves, already scaled to die at the shore) blended with the
+    /// swash FILM, a sheet at most `filmThickness` above the ground that ends at the swash's edge: thickness = min(edge - ground, 5 cm), zero at the tip.
+    static func sheetHeight(seaY: Float, ground T: Float, swashEdge S: Float) -> Float {
+        let film = min(S, T + filmThickness)
+        let k = swashOwns(ground: T)
+        return seaY * (1 - k) + film * k
     }
 
     /// How far up the beach (m above the sea) the sand is still wet behind the swash: the largest recent run-up there.
@@ -86,18 +97,23 @@ enum Shore {
             return shoal * smoothstep(0.0, 1.5, h);
         }
         constant float2 SHORE_WAVE_DIR = float2(\(cos(waveDirection)), \(sin(waveDirection)));
-        inline float shore_lee_delay(float m) { return min(14.0, 0.55 * m / \(swellSpeed)); }
+        inline float shore_lee_delay(float m) { return min(8.0, 0.35 * m / \(swellSpeed)); }
         inline float shore_lee_amp(float m) { return 1.0 - 0.45 * smoothstep(0.0, 140.0, m); }
         inline float shore_runup(float u) { return u < 0.28 ? sin(1.5707963 * u / 0.28) : pow(cos(1.5707963 * (u - 0.28) / 0.72), 1.6); }
         inline float shore_group(float2 p, float t) {
             float a = 0.5 + 0.5 * sin(p.x * 0.021 - p.y * 0.014 + 0.05 * t + 1.3);
             return 0.3 + 0.7 * a * (0.65 + 0.35 * sin(p.x * 0.007 + p.y * 0.011 + 0.031 * t));
         }
-        inline float shore_swash(float2 p, float t, float h, float s) {
+        inline float shore_swash_edge(float2 p, float t, float s) {
             float tt = t - shore_delay(0.0, s);
             float u = fract(tt / SHORE_SWASH_PERIOD);
-            float take = 1.0 - smoothstep(0.1, SHORE_SWASH_DEPTH, h);
-            return SHORE_SWASH_MAX * (0.4 + 0.6 * shore_group(p, t)) * shore_runup(u) * take;
+            float run = SHORE_SWASH_MAX * (0.4 + 0.6 * shore_group(p, t));
+            return -\(drawDown) + (run + \(drawDown)) * shore_runup(u);
+        }
+        inline float shore_sheet(float seaY, float T, float S) {
+            float film = min(S, T + \(filmThickness));
+            float k = smoothstep(-0.8, -0.3, T);
+            return seaY * (1.0 - k) + film * k;
         }
         inline float shore_wet_reach(float2 p, float t) { return SHORE_SWASH_MAX * (0.4 + 0.6 * shore_group(p, t)) * 0.92; }
 

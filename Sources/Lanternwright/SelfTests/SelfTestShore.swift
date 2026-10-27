@@ -22,7 +22,7 @@ extension SelfTestRunner {
         for k in 0..<4000 { let g = Shore.group(x: 100, z: 150, time: Float(k) * 0.5); lo = min(lo, g); hi = max(hi, g) }
         check(hi - lo > 0.4 && lo >= 0.29 && hi <= 1.0001, "wave groups: the run-up swings between \(String(format: "%.2f", lo)) and \(String(format: "%.2f", hi)) of its largest over half an hour")
         let msl = ShaderLibrary.sources.joined(separator: "\n")
-        check(msl.contains(Shore.mslSource) && msl.contains("shore_swash(xz, t, shDepth, shSlope)") && msl.contains("shore_wet_reach(P.xz, clock)") && msl.contains("float th = k * dot(d, xz) - omega * shTime;"), "the water vertex stage and the terrain shader use these functions (generated from the same constants)")
+        check(msl.contains(Shore.mslSource) && msl.contains("shore_sheet(wp.y, gT.x, shore_swash_edge(xz, t, shSlope))") && msl.contains("shore_wet_reach(P.xz, clock)") && msl.contains("float th = k * dot(d, xz) - omega * shTime;"), "the water vertex stage and the terrain shader use these functions (generated from the same constants)")
         // On the real terrain: shoreline points all round the island.
         let scene = Scene.makeWorld(device: device)
         let t = scene.terrain!
@@ -45,35 +45,61 @@ extension SelfTestRunner {
             }
         }
         check(shore.count >= 40, "\(shore.count) shoreline transects round the island")
-        // The contact line: for each transect and half a minute of swash, the film's thickness 2 cm seaward of the contact, and whether the waves have died there.
-        var worstThick: Float = 0, worstWave: Float = 0, checked = 0, steep = 0, maxRise: Float = 0
+        // The sheet on the real beaches, from the SAME formula the vertex shader runs (Shore.sheetHeight; the open-sea waves are scaled by amplitudeScale, which is zero by the
+        // contact line): along each transect from 3 m of water out to 40 m up the beach, for half a minute of swash. (1) The film: where the ground is within 0.3 m of the sea or
+        // higher (the swash's own ground) the water is at most `filmThickness` (5 cm) deep, and 1 cm seaward of the contact line it is under 5 mm. (2) No lip: the sheet never
+        // steps by more than 6 cm between ground samples 5 cm apart (a 0.55 m lip was in the first version). (3) It runs up AND draws down: the contact line moves over a range
+        // of ground heights wider than 0.3 m. The open-sea wave scale at the contact line is 0 (it was a full-size wave at any steepness).
+        var worstFilm: Float = 0, worstTip: Float = 0, worstStep: Float = 0, minContact: Float = 9, maxContact: Float = -9, checked = 0, steep = 0, worstWave: Float = 0
         for sh in shore {
             if sh.slope > 0.25 { steep += 1; continue }
-            var prevL = Shore.swashLevel(x: sh.p.x, z: sh.p.y, time: 0, depth: 0, slope: sh.slope)
+            var rangeLo: Float = 9, rangeHi: Float = -9
             for k in 0..<240 {
                 let tm = Float(k) * 0.25
-                let level = Shore.swashLevel(x: sh.p.x, z: sh.p.y, time: tm, depth: 0, slope: sh.slope)
-                if level > 0.002 {
-                    var r: Float = 0                                                          // walk up the real beach, 1 cm at a time, to where the ground meets the sheet
-                    while r < 60 && t.sampleHeight(x: sh.p.x + sh.up.x * r, z: sh.p.y + sh.up.y * r) < level { r += 0.01 }
+                let edge = Shore.swashEdge(x: sh.p.x, z: sh.p.y, time: tm, slope: sh.slope)
+                var prevY: Float? = nil, contactGround: Float? = nil, prevThick: Float = 0
+                var r: Float = -30
+                while r <= 40 {                                                          // from the sea (down the beach) up the beach, 5 cm at a time
                     let q = sh.p + sh.up * r
-                    let seaward = q - sh.up * 0.01
-                    let thick = level - t.sampleHeight(x: seaward.x, z: seaward.y)
-                    worstThick = max(worstThick, thick); checked += 1
-                    worstWave = max(worstWave, Shore.amplitudeScale(depth: -t.sampleHeight(x: q.x, z: q.y)))        // the ground's depth under the sea at the contact point
+                    let T = t.sampleHeight(x: q.x, z: q.y)
+                    let seaY = Shore.amplitudeScale(depth: -T) * 0.43 * sin(tm)            // the open sea's wave, as large as it can be, scaled for this depth
+                    let y = Shore.sheetHeight(seaY: seaY, ground: T, swashEdge: edge)
+                    if let py = prevY { worstStep = max(worstStep, abs(y - py)) }
+                    prevY = y
+                    let thick = y - T
+                    if T >= -0.3 && thick > 0 { worstFilm = max(worstFilm, thick) }
+                    if contactGround == nil && thick <= 0 && r > -5 && prevThick > 0 { contactGround = T }
+                    if T < 0 { worstWave = max(worstWave, Shore.amplitudeScale(depth: -T) * (T > -0.02 ? 1 : 0)) }
+                    prevThick = thick
+                    r += 0.05
                 }
-                maxRise = max(maxRise, abs(level - prevL) / 0.25); prevL = level
+                // The thickness 1 cm seaward of the contact line.
+                if let cg = contactGround {
+                    rangeLo = min(rangeLo, cg); rangeHi = max(rangeHi, cg)
+                    var rr: Float = -30
+                    var lastWet: Float = 0, lastR: Float = -30
+                    while rr <= 40 { let q = sh.p + sh.up * rr; let T = t.sampleHeight(x: q.x, z: q.y); let y = Shore.sheetHeight(seaY: 0, ground: T, swashEdge: edge); if y - T > 0 { lastWet = y - T; lastR = rr }; rr += 0.01 }
+                    _ = lastR
+                    worstTip = max(worstTip, lastWet)
+                    checked += 1
+                }
             }
+            if rangeHi > rangeLo { minContact = min(minContact, rangeLo); maxContact = max(maxContact, rangeHi) }
+            _ = rangeLo
         }
-        if verbose { print(String(format: "contact line: %d samples on %d transects (%d steeper than 25 %% skipped): film %.1f mm thick 1 cm seaward of the contact at worst; sheet rises at most %.2f m/s", checked, shore.count - steep, steep, worstThick * 1000, maxRise)) }
-        check(checked > 500 && worstThick < 0.005, "the sheet at the contact line is a film: its thickness 1 cm seaward of the contact is at most \(String(format: "%.1f", worstThick * 1000)) mm (under 5 mm) over \(checked) samples on beaches up to 25 % steep")
-        check(worstWave < 0.002, "and the waves have died there: the open-sea wave height is scaled by \(String(format: "%.4f", worstWave)) at the contact line (it was a full-size wave at any steepness)")
+        let excursions: [Float] = []
+        _ = excursions
+        if verbose { print(String(format: "sheet on %d transects (%d steeper than 25 %% skipped): film at most %.1f cm deep above the swash zone's ground; the last wet point (the tip) %.1f mm deep; largest step between ground samples 5 cm apart %.1f cm; contact line ranges over ground heights %.2f to %.2f m", shore.count - steep, steep, worstFilm * 100, worstTip * 1000, worstStep * 100, minContact, maxContact)) }
+        check(checked > 500 && worstFilm <= Shore.filmThickness + 1e-4 && worstTip < 0.005, "the sheet at the shore is a thin film: at most \(String(format: "%.1f", worstFilm * 100)) cm deep wherever the ground is within 0.3 m of the sea or higher, and \(String(format: "%.1f", worstTip * 1000)) mm deep at its last wet point, the contact line (under 5 mm) over \(checked) surges on beaches up to 25 % steep")
+        check(worstStep < 0.06, "no wall of water and no lip: the sheet changes by at most \(String(format: "%.1f", worstStep * 100)) cm between ground samples 5 cm apart (the first version stepped by 55 cm)")
+        check(maxContact - minContact > 0.3, "the waterline runs up and draws down: the contact line sweeps ground heights from \(String(format: "%.2f", minContact)) to \(String(format: "%.2f", maxContact)) m over the swash cycles (more than 0.3 m, so sand is exposed and covered)")
+        check(worstWave < 0.002, "and the open-sea waves have died by the contact line: the wave height there is scaled by \(String(format: "%.4f", worstWave)) (a full-size wave before)")
         // The lee: crests reach the sheltered side later and smaller.
         let d = SIMD2<Float>(cos(Shore.waveDirection), sin(Shore.waveDirection))
         var rows: [(Float, Float, Float)] = []                                     // (position along the swell, total delay, lee amplitude)
         for sh in shore {
             let m = Shore.shadow(x: sh.p.x, z: sh.p.y, ground: { t.sampleHeight(x: $0, z: $1) })
-            rows.append((simd_dot(d, sh.p - centre), Shore.delay(depth: 0, slope: sh.slope) * 0 + Shore.leeDelay(shadow: m), Shore.leeAmplitude(shadow: m)))
+            rows.append((simd_dot(d, sh.p - centre), Shore.delay(depth: 0, slope: sh.slope) + Shore.leeDelay(shadow: m), Shore.leeAmplitude(shadow: m)))
         }
         rows.sort { $0.0 < $1.0 }
         let third = rows.count / 3
@@ -81,7 +107,7 @@ extension SelfTestRunner {
         func mean(_ a: ArraySlice<(Float, Float, Float)>, _ f: ((Float, Float, Float)) -> Float) -> Float { a.map(f).reduce(0, +) / Float(max(a.count, 1)) }
         let dW = mean(windward) { $0.1 }, dL = mean(lee) { $0.1 }, aW = mean(windward) { $0.2 }, aL = mean(lee) { $0.2 }
         if verbose { print(String(format: "lee: extra delay windward third %.1f s, lee third %.1f s; wave height windward %.2f, lee %.2f of the open sea's", dW, dL, aW, aL)) }
-        check(dL > dW + 2.0 && aL < aW - 0.15, "the lee is reached later and by smaller waves: the sheltered third of the coast gets its crests \(String(format: "%.1f", dL - dW)) s after the windward third (at least 2 s) at \(String(format: "%.0f", aL * 100)) % of the height against \(String(format: "%.0f", aW * 100)) %")
+        check(dL > dW + 2.0 && aL < aW - 0.15, "the lee is reached later and by smaller waves: the sheltered third of the coast (shallow-water delay plus the lee's) gets its crests \(String(format: "%.1f", dL - dW)) s after the windward third (at least 2 s) at \(String(format: "%.0f", aL * 100)) % of the height against \(String(format: "%.0f", aW * 100)) %")
         // The delay along each beach spreads the arrival over seconds: crests do not strike the whole coast together.
         let delays = shore.map { Shore.delay(depth: 0, slope: $0.slope) }
         check((delays.max() ?? 0) - (delays.min() ?? 0) > 3, "beaches of different slope are reached at different times (the shallow-water delay at the contact line spans \(String(format: "%.1f", delays.min() ?? 0)) to \(String(format: "%.1f", delays.max() ?? 0)) s around the island)")
@@ -101,7 +127,7 @@ extension SelfTestRunner {
         let albedoAmp = number(ground, after: "o.albedo = col * (1.0 + ") ?? 9
         check(!fineRows && 2 * Float.pi / swellK >= 0.4 && albedoAmp <= 0.01, "the 6 cm rows are gone from the sand: what is left is a swell \(String(format: "%.2f", 2 * Float.pi / swellK)) m across (at least 0.4 m) at \(String(format: "%.1f", albedoAmp * 100)) % contrast (at most 1 %)")
         let ring = number(mat, after: "float ringPos = (r + warp) * ") ?? 999
-        let fibreAmp = number(mat, after: "wood *= mix(0.93, 1.04, mix(0.5, late, vGrain)) * (0.95 + ") ?? 9
+        let fibreAmp = number(mat, after: "wood *= mix(0.90, 1.06, mix(0.5, late, vGrain)) * (0.95 + ") ?? 9
         check(2 * Float.pi / ring >= 0.10 && fibreAmp <= 0.12, "planks show wide soft figure, not dense lines: growth rings \(String(format: "%.0f", 2 * 100 * Float.pi / ring)) cm apart (at least 10 cm; was 4 cm), fibre streak contrast \(String(format: "%.0f", fibreAmp * 100)) % (at most 12 %; was 24 %)")
         let caustic = number(water, after: "sceneCol += float3(0.9, 1.0, 1.1) * caustic * shallow * ") ?? 9
         check(caustic <= 0.04, "the shallow-water caustics are a faint hint (\(String(format: "%.1f", caustic * 100)) % of the bed's brightness; was 13 %, which read as drawn lines on the sand under thin water)")

@@ -37,10 +37,13 @@ vertex WaterOut water_vertex(uint vid [[vertex_id]],
     float shDepth = -gT.x, shSlope = length(gGrad);
     // The lee of the island (Shore.shadow: 20 steps of 24 m): land or shoal upwind of this point means the swell had to wrap round it (later, and smaller). Only near the island (the march is 480 m).
     float shShadow = 0.0;
-    if (shDepth < 40.0) { for (int i = 1; i <= 20; i++) { shShadow += terrain_sample(terrainTex, xz - SHORE_WAVE_DIR * 24.0 * float(i)).x > -2.0 ? 24.0 : 0.0; } }
+    if (shDepth < 70.0) {
+        for (int i = 1; i <= 20; i++) shShadow += 24.0 * smoothstep(-6.0, -1.0, terrain_sample(terrainTex, xz - SHORE_WAVE_DIR * 24.0 * float(i)).x);
+        shShadow *= 1.0 - smoothstep(30.0, 70.0, shDepth);          // fades out with depth: a hard switch here drew a seam across the sea
+    }
     float shAmp = shore_amp(shDepth) * shore_lee_amp(shShadow);
     float shDelay = shore_delay(shDepth, shSlope) + shore_lee_delay(shShadow);
-    float shTime = t - shDelay * step(0.0, shDepth + 0.5);        // crests are retarded by the shallow water they have crossed
+    float shTime = t - shDelay * smoothstep(-0.6, -0.3, shDepth);        // crests are retarded by the shallow water they have crossed (not over land)
     float3 disp = float3(0.0);
     float3 nrm = float3(0.0, 1.0, 0.0);
     float jxx = 0.0, jzz = 0.0, jxz = 0.0;
@@ -59,8 +62,10 @@ vertex WaterOut water_vertex(uint vid [[vertex_id]],
         jxx -= qak * d.x * d.x; jzz -= qak * d.y * d.y; jxz -= qak * d.x * d.y;
     }
     WaterOut o;
-    float swash = shore_swash(xz, t, shDepth, shSlope) * (frame.worldB.x > 0.5 ? 0.10 : 1.0);           // the tongue that runs up the beach and drains back, in groups (a still pool hardly has one)
-    float3 wp = float3(w0.x + disp.x, w0.y + disp.y + swash, w0.z + disp.z);
+    float3 wp = float3(w0.x + disp.x, w0.y + disp.y, w0.z + disp.z);
+    // The swash film (Shore.sheetHeight): near and above the waterline the sheet is the swash, at most 5 cm over the ground, ending at the swash's edge, which runs up the beach
+    // and draws down below the sea's contact between surges; out in the open sea it is the waves. A still pool (the Glass Wood) has none.
+    if (frame.worldB.x < 0.5) wp.y = shore_sheet(wp.y, gT.x, shore_swash_edge(xz, t, shSlope));
     o.worldPos = wp;
     o.gNormal = normalize(nrm);
     o.jac = (1.0 + jxx) * (1.0 + jzz) - jxz * jxz;

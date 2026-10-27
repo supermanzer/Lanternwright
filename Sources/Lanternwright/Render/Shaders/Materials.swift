@@ -584,8 +584,8 @@ inline MatOut mat_plank(float3 Pl, float3 P, float3 N, float3 base, float seed, 
     // Colour: the board's own tone, silvered by the sun, darker where wet (seaward, low), salt-bleached patches, a worn walking line.
     float silver = saturate(0.55 + 0.45 * (hp - 0.5) * 2.0 + 0.3 * (vnoise3(P * 0.7) - 0.5));
     float3 wood = base * (0.55 + 0.75 * mix(0.5, hp, featVis(0.15, fpix)));
-    wood *= mix(0.93, 1.04, mix(0.5, late, vGrain)) * (0.95 + 0.10 * fibre);                   // F03 G1: the figure is soft, not striped
-    float3 silverCol = float3(0.40, 0.375, 0.34) * (0.89 + 0.12 * mix(0.5, late, vGrain)) * (0.93 + 0.14 * fibre);
+    wood *= mix(0.90, 1.06, mix(0.5, late, vGrain)) * (0.95 + 0.10 * fibre);                   // F03 G1: the figure is soft, not striped
+    float3 silverCol = float3(0.40, 0.375, 0.34) * (0.86 + 0.16 * mix(0.5, late, vGrain)) * (0.93 + 0.14 * fibre);
     float3 albedo = fresh ? wood : mix(wood, silverCol, silver * 0.82);
     float low = 1.0 - smoothstep(0.7, 1.6, P.y);
     albedo *= 1.0 - 0.42 * low;
@@ -599,12 +599,12 @@ inline MatOut mat_plank(float3 Pl, float3 P, float3 N, float3 base, float seed, 
     float rustCol = exp(-pow(abs(Pl.x) - 0.88, 2.0) / (2.0 * 0.07 * 0.07));
     float rust = rustCol * smoothstep(0.45, 0.8, vnoise3(float3(Pl.x * 8.0, c * 20.0, seed * 6.0))) * featVis(0.05, fpix);
     albedo = mix(albedo, float3(0.30, 0.13, 0.05) * (0.8 + 0.4 * fibre), rust * 0.65);
-    albedo *= 1.0 - 0.7 * check - 0.55 * knot;
+    albedo *= 1.0 - 0.28 * check - 0.55 * knot;                                       // F03 G1: checks are faint hairlines (were 0.7: dashed dark streaks, the 'strange lines')
     o.albedo = albedo;
     o.rough = clamp(0.86 + 0.10 * (fibre - 0.5) - 0.14 * low - 0.10 * walk + 0.06 * salt, 0.4, 1.0);
     o.metal = 0.0;
-    o.N = bump_normal(P, N, 0.0011 * (late - 0.5) * vGrain + 0.0007 * (fibre - 0.5) - 0.004 * check + 0.003 * knot, 1.0);
-    o.ao = 1.0 - 0.45 * check;
+    o.N = bump_normal(P, N, 0.0011 * (late - 0.5) * vGrain + 0.003 * knot, 1.0);          // only the wide ring relief and the knots: the thin fibre and check lines in a relief derivative alias into DASHED lines at grazing angles (F03 G1 review)
+    o.ao = 1.0 - 0.18 * check;
     return o;
 }
 
