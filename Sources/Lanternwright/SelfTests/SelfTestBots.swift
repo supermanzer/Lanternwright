@@ -13,7 +13,7 @@ extension SelfTestRunner {
 
         // --- Varrow: walk the lantern path, strike the stones in the order the world teaches, collect pages on the way.
         check(bot.walk(to: path[0], within: 2.5), "bot: from the spawn at the end of the dock to the shore")
-        check(bot.walk(to: PuzzleProps.pagePosition(1, terrain: g.scene.terrain), within: 1.6) && bot.click("page_1") && g.journal.collectedPages.map(\.number) == [1], "bot: reads page 1 on the dock with a real click")
+        check(bot.walk(to: PuzzleProps.pagePosition(1, scene: g.scene), within: 1.6) && bot.click("page_1") && g.journal.collectedPages.map(\.number) == [1], "bot: reads page 1 on the dock with a real click")
         bot.closeJournal()
         check(!g.journal.isOpen, "bot: closes the journal with J")
         check(bot.walk(to: path[0], within: 2.5), "bot: back to the shore")
@@ -23,7 +23,7 @@ extension SelfTestRunner {
             struck = struck && bot.click("stone_\(id.name)")
             bot.wait(0.9)
             if i < 2 {                                                      // F02 P0: the page beside the stone (2 by the tide stone, 3 by the wind stone)
-                let n = i + 2, there = bot.walk(to: PuzzleProps.pagePosition(n, terrain: g.scene.terrain), within: 2.2) && bot.click("page_\(n)")
+                let n = i + 2, there = bot.walk(to: PuzzleProps.pagePosition(n, scene: g.scene), within: 2.2) && bot.click("page_\(n)")
                 bot.closeJournal()
                 check(there && g.journal.collectedPages.map(\.number).contains(n), "bot: finds and reads page \(n) by the \(id.name) stone with a real click")
             }
@@ -34,13 +34,13 @@ extension SelfTestRunner {
 
         // F02 P0: page 4 beside the lighthouse's door steps, reached after the stone puzzle (it used to be half buried in the lowest step).
         do {
-            let p4 = PuzzleProps.pagePosition(4, terrain: g.scene.terrain)
+            let p4 = PuzzleProps.pagePosition(4, scene: g.scene)
             let b4 = PuzzleProps.pageBase(4, terrain: g.scene.terrain)
             let atDoor = bot.follow([Layout.lighthouse + SIMD3(0, 0, 14)], within: 3)
             let got = atDoor && bot.walk(to: p4, within: 2.2) && bot.click("page_4")
             bot.closeJournal()
-            check(got && g.journal.collectedPages.map(\.number).contains(4), "bot: finds and reads page 4 beside the lighthouse door steps (lectern foot \(b4), reached \(atDoor))")
-            check(!g.scene.platforms.contains { $0.contains(SIMD2(b4.x, b4.z)) }, "page 4's lectern stands on open ground, not inside a step")
+            check(got && g.journal.collectedPages.map(\.number).contains(4), "bot: finds and reads page 4 beside the lighthouse door steps (sheet at \(p4), reached \(atDoor))")
+            check(!g.scene.platforms.contains { $0.contains(SIMD2(b4.x, b4.z)) }, "page 4 lies on open ground, not on or in a step")
         }
 
         // A wrong order from a fresh game must not solve it (the bot clicking in the wrong order fails and resets).
@@ -62,9 +62,9 @@ extension SelfTestRunner {
 
         // --- The Glass Wood: mirror court by real clicks, chimes by ear-order, the altar, then home.
         let gp = GlassLayout.path
-        check(g.banner == "A page has come loose." && g.pageWaiting, "bot: arriving in the Glass Wood announces the page by the arrival pad (banner and journal marker)")
+        check((g.banner ?? "") != "A page has come loose." && !g.pageWaiting, "bot: arriving in the Glass Wood does not announce the page by the arrival pad (F03 #43: no banner, no marker; the lens's own chime is the only sound)")
         func collectGW(_ n: Int) {
-            let there = bot.walk(to: GlassPuzzleProps.pagePosition(n), within: 2.2, timeout: 40) && bot.click("page_\(n)")
+            let there = bot.walk(to: GlassPuzzleProps.pagePosition(n, scene: g.scenes[.glassWood]!), within: 2.2, timeout: 40) && bot.click("page_\(n)")
             bot.closeJournal()
             check(there && g.journal.collectedPages.map(\.number).contains(n), "bot: finds and reads Oren's page \(n) with a real click")
         }
@@ -85,9 +85,9 @@ extension SelfTestRunner {
         bot.wait(3)
         check(g.state.has("gw_mirrors"), "bot: the moonbeam meets tide, wind, stone in order and the court is solved")
         check(g.scenes[.glassWood]!.items.first { $0.name == "page_6" }.map { !$0.hidden } == true, "bot: Oren's page 6 appears at the orb")
-        check(g.pageWaiting && (g.banner ?? "") == "A page has come loose.", "bot: the live reveal announces itself: banner 'A page has come loose.' and the journal marker")
+        check(!g.pageWaiting && (g.banner ?? "") != "A page has come loose.", "bot: the live reveal does not announce itself (F03 #43: no banner, no marker): the page is simply there")
         collectGW(6)
-        check(!g.pageWaiting, "bot: the journal marker clears once the page is read")
+        check(!g.pageWaiting, "bot: and there is no journal marker after a pickup either (the pickup opens the journal on the page)")
 
         check(bot.follow(Array(gp[4...8]), within: 2.5), "bot: follows the path on to the chime ring")
         var rang = true

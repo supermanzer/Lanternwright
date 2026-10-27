@@ -858,13 +858,8 @@ extension SelfTestRunner {
             g.activate("lens"); g.simulate(seconds: 2.5)
             check(!g.state.has("lensTouched") && g.whiteout == 0 && g.world == .varrow, "the lens is inert before the puzzle is solved")
 
-            // Page positions are on the ground and reachable.
+            // (Where the pages lie, and that they lie ON the ground, is asserted in SelfTestPages: `--selftest pages`.)
             g = freshGame()
-            for n in 1...4 {
-                let p = PuzzleProps.pagePosition(n, terrain: g.scene.terrain)
-                let gnd = g.scene.groundHeight(x: p.x, z: p.z)
-                check(p.y - gnd > 0.6 && p.y - gnd < 1.1, "page \(n) lies on its lectern at waist height (\(String(format: "%.2f", p.y - gnd)) m above the ground)")
-            }
         }
         if name == "all" || name == "input" {
             let input = Input()

@@ -109,6 +109,9 @@ enum GlassWood {
                            transform: rotationY(ang) * translation(SIMD3(0, top - 0.01, 0.55)))
         }
         scene.stoneZones.append((center: SIMD2(a.x, a.z), radius: 3.6))
+        // F03 P1 (#51 family): the plate is a raised slab, its top 0.205 m above the ground at its centre; it is walkable at exactly that height (it was drawn but not registered, so
+        // feet and anything laid on "the ground" there were inside it).
+        scene.platforms.append(Scene.Platform(center: SIMD2(a.x, a.z), radius: 3.57, top: a.y + top))
         scene.add("gw_arrival_plate", mesh: plate.build(device: device, label: "arrival plate"), uniforms: ObjectUniforms(model: translation(a)))
 
         var ring = MeshBuilder()

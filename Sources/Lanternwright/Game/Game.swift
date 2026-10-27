@@ -36,6 +36,8 @@ final class Game {
     private(set) var time: Float = 0
     private var pending: [GameEvent] = []
     private var doorTries = 0
+    /// The resting model matrix of each uncollected page (the gust flutter is applied on top of it).
+    private var pageModels: [Int: float4x4] = [:]
     private var lastDoorTry: Float = -100
     /// Footfalls since start; audio compares against the last value it saw.
     private(set) var footfalls = 0
@@ -68,24 +70,17 @@ final class Game {
 
     /// Pages that are standing in their world right now (1-4 on Varrow, 5 at the Glass Wood's arrival, 6-8 once their puzzle has revealed them).
     private(set) var shownPages: Set<Int> = [1, 2, 3, 4, 5]
-    /// Pages that appeared while the player was playing (not from the start) and have not been collected yet: the HUD marks the journal for these.
-    private(set) var announcedPages = Set<Int>()
-    var pageWaiting: Bool { !announcedPages.isEmpty }
+    /// F03 #43: a page is no longer announced (no chime, banner or HUD marker): the player finds it by looking. The journal marker is kept for a collected page that
+    /// has not been read, which does not happen while a pickup opens the journal on that page, so it stays false.
+    var pageWaiting: Bool { false }
 
-    /// Make a hidden journal page visible and readable (puzzles call this as a reward). F02 P0: when it appears live it is announced: a soft rising chime
-    /// and the line "A page has come loose."
+    /// Make a hidden journal page visible and readable (puzzles call this as a reward). F03 #43: it just appears, where it fell: nothing announces it.
     private func revealPage(_ n: Int, announce: Bool) {
         guard !state.has("page_\(n)") else { return }
         shownPages.insert(n)
         scenes[.glassWood]?.update("page_\(n)") { $0.hidden = false }
-        for k in 0..<2 { scenes[.glassWood]?.update("page_mote_\(n)_\(k)") { $0.hidden = false } }
-        scenes[.glassWood]?.update("page_beacon_\(n)") { $0.hidden = false }
+        for k in 0..<3 { scenes[.glassWood]?.update("page_loose_\(n)_\(k)") { $0.hidden = false } }
         setInteractable("page_\(n)", enabled: true)
-        if announce {
-            announcedPages.insert(n)
-            pending.append(.chime(.pageAppears))
-            showBanner("A page has come loose.")
-        }
     }
 
     /// Varrow only (most tests need nothing else).
@@ -137,7 +132,8 @@ final class Game {
                                      prompt: "Touch the stone"))
         }
         for n in 1...4 {
-            let p = PuzzleProps.pagePosition(n, terrain: varrow.terrain)
+            let p = PuzzleProps.pagePosition(n, scene: varrow)
+            pageModels[n] = PuzzleProps.pageLie(n, scene: varrow).main.model
             list.append(Interactable(id: "page_\(n)", min: p - SIMD3(0.5, 0.3, 0.5), max: p + SIMD3(0.5, 0.4, 0.5),
                                      prompt: "Read the page", reach: 3.4))
         }
@@ -153,7 +149,8 @@ final class Game {
             var gwList = [Interactable(id: "gw_return", min: r - SIMD3(1.3, 1.3, 1.3), max: r + SIMD3(1.3, 1.3, 1.3), prompt: "Return through the lens", reach: 5)]
             gwList += glass?.interactables() ?? []
             for n in 5...8 {
-                let p = GlassPuzzleProps.pagePosition(n)
+                let p = GlassPuzzleProps.pagePosition(n, scene: scenes[.glassWood]!)
+                pageModels[n] = GlassPuzzleProps.pageLie(n, scene: scenes[.glassWood]!).main.model
                 gwList.append(Interactable(id: "page_\(n)", min: p - SIMD3(0.5, 0.3, 0.5), max: p + SIMD3(0.5, 0.4, 0.5),
                                            prompt: "Read the page", reach: 3.4, enabled: n == 5))     // 6-8 are revealed by the puzzles
             }
@@ -208,11 +205,8 @@ final class Game {
         state.set("page_\(n)")
         journal.collect(n)
         for sc in scenes.values {                                                      // the page lives in whichever world it belongs to
-            sc.update("page_\(n)") { $0.hidden = true }
-            for k in 0..<2 { sc.update("page_mote_\(n)_\(k)") { $0.hidden = true } }
-            sc.update("page_beacon_\(n)") { $0.hidden = true }
+            sc.update("page_\(n)") { $0.hidden = true }                                  // the page itself goes into the journal; the loose sheets stay where they lie
         }
-        announcedPages.remove(n)
         setInteractable("page_\(n)", enabled: false)
     }
 
@@ -245,18 +239,10 @@ final class Game {
             guard let self else { return }
             self.travel(to: kind)
             self.animator.tween(delay: Game.holdSeconds, duration: Game.fadeInSeconds, ease: .inOutCubic, apply: { [weak self] t in self?.whiteout = 1 - t },
-                                completion: { [weak self] in self?.isTraveling = false; self?.whiteCaption = nil; if kind == .glassWood { self?.cueArrivalPage() } })
+                                completion: { [weak self] in self?.isTraveling = false; self?.whiteCaption = nil; })
         })
     }
 
-    /// The first time you arrive in the Glass Wood, the page by the arrival pad is announced like the others (it used to be there with no sign at all).
-    func cueArrivalPage() {
-        guard !state.has("page_5"), !state.has("gw_page5_cued") else { return }
-        state.set("gw_page5_cued")
-        announcedPages.insert(5)
-        pending.append(.chime(.pageAppears))
-        showBanner("A page has come loose.")
-    }
 
     /// Put the player in `kind` at its arrival point. (Instant; `fadeThrough` hides it behind white.)
     func travel(to kind: WorldKind) {
@@ -333,14 +319,11 @@ final class Game {
         for p in puzzles { p.updateVisuals(time: time) }
         updateDiscoveries()
         Birds.update(scene, time: time)
-        // Uncollected pages glow and shed two slow motes of light, so they read as "pick me up" even in shadow and from afar (F02 P0).
+        // The one clue a dropped page is allowed (F03 #43): in a gust its edge lifts a degree or two and settles. Nothing outlines or lights it.
         for n in (world == .varrow ? 1...4 : 5...8) where !state.has("page_\(n)") && shownPages.contains(n) {
-            let centre = world == .varrow ? PuzzleProps.pagePosition(n, terrain: scene.terrain) : GlassPuzzleProps.pagePosition(n)
-            scene.update("page_\(n)") { $0.uniforms.emissive.w = 2.0 + 0.5 * sin(self.time * 2.4 + Float(n)) }
-            scene.update("page_beacon_\(n)") { $0.uniforms.emissive.w = 1.6 + 0.5 * sin(self.time * 1.7 + Float(n)) }
-            for k in 0..<2 {
-                let m = PageStands.mote(centre: centre, page: n, k: k, time: self.time)
-                scene.update("page_mote_\(n)_\(k)") { $0.uniforms.model = translation(m.position); $0.uniforms.emissive.w = 7 * m.brightness }
+            if let base = pageModels[n] {
+                let gust = Wind.strength(at: SIMD3(base.columns.3.x, base.columns.3.y, base.columns.3.z), time: time)
+                scene.update("page_\(n)") { $0.uniforms.model = DroppedPages.flutter(model: base, page: n, time: self.time, gust: gust) }
             }
         }
         // The lens floats and turns while it waits.

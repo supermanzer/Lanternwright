@@ -63,15 +63,15 @@ if options.parallax {
 
 if options.listPages {
     let renderer = Renderer(device: device, options: options)
-    let t = renderer.scenes[.varrow]!.terrain!
     func f(_ p: SIMD3<Float>) -> String { String(format: "(%.1f, %.1f, %.1f)", p.x, p.y, p.z) }
-    let how = ["on the dock, 8.5 m from the landward end, left of the path", "by the tide stone, beside the way in", "by the wind stone, beside the way in",
-               "beside the lighthouse's door steps, on the open ground east of them", "at the Glass Wood arrival pad (announced on arrival)",
-               "by the receiver orb (appears when the mirror court is solved)", "at the chime ring (appears when the chimes are solved)",
-               "at the altar (appears when both are solved)"]
+    let how = ["on the dock's boards, 8.5 m from the landward end, toward the rail", "by the tide stone, off the way in, a pebble on its corner", "by the wind stone, blown into the grass and leaning",
+               "beside the lighthouse's door steps, on the open ground, against the slope", "at the Glass Wood arrival pad",
+               "by the receiver orb, caught at an angle (appears when the mirror court is solved)", "at the chime ring (appears when the chimes are solved)",
+               "on the altar dais' top step (appears when both are solved)"]
     for n in 1...8 {
-        let base = n <= 4 ? PuzzleProps.pageBase(n, terrain: t) : GlassPuzzleProps.pageBase(n)
-        print("page \(n)  \(n <= 4 ? "Varrow" : "Glass Wood")  lectern foot \(f(base))  \(how[n - 1])")
+        let sc = renderer.scenes[n <= 4 ? .varrow : .glassWood]!
+        let lie = n <= 4 ? PuzzleProps.pageLie(n, scene: sc) : GlassPuzzleProps.pageLie(n, scene: sc)
+        print("page \(n)  \(n <= 4 ? "Varrow" : "Glass Wood")  sheet at \(f(lie.main.origin))  \(lie.loose.count) loose sheet(s) near  \(how[n - 1])")
     }
     exit(0)
 }

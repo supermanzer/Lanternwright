@@ -191,39 +191,26 @@ enum GlassPuzzleProps {
     /// (when the chimes are solved), 8 at the altar (when both are).
     static func pageBase(_ number: Int) -> SIMD3<Float> {
         switch number {
-        case 5: return GlassLayout.arrival + SIMD3(2.6, 0, 1.6)
+        case 5: return GlassLayout.arrival + SIMD3(2.1, 0, 1.7)         // in the band between the arrival plate's inlaid rings (radii 2.2 and 3.15), clear of both
         case 6: return MirrorCourt.world(MirrorCourt.receiver) + SIMD3(1.9, 0, 0.9)
         case 7: return GlassLayout.chimeRing + SIMD3(0, 0, 4.6)
-        default: return GlassLayout.altar + SIMD3(1.9, 0, 3.4)
+        default: return GlassLayout.altar + SIMD3(1.2, 0, 3.0)         // on the dais' top step, inside the glowing ring (F03 #51: the lectern had been set INTO the dais)
         }
     }
-    /// Where each lectern faces (the side a reader arrives from): the arrival pad, the court, the ring, the altar's near edge.
-    static func pageFacing(_ number: Int) -> SIMD3<Float> {
-        switch number {
-        case 5: return GlassLayout.arrival
-        case 6: return GlassLayout.path[min(3, GlassLayout.path.count - 1)]
-        case 7: return GlassLayout.path[min(6, GlassLayout.path.count - 1)]
-        default: return GlassLayout.path[min(max(GlassLayout.path.count - 2, 0), GlassLayout.path.count - 1)]
-        }
+    /// The page's sheet origin, resting on the surface under it (F03 P1): ground, the arrival plate, or the altar dais' top step.
+    static func pagePosition(_ number: Int, scene: Scene) -> SIMD3<Float> { pageLie(number, scene: scene).main.origin }
+    static func pageLie(_ number: Int, scene: Scene) -> (main: DroppedPages.Lie, loose: [DroppedPages.Lie]) {
+        let b = pageBase(number)
+        return DroppedPages.lie(page: number, base: SIMD2(b.x, b.z), sheet: PuzzleProps.pageMesh().vertices.map { SIMD3($0.position.x, $0.position.y, $0.position.z) }, ground: { scene.groundHeight(x: $0, z: $1) })
     }
-    static func pagePosition(_ number: Int) -> SIMD3<Float> { PageStands.pagePosition(base: pageBase(number)) }
 
     static func addPages(_ scene: Scene, device: MTLDevice) {
-        let standMesh = PageStands.mesh(stone: frost(1.15), trim: frost(0.9)).build(device: device, label: "page stand")
         let mesh = PuzzleProps.pageMesh().build(device: device, label: "page")
-        let mote = PageStands.moteMesh().build(device: device, label: "page mote")
-        let beacon = PageStands.beaconMesh().build(device: device, label: "page beacon")
         for n in 5...8 {
-            let base = pageBase(n)
-            let yaw = PageStands.yaw(from: base, toward: pageFacing(n))
-            scene.add("page_stand_\(n)", mesh: standMesh, uniforms: ObjectUniforms(model: PageStands.standTransform(base: base, yaw: yaw)))
-            scene.colliders.addCylinder(center: SIMD2(base.x, base.z), radius: PageStands.colliderRadius, minY: base.y - 0.5, maxY: base.y + 1.2)
-            scene.add("page_\(n)", mesh: mesh,
-                      uniforms: ObjectUniforms(model: PageStands.pageTransform(base: base, yaw: yaw), tint: SIMD4(1, 1, 1, 1), emissive: SIMD4(0.7, 0.9, 1.0, 2.2)),
-                      hidden: n != 5)
-            scene.add("page_beacon_\(n)", mesh: beacon, uniforms: ObjectUniforms(model: PageStands.beaconTransform(centre: PageStands.pagePosition(base: base)), tint: SIMD4(1, 1, 1, 1), emissive: SIMD4(0.65, 0.85, 1.0, 1.8)), hidden: n != 5)
-            for k in 0..<2 {
-                scene.add("page_mote_\(n)_\(k)", mesh: mote, uniforms: ObjectUniforms(model: translation(PageStands.pagePosition(base: base) + SIMD3(0.12 - 0.24 * Float(k), 0.45 + 0.5 * Float(k), 0.05)), tint: SIMD4(1, 1, 1, 1), emissive: SIMD4(0.6, 0.85, 1.0, 7)), hidden: n != 5)
+            let lie = pageLie(n, scene: scene)
+            scene.add("page_\(n)", mesh: mesh, uniforms: ObjectUniforms(model: lie.main.model, tint: SIMD4(1, 1, 1, 1), emissive: SIMD4(0, 0, 0, 0)), hidden: n != 5)
+            for (k, l) in lie.loose.enumerated() {
+                scene.add("page_loose_\(n)_\(k)", mesh: mesh, uniforms: ObjectUniforms(model: l.model, tint: SIMD4(0.82, 0.8, 0.86, 1), emissive: SIMD4(0, 0, 0, 0)), hidden: n != 5)
             }
         }
     }
@@ -263,6 +250,7 @@ enum GlassPuzzleProps {
             let p = chimePosition(k) - c
             fixed.cylinder(radiusTop: 0.5, radiusBottom: 0.65, height: 0.4, segments: 6, smooth: false, surface: stone, transform: translation(p + SIMD3(0, 0.1, 0)))
         }
+        scene.platforms.append(Scene.Platform(center: SIMD2(c.x, c.z), radius: chimeRadius + 2.45, top: c.y + 0.13))      // F03 P1: the base slab is walkable at the height it is drawn
         scene.add("gw_chime_base", mesh: fixed.build(device: device, label: "chime base"), uniforms: ObjectUniforms(model: translation(c)))
 
         for k in 0..<chimeCount {

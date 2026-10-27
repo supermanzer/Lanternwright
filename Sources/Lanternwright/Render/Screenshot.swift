@@ -122,7 +122,7 @@ enum Screenshot {
         guard let name else { return Viewpoints.named("overview")! }
         switch name {
         case "tree-close": return Viewpoints.treeClose(terrain: terrain)
-        case "page-close": return Viewpoints.pageClose(terrain: terrain)
+        case "page-close": return Viewpoints.pageClose(scene: renderer.scene)
         case "rock-close": return Viewpoints.rockClose(scene: renderer.scene)
         case "lantern-close": return Viewpoints.lanternClose(scene: renderer.scene)
         case "fallen-close": if let c = Viewpoints.fallenClose(terrain: terrain) { return c }

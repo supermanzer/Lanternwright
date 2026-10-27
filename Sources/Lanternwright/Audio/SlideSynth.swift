@@ -18,7 +18,7 @@ final class SlideSynth {
     /// Counters for the selftests: grains and stones started since creation.
     private(set) var grainsStarted = 0, stonesStarted = 0
     /// How loud the slide is at full speed on gravel (linear, before the synth's master).
-    static let gain: Float = 0.20
+    static let gain: Float = 0.10
     /// Level time constants: it comes up in about 30 ms and is gone (-40 dB) in about 0.16 s.
     static let attack: Float = 0.03, release: Float = 0.035
     /// Grain and stone rates per second at full speed on gravel (the lowest speed gets a tenth of the grain rate).
@@ -32,7 +32,7 @@ final class SlideSynth {
         let target = max(0, min(1, speed))
         let tau = target > level ? SlideSynth.attack : SlideSynth.release
         level += (target - level) * (1 - exp(-dt / tau))
-        if level < 1e-4 && grains.isEmpty && stones.isEmpty { return 0 }
+        if level < 1e-4 && grains.isEmpty && stones.isEmpty { level = 0; return 0 }          // idle: exactly zero, and no float tail to denormals
         let sp = level, g = max(0, min(1, gravel))
         // The bed: the mass of the slope in motion.
         let w = rng.next()

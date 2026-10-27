@@ -219,23 +219,38 @@ enum Viewpoints {
         return Camera(position: eye, yaw: atan2(d.x, -d.z), pitch: asin(d.y / simd_length(d)))
     }
 
-    /// `page-stand-N` / `page-far-N` (home pages 1-4) and `gw-page-stand-N` / `gw-page-far-N` (Glass Wood pages 5-8): the page's lectern seen from 3 m or 14 m
-    /// on the side it faces, at eye height (F02 P0: could a player walking past miss it?).
+    /// Where a player comes to each page from (the side that is looked at first): the dock's seaward end, the stones' approach points, the summit, the Glass Wood's path.
+    static func pageApproach(_ n: Int) -> SIMD3<Float> {
+        switch n {
+        case 1: let s = Layout.dockStrip(); return SIMD3(s.b.x, 0, s.b.y)
+        case 2: return SIMD3(StoneID.tide.approachFrom.x, 0, StoneID.tide.approachFrom.z)
+        case 3: return SIMD3(StoneID.wind.approachFrom.x, 0, StoneID.wind.approachFrom.z)
+        case 4: return SIMD3(Layout.summitStone.x, 0, Layout.summitStone.z)
+        case 5: return GlassLayout.arrival
+        case 6: return GlassLayout.path[min(3, GlassLayout.path.count - 1)]
+        case 7: return GlassLayout.path[min(6, GlassLayout.path.count - 1)]
+        default: return GlassLayout.path[min(max(GlassLayout.path.count - 2, 0), GlassLayout.path.count - 1)]
+        }
+    }
+
+    /// `page-stand-N` / `page-far-N` / `page-close-N` / `page-back-N` (home pages 1-4) and the same with a `gw-` prefix (Glass Wood pages 5-8): the dropped page seen from 3 m or
+    /// 14 m on the side a player arrives from, from 0.7 m up and 0.5 m off looking down at it (`close`), and the same from the opposite side (`back`). F03 P1: could a player
+    /// walking past miss it, and does it lie ON what it rests on?
     static func pageView(scene: Scene, name: String) -> Camera? {
         var n = name
         if n.hasPrefix("gw-") { n.removeFirst(3) }
-        guard n.hasPrefix("page-stand-") || n.hasPrefix("page-far-"), let number = Int(n.split(separator: "-").last ?? "") else { return nil }
-        let far = n.hasPrefix("page-far-")
+        guard n.hasPrefix("page-stand-") || n.hasPrefix("page-far-") || n.hasPrefix("page-close-") || n.hasPrefix("page-back-"), let number = Int(n.split(separator: "-").last ?? "") else { return nil }
         let home = number <= 4
-        let base = home ? PuzzleProps.pageBase(number, terrain: scene.terrain) : GlassPuzzleProps.pageBase(number)
-        let face = home ? PuzzleProps.pageFacing(number, terrain: scene.terrain) : GlassPuzzleProps.pageFacing(number)
-        let yaw = PageStands.yaw(from: base, toward: face)
-        let out = SIMD3<Float>(sin(yaw), 0, cos(yaw))
-        let d: Float = far ? 14 : 3
-        let cam = base + out * d
-        let eye = SIMD3(cam.x, scene.groundHeight(x: cam.x, z: cam.z) + 1.7, cam.z)
-        let target = base + SIMD3(0, PageStands.pageHeight, 0)
-        let v = target - eye
+        let pos = home ? PuzzleProps.pagePosition(number, scene: scene) : GlassPuzzleProps.pagePosition(number, scene: scene)
+        let from = pageApproach(number)
+        var out = SIMD2(from.x - pos.x, from.z - pos.z)
+        out = simd_length(out) > 1e-3 ? simd_normalize(out) : SIMD2(0, 1)
+        if n.hasPrefix("page-back-") { out = -out }
+        let close = n.hasPrefix("page-close-") || n.hasPrefix("page-back-")
+        let d: Float = close ? 0.55 : (n.hasPrefix("page-far-") ? 14 : 3)
+        let cam = SIMD2(pos.x, pos.z) + out * d
+        let eye = close ? SIMD3(cam.x, scene.groundHeight(x: cam.x, z: cam.y) + 0.75, cam.y) : SIMD3(cam.x, scene.groundHeight(x: cam.x, z: cam.y) + 1.7, cam.y)
+        let v = pos - eye
         return Camera(position: eye, yaw: atan2(v.x, -v.z), pitch: asin(v.y / simd_length(v)))
     }
 
@@ -308,9 +323,9 @@ enum Viewpoints {
         return Camera(position: eye, yaw: atan2(d.x, -d.z), pitch: asin(d.y / simd_length(d)))
     }
 
-    /// `page-close`: 0.8 m above the journal page on the tide stone's plinth, looking down at it (R06).
-    static func pageClose(terrain: Terrain) -> Camera {
-        let p = PuzzleProps.pagePosition(2, terrain: terrain)
+    /// `page-close`: 0.8 m above the journal page by the tide stone, looking down at it (R06; F03: the dropped page).
+    static func pageClose(scene: Scene) -> Camera {
+        let p = PuzzleProps.pagePosition(2, scene: scene)
         return Camera(position: p + SIMD3(0.0, 0.8, 0.45), yaw: 0, pitch: -1.0)
     }
 

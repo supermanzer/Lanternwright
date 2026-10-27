@@ -66,6 +66,35 @@ extension SelfTestRunner {
                     Player.slipEnabled = false
                     return h0 - sb.feet.y
                 }
+                // F03 A3 (review): the audio chain end to end. A real player on a real steep slope with the slip on: Player.slipAmount, AudioEngine.feedSlide, AmbienceSynth.render.
+                do {
+                    Player.slipEnabled = true
+                    let sg = Game(scene: scene); let sb = PlaythroughBot(sg)
+                    sg.player.position = SIMD3(sp.x, scene.groundHeight(x: sp.x, z: sp.y), sp.y)
+                    let sr: Float = 44100
+                    let synth = AmbienceSynth(sampleRate: sr)
+                    synth.windGain = 0; synth.surfGain = 0; synth.padGain = 0; synth.master = 1
+                    func block(_ seconds: Float) -> [Float] {
+                        var out: [Float] = []; var l = [Float](repeating: 0, count: 1024), r = l
+                        for _ in 0..<Int(seconds * sr) / 1024 { l.withUnsafeMutableBufferPointer { lp in r.withUnsafeMutableBufferPointer { rp in synth.render(frames: 1024, left: lp.baseAddress!, right: rp.baseAddress!) } }; for k in 0..<1024 { out.append(0.5 * (l[k] + r[k])) } }
+                        return out
+                    }
+                    sb.wait(0.5)
+                    AudioEngine.feedSlide(into: synth, game: sg)
+                    let speedWhileSlipping = synth.slideSpeed, gravelOn = synth.slideGravel
+                    _ = block(0.5)
+                    let slipping = Self.rms(block(1.0))
+                    // Regain footing: the flat dock end, and the slip off.
+                    sg.player.position = SIMD3(Layout.dockEnd.x, scene.groundHeight(x: Layout.dockEnd.x, z: Layout.dockEnd.z), Layout.dockEnd.z)
+                    sb.wait(0.3)
+                    AudioEngine.feedSlide(into: synth, game: sg)
+                    let speedAfter = synth.slideSpeed
+                    _ = block(0.2)
+                    let after = Self.rms(block(0.5))
+                    Player.slipEnabled = false
+                    check(speedWhileSlipping > 0.5 && slipping > 0.01 && slipping < 0.15 && speedAfter == 0 && after < 0.03 * slipping,
+                          "the slide sound end to end: slipping on a real steep slope feeds the synth (speed \(String(format: "%.2f", speedWhileSlipping)), gravel \(String(format: "%.2f", gravelOn))) and renders at rms \(String(format: "%.3f", slipping)) (a sensible level: the waterline surf is 0.064); on level ground the speed is \(speedAfter) and the rendered slide is gone (rms \(String(format: "%.5f", after)), under 3 % of it) within 0.2 s")
+                }
                 let off = drift(false), on = drift(true)
                 check(off < 0.3 && on > 1.0, "the soft slip is off by default and, when enabled, carries you downhill on steep ground (standing 3 s: slid down \(off) m off, \(on) m on)")
             } else { check(true, "no steep slope found for the slip test (skipped)") }

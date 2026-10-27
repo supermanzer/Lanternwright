@@ -164,7 +164,7 @@ extension SelfTestRunner {
             let low = A.mean(specs.map { A.band($0, 80, 400) }) / max(total, 1e-12), ring = A.mean(specs.map { A.band($0, 1200, 3000) }) / max(total, 1e-12)
             let cen = A.mean(specs.map(A.centroid)), dec = A.mean(steps.map { A.decayTime($0, lowpass: 400, dB: 30) }), peak = A.mean(steps.map { $0.map { abs($0) }.max() ?? 0 })
             if verbose { print(String(format: "deck step pin: low 80-400 Hz %.3f, 1.2-3 kHz %.3f, centroid %.0f Hz, -30 dB at %.3f s, peak %.3f", low, ring, cen, dec, peak)) }
-            check(abs(low - DeckPin.low) < 0.06 && abs(ring - DeckPin.ring) < 0.04 && abs(cen - DeckPin.centroid) < 0.15 * DeckPin.centroid && abs(dec - DeckPin.decay30) < 0.15 * DeckPin.decay30 && abs(peak - DeckPin.peak) < 0.15 * DeckPin.peak,
+            check(abs(low - DeckPin.low) < 0.02 && abs(ring - DeckPin.ring) < 0.002 && abs(cen - DeckPin.centroid) < 0.05 * DeckPin.centroid && abs(dec - DeckPin.decay30) < 0.05 * DeckPin.decay30 && abs(peak - DeckPin.peak) < 0.06 * DeckPin.peak,
                   "the deck footstep is unchanged (#36 'spot on'): low share \(String(format: "%.2f", low)) (pinned \(DeckPin.low)), 1.2-3 kHz \(String(format: "%.2f", ring)) (\(DeckPin.ring)), centroid \(Int(cen)) Hz (\(Int(DeckPin.centroid))), -30 dB at \(String(format: "%.3f", dec)) s (\(DeckPin.decay30)), peak \(String(format: "%.2f", peak)) (\(DeckPin.peak))")
         }
         // The event through the real synth: the knock and rattle play as a one-shot, the existing pull-ring jangle starts only after `Foley.jangleDelay`.

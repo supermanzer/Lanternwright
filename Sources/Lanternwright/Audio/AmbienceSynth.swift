@@ -19,7 +19,6 @@ enum ChimeKind: Int, Equatable {
     case glass0, glass1, glass2, glass3, glass4
     case glassTick       // a small bright click for turning a mirror or changing a pane
     case glassAmbient    // a quiet random shimmer, as if the wind brushed the crystal trees
-    case pageAppears     // a journal page has come loose (F02 P0): three soft rising bell notes, D5 A5 D6, unlike any puzzle chime
     case doorLocked      // the lighthouse door: a latch rattles and the weight of the door thumps against its bolt
     case buoy            // the bell buoy; loudness and pan come from `buoyGain` / `buoyPan` at the moment it rings
 }
@@ -233,11 +232,6 @@ final class AmbienceSynth {
             for (i, f) in [Float(880.0), 1318.5, 1760.0, 2217.5].enumerated() {
                 chimes.append(bell(f, gain: 0.12, decayScale: 2.2, delay: Float(i) * 0.09, pan: Float(i) * 0.3 - 0.45))
             }
-        case .pageAppears:
-            for (i, f) in [Float(587.33), 880.0, 1174.66].enumerated() {
-                chimes.append(bell(f, gain: 0.11, decayScale: 1.9, delay: Float(i) * 0.17, pan: 0.15 * Float(i) - 0.15))
-            }
-            chimes.append(ChimeVoice(delay: 0.0, f0: 3520, gain: 0.025, partials: [Partial(ratio: 1, gain: 1, decay: 0.5)], pan: 0))      // a thin paper-bright shimmer on top
         case .doorLocked:
             // F03 A2 (#44): the door shifts and hits the stone reveal (a dull thunk and a short transient), the planks and ironwork rattle loose (2-4 quick damped impacts),
             // and THEN the pull ring jangles, a moment later. How hard the attempt was (`doorStrength`) scales all of it. The wood-on-stone part is noise, not a tone.
