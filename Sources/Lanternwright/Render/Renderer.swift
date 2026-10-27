@@ -74,13 +74,12 @@ final class Renderer {
     static let skyLUTSize = (width: 256, height: 128)
     let startTime = Date()
 
-    var hdrTexture: MTLTexture?
+    var hdrTexture: MTLTexture? { targets?.hdr }
     // Temporal anti-aliasing (F02 R1, see Shaders/TAA.swift). Off in headless screenshots unless `--taa`, so existing baselines stay comparable.
     var taaEnabled = false
     var taaSharpness: Float = 0.8
     /// Weight of the new frame when still / at speed, and the colour-box width in sigmas (see TAA.swift). Tools can override them with TAA_ALPHA="a b" TAA_GAMMA="g" TAA_SHARP="s".
     var taaTuning = SIMD4<Float>(0.20, 0.35, 1.5, 0)
-    var taaHistory: MTLTexture?, taaResolved: MTLTexture?
     var taaHistoryValid = false
     var taaFrameIndex = 0
     var taaPrevViewProj = matrix_identity_float4x4
@@ -99,11 +98,13 @@ final class Renderer {
     var taaLastWorld: WorldKind?
     /// Forget the history (a camera cut: travel between worlds, a teleport, a resize). The next frame is rendered without temporal blending.
     func resetTAA() { taaHistoryValid = false }
-    var depthTexture: MTLTexture?
+    /// G10.1.1: the textures that follow the output size (see RenderTargets); nil until the first frame. The old names below read from it.
+    var targets: RenderTargets?
+    var depthTexture: MTLTexture? { targets?.depth }
     /// Straight-line camera distance per pixel (1e5 for sky). Read by the water pass.
-    var distanceTexture: MTLTexture?
+    var distanceTexture: MTLTexture? { targets?.distance }
     /// Copy of the HDR colour after opaque + sky; the water pass samples it for refraction.
-    var sceneCopy: MTLTexture?
+    var sceneCopy: MTLTexture? { targets?.sceneCopy }
     let depthVizPipeline: MTLRenderPipelineState
     let bloomPrefilterPipeline: MTLRenderPipelineState
     /// Debug (`--no-grass`, and the grass coverage selftest): draw no grass.
@@ -117,16 +118,15 @@ final class Renderer {
     let aoPipeline: MTLRenderPipelineState
     let aoBlurPipeline: MTLRenderPipelineState
     let aoApplyPipeline: MTLRenderPipelineState
-    var aoTexture: MTLTexture?
-    var aoBlurred: MTLTexture?
-    var raysTexture: MTLTexture?
+    var aoTexture: MTLTexture? { targets?.ao }
+    var aoBlurred: MTLTexture? { targets?.aoBlurred }
+    var raysTexture: MTLTexture? { targets?.rays }
     let bloomDownPipeline: MTLRenderPipelineState
     let bloomUpPipeline: MTLRenderPipelineState
     /// Half-resolution bloom chain; level i is (w, h) / 2^(i+1).
-    var bloomChain: [MTLTexture] = []
+    var bloomChain: [MTLTexture] { targets?.bloom ?? [] }
     /// Eye adaptation: a 64 x 36 grid of mean log luminance, read back on the CPU one frame late.
     var lumaPipeline: MTLRenderPipelineState!
-    var lumaTexture: MTLTexture?
     var lumaLock = NSLock()
     var measuredLuma: Float?
     var adaptation = EyeAdaptation()
@@ -593,7 +593,7 @@ final class Renderer {
         }
 
         // 1c''. Temporal anti-aliasing: resolve the jittered frame against the history, then sharpen into the scene HDR that bloom and the composite read.
-        if taaEnabled, let hdr = hdrTexture, let hist = taaHistory, let res = taaResolved, let depth = depthTexture {
+        if taaEnabled, let hdr = hdrTexture, let hist = targets?.taaHistory, let res = targets?.taaResolved, let depth = depthTexture {
             var tu = TaaUniforms(prevViewProj: taaPrevViewProj, invViewProj: taaCurrentViewProj.inverse,
                                  params: SIMD4(taaJitter.x, taaJitter.y, taaHistoryValid ? 1 : 0, taaSharpness),
                                  screen: SIMD4(Float(hdr.width), Float(hdr.height), 1 / Float(hdr.width), 1 / Float(hdr.height)), tuning: taaTuning)
@@ -612,7 +612,7 @@ final class Renderer {
             }
             fullscreen("taa resolve", taaResolvePipeline, target: res, textures: [hdr, hist, depth])
             fullscreen("taa sharpen", taaSharpenPipeline, target: hdr, textures: [res])
-            swap(&taaHistory, &taaResolved)                    // the resolved frame is next frame's history
+            targets?.swapTAA()                                 // the resolved frame is next frame's history
             taaPrevViewProj = taaCurrentViewProj
             taaHistoryValid = true
         }

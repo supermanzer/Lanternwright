@@ -36,34 +36,9 @@ extension Renderer {
     }
 
     func ensureTargets(width: Int, height: Int) {
-        if let h = hdrTexture, h.width == width, h.height == height { return }
-        func make(_ format: MTLPixelFormat, _ label: String, _ w: Int? = nil, _ h: Int? = nil) -> MTLTexture {
-            let d = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: format, width: w ?? width, height: h ?? height, mipmapped: false)
-            d.usage = [.renderTarget, .shaderRead]
-            d.storageMode = .private
-            let t = device.makeTexture(descriptor: d)!
-            t.label = label
-            return t
-        }
-        hdrTexture = make(Renderer.hdrFormat, "hdr")
-        taaHistory = make(Renderer.hdrFormat, "taa history")
-        taaResolved = make(Renderer.hdrFormat, "taa resolved")
+        if let t = targets, t.width == width, t.height == height { return }
+        targets = RenderTargets(device: device, width: width, height: height)
         taaHistoryValid = false
-        sceneCopy = make(Renderer.hdrFormat, "sceneCopy")
-        distanceTexture = make(Renderer.distanceFormat, "distance")
-        raysTexture = make(Renderer.hdrFormat, "rays", width / 2, height / 2)
-        aoTexture = make(.r16Float, "ao", width / 2, height / 2)
-        aoBlurred = make(.r16Float, "ao blurred", width / 2, height / 2)
-        bloomChain = (0..<Renderer.bloomLevels).map { i in
-            let w = max(1, width >> (i + 1)), h = max(1, height >> (i + 1))
-            let d = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: Renderer.hdrFormat, width: w, height: h, mipmapped: false)
-            d.usage = [.renderTarget, .shaderRead]
-            d.storageMode = .private
-            let t = device.makeTexture(descriptor: d)!
-            t.label = "bloom\(i)"
-            return t
-        }
-        depthTexture = make(Renderer.depthFormat, "depth")
     }
 
     func updateFrame(camera: Camera, width: Int, height: Int) {
@@ -188,14 +163,14 @@ extension Renderer {
 
     /// Average the HDR image down to 64 x 36 log-luminance samples and read them back when the GPU is done (one frame late).
     func encodeLuma(_ cb: MTLCommandBuffer, hdr: MTLTexture) {
-        if lumaTexture == nil {
+        if targets?.luma == nil {
             let d = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .rg32Float, width: 64, height: 36, mipmapped: false)
             d.usage = [.renderTarget, .shaderRead]
             d.storageMode = .shared
-            lumaTexture = device.makeTexture(descriptor: d)
-            lumaTexture?.label = "luma"
+            targets?.luma = device.makeTexture(descriptor: d)
+            targets?.luma?.label = "luma"
         }
-        guard let target = lumaTexture else { return }
+        guard let target = targets?.luma else { return }
         postPass(cb, "luma", lumaPipeline, source: hdr, target: target, load: .dontCare)
         cb.addCompletedHandler { [weak self] _ in
             var px = [Float](repeating: 0, count: 64 * 36 * 2)
