@@ -1,0 +1,23 @@
+# G10.0.3 baseline. Command: Lanternwright --banding (main after G10.0.2)
+banding probe (G10.0.3): the final 8-bit image of smooth sky strips, 1600x900, TAA on, 32 columns per view. levels = distinct values used by a channel in the strip; max step = the biggest change
+between adjacent rows; longest run = most identical rows in a row; flat = share of adjacent rows with no change at all (a smooth ramp that uses every level has flat close to 0 where the gradient is
+steep, and runs of 1 to 4 where it is shallow; bands are long runs). Dithering (G10.2.3) should raise the levels and cut the runs.
+A strip is cut where adjacent rows differ by more than 3, so a max step is at most 3 by construction; 2 or 3 inside a smooth strip is itself a band edge.
+
+dusk-away: 30 columns of up to 705 sky rows
+    red levels 162   max step 3   longest run  27 rows   flat 62.3 %
+    green levels 128   max step 3   longest run  19 rows   flat 56.2 %
+    blue levels 106   max step 3   longest run  16 rows   flat 52.5 %
+dusk-toward: 30 columns of up to 683 sky rows
+    red levels 189   max step 3   longest run  16 rows   flat 52.8 %
+    green levels 164   max step 3   longest run  14 rows   flat 50.1 %
+    blue levels 129   max step 3   longest run  13 rows   flat 48.2 %
+dusk-high: 30 columns of up to 900 sky rows
+    red levels 176   max step 3   longest run 165 rows   flat 75.5 %
+    green levels 145   max step 3   longest run 133 rows   flat 68.0 %
+    blue levels 104   max step 3   longest run  99 rows   flat 61.6 %
+glass-night: 30 columns of up to 867 sky rows
+    red levels 130   max step 3   longest run 275 rows   flat 73.9 %
+    green levels 132   max step 3   longest run 144 rows   flat 67.0 %
+    blue levels 131   max step 3   longest run  44 rows   flat 56.8 %
+

@@ -31,4 +31,19 @@ extension SelfTestRunner {
         } catch { check(false, "layers: walk failed: \(error)") }
         check(RenderLayer.parse("grass, trees") == [.grass, .trees] && RenderLayer.parse("grass,bogus") == nil, "layers: --layers-off parses a comma list and rejects an unknown name")
     }
+
+    /// G10.0.3: the banding probe finds smooth sky, counts levels, and gives the same numbers twice.
+    func runBanding() {
+        guard name == "all" || name == "banding" else { return }
+        guard let device = MTLCreateSystemDefaultDevice() else { check(false, "banding: no Metal device"); return }
+        let renderer = Renderer(device: device, options: LaunchOptions.parse(["lanternwright"]))
+        do {
+            let v = Banding.views()[0]
+            let a = try Banding.measure(renderer: renderer, view: v, width: 640, height: 360)
+            let b = try Banding.measure(renderer: renderer, view: v, width: 640, height: 360)
+            let g = a.channels["green"]!
+            check(a.columns >= 10 && a.rows > 40 && g.levels >= 20 && g.longestRun >= 1 && g.zeroShare >= 0 && g.zeroShare <= 1, "banding: the probe finds sky strips (\(a.columns) columns, up to \(a.rows) rows) and counts \(g.levels) green levels, longest run \(g.longestRun)")
+            check(a.channels.mapValues { [$0.levels, $0.maxStep, $0.longestRun] } == b.channels.mapValues { [$0.levels, $0.maxStep, $0.longestRun] }, "banding: the probe gives the same numbers twice (reproducible)")
+        } catch { check(false, "banding: probe failed: \(error)") }
+    }
 }

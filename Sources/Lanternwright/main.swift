@@ -47,6 +47,12 @@ if let n = options.shimmerLayers {
     catch { FileHandle.standardError.write(Data("error: \(error)\n".utf8)); exit(1) }
 }
 
+if options.banding {
+    let renderer = Renderer(device: device, options: options)
+    do { print(try Banding.run(renderer: renderer, width: options.width, height: options.height)); exit(0) }
+    catch { FileHandle.standardError.write(Data("error: \(error)\n".utf8)); exit(1) }
+}
+
 if options.parallaxSea {
     let renderer = Renderer(device: device, options: options)
     do {
