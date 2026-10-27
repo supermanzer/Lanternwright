@@ -18,7 +18,6 @@ dock-taa 34d81a9058900a97
 shore-taa 8d00d53473de3f4e
 gw-court-taa ddf9657593ae1b83
 summit-beams 1db8bac1cb4fb52e
-dock-auto c82c54be77451ff5
 dbg-depth ff11c23a9240ff01
 dbg-albedo b7d917e393418b84
 dbg-ambient 8daccb7286bc1afb

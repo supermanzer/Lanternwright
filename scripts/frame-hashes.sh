@@ -1,5 +1,6 @@
 #!/bin/zsh
 # G10 stream 1: a hash of the PNG bytes of a fixed set of frames, so a refactor of the frame graph can be checked as byte-identical (not "close").
+# (dock-auto was dropped: the eye-adaptation readback is asynchronous, so an auto-exposure frame is not reproducible.)
 # Usage: scripts/frame-hashes.sh [binary] > hashes.txt ; diff two such files. Every frame is rendered headless with the default fixed exposure and clock.
 BIN=${1:-.build/release/Lanternwright}
 OUT=${TMPDIR:-/tmp}/lw-frame-hashes.$$
@@ -15,6 +16,5 @@ one dock-taa --view dock --taa --frames 8
 one shore-taa --view shore --taa --frames 8
 one gw-court-taa --view gw-court --taa --frames 8
 one summit-beams --view summit --state both --clock 20 --frames 3
-one dock-auto --view dock --auto-exposure
 for d in depth albedo ambient noao shadow cascade ao; do one dbg-$d --view shore --debug $d; done
 rm -rf $OUT

@@ -230,8 +230,9 @@ extension SelfTestRunner {
             // The dissolve: spray foliage of level 0 and the needle cards are dithered complementarily with one noise value, and needles are two-sided, alpha-tested, never in the shadow pass.
             let lit = LitShaders.source, common = CommonShaders.source
             check(lit.contains("ign(px2) >= nW") && lit.contains("ign(px2) < nW") && lit.contains("midN == 3") && lit.contains("needle_cover(") && lit.contains("needle_threshold(") && common.contains("needle_weight"), "the shader dissolves needles and the level-0 sprays complementarily (one noise value, opposite tests) and alpha-tests the needle pattern")
-            let r = try? String(contentsOfFile: "Sources/Lanternwright/Render/Renderer.swift", encoding: .utf8)
-            check(r?.contains("item.uniforms.lod.w < 0.5, sunFrustum") == true && r?.contains("item.uniforms.lod.w > 0.5 ? .none : .back") == true, "needle cards are drawn two-sided and cast no shadow")
+            let shadowSrc = try? String(contentsOfFile: "Sources/Lanternwright/Render/Passes/ShadowPass.swift", encoding: .utf8)
+            let opaqueSrc = try? String(contentsOfFile: "Sources/Lanternwright/Render/Passes/OpaquePass.swift", encoding: .utf8)
+            check(shadowSrc?.contains("item.uniforms.lod.w < 0.5, sunFrustum") == true && opaqueSrc?.contains("item.uniforms.lod.w > 0.5 ? .none : .back") == true, "needle cards are drawn two-sided and cast no shadow")
             // needle_weight in Swift terms: 1 inside about 13 m, 0 beyond about 17 m, for the nominal tree.
             func nw(_ d: Float) -> Float { 1 - smoothstep(13 - 2, 13 + 2, d) }
             check(nw(5) == 1 && nw(20) == 0 && nw(13) > 0.4 && nw(13) < 0.6, "the needle level covers the first 13 m and is gone by 17 m")
