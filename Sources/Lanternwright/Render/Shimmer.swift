@@ -144,7 +144,7 @@ enum Shimmer {
 extension Shimmer {
     /// A walk through a place where the layers of the frame are all present. `world` is the world it lives in.
     struct MovingScene { let name: String; let view: String; let world: WorldKind }
-    static let movingScenes = [MovingScene(name: "meadow", view: "ground-grass-5m", world: .varrow), MovingScene(name: "woods", view: "tree-at-14", world: .varrow),
+    static let movingScenes = [MovingScene(name: "grove", view: "ground-grass-5m", world: .varrow), MovingScene(name: "woods", view: "tree-at-14", world: .varrow),
                                MovingScene(name: "shore", view: "shore", world: .varrow), MovingScene(name: "dock", view: "dock", world: .varrow),
                                MovingScene(name: "crystal", view: "gw-court", world: .glassWood)]
     /// The walk is 0.028 m a frame; at the player's walking pace (2.3 m/s) that is this many seconds of game clock a frame, so wind and walk keep their real ratio.
@@ -238,7 +238,11 @@ extension Shimmer {
         s += "EDGE crawl is new and needs no depth: edge pixels (gradient > 24) matched against the best of 3x3 pixels of the previous frame, so it sees twigs, blade tips and crystal points against the sky.\n"
         s += "Each layer is switched off in turn; its pixels are the ones whose luma changes by more than \(Int(ownThreshold)) / 255 when it is off, and its share is the part of the crawl that falls on them.\n"
         s += "Wind moves blades and boughs for real, which counts as crawl ('clock frozen' = the same walk with the clock stopped: aliasing alone). Shares overlap (a shadow on grass counts for\n"
-        s += "both), so they can add to more than 100 %. Every walk is bit-reproducible (exposure fixed, TAA state and jitter reset).\n\n"
+        s += "both), so they can add to more than 100 %. Every walk is reproducible (exposure fixed, TAA state and jitter reset): two identical walks differ by less than 1/255 in every pixel that matters.\n"
+        s += "READ WITH CARE: ownership says where the crawl falls, not what causes it. The sky's edge share is mostly tree and glass silhouettes against the sky, counted twice (the sky pixel beside them\n"
+        s += "belongs to the sky layer, the twig to the tree). The shadows share is lighting dependence (a canopy's shade covers most of a wood), largely inherited from the trees. Glass shows 0 % surface\n"
+        s += "because the surface metric skips refractive pixels: only its edge share means anything. 'grove' is the ground-grass-5m view, which stands inside the woods (grass is judged on\n"
+        s += "the edge column and on the dock/crystal scenes, not here).\n\n"
         var weighted: [RenderLayer: Double] = [:], edgeWeighted: [RenderLayer: Double] = [:], total = 0.0, edgeTotal = 0.0
         for r in rows {
             total += r.all.sum; edgeTotal += r.edge.sum

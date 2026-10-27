@@ -1,12 +1,16 @@
-# G10.0.2 baseline. Command: Lanternwright --shimmer-layers 60 --size 960x540 (main after b449adc + G10.0.1)
+# G10.0.2 baseline. Command: Lanternwright --shimmer-layers 60 --size 960x540 (main after G10.0.1)
 shimmer attribution (G10.0.2): a walk at 0.028 m/frame with the wind on, the game clock advancing at the walking pace, TAA on, 60 frames at 960x540.
 Two metrics (0-255 luma squared; lower is steadier): SURFACE crawl is the F02 motion-compensated one (it reprojects with depth, so it skips sky, depth edges and silhouettes);
 EDGE crawl is new and needs no depth: edge pixels (gradient > 24) matched against the best of 3x3 pixels of the previous frame, so it sees twigs, blade tips and crystal points against the sky.
 Each layer is switched off in turn; its pixels are the ones whose luma changes by more than 12 / 255 when it is off, and its share is the part of the crawl that falls on them.
 Wind moves blades and boughs for real, which counts as crawl ('clock frozen' = the same walk with the clock stopped: aliasing alone). Shares overlap (a shadow on grass counts for
-both), so they can add to more than 100 %. Every walk is bit-reproducible (exposure fixed, TAA state and jitter reset).
+both), so they can add to more than 100 %. Every walk is reproducible (exposure fixed, TAA state and jitter reset): two identical walks differ by less than 1/255 in every pixel that matters.
+READ WITH CARE: ownership says where the crawl falls, not what causes it. The sky's edge share is mostly tree and glass silhouettes against the sky, counted twice (the sky pixel beside them
+belongs to the sky layer, the twig to the tree). The shadows share is lighting dependence (a canopy's shade covers most of a wood), largely inherited from the trees. Glass shows 0 % surface
+because the surface metric skips refractive pixels: only its edge share means anything. 'grove' is the ground-grass-5m view, which stands inside the woods (grass is judged on
+the edge column and on the dock/crystal scenes, not here).
 
-meadow surface   0.479 (clock frozen   0.472, 3647675 px)   edge  39.149 (clock frozen  39.829, 1900435 px)
+grove surface   0.479 (clock frozen   0.472, 3647675 px)   edge  39.149 (clock frozen  39.829, 1900435 px)
     trees surface  86.6 % of the crawl (on  89.5 % of pixels)   edge  92.1 % of the crawl (on  84.3 % of edge pixels)
     shadows surface  92.3 % of the crawl (on  96.9 % of pixels)   edge  41.2 % of the crawl (on  59.0 % of edge pixels)
     sky surface   0.1 % of the crawl (on   0.0 % of pixels)   edge  42.7 % of the crawl (on  26.6 % of edge pixels)
