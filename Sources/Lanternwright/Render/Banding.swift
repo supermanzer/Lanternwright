@@ -2,7 +2,7 @@ import Foundation
 import Metal
 import simd
 
-/// `--banding` (G10.0.3): how many distinct 8-bit levels does a smooth sky gradient actually use in the final image, and how big is the largest step? A gradient that is
+/// `--banding` (G10.0.3): how much does a smooth sky gradient band in the final image: how long are the runs of identical values, and how many levels does it use? A gradient that is
 /// smooth in the 16-bit HDR buffer is quantised to 8 bits at the very end, and a slow one then shows as bands: runs of identical values with a step of one between them.
 /// For each sky view this renders the real frame (TAA on, as in the game) and takes up to 40 columns (every width/40 pixels across the middle three quarters): in each, the LONGEST stretch
 /// of rows that the renderer says are infinitely far (sky) and smooth (adjacent rows differ by at most 3/255; clouds and the sun's glow are included wherever they are that smooth, so a strip that

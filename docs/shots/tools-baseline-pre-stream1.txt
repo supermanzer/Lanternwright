@@ -1,0 +1,424 @@
+# G10.1.5 baseline: tool outputs BEFORE the stream 1 refactor (main after c2e48d8; --shimmer now runs with fixed exposure so it is reproducible)
+## --parallax
+parallax: 80 steps of 0.5 m from (-39.0, 140.0) looking north, 1600x900. Depth disagreement (m along the ray) after reprojecting each frame into the next:
+  15-60 m samples   96084  median 0.005 m  p99 0.055 m  max 47.56 m | worst pair step 22 (mean 2.367 m), median pair mean 0.010 m
+  60-150 m samples    1767  median 0.017 m  p99 32.366 m  max 60.90 m | worst pair step 19 (mean 26.089 m), median pair mean 0.011 m
+  150-400 m samples     993  median 0.018 m  p99 0.192 m  max 1.64 m | worst pair step 59 (mean 0.365 m), median pair mean 0.017 m
+  400+ m samples       0  median 0.000 m  p99 0.000 m  max 0.00 m | worst pair step 0 (mean 0.000 m), median pair mean 0.000 m
+  pairs with more than 20 samples off by over 0.5 m: 1 of 80
+    step  1:   22 samples; screen x 16-36 y 156-232; distance 56-62 m; error median 28.8 m
+  largest single disagreement 60.90 m at distance 67 m, pixel (1276, 44), step 19
+## --shimmer 60 --size 960x540
+shimmer: motion-compensated frame-to-frame change of a static world (0-255 luma squared; lower is steadier) and the fine detail kept, 60 frames at 960x540
+  turf pan crawl: TAA off   20.782  on    2.107  ( 89.9 % lower)   fine detail vs the ideal image: off  64.0 %, on  38.4 %
+  turf walk crawl: TAA off   41.523  on    8.316  ( 80.0 % lower)   fine detail vs the ideal image: off  80.5 %, on  46.0 %
+  sand pan crawl: TAA off  324.439  on   27.689  ( 91.5 % lower)   fine detail vs the ideal image: off  57.9 %, on  37.7 %
+  sand walk crawl: TAA off  249.367  on   42.062  ( 83.1 % lower)   fine detail vs the ideal image: off  55.6 %, on  34.7 %
+  dock pan crawl: TAA off   98.509  on    9.962  ( 89.9 % lower)   fine detail vs the ideal image: off  71.8 %, on  55.7 %
+  dock walk crawl: TAA off  107.697  on   18.999  ( 82.4 % lower)   fine detail vs the ideal image: off  72.1 %, on  57.4 %
+  cobbles pan crawl: TAA off   90.295  on    6.266  ( 93.1 % lower)   fine detail vs the ideal image: off 103.4 %, on  69.0 %
+  cobbles walk crawl: TAA off  154.319  on   90.519  ( 41.3 % lower)   fine detail vs the ideal image: off 140.5 %, on  96.4 %
+  masonry pan crawl: TAA off    5.457  on    0.893  ( 83.6 % lower)   fine detail vs the ideal image: off 124.1 %, on 122.6 %
+  masonry walk crawl: TAA off    3.469  on    0.882  ( 74.6 % lower)   fine detail vs the ideal image: off 144.5 %, on 134.5 %
+  grass pan crawl: TAA off    3.107  on    0.489  ( 84.3 % lower)   fine detail vs the ideal image: off 102.7 %, on  72.9 %
+  grass walk crawl: TAA off    2.821  on    0.472  ( 83.3 % lower)   fine detail vs the ideal image: off  96.1 %, on  68.0 %
+  all      total crawl: TAA off 1101.786  on  208.658  ( 81.1 % lower)   fine detail vs the ideal image: off  76.8 %, on  52.6 %
+## --approach all
+dock steps 27  max luma step  16.3 %  max HF ratio  1.62  HF drops 4  diff spike  1.42
+    d   40.00 m  luma   72.5  hf  27.94
+    d   34.00 m  luma   72.8  hf  24.59
+    d   28.90 m  luma   69.6  hf  18.48
+    d   24.57 m  luma   68.3  hf  23.11
+    d   20.88 m  luma   65.5  hf  17.49
+    d   17.75 m  luma   65.2  hf  17.63
+    d   15.09 m  luma   64.4  hf  17.09
+    d   12.82 m  luma   64.7  hf  11.68
+    d   10.90 m  luma   61.3  hf  11.29
+    d    9.26 m  luma   51.3  hf   8.83
+    d    7.87 m  luma   48.7  hf   9.16
+    d    6.69 m  luma   49.2  hf  14.83
+    d    5.69 m  luma   50.0  hf  20.91
+    d    4.84 m  luma   50.7  hf  19.31
+    d    4.11 m  luma   51.3  hf  29.07
+    d    3.49 m  luma   48.5  hf  28.12
+    d    2.97 m  luma   48.4  hf  38.82
+    d    2.52 m  luma   45.4  hf  40.35
+    d    2.15 m  luma   45.6  hf  47.88
+    d    1.82 m  luma   44.6  hf  46.55
+    d    1.55 m  luma   44.0  hf  47.78
+    d    1.32 m  luma   42.6  hf  44.44
+    d    1.12 m  luma   43.7  hf  42.87
+    d    0.95 m  luma   43.5  hf  44.05
+    d    0.81 m  luma   45.3  hf  49.09
+    d    0.69 m  luma   44.6  hf  53.39
+    d    0.58 m  luma   45.6  hf  54.20
+
+lh-door steps 26  max luma step  39.9 %  max HF ratio  2.46  HF drops 9  diff spike  2.16
+    d  100.00 m  luma  112.6  hf  33.61
+    d   85.00 m  luma  118.8  hf  36.64
+    d   72.25 m  luma  123.1  hf  41.40
+    d   61.41 m  luma  123.2  hf  36.66
+    d   52.20 m  luma  113.0  hf  35.34
+    d   44.37 m  luma  105.7  hf  41.68
+    d   37.71 m  luma   99.0  hf  31.78
+    d   32.06 m  luma   88.2  hf  34.30
+    d   27.25 m  luma   74.7  hf  36.65
+    d   23.16 m  luma   58.1  hf  24.68
+    d   19.69 m  luma   49.0  hf  20.66
+    d   16.73 m  luma   43.0  hf  18.26
+    d   14.22 m  luma   42.5  hf  13.18
+    d   12.09 m  luma   46.0  hf  14.67
+    d   10.28 m  luma   27.6  hf   5.96
+    d    8.74 m  luma   23.8  hf   4.78
+    d    7.43 m  luma   23.5  hf   3.90
+    d    6.31 m  luma   23.8  hf   2.67
+    d    5.36 m  luma   23.0  hf   2.56
+    d    4.56 m  luma   22.4  hf   2.52
+    d    3.88 m  luma   21.6  hf   2.63
+    d    3.29 m  luma   21.2  hf   3.35
+    d    2.80 m  luma   19.4  hf   2.81
+    d    2.38 m  luma   17.9  hf   2.48
+    d    2.02 m  luma   16.3  hf   2.41
+    d    1.72 m  luma   14.9  hf   2.70
+
+lh-shaft steps 33  max luma step   6.6 %  max HF ratio  2.17  HF drops 4  diff spike  1.91
+    d  100.00 m  luma  188.8  hf  16.45
+    d   85.00 m  luma  198.8  hf  16.50
+    d   72.25 m  luma  204.1  hf  14.78
+    d   61.41 m  luma  204.6  hf  14.38
+    d   52.20 m  luma  203.2  hf  14.54
+    d   44.37 m  luma  201.1  hf  15.41
+    d   37.71 m  luma  198.6  hf  15.01
+    d   32.06 m  luma  198.1  hf  11.94
+    d   27.25 m  luma  199.1  hf  11.02
+    d   23.16 m  luma  197.5  hf  12.01
+    d   19.69 m  luma  198.7  hf  10.27
+    d   16.73 m  luma  198.1  hf   8.79
+    d   14.22 m  luma  194.5  hf  10.52
+    d   12.09 m  luma  194.0  hf   9.31
+    d   10.28 m  luma  192.1  hf   8.71
+    d    8.74 m  luma  188.2  hf   9.58
+    d    7.43 m  luma  193.0  hf   5.92
+    d    6.31 m  luma  192.8  hf   6.90
+    d    5.36 m  luma  192.2  hf   8.74
+    d    4.56 m  luma  192.2  hf   8.63
+    d    3.88 m  luma  190.3  hf  11.25
+    d    3.29 m  luma  194.1  hf   6.69
+    d    2.80 m  luma  193.9  hf   7.19
+    d    2.38 m  luma  192.3  hf   6.97
+    d    2.02 m  luma  197.8  hf   6.80
+    d    1.72 m  luma  200.7  hf   7.13
+    d    1.46 m  luma  202.5  hf   7.60
+    d    1.24 m  luma  207.4  hf   9.44
+    d    1.06 m  luma  212.3  hf   4.97
+    d    0.90 m  luma  213.5  hf   6.79
+    d    0.76 m  luma  212.3  hf   8.48
+    d    0.65 m  luma  207.4  hf   7.33
+    d    0.55 m  luma  193.7  hf  15.92
+
+stone steps 27  max luma step  14.8 %  max HF ratio  2.19  HF drops 6  diff spike  4.00
+    d   40.00 m  luma   55.8  hf  14.45
+    d   34.00 m  luma   55.0  hf  15.15
+    d   28.90 m  luma   57.5  hf  15.47
+    d   24.57 m  luma   58.1  hf  16.36
+    d   20.88 m  luma   60.8  hf  16.20
+    d   17.75 m  luma   60.8  hf  17.46
+    d   15.09 m  luma   65.7  hf  17.86
+    d   12.82 m  luma   69.9  hf  11.11
+    d   10.90 m  luma   59.5  hf   6.29
+    d    9.26 m  luma   60.4  hf   7.55
+    d    7.87 m  luma   62.5  hf   8.62
+    d    6.69 m  luma   64.8  hf   9.41
+    d    5.69 m  luma   67.5  hf   8.66
+    d    4.84 m  luma   68.8  hf   9.11
+    d    4.11 m  luma   69.2  hf   7.33
+    d    3.49 m  luma   67.0  hf   3.35
+    d    2.97 m  luma   64.9  hf   3.59
+    d    2.52 m  luma   62.8  hf   3.73
+    d    2.15 m  luma   60.0  hf   3.60
+    d    1.82 m  luma   56.0  hf   2.02
+    d    1.55 m  luma   54.4  hf   1.34
+    d    1.32 m  luma   54.0  hf   1.23
+    d    1.12 m  luma   53.7  hf   1.17
+    d    0.95 m  luma   53.4  hf   1.14
+    d    0.81 m  luma   53.2  hf   1.11
+    d    0.69 m  luma   52.9  hf   1.14
+    d    0.58 m  luma   52.7  hf   1.07
+
+path steps 30  max luma step   7.6 %  max HF ratio  1.40  HF drops 6  diff spike  3.02
+    d   60.00 m  luma   84.9  hf  20.05
+    d   51.00 m  luma   83.0  hf  25.63
+    d   43.35 m  luma   82.2  hf  31.32
+    d   36.85 m  luma   80.9  hf  29.16
+    d   31.32 m  luma   78.9  hf  27.58
+    d   26.62 m  luma   76.9  hf  37.69
+    d   22.63 m  luma   74.2  hf  41.13
+    d   19.23 m  luma   74.9  hf  57.49
+    d   16.35 m  luma   76.8  hf  70.61
+    d   13.90 m  luma   77.1  hf  79.03
+    d   11.81 m  luma   77.1  hf  72.50
+    d   10.04 m  luma   75.5  hf  68.50
+    d    8.53 m  luma   71.7  hf  60.44
+    d    7.25 m  luma   66.3  hf  54.63
+    d    6.17 m  luma   66.0  hf  44.89
+    d    5.24 m  luma   65.8  hf  37.52
+    d    4.46 m  luma   64.4  hf  30.94
+    d    3.79 m  luma   62.4  hf  26.28
+    d    3.22 m  luma   62.3  hf  24.07
+    d    2.74 m  luma   61.6  hf  22.54
+    d    2.33 m  luma   59.4  hf  22.40
+    d    1.98 m  luma   57.2  hf  18.37
+    d    1.68 m  luma   55.4  hf  16.90
+    d    1.43 m  luma   52.8  hf  15.64
+    d    1.21 m  luma   51.4  hf  14.12
+    d    1.03 m  luma   49.8  hf  11.69
+    d    0.88 m  luma   49.3  hf  11.36
+    d    0.75 m  luma   49.0  hf  11.39
+    d    0.63 m  luma   48.3  hf  10.85
+    d    0.54 m  luma   47.6  hf  10.01
+
+conifer steps 33  max luma step  33.2 %  max HF ratio  1.85  HF drops 5  diff spike  4.40
+    d  100.00 m  luma   60.8  hf   6.16
+    d   85.00 m  luma   57.1  hf   5.16
+    d   72.25 m  luma   53.4  hf   4.08
+    d   61.41 m  luma   50.3  hf   3.98
+    d   52.20 m  luma   47.9  hf   4.43
+    d   44.37 m  luma   45.3  hf   8.17
+    d   37.71 m  luma   43.1  hf   8.57
+    d   32.06 m  luma   40.9  hf   9.22
+    d   27.25 m  luma   38.5  hf   9.53
+    d   23.16 m  luma   37.2  hf  11.40
+    d   19.69 m  luma   35.6  hf  12.77
+    d   16.73 m  luma   34.4  hf  14.23
+    d   14.22 m  luma   34.3  hf  19.37
+    d   12.09 m  luma   35.3  hf  21.65
+    d   10.28 m  luma   45.0  hf  27.83
+    d    8.74 m  luma   45.6  hf  31.75
+    d    7.43 m  luma   45.7  hf  27.72
+    d    6.31 m  luma   58.3  hf  23.92
+    d    5.36 m  luma   47.7  hf  14.28
+    d    4.56 m  luma   50.9  hf  12.18
+    d    3.88 m  luma   50.5  hf  13.33
+    d    3.29 m  luma   33.7  hf   8.83
+    d    2.80 m  luma   30.3  hf   7.18
+    d    2.38 m  luma   30.1  hf   6.60
+    d    2.02 m  luma   30.5  hf   6.12
+    d    1.72 m  luma   31.1  hf   5.83
+    d    1.46 m  luma   31.2  hf   5.71
+    d    1.24 m  luma   31.4  hf   5.78
+    d    1.06 m  luma   31.7  hf   6.14
+    d    0.90 m  luma   32.2  hf   6.50
+    d    0.76 m  luma   31.8  hf   7.24
+    d    0.65 m  luma   30.6  hf   7.91
+    d    0.55 m  luma   29.0  hf   8.09
+
+conifer-foliage steps 12  max luma step  12.4 %  max HF ratio  2.45  HF drops 2  diff spike  1.35
+    d   30.00 m  luma   37.1  hf  11.99
+    d   25.50 m  luma   36.1  hf  12.66
+    d   21.68 m  luma   36.0  hf  15.93
+    d   18.42 m  luma   36.7  hf  16.70
+    d   15.66 m  luma   36.8  hf  19.27
+    d   13.31 m  luma   34.3  hf  38.47
+    d   11.31 m  luma   30.2  hf  15.73
+    d    9.62 m  luma   26.6  hf  14.25
+    d    8.17 m  luma   23.3  hf  11.97
+    d    6.95 m  luma   21.8  hf  10.34
+    d    5.91 m  luma   20.9  hf  15.21
+    d    5.02 m  luma   21.5  hf  17.53
+
+meadow steps 36  max luma step   8.1 %  max HF ratio  1.42  HF drops 5  diff spike  2.30
+    d  150.00 m  luma   73.5  hf   2.33
+    d  127.50 m  luma   67.6  hf   1.96
+    d  108.38 m  luma   62.5  hf   1.97
+    d   92.12 m  luma   57.9  hf   1.94
+    d   78.30 m  luma   54.2  hf   1.83
+    d   66.56 m  luma   51.0  hf   1.51
+    d   56.57 m  luma   48.2  hf   1.28
+    d   48.09 m  luma   45.8  hf   1.19
+    d   40.87 m  luma   43.4  hf   1.10
+    d   34.74 m  luma   41.0  hf   1.20
+    d   29.53 m  luma   39.2  hf   1.67
+    d   25.10 m  luma   37.6  hf   2.18
+    d   21.34 m  luma   36.2  hf   2.62
+    d   18.14 m  luma   35.2  hf   2.22
+    d   15.42 m  luma   34.1  hf   1.78
+    d   13.10 m  luma   33.3  hf   1.84
+    d   11.14 m  luma   32.6  hf   1.91
+    d    9.47 m  luma   31.9  hf   1.81
+    d    8.05 m  luma   31.5  hf   1.92
+    d    6.84 m  luma   31.0  hf   2.09
+    d    5.81 m  luma   30.7  hf   2.04
+    d    4.94 m  luma   30.6  hf   2.16
+    d    4.20 m  luma   30.6  hf   2.50
+    d    3.57 m  luma   30.9  hf   3.56
+    d    3.03 m  luma   31.4  hf   4.32
+    d    2.58 m  luma   31.6  hf   5.52
+    d    2.19 m  luma   31.4  hf   4.99
+    d    1.86 m  luma   31.6  hf   5.60
+    d    1.58 m  luma   31.6  hf   6.41
+    d    1.35 m  luma   31.8  hf   8.05
+    d    1.14 m  luma   31.9  hf   9.12
+    d    0.97 m  luma   31.6  hf   9.75
+    d    0.83 m  luma   31.8  hf  10.86
+    d    0.70 m  luma   31.6  hf  11.15
+    d    0.60 m  luma   31.9  hf  12.14
+    d    0.51 m  luma   31.8  hf  12.77
+
+sand steps 36  max luma step   3.8 %  max HF ratio  1.43  HF drops 3  diff spike  2.49
+    d  150.00 m  luma  120.5  hf  12.93
+    d  127.50 m  luma  117.9  hf  12.58
+    d  108.38 m  luma  114.6  hf  11.57
+    d   92.12 m  luma  110.9  hf  11.71
+    d   78.30 m  luma  107.6  hf  12.75
+    d   66.56 m  luma  104.1  hf  13.16
+    d   56.57 m  luma  101.1  hf  14.27
+    d   48.09 m  luma   97.5  hf  14.32
+    d   40.87 m  luma   94.0  hf  14.15
+    d   34.74 m  luma   90.4  hf  13.73
+    d   29.53 m  luma   87.1  hf  12.81
+    d   25.10 m  luma   84.5  hf  11.73
+    d   21.34 m  luma   82.8  hf  10.45
+    d   18.14 m  luma   80.7  hf   8.87
+    d   15.42 m  luma   79.0  hf   7.27
+    d   13.10 m  luma   77.3  hf   6.09
+    d   11.14 m  luma   76.7  hf   5.56
+    d    9.47 m  luma   75.7  hf   6.15
+    d    8.05 m  luma   75.6  hf   7.10
+    d    6.84 m  luma   75.9  hf   8.47
+    d    5.81 m  luma   77.6  hf  11.80
+    d    4.94 m  luma   79.4  hf  16.89
+    d    4.20 m  luma   81.4  hf  19.21
+    d    3.57 m  luma   82.4  hf  21.21
+    d    3.03 m  luma   81.4  hf  24.53
+    d    2.58 m  luma   79.2  hf  31.60
+    d    2.19 m  luma   77.7  hf  40.32
+    d    1.86 m  luma   76.3  hf  45.77
+    d    1.58 m  luma   77.4  hf  46.83
+    d    1.35 m  luma   77.1  hf  48.30
+    d    1.14 m  luma   77.8  hf  56.72
+    d    0.97 m  luma   78.3  hf  61.37
+    d    0.83 m  luma   78.7  hf  62.87
+    d    0.70 m  luma   78.4  hf  69.28
+    d    0.60 m  luma   78.6  hf  71.59
+    d    0.51 m  luma   79.6  hf  75.54
+
+crystal-tree steps 33  max luma step  14.8 %  max HF ratio  1.62  HF drops 6  diff spike  1.63
+    d  100.00 m  luma  115.4  hf  29.29
+    d   85.00 m  luma  120.5  hf  29.51
+    d   72.25 m  luma  124.2  hf  29.77
+    d   61.41 m  luma  127.5  hf  28.34
+    d   52.20 m  luma  132.9  hf  32.21
+    d   44.37 m  luma  147.5  hf  33.47
+    d   37.71 m  luma  157.4  hf  32.60
+    d   32.06 m  luma  167.0  hf  30.67
+    d   27.25 m  luma  175.3  hf  25.67
+    d   23.16 m  luma  176.6  hf  21.54
+    d   19.69 m  luma  174.0  hf  19.86
+    d   16.73 m  luma  171.9  hf  18.05
+    d   14.22 m  luma  172.0  hf  16.98
+    d   12.09 m  luma  174.6  hf  17.10
+    d   10.28 m  luma  179.2  hf  15.44
+    d    8.74 m  luma  180.4  hf  13.20
+    d    7.43 m  luma  178.9  hf  12.56
+    d    6.31 m  luma  179.2  hf  12.50
+    d    5.36 m  luma  174.7  hf  12.37
+    d    4.56 m  luma  171.3  hf  10.82
+    d    3.88 m  luma  180.0  hf   6.68
+    d    3.29 m  luma  153.3  hf   6.84
+    d    2.80 m  luma  145.1  hf   4.50
+    d    2.38 m  luma  150.0  hf   4.24
+    d    2.02 m  luma  155.1  hf   5.23
+    d    1.72 m  luma  157.8  hf   5.18
+    d    1.46 m  luma  162.6  hf   5.61
+    d    1.24 m  luma  170.2  hf   6.06
+    d    1.06 m  luma  178.2  hf   7.81
+    d    0.90 m  luma  183.7  hf   8.50
+    d    0.76 m  luma  186.2  hf   8.60
+    d    0.65 m  luma  187.6  hf   7.31
+    d    0.55 m  luma  188.6  hf   6.18
+
+gw-grass steps 33  max luma step   2.4 %  max HF ratio  1.61  HF drops 0  diff spike  3.66
+    d  100.00 m  luma   77.7  hf   1.83
+    d   85.00 m  luma   76.2  hf   1.68
+    d   72.25 m  luma   75.1  hf   1.58
+    d   61.41 m  luma   74.0  hf   1.53
+    d   52.20 m  luma   73.1  hf   1.46
+    d   44.37 m  luma   72.1  hf   1.44
+    d   37.71 m  luma   70.7  hf   1.71
+    d   32.06 m  luma   69.0  hf   2.10
+    d   27.25 m  luma   68.0  hf   2.55
+    d   23.16 m  luma   67.6  hf   2.50
+    d   19.69 m  luma   67.5  hf   2.73
+    d   16.73 m  luma   67.4  hf   2.58
+    d   14.22 m  luma   67.3  hf   2.73
+    d   12.09 m  luma   67.3  hf   2.64
+    d   10.28 m  luma   67.1  hf   2.37
+    d    8.74 m  luma   67.3  hf   2.31
+    d    7.43 m  luma   67.3  hf   2.24
+    d    6.31 m  luma   67.1  hf   2.26
+    d    5.36 m  luma   66.9  hf   2.37
+    d    4.56 m  luma   66.7  hf   2.85
+    d    3.88 m  luma   66.5  hf   3.60
+    d    3.29 m  luma   66.2  hf   5.81
+    d    2.80 m  luma   65.6  hf   8.07
+    d    2.38 m  luma   65.4  hf  10.41
+    d    2.02 m  luma   65.4  hf  10.83
+    d    1.72 m  luma   65.5  hf  10.38
+    d    1.46 m  luma   65.3  hf  10.02
+    d    1.24 m  luma   65.3  hf  10.92
+    d    1.06 m  luma   65.2  hf  12.72
+    d    0.90 m  luma   65.1  hf  15.59
+    d    0.76 m  luma   65.1  hf  17.37
+    d    0.65 m  luma   64.8  hf  19.31
+    d    0.55 m  luma   64.9  hf  20.45
+
+## --audit-slopes
+grade of the straight lantern path, per 10 m (rise/run; 0.47 = 25 degrees, 0.84 = 40 degrees):
+  at     0 m ( 150.0,  172.0): +0.01  ( 0.5 deg)
+  at    10 m ( 144.9,  163.4): +0.03  ( 1.8 deg)
+  at    20 m ( 139.8,  154.8): +0.03  ( 1.8 deg)
+  at    30 m ( 134.7,  146.2): +0.03  ( 1.8 deg)
+  at    40 m ( 129.6,  137.6): +0.03  ( 1.8 deg)
+  at    50 m ( 124.5,  129.0): +0.02  ( 1.0 deg)
+  at    63 m ( 118.0,  118.0): +0.11  ( 6.2 deg)
+  at    73 m ( 110.2,  111.7): +0.36  (19.8 deg)
+  at    83 m ( 102.4,  105.4): +0.36  (19.8 deg)
+  at    93 m (  94.7,   99.1): +0.36  (19.8 deg)
+  at   103 m (  86.9,   92.9): +0.36  (19.8 deg)
+  at   113 m (  79.1,   86.6): +0.36  (19.8 deg)
+  at   123 m (  71.3,   80.3): +0.36  (19.8 deg)
+  at   133 m (  63.5,   74.0): +0.36  (19.8 deg)
+  at   143 m (  55.8,   67.7): +0.36  (19.8 deg)
+  at   153 m (  48.0,   61.4): +0.12  ( 6.7 deg)
+  at   163 m (  40.0,   55.0): +0.13  ( 7.6 deg)
+  at   173 m (  34.8,   46.5): +0.45  (24.0 deg)
+  at   183 m (  29.5,   38.0): +0.45  (24.0 deg)
+  at   193 m (  24.3,   29.5): +0.45  (24.0 deg)
+  at   203 m (  19.0,   20.9): +0.45  (24.0 deg)
+  at   213 m (  13.8,   12.4): +0.45  (24.0 deg)
+  at   223 m (   8.5,    3.9): +0.45  (24.0 deg)
+  at   233 m (   3.3,   -4.6): +0.39  (21.3 deg)
+  at   249 m (  -5.0,  -18.0): +0.02  ( 1.4 deg)
+  at   259 m ( -11.4,  -25.7): +0.08  ( 4.6 deg)
+  at   269 m ( -17.8,  -33.4): +0.08  ( 4.6 deg)
+  at   288 m ( -30.0,  -48.0): -0.12  (-7.0 deg)
+  at   298 m ( -30.3,  -58.0): -0.41  (-22.2 deg)
+  at   308 m ( -30.6,  -68.0): -0.41  (-22.2 deg)
+  at   318 m ( -30.8,  -78.0): -0.41  (-22.2 deg)
+  at   328 m ( -31.1,  -88.0): -0.41  (-22.2 deg)
+  at   338 m ( -31.4,  -98.0): -0.41  (-22.2 deg)
+  at   348 m ( -31.7, -108.0): -0.41  (-22.2 deg)
+  at   358 m ( -32.0, -118.0): -0.41  (-22.2 deg)
+  at   368 m ( -32.3, -128.0): -0.41  (-22.2 deg)
+  at   378 m ( -32.5, -138.0): -0.41  (-22.2 deg)
+  at   388 m ( -32.8, -148.0): -0.41  (-22.2 deg)
+  at   398 m ( -33.1, -158.0): -0.41  (-22.2 deg)
+## --audit-props (summary)
+# Prop coverage audit
+
+Generated by `Lanternwright --audit-props docs/PROPS.md` (F01 W3.1). `flat` = share of vertices in the constant-colour `standard` material. A **large flat** prop is a single object (not a merged batch) whose biggest face is over 0.30 m^2 (0.5 % of a 1600x900 frame at 5 m) and is drawn flat: treat each as a defect.
+
+## Large flat props: 0
+
+
+## Merged batches drawn mostly flat: 59

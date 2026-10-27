@@ -88,6 +88,8 @@ enum Shimmer {
         desc.usage = [.renderTarget, .shaderRead]; desc.storageMode = .shared
         guard let target = renderer.device.makeTexture(descriptor: desc) else { throw Screenshot.Failure.texture }
         renderer.fixedTime = 12
+        let savedAuto = renderer.autoExposure; renderer.autoExposure = false          // G10.0.2: the asynchronous eye-adaptation readback made repeat runs differ
+        defer { renderer.autoExposure = savedAuto }
         let base = Screenshot.viewCamera(scene.view, renderer: renderer)
         let saved = renderer.taaEnabled
         func sequence(taa: Bool) throws -> Run {
