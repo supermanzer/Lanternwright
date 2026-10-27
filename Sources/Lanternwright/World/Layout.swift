@@ -63,3 +63,86 @@ enum Layout {
     static let isletPeak: Float = 7
     static let seaFloor: Float = -24
 }
+
+// MARK: Navigation (M10.3, builder B)
+// The soft corridors each world confines the player to (see Game/Navigation.swift for the model and M10.4 for what happens at the edge). The routes are the
+// worlds' own paths: Varrow's graded lantern route (the same polyline the terrain cuts its bench along, so the trail follows the path weight) and the Glass Wood's
+// walking route, plus the dock, the causeway, and the pool's rim. Every number below is built from the landmark constants above or `GlassLayout`'s; there are no new
+// positions here. Widths: trails are 9 to 11 m wide, plazas 20 m round the landmarks (the plan asks for corridors that never feel like rails).
+extension Layout {
+    enum Navigation {
+        static let trailHalfWidth: Float = 5.5
+        private static func xz(_ p: SIMD3<Float>) -> SIMD2<Float> { SIMD2(p.x, p.z) }
+
+        static func network(for kind: WorldKind) -> NavNetwork {
+            switch kind {
+            case .varrow: return varrow
+            case .glassWood: return glassWood
+            }
+        }
+
+        /// Varrow: dock -> beach -> shore path -> tide stone -> ridge -> wind stone -> summit route -> lighthouse -> north descent -> causeway -> islet.
+        static let varrow: NavNetwork = {
+            let r = Layout.route.map(xz)                       // dockShore, tide, wind, summit, lighthouse, causewayStart
+            let w = trailHalfWidth
+            let trails = [
+                NavNetwork.Trail("dock", [xz(dockEnd), xz(dockShore)], halfWidth: 4.5),
+                NavNetwork.Trail("shore path", [r[0], r[1]], halfWidth: w),
+                NavNetwork.Trail("ridge path", [r[1], r[2]], halfWidth: w),
+                NavNetwork.Trail("summit route", [r[2], r[3], r[4]], halfWidth: w),
+                NavNetwork.Trail("north descent", [r[4], r[5]], halfWidth: w),
+                NavNetwork.Trail("causeway", [r[5], xz(isletCenter)], halfWidth: 5),
+            ]
+            let plazas = [
+                NavNetwork.Plaza(name: "beach landing", center: r[0], radius: 14),
+                NavNetwork.Plaza(name: "tide stone plaza", center: r[1], radius: 20),
+                NavNetwork.Plaza(name: "wind stone plaza", center: r[2], radius: 20),
+                NavNetwork.Plaza(name: "summit stone plaza", center: r[3], radius: 20),
+                NavNetwork.Plaza(name: "lighthouse plaza", center: r[4], radius: 26),
+                NavNetwork.Plaza(name: "causeway landing", center: r[5], radius: 16),
+                NavNetwork.Plaza(name: "lens islet", center: xz(isletCenter), radius: 36),
+            ]
+            let vantages = [
+                NavNetwork.Vantage(name: "lighthouse from the dock", position: xz(dockEnd), target: lighthouse + SIMD3(0, 24, 0), tolerance: 4),
+                NavNetwork.Vantage(name: "the lens from the causeway", position: xz(causewayStart), target: SIMD3(isletCenter.x - 1.2, isletCenter.y + 2.3, isletCenter.z), tolerance: 4),   // aimed 1.2 m west of the ring's centre: a trunk 7 m before the lens stands exactly on the line from the causeway (found by --nav-audit)
+                // The stones pilot (M10.5; see docs/plans/M10-puzzle-notes.md). The hill is convex, so only the DOWNHILL direction shows more than one stone:
+                // the climb station stands 14 m before the tide stone and frames the stone, the lantern path and the lighthouse above it; the descent station stands 10 m
+                // past the summit stone and frames the wind stone and, beyond it on the beach, the tide stone (the target is halfway between their capstones).
+                NavNetwork.Vantage(name: "the climb: the tide stone and the way up", position: xz(tideStone) - normalize(xz(tideStone) - xz(dockShore)) * 14, target: lighthouse + SIMD3(0, 24, 0), tolerance: 4),
+                NavNetwork.Vantage(name: "the descent: the wind and tide stones, then the sea", position: xz(summitStone) + normalize(xz(windStone) - xz(summitStone)) * 10,
+                                   target: (windStone + tideStone) / 2 + SIMD3(0, 3, 0), tolerance: 4),
+            ]
+            // The player arrives from the Glass Wood beside the lens (Game.travel).
+            return NavNetwork(trails: trails, plazas: plazas, vantages: vantages, spawn: xz(dockEnd), arrivals: [xz(isletCenter) + SIMD2(0, 5)])
+        }()
+
+        /// The Glass Wood: arrival -> western path -> mirror court -> junction -> chime ring, junction -> altar path -> altar, and a rim path round the pool's north bank.
+        static let glassWood: NavNetwork = {
+            let p = GlassLayout.path.map(xz)           // arrival, ., ., ., court, ., junction, ., ring, ., junction, altar
+            let w = trailHalfWidth
+            // The rim path: an arc 4 m beyond the pool's radius (the lip of its bank, which its 9 m width covers), round the pool's north side, from the mirror court to the chime ring.
+            let pool = GlassTerrain.pool, rimR = GlassTerrain.poolRadius + 4
+            let arc = stride(from: Float.pi, through: 2 * .pi + 0.001, by: .pi / 6).map { pool + SIMD2(cos($0), sin($0)) * rimR }
+            let rim = [xz(GlassLayout.mirrorCourt)] + arc + [xz(GlassLayout.chimeRing)]
+            let trails = [
+                NavNetwork.Trail("western path", Array(p[0...6]), halfWidth: w),
+                NavNetwork.Trail("chime path", Array(p[6...8]), halfWidth: w),
+                NavNetwork.Trail("altar path", [p[10], p[11]], halfWidth: w),
+                NavNetwork.Trail("pool rim path", rim, halfWidth: 4.5),
+            ]
+            let plazas = [
+                NavNetwork.Plaza(name: "arrival pad", center: p[0], radius: 14),
+                NavNetwork.Plaza(name: "mirror court", center: xz(GlassLayout.mirrorCourt), radius: 26),
+                NavNetwork.Plaza(name: "junction", center: xz(GlassLayout.junction), radius: 12),
+                NavNetwork.Plaza(name: "chime ring", center: xz(GlassLayout.chimeRing), radius: 22),
+                NavNetwork.Plaza(name: "altar", center: xz(GlassLayout.altar), radius: 20),
+            ]
+            let vantages = [
+                NavNetwork.Vantage(name: "the pool from its rim", position: pool + SIMD2(0, -(GlassTerrain.poolRadius + 2)), target: SIMD3(pool.x, 0, pool.y), tolerance: 4),   // the dome hides the pool from the altar path (checked): from the rim you look down into the bowl
+                NavNetwork.Vantage(name: "the court from its approach", position: p[3], target: GlassLayout.mirrorCourt + SIMD3(0, 1.5, 0), tolerance: 4),
+                NavNetwork.Vantage(name: "the altar from the junction", position: xz(GlassLayout.junction) + SIMD2(0, -10), target: GlassLayout.altar + SIMD3(0, 2, 0), tolerance: 4),
+            ]
+            return NavNetwork(trails: trails, plazas: plazas, vantages: vantages, spawn: xz(GlassLayout.arrival), arrivals: [xz(GlassLayout.arrival)])
+        }()
+    }
+}

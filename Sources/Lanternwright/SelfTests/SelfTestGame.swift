@@ -164,7 +164,7 @@ extension SelfTestRunner {
                 game.player = Player(position: SIMD3(plan.start.x, 1.5, plan.start.y), yaw: atan2(plan.dir.x, -plan.dir.y))   // player yaw: forward = (sin, -cos)
                 game.player.position.y = game.scene.groundHeight(x: plan.start.x, z: plan.start.y)
                 var input = InputState(); input.move = SIMD2(0, 1)
-                game.simulate(seconds: 30, input: input)
+                game.simulate(seconds: 45, input: input)          // M10.2: was 30 s at 3.2 m/s; the same walk takes about 42 s at 2.3 m/s
                 return distance(SIMD2(game.player.position.x, game.player.position.z), SIMD2(Layout.isletCenter.x, Layout.isletCenter.z))
             }
             let before = walkNorth(freshGame()), after = walkNorth(g)

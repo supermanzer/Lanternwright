@@ -567,8 +567,8 @@ extension SelfTestRunner {
             setenv("LANTERNWRIGHT_SAVE_DIR", tmp, 1)
             defer { try? FileManager.default.removeItem(atPath: tmp); unsetenv("LANTERNWRIGHT_SAVE_DIR") }
             let h = Game(scenes: scenes); h.puzzle.forceSolved(); h.travel(to: .glassWood)
-            h.player = Player(position: GlassLayout.point(-20, 120), yaw: 0.7)
-            h.player.position.y = h.scene.groundHeight(x: -20, z: 120)
+            h.player = Player(position: GlassLayout.point(-20, 102), yaw: 0.7)          // M10.4: on the western path (a spot off the corridors would be moved onto them)
+            h.player.position.y = h.scene.groundHeight(x: -20, z: 102)
             try? SaveStore.save(h.makeSave())
             let k = Game(scenes: scenes)
             if let save = SaveStore.load() { k.restore(save) }
@@ -942,15 +942,15 @@ extension SelfTestRunner {
             around.position.y = ground(around)
             for _ in 0..<(6 * 120) { around.step(dt: dt, input: InputState(move: SIMD2(0, 1)), scene: scene) }
             check(distance(flat(around.position), lh) > Lighthouse.colliderRadius + Player.radius - 0.1 && around.position.y < Layout.lighthouse.y + 0.65, "from the east the plinth is climbed to its second tread and the wall stops you, without clipping into it")
-            // 5. Speeds: walking settles at 3.2 m/s, running at 6.5 m/s.
+            // 5. Speeds: walking settles at 2.3 m/s, running at 3.6 m/s (M10.2).
             p = Player(position: SIMD3(40, 34, 55), yaw: 0)
             for _ in 0..<(3 * 120) { p.step(dt: dt, input: InputState(move: SIMD2(1, 0)), scene: scene) }
             let walk = p.speed
             var r = InputState(); r.move = SIMD2(1, 0); r.run = true
             for _ in 0..<(3 * 120) { p.step(dt: dt, input: r, scene: scene) }
-            check(abs(walk - 3.2) < 0.4 && abs(p.speed - 6.5) < 0.8, "walk \(String(format: "%.2f", walk)) m/s, run \(String(format: "%.2f", p.speed)) m/s (on a slope)")
+            check(abs(walk - 2.3) < 0.3 && abs(p.speed - 3.6) < 0.5, "walk \(String(format: "%.2f", walk)) m/s, run \(String(format: "%.2f", p.speed)) m/s (on a slope)")
 
-            // 5b. Gait: walking is a natural ~2.2 steps/s; running lengthens the stride so cadence rises only ~1.4x, not 2x.
+            // 5b. Gait: walking is an unhurried ~1.9 steps/s; running lengthens the stride (1.25x) and quickens it (1.25x) rather than only stepping faster.
             func cadence(run: Bool) -> Float {
                 let q = Player(position: SIMD3(Layout.dockShore.x, Layout.dockShore.y, Layout.dockShore.z), yaw: 3.0)
                 var pl = q
@@ -968,8 +968,9 @@ extension SelfTestRunner {
             }
             let walkCadence = cadence(run: false), runCadence = cadence(run: true)
             check(walkCadence > 1.8 && walkCadence < 2.6, "walking cadence is natural (\(String(format: "%.2f", walkCadence)) steps/s)")
-            check(runCadence / walkCadence > 1.2 && runCadence / walkCadence < 1.6, "running is a different gait, not 2x walking (\(String(format: "%.2f", runCadence)) vs \(String(format: "%.2f", walkCadence)) steps/s = \(String(format: "%.2f", runCadence / walkCadence))x)")
-            check(Player.stepLength(speed: Player.runSpeed) > 1.4 * Player.stepLength(speed: Player.walkSpeed), "the run stride is much longer than the walk stride")
+            check(runCadence / walkCadence > 1.1 && runCadence / walkCadence < 1.6,      // M10.2: the run/walk speed ratio fell from 2.0 to 1.57, so the floor fell from 1.2 to 1.1 (stride and cadence each about 1.25x nominal)
+                   "running is a different gait, not 2x walking (\(String(format: "%.2f", runCadence)) vs \(String(format: "%.2f", walkCadence)) steps/s = \(String(format: "%.2f", runCadence / walkCadence))x)")
+            check(Player.stepLength(speed: Player.runSpeed) > 1.2 * Player.stepLength(speed: Player.walkSpeed), "the run stride is longer than the walk stride")
 
             // 6. Frame-rate independence: the same 4 s of "walk forward" at 30, 60 and 144 fps covers the same ground.
             var distances: [Float] = []

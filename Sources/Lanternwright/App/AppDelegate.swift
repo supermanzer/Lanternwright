@@ -146,7 +146,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, MTKViewDelegate {
         let s = s.clamped()
         settings = s
         s.save()
-        view.input.sensitivity = s.sensitivity
+        view.input.sensitivity = s.effectiveSensitivity
+        LookFilter.calm = s.calmCamera
+        Player.paceScale = s.pace
         view.input.invertY = s.invertY
         Player.slipEnabled = s.slipOnSteep
         renderer.taaEnabled = s.taa

@@ -4,8 +4,16 @@ import simd
 struct Player {
     static let eyeHeight: Float = 1.7
     static let radius: Float = 0.35
-    static let walkSpeed: Float = 3.2
-    static let runSpeed: Float = 6.5
+    /// M10.2: a stroll, not a march (the island is a few hundred metres across: a minute or two between landmarks), and a brisk run, not a sprint. The setting `pace` (0.7...1.3) scales both.
+    static let walkSpeed: Float = 2.3
+    static let runSpeed: Float = 3.6
+    /// Velocity time constants (s): how long the player takes to reach 63 % of a new wish velocity (ease-in) and to lose 63 % of it when the keys are released (ease-out).
+    static let accelTau: Float = 0.12
+    static let decelTau: Float = 0.16
+    /// The player's `pace` setting, applied by the app (the same pattern as `slipEnabled`).
+    nonisolated(unsafe) static var paceScale: Float = 1
+    static var scaledWalkSpeed: Float { walkSpeed * paceScale }
+    static var scaledRunSpeed: Float { runSpeed * paceScale }
     /// (`maxSlope` below: the steepest walkable slope, rise/run; 0.84 is about 40 degrees.)
     /// The highest single step up the player will take: 0.5 m (a knee-high kerb, a stair; the lighthouse door steps rise 0.45 at their highest edge). Higher is refused as a wall.
     /// F03 M1 (#35) found the limit was NOT the fault (it was already above the plan's 0.35-0.4 m): the fault was the slope rule below, which refused any rise over 2 cm onto
@@ -27,6 +35,20 @@ struct Player {
         if slope >= 0 { return max(minPace, (1 - 0.45 * min(slope / 0.8, 1)) * (1 - 0.45 * smoothstep(0.47, 0.78, slope))) }
         return 1 + 0.08 * min(-slope / 0.5, 1)
     }
+
+    // M10.4: soft confinement to the world's navigation corridors (Game/Navigation.swift, authored in Layout.Navigation).
+    /// Beyond a corridor's edge there is a margin of this many metres: it slows the way out, steers you back, and its far side is a hard limit.
+    static let marginWidth: Float = 4
+    /// At the far side of the margin the OUTWARD part of your motion is down to 25 % (a factor of `1 - marginSlow`); walking along the edge or back in is not slowed.
+    static let marginSlow: Float = 0.75
+    /// While you are moving in the margin you are also steered back toward the trail, up to this fast (m/s), in proportion to how deep in you are.
+    static let driftSpeed: Float = 0.8
+    /// A player further than this beyond the margin got there some other way (a teleport, a load, a world change): they are moved to the nearest connected inside point.
+    static let strandedSlack: Float = 0.5
+    /// Off for tools and free roam (M10.7 turns this into the Guided / Loose / Free setting).
+    nonisolated(unsafe) static var confinementEnabled = true
+    /// 0 inside a corridor, rising smoothly to 1 at the hard limit: the ambient cue (a faint closing-in of the fog and the ambience, builder A's G10.3.9) reads this.
+    private(set) var marginPressure: Float = 0
 
     var position: SIMD3<Float>
     var yaw: Float
@@ -50,11 +72,16 @@ struct Player {
     /// Whether the latest footfall was a run step (a harder, shorter impact).
     private(set) var lastStepWasRun = false
 
-    /// Distance between footfalls. Walking at 3.2 m/s with 1.45 m steps is about 2.2 steps/s, a brisk natural
-    /// cadence; running lengthens the step (2.2 m at 6.5 m/s, about 3 steps/s) instead of just stepping twice as
-    /// fast, which is what makes a run read as a different gait and not as walking on fast-forward.
-    static func stepLength(speed: Float) -> Float { 1.45 + 0.75 * runFactor(speed: speed) }
-    static func runFactor(speed: Float) -> Float { min(max((speed - walkSpeed) / (runSpeed - walkSpeed), 0), 1) }
+    /// Distance between footfalls. Walking at 2.3 m/s with 1.2 m steps is about 1.9 steps/s, an unhurried natural
+    /// cadence; running lengthens the step (1.5 m at 3.6 m/s, about 2.4 steps/s) as well as quickening it,
+    /// which is what makes a run read as a different gait and not as walking on fast-forward. Both follow the `pace` setting.
+    static func stepLength(speed: Float) -> Float { 1.2 + 0.3 * runFactor(speed: speed) }
+    static func runFactor(speed: Float) -> Float { min(max((speed - scaledWalkSpeed) / (scaledRunSpeed - scaledWalkSpeed), 0), 1) }
+
+    /// Ankle-deep wading: in the shallows (ground below ~10 cm above the waterline) the water drags at you, down to 60 %.
+    static func wading(ground: Float) -> Float { 1 - 0.4 * smoothstep(0.1, -0.3, ground) }
+    /// The speed the player is aiming for (m/s): walk or run, times the `pace` setting, the slope factor (`paceFactor`) and wading.
+    static func wishSpeed(run: Bool, pace: Float, wading: Float) -> Float { (run ? runSpeed : walkSpeed) * paceScale * pace * wading }
 
     init(position: SIMD3<Float>, yaw: Float) {
         self.position = position
@@ -75,11 +102,24 @@ struct Player {
         return Camera(position: position + SIMD3(0, Player.eyeHeight + eyeLag + bob, 0) + right * sway, yaw: yaw, pitch: pitch)
     }
 
-    /// Mouse look is applied once per rendered frame, not per fixed step, so it feels immediate.
-    mutating func applyLook(_ look: SIMD2<Float>) {
+    /// M10.1: the view cannot tilt past 65 degrees, up or down (a calmer, more composed frame).
+    static let maxPitch: Float = 65 * .pi / 180
+    var lookFilter = LookFilter()
+    /// M10.5: the framing assist at vantage stations (Game/FramingAssist.swift).
+    var framing = FramingAssist()
+
+    /// Mouse look is applied once per rendered frame, not per fixed step, so it feels immediate. `dt` is the frame time: the look filter smooths and soft-limits by time, never by frame count.
+    /// With a network, a vantage station the player stands at may also draw the camera a few degrees toward its composed view (`FramingAssist`); `assistScale` is the look-closer factor.
+    mutating func applyLook(_ raw: SIMD2<Float>, dt: Float, nav: NavNetwork? = nil, assistScale: Float = 1) {
+        var look = lookFilter.filter(raw, dt: dt, calm: LookFilter.calm)
+        if let nav, !nav.vantages.isEmpty {
+            // The raw look decides whether the player is steering (it is the input, not the filter's smoothed tail).
+            look += framing.step(dt: dt, eye: position + SIMD3(0, Player.eyeHeight, 0), feet: SIMD2(position.x, position.z), yaw: yaw, pitch: pitch,
+                                 rawLook: raw, scale: assistScale, vantages: nav.vantages)
+        }
         yaw += look.x
         if yaw > .pi { yaw -= 2 * .pi } else if yaw < -.pi { yaw += 2 * .pi }
-        pitch = min(max(pitch + look.y, -1.45), 1.45)
+        pitch = min(max(pitch + look.y, -Player.maxPitch), Player.maxPitch)
     }
 
     /// Can the feet move from `from` to `to`? Rejects wading too deep, ledges that are too tall, slopes that are too steep.
@@ -96,16 +136,29 @@ struct Player {
 
     /// Advance one fixed step. Returns true on the tick a foot lands (for footstep sounds).
     @discardableResult
-    mutating func step(dt: Float, input: InputState, scene: Scene) -> Bool {
+    mutating func step(dt: Float, input: InputState, scene: Scene, nav: NavNetwork? = nil) -> Bool {
+        // M10.4: if the feet stand beyond the margin (a teleport, a load, a world change) they are put on the nearest connected inside point. The vertical
+        // difference goes through the eye spring below, so the camera settles instead of popping.
+        var sdHere: Float = -1
+        if let nav {
+            let feet = SIMD2(position.x, position.z)
+            sdHere = nav.signedDistance(feet)
+            if sdHere > Player.marginWidth + Player.strandedSlack {
+                let landing = nav.nearestReachable(feet)
+                position.x = landing.x; position.z = landing.y
+                velocity = .zero
+                sdHere = nav.signedDistance(landing)
+            }
+            marginPressure = smoothstep(0, Player.marginWidth, max(sdHere, 0))
+        } else { marginPressure = 0 }
         // Wish velocity in world space. Yaw 0 faces north (-Z); positive yaw turns toward +X.
         let forward = SIMD2(sin(yaw), -cos(yaw))
         let right = SIMD2(cos(yaw), sin(yaw))
         var wishDir = right * input.move.x + forward * input.move.y
         // Pace follows the ground ahead of the feet (1 m look-ahead along the direction of travel).
         var pace: Float = 1
-        // Ankle-deep wading: in the shallows (ground below ~10 cm above the waterline) the water drags at you, down to 60 %.
         let here = scene.groundHeight(x: position.x, z: position.z)
-        let wading = 1 - 0.4 * smoothstep(0.1, -0.3, here)
+        let wading = Player.wading(ground: here)
         if length(wishDir) > 0.01 {
             wishDir = normalize(wishDir) * min(length(wishDir), 1)
             let dir = normalize(wishDir)
@@ -113,10 +166,18 @@ struct Player {
             let g1 = scene.groundHeight(x: position.x + dir.x, z: position.z + dir.y)
             if g0 > Player.minGround || g1 > Player.minGround { pace = Player.paceFactor(slope: g1 - g0) }
         }
-        let wishSpeed = (input.run ? Player.runSpeed : Player.walkSpeed) * pace * wading
-        let wish = wishDir * wishSpeed
-        // Exponential approach to the wish velocity: a soft start/stop (time constant ~ 0.1 s).
-        velocity += (wish - velocity) * min(1, dt * 10)
+        var wish = wishDir * Player.wishSpeed(run: input.run, pace: pace, wading: wading)
+        if let nav, sdHere > 0, length(wish) > 0 {
+            // In the margin: the outward part of the wish is slowed (to 25 % at the hard limit) and a drift steers the player back toward the trail.
+            // Neither applies to walking along the edge or back in, and the drift only acts while the player is moving (no ghost-walking when standing still).
+            let feet = SIMD2(position.x, position.z)
+            let outward = normalize(feet - nav.nearestInside(feet))
+            wish -= outward * max(dot(wish, outward), 0) * Player.marginSlow * marginPressure
+            wish -= outward * Player.driftSpeed * marginPressure
+        }
+        // Exponential approach to the wish velocity: a soft start/stop (M10.2: 0.12 s to speed up, 0.16 s to ease to a stop).
+        let tau = length(wish) < length(velocity) ? Player.decelTau : Player.accelTau
+        velocity += (wish - velocity) * (1 - exp(-dt / tau))
         if length(velocity) < 0.01 && length(wish) == 0 { velocity = .zero }
 
         // Move, sliding along blockers: try the full move, then each axis alone.
@@ -143,8 +204,19 @@ struct Player {
         }
         slipAmount = slipNow
         scene.colliders.resolve(position: &pos, radius: Player.radius, feetY: position.y, height: Player.eyeHeight)
+        // M10.4: the hard limit is the margin's far edge. The feet are projected back onto it (along the gradient of the distance, so a curved edge is slid along,
+        // never stuck on); if that cannot be walked, the player stays where they were, which is inside by induction.
+        if let nav {
+            let sd = nav.signedDistance(pos)
+            if sd > Player.marginWidth {
+                let outward = normalize(pos - nav.nearestInside(pos))
+                pos -= outward * (sd - Player.marginWidth)
+            }
+        }
         // The push-out must not shove us into the sea or up a cliff either.
         if !canMove(from: from, to: pos, scene: scene) { pos = from }
+        // The backstop: whatever happened above (a player placed just past the limit where the projection cannot be walked), the feet never end a tick beyond it.
+        if let nav, nav.signedDistance(pos) > Player.marginWidth + 1e-3 { pos = nav.nearestReachable(pos) }
         position.x = pos.x; position.z = pos.y
 
         // F02 M1: the FEET are physical, always on the ground that is drawn (Scene.groundHeight: terrain, boards, platforms). The CAMERA's vertical offset
@@ -161,7 +233,7 @@ struct Player {
 
         // Gait: advance the step phase by distance walked / step length; a footfall happens at each whole number.
         let moving = speed > 0.3
-        bobAmount += ((moving ? min(speed / Player.walkSpeed, 1.0) : 0) - bobAmount) * min(1, dt * 8)
+        bobAmount += ((moving ? min(speed / Player.scaledWalkSpeed, 1.0) : 0) - bobAmount) * min(1, dt * 8)
         var footfall = false
         if moving {
             let before = Int(floor(stepPhase))

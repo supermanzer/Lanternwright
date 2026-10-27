@@ -288,7 +288,7 @@ final class OverlayView: NSView {
     // MARK: Pause menu
 
     private var menuCard: NSRect {
-        let w = min(520, bounds.width * 0.86), h: CGFloat = 470
+        let w = min(520, bounds.width * 0.86), h: CGFloat = 550
         return NSRect(x: bounds.midX - w / 2, y: bounds.midY - h / 2, width: w, height: h)
     }
 
@@ -325,29 +325,31 @@ final class OverlayView: NSView {
         }
         let resume = NSButton(title: "Resume", target: self, action: #selector(menuResume))
         resume.frame = NSRect(x: c.minX + 36, y: c.minY + 86, width: c.width - 72, height: 36); resume.bezelStyle = .rounded; resume.keyEquivalent = "\r"
-        let sens = slider(settings.sensitivity, min: 0.0005, max: 0.006, y: c.minY + 150, action: #selector(menuSensitivity))
-        let vol = slider(settings.volume, min: 0, max: 1, y: c.minY + 190, action: #selector(menuVolume))
-        let scale = slider(settings.renderScale, min: 0.5, max: 1, y: c.minY + 230, action: #selector(menuScale))
+        let sens = slider(settings.lookSpeed, min: 0.5, max: 1.5, y: c.minY + 150, action: #selector(menuLookSpeed))
+        let calm = slider(settings.calmCamera, min: 0, max: 1, y: c.minY + 190, action: #selector(menuCalm))
+        let pace = slider(settings.pace, min: 0.7, max: 1.3, y: c.minY + 230, action: #selector(menuPace))
+        let vol = slider(settings.volume, min: 0, max: 1, y: c.minY + 270, action: #selector(menuVolume))
+        let scale = slider(settings.renderScale, min: 0.5, max: 1, y: c.minY + 310, action: #selector(menuScale))
         let invert = NSButton(checkboxWithTitle: "Invert vertical look", target: self, action: #selector(menuInvert))
         invert.state = settings.invertY ? .on : .off
-        invert.frame = NSRect(x: c.minX + 36, y: c.minY + 272, width: 260, height: 22)
+        invert.frame = NSRect(x: c.minX + 36, y: c.minY + 352, width: 260, height: 22)
         invert.attributedTitle = NSAttributedString(string: "Invert vertical look", attributes: [.foregroundColor: NSColor.white.withAlphaComponent(0.85), .font: NSFont.systemFont(ofSize: 14)])
         let newGame = NSButton(title: "New game…", target: self, action: #selector(menuNewGame))
         newGame.frame = NSRect(x: c.minX + 36, y: c.maxY - 62, width: 150, height: 32); newGame.bezelStyle = .rounded; newGame.identifier = NSUserInterfaceItemIdentifier("newgame")
         let slip = NSButton(checkboxWithTitle: "Slide on very steep slopes (try it)", target: self, action: #selector(menuSlip))
         slip.state = settings.slipOnSteep ? .on : .off
-        slip.frame = NSRect(x: c.minX + 36, y: c.minY + 298, width: 330, height: 22)
+        slip.frame = NSRect(x: c.minX + 36, y: c.minY + 378, width: 330, height: 22)
         slip.attributedTitle = NSAttributedString(string: "Slide on very steep slopes (try it)", attributes: [.foregroundColor: NSColor.white.withAlphaComponent(0.85), .font: NSFont.systemFont(ofSize: 14)])
         let taa = NSButton(checkboxWithTitle: "Smooth fine detail (anti-aliasing)", target: self, action: #selector(menuTAA))
         taa.state = settings.taa ? .on : .off
-        taa.frame = NSRect(x: c.minX + 36, y: c.minY + 324, width: 330, height: 22)
+        taa.frame = NSRect(x: c.minX + 36, y: c.minY + 404, width: 330, height: 22)
         taa.attributedTitle = NSAttributedString(string: "Smooth fine detail (anti-aliasing)", attributes: [.foregroundColor: NSColor.white.withAlphaComponent(0.85), .font: NSFont.systemFont(ofSize: 14)])
         let controls = NSButton(title: "Controls…", target: self, action: #selector(menuControls))
-        controls.frame = NSRect(x: c.minX + 36, y: c.minY + 362, width: c.width - 72, height: 32); controls.bezelStyle = .rounded
+        controls.frame = NSRect(x: c.minX + 36, y: c.minY + 442, width: c.width - 72, height: 32); controls.bezelStyle = .rounded
         let quit = NSButton(title: "Quit", target: self, action: #selector(menuQuit))
         quit.frame = NSRect(x: c.maxX - 36 - 110, y: c.maxY - 62, width: 110, height: 32); quit.bezelStyle = .rounded
-        menuViews = [resume, label("Mouse sensitivity", y: c.minY + 152), sens, label("Volume", y: c.minY + 192), vol,
-                     label("Render resolution", y: c.minY + 232), scale, invert, slip, taa, controls, newGame, quit]
+        menuViews = [resume, label("Look speed", y: c.minY + 152), sens, label("Camera calm", y: c.minY + 192), calm,
+                     label("Walking pace", y: c.minY + 232), pace, label("Volume", y: c.minY + 272), vol, label("Render resolution", y: c.minY + 312), scale, invert, slip, taa, controls, newGame, quit]
         for v in menuViews { v.appearance = NSAppearance(named: .darkAqua); addSubview(v) }
     }
 
@@ -356,7 +358,9 @@ final class OverlayView: NSView {
     @objc private func menuControls() { onShowControls?() }
     @objc private func menuTAA(_ b: NSButton) { settings.taa = b.state == .on; onSettingsChanged?(settings) }
     @objc private func menuSlip(_ b: NSButton) { settings.slipOnSteep = b.state == .on; onSettingsChanged?(settings) }
-    @objc private func menuSensitivity(_ s: NSSlider) { settings.sensitivity = Float(s.doubleValue); onSettingsChanged?(settings) }
+    @objc private func menuLookSpeed(_ s: NSSlider) { settings.lookSpeed = Float(s.doubleValue); onSettingsChanged?(settings) }
+    @objc private func menuPace(_ s: NSSlider) { settings.pace = Float(s.doubleValue); onSettingsChanged?(settings) }
+    @objc private func menuCalm(_ s: NSSlider) { settings.calmCamera = Float(s.doubleValue); onSettingsChanged?(settings) }
     @objc private func menuVolume(_ s: NSSlider) { settings.volume = Float(s.doubleValue); onSettingsChanged?(settings) }
     @objc private func menuScale(_ s: NSSlider) { settings.renderScale = Float(s.doubleValue); onSettingsChanged?(settings) }
     @objc private func menuInvert(_ b: NSButton) { settings.invertY = b.state == .on; onSettingsChanged?(settings) }

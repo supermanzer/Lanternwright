@@ -31,7 +31,7 @@ extension SelfTestRunner {
             let start = c + SIMD2(cos(a), sin(a)) * 14
             bot.game.player.position = SIMD3(start.x, scene.groundHeight(x: start.x, z: start.y), start.y)
             bot.wait(0.3)
-            _ = bot.approach(c, seconds: 9)
+            _ = bot.approach(c, seconds: 13)
             let d = simd_length(SIMD2(bot.feet.x, bot.feet.z) - c)
             if d < Lighthouse.colliderRadius + Player.radius + 0.35 && d > Lighthouse.colliderRadius + Player.radius - 0.05 { arrived += 1 }
         }
@@ -42,7 +42,7 @@ extension SelfTestRunner {
             var failedAt = "none", minPaceSeen: Float = 1, t0 = rb.feet
             for (i, p) in route.enumerated() {
                 let before = rb.feet
-                if !rb.walk(to: p, within: (p.x == Layout.lighthouse.x && p.z == Layout.lighthouse.z) ? 6.2 : 2.5, timeout: 240) { failedAt = "leg \(i) toward (\(Int(p.x)), \(Int(p.z))) stopped at (\(Int(rb.feet.x)), \(Int(rb.feet.z)), y \(rb.feet.y))"; break }
+                if !rb.walk(to: p, within: (p.x == Layout.lighthouse.x && p.z == Layout.lighthouse.z) ? 6.2 : 2.5, timeout: 360) { failedAt = "leg \(i) toward (\(Int(p.x)), \(Int(p.z))) stopped at (\(Int(rb.feet.x)), \(Int(rb.feet.z)), y \(rb.feet.y))"; break }
                 _ = before; t0 = rb.feet
             }
             _ = minPaceSeen; minPaceSeen = 0
@@ -59,16 +59,19 @@ extension SelfTestRunner {
             if let sp = steepAt {
                 func drift(_ on: Bool) -> Float {
                     Player.slipEnabled = on
+                    Player.confinementEnabled = false                    // M10.4: this is slope physics on an arbitrary hillside, not a corridor
                     let sg = Game(scene: scene); let sb = PlaythroughBot(sg)
                     sg.player.position = SIMD3(sp.x, scene.groundHeight(x: sp.x, z: sp.y), sp.y)
                     let h0 = sg.player.position.y
                     sb.wait(3)
                     Player.slipEnabled = false
+                    Player.confinementEnabled = true
                     return h0 - sb.feet.y
                 }
                 // F03 A3 (review): the audio chain end to end. A real player on a real steep slope with the slip on: Player.slipAmount, AudioEngine.feedSlide, AmbienceSynth.render.
                 do {
                     Player.slipEnabled = true
+                    Player.confinementEnabled = false                    // M10.4: slope physics on an arbitrary hillside, not a corridor (a confined player would be moved to one)
                     let sg = Game(scene: scene); let sb = PlaythroughBot(sg)
                     sg.player.position = SIMD3(sp.x, scene.groundHeight(x: sp.x, z: sp.y), sp.y)
                     let sr: Float = 44100
@@ -92,6 +95,7 @@ extension SelfTestRunner {
                     _ = block(0.2)
                     let after = Self.rms(block(0.5))
                     Player.slipEnabled = false
+                    Player.confinementEnabled = true
                     check(speedWhileSlipping > 0.5 && slipping > 0.01 && slipping < 0.15 && speedAfter == 0 && after < 0.03 * slipping,
                           "the slide sound end to end: slipping on a real steep slope feeds the synth (speed \(String(format: "%.2f", speedWhileSlipping)), gravel \(String(format: "%.2f", gravelOn))) and renders at rms \(String(format: "%.3f", slipping)) (a sensible level: the waterline surf is 0.064); on level ground the speed is \(speedAfter) and the rendered slide is gone (rms \(String(format: "%.5f", after)), under 3 % of it) within 0.2 s")
                 }
@@ -126,7 +130,7 @@ extension SelfTestRunner {
         bot.game.player.position = SIMD3(Layout.summitStone.x, scene.groundHeight(x: Layout.summitStone.x, z: Layout.summitStone.z), Layout.summitStone.z)
         bot.wait(0.3)
         let door = SIMD3(Layout.lighthouse.x, Layout.lighthouse.y, Layout.lighthouse.z + Lighthouse.colliderRadius + Player.radius + 0.4)
-        let reached = bot.walk(to: door, within: 1.0, timeout: 120)
+        let reached = bot.walk(to: door, within: 1.0, timeout: 180, straight: true)          // M10.6: this is a physics check of the final approach to the steps, so it keeps the straight line (the network route arrives at the 1 m circle from the side)
         check(reached, "a bot walks from the summit stone to the lighthouse door (\(reached ? "arrived" : "stopped at \(bot.feet)"))")
         check(bot.feet.y > Layout.lighthouse.y + 0.1, "and stands on the plinth in front of the door (feet \(bot.feet.y - Layout.lighthouse.y) m above the pad)")
         // F01 W4.2 phase 1: standing at the door, clicking it gives a rattle, a thump and one line in the keeper's voice; nothing opens.

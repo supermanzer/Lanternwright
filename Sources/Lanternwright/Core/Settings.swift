@@ -10,6 +10,9 @@ struct Settings: Codable, Equatable {
     var taa = true                       // temporal anti-aliasing (F02 R1): steadier fine detail for a slight softness on fast turns
     var slipDefaultApplied = true        // a blob saved before F02 stored the old default (off): it is switched on once, then the player's choice stands
     var introSeen = false                // the controls screen has been shown on a new game (reset by "New game")
+    var lookSpeed: Float = 0.7           // M10.1: turn speed as a fraction of `Settings.baseSensitivity` (0.5...1.5); the pause-menu slider (the old `sensitivity` field is kept so saved blobs decode)
+    var pace: Float = 1.0                // M10.2: walking pace multiplier (0.7...1.3); scales walk and run speed together
+    var calmCamera: Float = 0.6          // M10.1: 0 = raw mouse, 1 = calmest; scales the look smoothing time and the soft limit on flicks
 
     init() {}
     /// Tolerant decoding: a settings blob saved before a field existed must keep the fields it has.
@@ -24,9 +27,16 @@ struct Settings: Codable, Equatable {
         slipOnSteep = applied ? (try c.decodeIfPresent(Bool.self, forKey: .slipOnSteep) ?? slipOnSteep) : true
         slipDefaultApplied = true
         taa = try c.decodeIfPresent(Bool.self, forKey: .taa) ?? taa
+        lookSpeed = try c.decodeIfPresent(Float.self, forKey: .lookSpeed) ?? lookSpeed
+        calmCamera = try c.decodeIfPresent(Float.self, forKey: .calmCamera) ?? calmCamera
+        pace = try c.decodeIfPresent(Float.self, forKey: .pace) ?? pace
     }
 
     static let key = "lanternwright.settings"
+    /// Radians of turn per mouse count at `lookSpeed` 1 (the pre-M10 default).
+    static let baseSensitivity: Float = 0.0022
+    /// What the input layer uses: `lookSpeed` x the base.
+    var effectiveSensitivity: Float { Settings.baseSensitivity * lookSpeed }
 
     static func load() -> Settings {
         guard let d = UserDefaults.standard.data(forKey: key), let s = try? JSONDecoder().decode(Settings.self, from: d) else { return Settings() }
@@ -43,6 +53,9 @@ struct Settings: Codable, Equatable {
         s.sensitivity = min(max(sensitivity.isFinite ? sensitivity : 0.0022, 0.0005), 0.008)
         s.volume = min(max(volume.isFinite ? volume : 0.5, 0), 1)
         s.renderScale = min(max(renderScale.isFinite ? renderScale : 1, 0.5), 1)
+        s.lookSpeed = min(max(lookSpeed.isFinite ? lookSpeed : 0.7, 0.5), 1.5)
+        s.calmCamera = min(max(calmCamera.isFinite ? calmCamera : 0.6, 0), 1)
+        s.pace = min(max(pace.isFinite ? pace : 1, 0.7), 1.3)
         return s
     }
 }

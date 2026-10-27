@@ -55,7 +55,7 @@ extension SelfTestRunner {
         let down = simd_normalize(SIMD2(Layout.causewayStart.x - Layout.lighthouse.x, Layout.causewayStart.z - Layout.lighthouse.z))
         let leave = SIMD3(Layout.lighthouse.x + down.x * 12, 0, Layout.lighthouse.z + down.y * 12)           // on the graded descent just beyond the tower's wall
         check(bot.follow([leave, start], within: 3), "bot: walks back down the hill to the start of the causeway (along the graded descent)")
-        check(bot.walk(to: PuzzleProps.lensRestPosition, within: 3.2, timeout: 60), "bot: crosses the causeway to the islet")
+        check(bot.walk(to: PuzzleProps.lensRestPosition, within: 3.2, timeout: 90), "bot: crosses the causeway to the islet")
         check(bot.click("lens"), "bot: clicks the lens")
         bot.wait(Game.fadeOutSeconds + Game.holdSeconds + Game.fadeInSeconds + 0.5)
         check(g.world == .glassWood && g.state.has("lensTouched"), "bot: the lens carries it to the Glass Wood")
@@ -64,7 +64,7 @@ extension SelfTestRunner {
         let gp = GlassLayout.path
         check((g.banner ?? "") != "A page has come loose." && !g.pageWaiting, "bot: arriving in the Glass Wood does not announce the page by the arrival pad (F03 #43: no banner, no marker; the lens's own chime is the only sound)")
         func collectGW(_ n: Int) {
-            let there = bot.walk(to: GlassPuzzleProps.pagePosition(n, scene: g.scenes[.glassWood]!), within: 2.2, timeout: 40) && bot.click("page_\(n)")
+            let there = bot.walk(to: GlassPuzzleProps.pagePosition(n, scene: g.scenes[.glassWood]!), within: 2.2, timeout: 60) && bot.click("page_\(n)")
             bot.closeJournal()
             check(there && g.journal.collectedPages.map(\.number).contains(n), "bot: finds and reads Oren's page \(n) with a real click")
         }
@@ -73,12 +73,12 @@ extension SelfTestRunner {
         var turned = true
         for k in 0..<3 {
             let turns = (MirrorCourt.solutionMirrors[k] - MirrorCourt.initialMirrors[k] + 4) % 4
-            turned = turned && bot.walk(to: GlassPuzzleProps.mirrorPosition(k), within: 3.0, timeout: 40)
+            turned = turned && bot.walk(to: GlassPuzzleProps.mirrorPosition(k), within: 3.0, timeout: 60)
             for _ in 0..<turns { turned = turned && bot.click("gw_mirror_\(k)"); bot.wait(0.5) }
         }
         for k in 0..<3 {
             let turns = (MirrorCourt.solutionPanes[k] - MirrorCourt.initialPanes[k] + 3) % 3
-            turned = turned && bot.walk(to: GlassPuzzleProps.panePosition(k), within: 3.0, timeout: 40)
+            turned = turned && bot.walk(to: GlassPuzzleProps.panePosition(k), within: 3.0, timeout: 60)
             for _ in 0..<turns { turned = turned && bot.click("gw_pane_\(k)"); bot.wait(0.5) }
         }
         check(turned, "bot: turns each mirror and changes each pane with real clicks")
@@ -92,7 +92,7 @@ extension SelfTestRunner {
         check(bot.follow(Array(gp[4...8]), within: 2.5), "bot: follows the path on to the chime ring")
         var rang = true
         for k in GlassWoodLogic.chimeSolution {
-            rang = rang && bot.walk(to: GlassPuzzleProps.chimePosition(k), within: 3.0, timeout: 40)
+            rang = rang && bot.walk(to: GlassPuzzleProps.chimePosition(k), within: 3.0, timeout: 60)
             rang = rang && bot.click("gw_chime_\(k)"); bot.wait(0.8)
         }
         check(rang, "bot: strikes the three pillars that carry the stones' tones")
@@ -104,7 +104,7 @@ extension SelfTestRunner {
         bot.wait(6)
         var heard = true
         for id in ["gw_altar_ilse", "gw_altar_oren"] {
-            heard = heard && bot.walk(to: (bot.interactable(id).map { ($0.min + $0.max) * 0.5 }) ?? GlassLayout.altar, within: 2.6, timeout: 30)
+            heard = heard && bot.walk(to: (bot.interactable(id).map { ($0.min + $0.max) * 0.5 }) ?? GlassLayout.altar, within: 2.6, timeout: 45)
             heard = heard && bot.click(id); bot.wait(1)
         }
         check(heard && g.state.has("gw_end"), "bot: hears both accounts and reaches the end of the second world")
@@ -113,7 +113,7 @@ extension SelfTestRunner {
 
         // --- Home: back to the arrival ring and through it.
         check(bot.follow(Array(gp.reversed()), within: 3.0), "bot: walks the whole path back to the arrival pad")
-        check(bot.walk(to: GlassLayout.returnLens, within: 3.4, timeout: 40) && bot.click("gw_return"), "bot: clicks the return ring")
+        check(bot.walk(to: GlassLayout.returnLens, within: 3.4, timeout: 60) && bot.click("gw_return"), "bot: clicks the return ring")
         bot.wait(Game.fadeOutSeconds + Game.holdSeconds + Game.fadeInSeconds + 0.5)
         check(g.world == .varrow && g.state.has("gw_end"), "bot: back on Varrow with the story done")
     }

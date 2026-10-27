@@ -61,6 +61,13 @@ if options.parallax {
     catch { FileHandle.standardError.write(Data("error: \(error)\n".utf8)); exit(1) }
 }
 
+if options.navAudit { exit(NavigationAudit.main(device: device, out: options.navAuditOut) ? 0 : 1) }
+
+if let path = options.navOverlayPath {
+    do { try NavigationOverlay.write(to: path, device: device); exit(0) }
+    catch { FileHandle.standardError.write(Data("error: \(error)\n".utf8)); exit(1) }
+}
+
 if options.listPages {
     let renderer = Renderer(device: device, options: options)
     func f(_ p: SIMD3<Float>) -> String { String(format: "(%.1f, %.1f, %.1f)", p.x, p.y, p.z) }

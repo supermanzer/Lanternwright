@@ -303,7 +303,7 @@ final class Game {
 
     /// One fixed 1/120 s step of everything that moves.
     func fixedStep(input: InputState) {
-        if player.step(dt: Game.tick, input: isTraveling ? InputState() : input, scene: scene) { footfalls += 1; lastFootWasRun = player.lastStepWasRun }
+        if player.step(dt: Game.tick, input: isTraveling ? InputState() : input, scene: scene, nav: Player.confinementEnabled ? Layout.Navigation.network(for: world) : nil) { footfalls += 1; lastFootWasRun = player.lastStepWasRun }
         animator.update(Game.tick)
         time += Game.tick
         let target = atmosphereTargets
@@ -351,7 +351,7 @@ final class Game {
         if journal.isOpen && input.tabPressed { journal.tab = journal.tab == .pages ? .notebook : .pages }
         if journal.isOpen && input.pageFlip != 0 { journal.flip(input.pageFlip) }
 
-        player.applyLook(input.look * LookCloser.lookScale(zoom: zoomAmount))     // slower aim when zoomed, so it stays controllable
+        player.applyLook(input.look * LookCloser.lookScale(zoom: zoomAmount), dt: dt, nav: Player.confinementEnabled && !journal.isOpen && !isTraveling ? Layout.Navigation.network(for: world) : nil, assistScale: LookCloser.lookScale(zoom: zoomAmount))     // slower aim when zoomed, so it stays controllable
         accumulator += dt
         while accumulator >= Game.tick {
             fixedStep(input: input)

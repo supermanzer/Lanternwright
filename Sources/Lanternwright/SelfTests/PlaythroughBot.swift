@@ -10,7 +10,13 @@ final class PlaythroughBot {
     private var now = 1000.0
     init(_ game: Game) { self.game = game }
 
-    func tick(_ input: InputState = InputState()) { now += 1.0 / 60; game.advance(now: now, input: input) }
+    func tick(_ input: InputState = InputState()) {
+        now += 1.0 / 60; game.advance(now: now, input: input)
+        if Player.confinementEnabled { strayed = max(strayed, Layout.Navigation.network(for: game.world).signedDistance(SIMD2(game.player.position.x, game.player.position.z))) }
+    }
+    /// M10.6: the furthest the feet have been beyond a corridor edge since the last `forgetStray()` (negative: always inside; the margin is `Player.marginWidth`).
+    private(set) var strayed: Float = -.infinity
+    func forgetStray() { strayed = -.infinity }
     func wait(_ seconds: Float) { for _ in 0..<Int(seconds * 60) { tick() } }
 
     var feet: SIMD3<Float> { game.player.position }
@@ -23,24 +29,40 @@ final class PlaythroughBot {
         game.player.pitch = asin(max(-1, min(1, d.y / simd_length(d))))
     }
 
-    /// Walk straight toward a spot until within `r` metres (horizontally). Gives up after `timeout` seconds or when stuck
-    /// (less than 0.5 m of progress in 4 s).
+    /// Walk toward a spot until within `r` metres (horizontally). Gives up after `timeout` seconds in all, or when stuck (less than 0.5 m of progress in 4 s).
+    /// M10.6: with guidance on (`Player.confinementEnabled`) the bot follows the navigation network the way a player on the trails would: along the centre lines (the shortest
+    /// route between the nearest centre-line nodes, `NavNetwork.route`), then straight to the spot from the last node. `straight: true` (or guidance off) walks the old
+    /// straight line.
     @discardableResult
-    func walk(to target: SIMD3<Float>, within r: Float, timeout: Float = 150) -> Bool {
-        var elapsed: Float = 0, mark = flat(feet), markTime: Float = 0
-        while elapsed < timeout {
-            let d = flat(target) - flat(feet)
-            if simd_length(d) < r { return true }
-            game.player.yaw = atan2(d.x, -d.y)
-            game.player.pitch = 0
-            var input = InputState(); input.move = SIMD2(0, 1)
-            tick(input); elapsed += 1.0 / 60
-            if elapsed - markTime > 4 {
-                if simd_length(flat(feet) - mark) < 0.5 { return false }
-                mark = flat(feet); markTime = elapsed
+    func walk(to target: SIMD3<Float>, within r: Float, timeout: Float = 150, straight: Bool = false) -> Bool {
+        var legs: [SIMD2<Float>] = []
+        if !straight && Player.confinementEnabled && simd_length(flat(target) - flat(feet)) >= r {
+            // Route nodes that lie inside, or hard against, a collider (the lighthouse's axis is a plaza centre) cannot be walked to: skip them.
+            let cylinders = game.scene.colliders.cylinders
+            legs = Layout.Navigation.network(for: game.world).route(from: flat(feet), to: flat(target))
+                .filter { n in !cylinders.contains { simd_length(n - $0.center) < $0.radius + Player.radius + 0.8 } }
+        }
+        legs.append(flat(target))
+        var elapsed: Float = 0
+        for (i, leg) in legs.enumerated() {
+            let radius = i == legs.count - 1 ? r : 3
+            var mark = flat(feet), markTime = elapsed
+            while true {
+                if simd_length(flat(target) - flat(feet)) < r { return true }                    // arrived, whichever leg this is (the last route nodes can lie inside a collider)
+                let d = leg - flat(feet)
+                if simd_length(d) < radius { break }
+                if elapsed >= timeout { return false }
+                game.player.yaw = atan2(d.x, -d.y)
+                game.player.pitch = 0
+                var input = InputState(); input.move = SIMD2(0, 1)
+                tick(input); elapsed += 1.0 / 60
+                if elapsed - markTime > 4 {
+                    if simd_length(flat(feet) - mark) < 0.5 { return false }
+                    mark = flat(feet); markTime = elapsed
+                }
             }
         }
-        return false
+        return true
     }
 
     /// Follow waypoints in order, ending within `r` of the last.

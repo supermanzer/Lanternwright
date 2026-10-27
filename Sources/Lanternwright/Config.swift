@@ -45,6 +45,9 @@ struct LaunchOptions {
     var auditPropsOut: String?
     var auditProps = false
     var listPages = false
+    var navOverlayPath: String?
+    var navAudit = false
+    var navAuditOut: String?
     var parallax = false
     var taa = false
     var shimmer: Int?
@@ -81,6 +84,8 @@ struct LaunchOptions {
       --taa                        Turn temporal anti-aliasing on for screenshots, benchmarks and tools (always on in the game; use --frames N to let it converge)
       --clock T                    Screenshot clock in seconds (default 12): the wind, the grass and the trees depend on it
       --list-pages                 Print where each of the eight journal pages stands (world, lectern foot, what makes it appear)
+      --nav-audit [out.txt]        Check that every interactable, page and vantage is reachable and visible inside the navigation corridors; print the region numbers (M10.6)
+      --nav-overlay <path.png>     Write a top-down map of each world's navigation corridors to <path>-varrow.png and <path>-glasswood.png (M10.3)
       --audit-props [out.md]       List every scene item with its materials and flag large props drawn flat (docs/PROPS.md)
       --controls-md                Print the README controls table, generated from App/Controls.swift
       --feedback                   Print all saved player feedback and exit
@@ -138,6 +143,8 @@ struct LaunchOptions {
             case "--dump-overlay": o.dumpOverlayBase = next()
             case "--audit-slopes": o.auditSlopes = true
             case "--list-pages": o.listPages = true
+            case "--nav-overlay": o.navOverlayPath = next()
+            case "--nav-audit": o.navAudit = true; if i + 1 < args.count, !args[i + 1].hasPrefix("--") { o.navAuditOut = next() }
             case "--parallax": o.parallax = true
             case "--taa": o.taa = true
             case "--shimmer": if i + 1 < args.count, let n = Int(args[i + 1]) { o.shimmer = n; _ = next() } else { o.shimmer = 60 }
