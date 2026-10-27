@@ -49,7 +49,7 @@ vertex LitOut lit_vertex(uint vid [[vertex_id]],
 
 // Terrain material: grass (lush/parched patches), rock (steep or high, with horizontal strata),
 // sand (shore, darker where wet), packed earth on the path. Also perturbs the normal for close-up detail.
-float3 terrain_surface(float3 P, float3 Ng, float pathW, float wet, float duff, float palette, float fpix, thread float3& N, thread float& rough) {
+float3 terrain_surface(float3 P, float3 Ng, float pathW, float wet, float duff, float palette, float fpix, float clock, thread float3& N, thread float& rough) {
     bool glass = palette > 0.5;                       // the Glass Wood: teal and violet instead of green and gold
     float slope = Ng.y;
     float macro = fbmV(P * 0.012);                 // large patches
@@ -87,7 +87,10 @@ float3 terrain_surface(float3 P, float3 Ng, float pathW, float wet, float duff, 
     // Height blending: let the layers' own grain decide where one gives way to the other, so a boundary is a crisp, ragged
     // edge (rock poking through grass) rather than a soft linear fade.
     rockMask = mix(rockMask, smoothstep(0.30, 0.70, rockMask + ((meso - 0.5) * 0.55 + (micro - 0.5) * 0.25) * min(rockMask * 4.0, 1.0)), 0.5);   // half-sharpened: grain acts only where rock is already likely
-    float wetSand = 1.0 - smoothstep(-0.1, 0.5, P.y);
+    // F03 G2: the sand stays wet up to the reach of the recent swash (Shore.wetReach: it breathes with the wave groups) and dries, lighter, with height above it, instead of
+    // a fixed band at one height.
+    float wetReach = shore_wet_reach(P.xz, clock) * (glass ? 0.25 : 1.0);
+    float wetSand = 1.0 - smoothstep(0.35 * wetReach - 0.1, wetReach + 0.1, P.y);
     float3 sand = mix(glass ? float3(0.21, 0.24, 0.35) : float3(0.56, 0.47, 0.31), glass ? float3(0.20, 0.21, 0.32) : float3(0.30, 0.235, 0.15), wetSand) * (0.94 + 0.12 * micro) * (0.86 + 0.28 * meso) * (0.92 + 0.16 * macro);
     // The grass/sand boundary (F01 W0.2, note #3): a coarse mask from a warped fractal (the old threshold on 11 cm noise is what drew the pixel pattern), and
     // at close range the boundary is decided by the layers' HEIGHTS, so sand drifts into the grass and grass tufts stand in the sand along irregular lines.
@@ -302,7 +305,7 @@ fragment LitFragOut lit_fragment(LitOut in [[stage_in]],
     float rough = in.color.a;
     if (in.material > 0.5 && in.material < 1.5) {
         float3 Ng = n;
-        albedo = terrain_surface(in.worldPos, Ng, in.color.r, in.color.g, in.color.b, frame.worldB.x, fpix, n, rough);
+        albedo = terrain_surface(in.worldPos, Ng, in.color.r, in.color.g, in.color.b, frame.worldB.x, fpix, frame.cameraPos.w, n, rough);
     }
 
     // Procedural prop materials (masonry, paint, iron, copper, wood, bark): albedo, roughness, metalness, bumped normal, AO.

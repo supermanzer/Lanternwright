@@ -22,22 +22,34 @@ constant float4 WAVES[4] = {
 vertex WaterOut water_vertex(uint vid [[vertex_id]],
                              device const Vertex* verts [[buffer(0)]],
                              constant FrameUniforms& frame [[buffer(1)]],
-                             constant ObjectUniforms& obj [[buffer(2)]]) {
+                             constant ObjectUniforms& obj [[buffer(2)]],
+                             texture2d<float> terrainTex [[texture(5)]]) {
     float4 w0 = obj.model * float4(verts[vid].position.xyz, 1.0);
     float2 xz = w0.xz;
     float t = frame.cameraPos.w;
     float dist = length(xz - frame.cameraPos.xz);
     float strength = frame.misc.y * (1.0 - smoothstep(250.0, 1800.0, dist));   // flatten far waves (aliasing)
 
+    // F03 G2 (World/Shore.swift): the ground under this vertex decides how the waves reach it. Depth h = how far the ground is under the sea (negative on land), s = its slope.
+    float4 gT = terrain_sample(terrainTex, xz);
+    float2 gGrad = float2(terrain_sample(terrainTex, xz + float2(2.0, 0.0)).x - terrain_sample(terrainTex, xz - float2(2.0, 0.0)).x,
+                          terrain_sample(terrainTex, xz + float2(0.0, 2.0)).x - terrain_sample(terrainTex, xz - float2(0.0, 2.0)).x) / 4.0;
+    float shDepth = -gT.x, shSlope = length(gGrad);
+    // The lee of the island (Shore.shadow: 20 steps of 24 m): land or shoal upwind of this point means the swell had to wrap round it (later, and smaller). Only near the island (the march is 480 m).
+    float shShadow = 0.0;
+    if (shDepth < 40.0) { for (int i = 1; i <= 20; i++) { shShadow += terrain_sample(terrainTex, xz - SHORE_WAVE_DIR * 24.0 * float(i)).x > -2.0 ? 24.0 : 0.0; } }
+    float shAmp = shore_amp(shDepth) * shore_lee_amp(shShadow);
+    float shDelay = shore_delay(shDepth, shSlope) + shore_lee_delay(shShadow);
+    float shTime = t - shDelay * step(0.0, shDepth + 0.5);        // crests are retarded by the shallow water they have crossed
     float3 disp = float3(0.0);
     float3 nrm = float3(0.0, 1.0, 0.0);
     float jxx = 0.0, jzz = 0.0, jxz = 0.0;
     for (int i = 0; i < 4; i++) {
         float2 d = float2(cos(WAVES[i].x), sin(WAVES[i].x));
         float k = 2.0 * M_PI_F / WAVES[i].y;
-        float A = WAVES[i].z * strength;
+        float A = WAVES[i].z * strength * shAmp;
         float omega = sqrt(9.81 * k);                       // deep-water dispersion: long waves travel faster
-        float th = k * dot(d, xz) - omega * t;
+        float th = k * dot(d, xz) - omega * shTime;
         float Q = WAVES[i].w / (k * max(WAVES[i].z, 1e-3) * 4.0);   // keeps crests from looping over themselves
         disp.xz += Q * A * d * cos(th);
         disp.y += A * sin(th);
@@ -47,7 +59,8 @@ vertex WaterOut water_vertex(uint vid [[vertex_id]],
         jxx -= qak * d.x * d.x; jzz -= qak * d.y * d.y; jxz -= qak * d.x * d.y;
     }
     WaterOut o;
-    float3 wp = float3(w0.x + disp.x, w0.y + disp.y, w0.z + disp.z);
+    float swash = shore_swash(xz, t, shDepth, shSlope) * (frame.worldB.x > 0.5 ? 0.10 : 1.0);           // the tongue that runs up the beach and drains back, in groups (a still pool hardly has one)
+    float3 wp = float3(w0.x + disp.x, w0.y + disp.y + swash, w0.z + disp.z);
     o.worldPos = wp;
     o.gNormal = normalize(nrm);
     o.jac = (1.0 + jxx) * (1.0 + jzz) - jxz * jxz;
@@ -122,11 +135,14 @@ fragment float4 water_fragment(WaterOut in [[stage_in]],
     float3 lightUp = skyLUT.sample(skySampler, float2(0.5, 0.0), level(5)).rgb + frame.sunColor.rgb * frame.sunColor.w / M_PI_F * max(sunDir.y, 0.0) * 0.25;
     float3 deep = float3(0.02, 0.10, 0.12) * lightUp * 1.5;       // light scattered back up out of the water
     // Shallow-water caustics (F02 G3): where the bed is within a few metres, a slow net of bright lines on it (two noise layers' crossings), fading out with depth.
-    float shallow = 1.0 - smoothstep(0.4, 3.5, thick);
+    // F03 G1 (#33: "the lines in the water are too pronounced"): the net was a crisp pattern of 1 m loops at 13 % of the bed's brightness, which on a thin film of water over
+    // sand read as drawn contour lines. Now a broad, soft, faint network (cells about 2 m, wide soft lines) that fades out in the first half metre of water: a hint of
+    // light moving on the bed, not a texture.
+    float shallow = (1.0 - smoothstep(0.25, 2.2, thick)) * smoothstep(0.03, 0.25, thick);
     if (shallow > 0.01) {
-        float c1 = vnoiseV(float3(P.xz * 1.9 + float2(t * 0.21, -t * 0.13), t * 0.1)), c2 = vnoiseV(float3(P.xz * 2.6 + float2(-t * 0.17, t * 0.2), 4.0 + t * 0.08));
-        float caustic = pow(saturate(1.0 - abs(c1 - c2) * 3.2), 5.0);
-        sceneCol += float3(0.9, 1.0, 1.1) * caustic * shallow * 0.13 * (0.4 + 0.6 * saturate(dot(sceneCol, float3(0.33)) * 6.0));
+        float c1 = vnoiseV(float3(P.xz * 0.75 + float2(t * 0.12, -t * 0.08), t * 0.06)), c2 = vnoiseV(float3(P.xz * 1.05 + float2(-t * 0.10, t * 0.12), 4.0 + t * 0.05));
+        float caustic = pow(saturate(1.0 - abs(c1 - c2) * 2.2), 2.5);
+        sceneCol += float3(0.9, 1.0, 1.1) * caustic * shallow * 0.035 * (0.4 + 0.6 * saturate(dot(sceneCol, float3(0.33)) * 6.0));
     }
     float3 refracted = sceneCol * transmit + deep * (1.0 - transmit);
 

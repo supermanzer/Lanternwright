@@ -87,10 +87,12 @@ inline GroundOut ground_sand(float3 P, float fpix, float3 meanCol, float wetSand
     // In the Glass Wood (glassK = 1) the pebbles and grit are cool, close to the sand's own tone: black specks on pale sand were harsh (F02 G3).
     col = mix(col, mix(float3(0.30, 0.28, 0.25), float3(0.20, 0.22, 0.34), glassK) * (0.7 + 0.6 * pc.w), stone);
     col = mix(col, mix(float3(0.85, 0.82, 0.74), float3(0.50, 0.58, 0.76), glassK), fleck * 0.8);
-    // Fine ripples: soft ridges about 6 cm apart, bent by a slow noise (the terrain shader adds the wind ripples at 1 m).
-    float rip = sin((dot(xz, float2(0.8, 0.6)) + 0.6 * (rfbm3(P * 1.6, 2) - 0.5)) * 105.0);
-    o.albedo = col * (1.0 + 0.03 * rip * v1);
-    o.h = v1 * (0.0025 * rip + 0.003 * (grain2 - 0.5)) + stone * 0.008 + fleck * 0.002;
+    // F03 G1 (#33: "the waves have a longer wavelength and they would not sort sand in such fine rows"): the 6 cm rows that were here are gone. What is left is a very faint
+    // swell about 0.5 m across that breaks up (it fades in and out with slow noise, so no crest runs more than a metre or two); the metre-scale swells are in Lit.swift.
+    float swellPhase = (dot(xz, float2(0.8, 0.6)) + 0.9 * (rfbm3(P * 0.9, 2) - 0.5)) * 12.0;
+    float rip = sin(swellPhase) * smoothstep(0.35, 0.65, vnoiseV(P * 0.6 + 3.0));
+    o.albedo = col * (1.0 + 0.008 * rip * v1);
+    o.h = v1 * (0.0006 * rip + 0.003 * (grain2 - 0.5)) + stone * 0.008 + fleck * 0.002;
     o.rough = mix(0.88, 0.5, wetSand);
     return o;
 }

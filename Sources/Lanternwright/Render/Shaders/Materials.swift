@@ -555,10 +555,10 @@ inline WoodGrain wood_grain(float xs, float c, float seed, float hp, float hq, f
     float dpt = 0.02 + 0.40 * smoothstep(0.1, 0.9, vnoise3(float3(xs * 0.45 + 3.1, seedN, 4.3)));
     float r = sqrt((ce - pith) * (ce - pith) + dpt * dpt);
     float warp = 0.022 * (vnoise3(float3(xs * 1.7, c * 9.0, seedN)) - 0.5) + 0.006 * (vnoise3(float3(xs * 7.0, c * 30.0, seedN + 2.0)) - 0.5);
-    float ringPos = (r + warp) * 150.0 + hq * 9.0;
+    float ringPos = (r + warp) * 52.0 + hq * 9.0;                                   // F03 G1 (#33): 12 cm between rings (was 4 cm: dense combed lines); real sawn boards show wide, soft figure
     float rings = 0.5 + 0.5 * sin(ringPos);
     float late = smoothstep(0.55, 0.9, rings);                                     // dark latewood bands
-    float fibre = mix(0.5, vnoise3(float3(xs * 2.2, c * 260.0, seed * 3.0)) * 0.7 + 0.3 * vnoise3(float3(xs * 0.9, c * 700.0, seed * 5.0)), vFib);        // long fibres along the board
+    float fibre = mix(0.5, vnoise3(float3(xs * 1.4, c * 70.0, seed * 3.0)) * 0.75 + 0.25 * vnoise3(float3(xs * 0.7, c * 160.0, seed * 5.0)), vFib * 0.9);        // long fibres along the board
     // Checks: long cracks along the grain, opening toward the ends of the board.
     float checkLine = 1.0 - smoothstep(0.0, 0.05 + fpix * 3.0, abs(vnoise3(float3(xs * 0.4, c * 50.0 + seedN, seed * 9.0 + 2.0)) - 0.5));
     float check = checkLine * smoothstep(0.42, 0.7, vnoise3(float3(xs * 1.1 + 4.0, c * 9.0, seed * 4.0))) * step(0.35, hq) * featVis(0.012, fpix);
@@ -584,8 +584,8 @@ inline MatOut mat_plank(float3 Pl, float3 P, float3 N, float3 base, float seed, 
     // Colour: the board's own tone, silvered by the sun, darker where wet (seaward, low), salt-bleached patches, a worn walking line.
     float silver = saturate(0.55 + 0.45 * (hp - 0.5) * 2.0 + 0.3 * (vnoise3(P * 0.7) - 0.5));
     float3 wood = base * (0.55 + 0.75 * mix(0.5, hp, featVis(0.15, fpix)));
-    wood *= mix(0.86, 1.08, mix(0.5, late, vGrain)) * (0.88 + 0.24 * fibre);
-    float3 silverCol = float3(0.40, 0.375, 0.34) * (0.80 + 0.26 * mix(0.5, late, vGrain)) * (0.85 + 0.3 * fibre);
+    wood *= mix(0.93, 1.04, mix(0.5, late, vGrain)) * (0.95 + 0.10 * fibre);                   // F03 G1: the figure is soft, not striped
+    float3 silverCol = float3(0.40, 0.375, 0.34) * (0.89 + 0.12 * mix(0.5, late, vGrain)) * (0.93 + 0.14 * fibre);
     float3 albedo = fresh ? wood : mix(wood, silverCol, silver * 0.82);
     float low = 1.0 - smoothstep(0.7, 1.6, P.y);
     albedo *= 1.0 - 0.42 * low;
@@ -603,7 +603,7 @@ inline MatOut mat_plank(float3 Pl, float3 P, float3 N, float3 base, float seed, 
     o.albedo = albedo;
     o.rough = clamp(0.86 + 0.10 * (fibre - 0.5) - 0.14 * low - 0.10 * walk + 0.06 * salt, 0.4, 1.0);
     o.metal = 0.0;
-    o.N = bump_normal(P, N, 0.0030 * (late - 0.5) * vGrain + 0.002 * (fibre - 0.5) - 0.004 * check + 0.003 * knot, 1.0);
+    o.N = bump_normal(P, N, 0.0011 * (late - 0.5) * vGrain + 0.0007 * (fibre - 0.5) - 0.004 * check + 0.003 * knot, 1.0);
     o.ao = 1.0 - 0.45 * check;
     return o;
 }

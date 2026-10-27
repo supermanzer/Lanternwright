@@ -65,7 +65,7 @@ extension SelfTestRunner {
                     return (topY > g + h - 0.01, pl.position.x - f.x)
                 }
                 let r30 = tryBox(0.30), r40 = tryBox(0.40), r60 = tryBox(0.60)
-                check(r30.climbed && r40.climbed && !r60.climbed && r60.x < -1.4, "a step up is taken at 0.30 m and 0.40 m and refused at 0.60 m (climbed \(r30.climbed) / \(r40.climbed) / \(r60.climbed); the 0.6 m box stops the player at x = \(String(format: "%.2f", r60.x)) m from its centre, edge at -1.5); the limit is \(Player.maxStep) m")
+                check(r30.climbed && r40.climbed && !r60.climbed && r60.x < -1.4, "a step up is taken at 0.30 m and 0.40 m (the plan's 0.35-0.4) and refused at 0.60 m (climbed \(r30.climbed) / \(r40.climbed) / \(r60.climbed); the 0.6 m box stops the player at x = \(String(format: "%.2f", r60.x)) m from its centre, edge at -1.5); the limit is \(Player.maxStep) m")
             } else { check(false, "found a flat spot for the step tests") }
             // The player's own spot in #35: the dock's landward end. Walk onto the first board from the path.
             let strip = Layout.dockStrip(), dir = normalize(strip.b - strip.a)

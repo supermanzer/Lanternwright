@@ -510,6 +510,7 @@ final class Renderer {
             enc.setVertexBuffer(ocean.mesh.vertexBuffer, offset: 0, index: 0)
             enc.setVertexBytes(&frame, length: MemoryLayout<FrameUniforms>.stride, index: 1)
             enc.setVertexBytes(&u, length: MemoryLayout<ObjectUniforms>.stride, index: 2)
+            enc.setVertexTexture(terrainTextures[world], index: 5)           // F03 G2: the water's vertices read the ground to shoal, delay and swash
             enc.setFragmentBytes(&frame, length: MemoryLayout<FrameUniforms>.stride, index: 1)
             enc.setFragmentTexture(skyLUT, index: 1)
             enc.setFragmentTexture(sceneCopy, index: 2)
