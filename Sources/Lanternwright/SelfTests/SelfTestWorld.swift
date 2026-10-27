@@ -14,14 +14,15 @@ extension SelfTestRunner {
             check(tris(pine1) > 100 && tris(pine1) < tris(pine0) / 2 && tris(pine2) > 0, "the mid level is far cheaper (\(tris(pine1)) triangles) and a far level exists (\(tris(pine2)))")
             check(mat(pine0, .bark) > 100 && mat(pine0, .foliage) > 500 && mat(pine1, .bark) == 0 && mat(pine1, .foliage) > 50, "full detail has bark and foliage materials; the mid level skips the bark pattern")
             // Structure: a trunk that flares at the root and tapers, a crown that is a mass of clumps wider than the trunk by an order of magnitude.
-            // The trunk is the first tube built: 10 rings of 8 vertices, a buried ring first (F02 G1: the trunk runs straight down into the ground), then base to top (see Trees.conifer).
+            // The trunk is the first tube built: 10 rings of `Trees.trunkSides` vertices, a buried ring first (F02 G1: the trunk runs straight down into the ground), then base to top (see Trees.conifer).
             func ringR(_ k: Int) -> Float {
-                let ring = pine0.vertices[(k * 8)..<(k * 8 + 8)]
-                let cx = ring.map(\.position.x).reduce(0, +) / 8, cz = ring.map(\.position.z).reduce(0, +) / 8
-                return ring.map { simd_length(SIMD2($0.position.x - cx, $0.position.z - cz)) }.reduce(0, +) / 8
+                let ns = Trees.trunkSides
+                let ring = pine0.vertices[(k * ns)..<(k * ns + ns)]
+                let cx = ring.map(\.position.x).reduce(0, +) / Float(ns), cz = ring.map(\.position.z).reduce(0, +) / Float(ns)
+                return ring.map { simd_length(SIMD2($0.position.x - cx, $0.position.z - cz)) }.reduce(0, +) / Float(ns)
             }
             let buriedR = ringR(0), rootR = ringR(1), midR = ringR(5), topR = ringR(9)
-            check(rootR > 0.3 && rootR > midR * 1.5 && midR > topR * 1.5 && topR > 0.02 && abs(pine0.vertices[8].position.y) < 0.1 && pine0.vertices[0].position.y < -1, "the trunk flares at the root and tapers to a slender top (rings: root \(rootR) m, mid \(midR) m, top \(topR) m)")
+            check(rootR > 0.3 && rootR > midR * 1.5 && midR > topR * 1.5 && topR > 0.02 && abs(pine0.vertices[Trees.trunkSides].position.y) < 0.1 && pine0.vertices[0].position.y < -1, "the trunk flares at the root and tapers to a slender top (rings: root \(rootR) m, mid \(midR) m, top \(topR) m)")
             check(abs(buriedR - rootR) < 0.05 * rootR, "G1: the buried part of the trunk is no wider than the trunk at the ground (\(buriedR) m vs \(rootR) m): no collar, no flare")
             let crownW = pine0.vertices.filter { abs($0.normal.w - MaterialID.foliage.rawValue) < 0.01 }.map { simd_length(SIMD2($0.position.x, $0.position.z)) }.max() ?? 0
             let height = pine0.vertices.map(\.position.y).max() ?? 0

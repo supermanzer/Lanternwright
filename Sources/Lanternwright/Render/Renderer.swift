@@ -529,6 +529,9 @@ final class Renderer {
                 for item in glass {
                     let b = item.worldBounds
                     guard camFrustum.intersects(min: b.min, max: b.max) else { continue }
+                    if let h = ProcessInfo.processInfo.environment["LW_GLASSHIDE"], item.name.contains(h) { continue }
+                    if let h = ProcessInfo.processInfo.environment["LW_GLASSONLY"], !item.name.contains(h) { continue }
+                    if ProcessInfo.processInfo.environment["LW_GLASSDUMP"] != nil { let c = (b.min + b.max) * 0.5; print("GLASS", item.name, c, simd_length(c - camera.position), b.max - b.min) }
                     var u = item.uniforms
                     enc.setVertexBuffer(item.mesh.vertexBuffer, offset: 0, index: 0)
                     enc.setVertexBytes(&u, length: MemoryLayout<ObjectUniforms>.stride, index: 2)
@@ -539,6 +542,9 @@ final class Renderer {
             }
             // Mist sheets: same disc, alpha-blended, two layers at different heights with different noise.
             let beamHeading = 0.6 + clock * Renderer.beamRate          // the mist sheets' beam sector direction
+            // The glass loop above left the last crystal's vertices bound at slot 0: the sheets are the ocean disc, so bind ITS vertices again (F03 #47: the mist was
+            // drawn with the ocean's indices over a crystal tree's vertices, a faint faceted ghost in the sky near the horizon).
+            enc.setVertexBuffer(ocean.mesh.vertexBuffer, offset: 0, index: 0)
             enc.setRenderPipelineState(mistPipeline)
             for (height, strength, seed) in [(Float(1.6), Float(0.85), Float(0.0)), (Float(6.5), Float(0.5), Float(0.37))] {
                 var mu = ocean.uniforms(camera: camera, level: height)

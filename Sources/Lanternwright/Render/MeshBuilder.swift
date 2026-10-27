@@ -168,7 +168,9 @@ struct MeshBuilder {
             for j in 0..<ns {
                 let jn = (j + 1) % ns
                 let a = UInt32(k * ns + j), b = UInt32(k * ns + jn), c = UInt32((k + 1) * ns + j), d = UInt32((k + 1) * ns + jn)
-                idx.append(contentsOf: [a, c, d, a, d, b])
+                // Wound so the OUTSIDE is the front face. It was [a, c, d, a, d, b], whose geometric normal points at the axis: the renderer culls back faces, so the near wall
+                // vanished and the player saw the inside of the far wall (F03 #38, #39: "the inside of the trunk curving away from me"). SelfTestTrees pins it.
+                idx.append(contentsOf: [a, d, c, a, b, d])
             }
         }
         addIndexed(positions: pos, indices: idx, smoothNormals: nrm, surface: surface, transform: transform)

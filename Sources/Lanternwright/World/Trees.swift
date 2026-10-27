@@ -149,7 +149,7 @@ enum Trees {
         // F02 G1: the trunk simply carries on straight down below y = 0 (same radius as its base, same bark): the terrain hides the buried part, so no
         // footing or collar is needed and no gap can show on a slope.
         let b0 = trunkAt(0)
-        b.tube(points: [SIMD3(b0.x, -buriedDepth, b0.z)] + ts.map(trunkAt), radii: [trunkR(0)] + ts.map(trunkR), sides: lod == 0 ? 8 : 5, surface: bark)
+        b.tube(points: [SIMD3(b0.x, -buriedDepth, b0.z)] + ts.map(trunkAt), radii: [trunkR(0)] + ts.map(trunkR), sides: lod == 0 ? trunkSides : 5, surface: bark)
 
         // (The litter at the foot, cones and twigs, is no longer baked in here: on a slope it floated. See Trees.litterCone / litterTwig and Island.addTrees,
         // which place each piece on the terrain under it.)
@@ -208,6 +208,9 @@ enum Trees {
         return b
     }
 
+    /// The full-detail trunk's sides (F03 G3: 12, so its outline is round and not an octagon).
+    static let trunkSides = 12
+    static let cardScale: Float = 1.5, cardWidth: Float = 0.47
     private static var needleCache: [Int: MeshBuilder] = [:]
     static func needleVariant(_ style: Style, _ index: Int) -> MeshBuilder {
         let key = (style == .pine ? 0 : 1000) + index
@@ -260,9 +263,11 @@ enum Trees {
                 for sgn: Float in [-1, 1] {
                     let yaw = sgn * (0.75 + 0.45 * r(bi * 31 + i, 11))
                     let d = dirB * 0.5 + side * yaw + SIMD3(0, -(0.18 + 0.30 * r(bi * 31 + i, 12)), 0)
-                    let len = (sk.pine ? 0.52 : 0.38) * (0.75 + 0.5 * r(bi * 31 + i, 13)) * (1.1 - 0.4 * f)
-                    addCard(at: at, dir: d, width: len * 0.34, length: len, tilt: 0)
-                    addCard(at: at, dir: d + SIMD3(0, 0.30, 0), width: len * 0.34, length: len * 0.9, tilt: 0.9)
+                    // F03 G4 (#41): the cards were about 40 % short of the sprays' greenery (the crown lost a third of its mass at the swap), so they are longer and wider
+                    // (`cardScale`, `cardWidth`) and a little more of each branch carries them; SelfTestNeedles measures the match against the far sprays.
+                    let len = (sk.pine ? 0.52 : 0.38) * cardScale * (0.75 + 0.5 * r(bi * 31 + i, 13)) * (1.1 - 0.4 * f)
+                    addCard(at: at, dir: d, width: len * cardWidth, length: len, tilt: 0)
+                    addCard(at: at, dir: d + SIMD3(0, 0.30, 0), width: len * cardWidth, length: len * 0.9, tilt: 0.9)
                 }
             }
         }

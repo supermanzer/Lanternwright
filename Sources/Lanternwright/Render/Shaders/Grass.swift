@@ -95,7 +95,7 @@ vertex LitOut grass_vertex(uint vid [[vertex_id]], uint iid [[instance_id]],
     wp.xz += side * sideSign * width * taper;
     wp.xz += facing * (bend * height * t * t);
     float ws = wind_strength(float3(xz.x, y, xz.y), time);                  // THIS blade's wind: a gust is a band travelling across the meadow at 9 m/s (Wind.swift)
-    wp.xz += WIND_DIR * (ws * 0.9 * height * t * t);                       // the blades lean along the wind, much more in a gust
+    wp.xz += WIND_DIR * (ws * WIND_GRASS_LEAN * height * t * t);                       // the blades lean along the wind, much more in a gust
     wp.y += height * t - 0.4 * bend * bend * height * t * t;      // bending shortens the blade slightly
 
     // Colour: the terrain's lush/parched patches (same large-scale noise) with a dark root and a pale tip.

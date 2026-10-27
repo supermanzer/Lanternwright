@@ -247,3 +247,68 @@ enum Approach {
         }
     }
 }
+
+// MARK: Foliage match (F03 G4, note #41)
+
+extension Approach {
+    /// The share of a frame that is foliage (green-dominant, so not the grey-blue sky, not the brown trunk) when a conifer's crown is framed at `distance` metres. The field of
+    /// view shrinks in proportion to the distance, so the crown is the SAME size on screen at every distance: the share is then directly comparable between the stylised
+    /// sprays (far) and the needle cards (near). `floating` false puts the eye on the ground (1.7 m), as a player's is, looking up into the crown. `write` saves the frame.
+    static func foliageShare(renderer: Renderer, distance: Float, floating: Bool = true, width: Int = 480, height: Int = 640, write: String? = nil) -> Float {
+        let v = renderer.scenes[.varrow]!.terrain!
+        let sites = Island.treeSites(terrain: v).prefix(420).filter { v.sampleHeight(x: $0.x, z: $0.y) > 6 && v.sampleHeight(x: $0.x, z: $0.y) < 26 && v.normal(x: $0.x, z: $0.y).y > 0.93 }
+        let from = SIMD2(Layout.dockShore.x, Layout.dockShore.z)
+        guard let tree = sites.filter({ simd_length($0 - from) > 25 }).min(by: { simd_length($0 - from) < simd_length($1 - from) }) else { return 0 }
+        let g = v.sampleHeight(x: tree.x, z: tree.y)
+        let toward = simd_normalize(from - tree)
+        let cam2 = tree + toward * distance
+        let target = SIMD3(tree.x, g + 6.0, tree.y)                       // the middle of the crown
+        // The eye floats so that the crown is always seen from the same elevation (8 degrees below the crown's middle, as at 30 m from a 1.7 m eye): a near eye on the ground looks
+        // up into the crown and sees less of it, which would be the view's doing and not the foliage's.
+        let eye = SIMD3(cam2.x, floating ? target.y - distance * 0.1405 : v.sampleHeight(x: cam2.x, z: cam2.y) + 1.7, cam2.y)
+        let d = target - eye
+        let halfHeight: Float = 5.2                                         // metres of crown framed (the crown is about 10 m tall)
+        let fov = 2 * atan(halfHeight / simd_length(d))
+        let cam = Camera(position: eye, yaw: atan2(d.x, -d.z), pitch: asin(d.y / simd_length(d)), fovY: fov)
+        let desc = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: Renderer.outputFormat, width: width, height: height, mipmapped: false)
+        desc.usage = [.renderTarget, .shaderRead]; desc.storageMode = .shared
+        guard let tex = renderer.device.makeTexture(descriptor: desc) else { return 0 }
+        renderer.fixedTime = 12; renderer.autoExposure = false; renderer.world = .varrow
+        // The same frame without any conifer is the background; foliage is what differs from it, in the central half of the width and the upper half of the frame (where the
+        // crown is; the ground's shadows fall lower).
+        let withTrees = pixels(renderer: renderer, camera: cam, width: width, height: height, target: tex)
+        Scene.hideTrees = true
+        let background = pixels(renderer: renderer, camera: cam, width: width, height: height, target: tex)
+        Scene.hideTrees = false
+        var green = 0, total = 0
+        var out = withTrees
+        if let path = write { writeRaw(withTrees, width: width, height: height, to: path.replacingOccurrences(of: ".png", with: "-raw.png")) }
+        for y in 0..<(height / 2) { for x in (width / 4)..<(3 * width / 4) {
+            let i = (y * width + x) * 4
+            let delta = abs(Int(withTrees[i]) - Int(background[i])) + abs(Int(withTrees[i + 1]) - Int(background[i + 1])) + abs(Int(withTrees[i + 2]) - Int(background[i + 2]))
+            let isFoliage = delta > 36
+            total += 1
+            if isFoliage { green += 1 } else if write != nil { out[i] = 255; out[i + 1] = 255; out[i + 2] = 255 }
+        } }
+        if let path = write {
+            let info = CGBitmapInfo(rawValue: CGImageAlphaInfo.noneSkipFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue)
+            if let provider = CGDataProvider(data: Data(out) as CFData),
+               let image = CGImage(width: width, height: height, bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: width * 4, space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: info, provider: provider, decode: nil, shouldInterpolate: false, intent: .defaultIntent),
+               let dest = CGImageDestinationCreateWithURL(URL(fileURLWithPath: path) as CFURL, UTType.png.identifier as CFString, 1, nil) {
+                CGImageDestinationAddImage(dest, image, nil); CGImageDestinationFinalize(dest)
+            }
+        }
+        return Float(green) / Float(max(total, 1))
+    }
+}
+
+extension Approach {
+    static func writeRaw(_ px: [UInt8], width: Int, height: Int, to path: String) {
+        let info = CGBitmapInfo(rawValue: CGImageAlphaInfo.noneSkipFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue)
+        if let provider = CGDataProvider(data: Data(px) as CFData),
+           let image = CGImage(width: width, height: height, bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: width * 4, space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: info, provider: provider, decode: nil, shouldInterpolate: false, intent: .defaultIntent),
+           let dest = CGImageDestinationCreateWithURL(URL(fileURLWithPath: path) as CFURL, UTType.png.identifier as CFString, 1, nil) {
+            CGImageDestinationAddImage(dest, image, nil); CGImageDestinationFinalize(dest)
+        }
+    }
+}

@@ -92,6 +92,17 @@ extension SelfTestRunner {
         // The gust is the shared one and has the shape the plan asks for.
         var gl: Float = 1, gh: Float = 0
         for k in 0..<12_000 { let v = Wind.gust(time: Float(k) * 0.05); gl = min(gl, v); gh = max(gh, v) }
+        // F03 #48 (R3, "the entire grassy area blinks as I pass"): the whole meadow leaned and sprang back together. Two bounds: how fast any blade's lean can change, and that
+        // neighbouring patches of grass are NOT in step (same gust, different phase).
+        var maxRate: Float = 0
+        let probe = SIMD3<Float>(-14.5, 9.1, 105.9)
+        var prevS = Wind.strength(at: probe, time: 0)
+        for k in 1..<12_000 { let v = Wind.strength(at: probe, time: Float(k) * 0.05); maxRate = max(maxRate, abs(v - prevS) / 0.05); prevS = v }
+        check(Wind.grassLean * maxRate <= 0.30, "a blade's lean changes by at most 0.30 of its height per second (\(String(format: "%.2f", Wind.grassLean * maxRate)); it was 0.9 x 0.65 before F03)")
+        var diff: Float = 0, n: Float = 0
+        for k in 0..<2400 { let t = Float(k) * 0.25; for d: Float in [10, 20, 30] {
+            diff += abs(Wind.strength(at: probe, time: t) - Wind.strength(at: probe + SIMD3(-0.5, 0, 0.86) * d, time: t)); n += 1 } }
+        check(diff / n > 0.06, "grass 10 to 30 m apart across the wind is not in step: mean difference in gust strength \(String(format: "%.3f", diff / n)) (a flat front gave 0.00 at 0 m offset and a regular beat otherwise)")
         check(gl < 0.03 && gh > 0.9, "the shared gust really lulls and really gusts (range \(String(format: "%.3f", gl)) ... \(String(format: "%.3f", gh)) over ten minutes)")
     }
 }

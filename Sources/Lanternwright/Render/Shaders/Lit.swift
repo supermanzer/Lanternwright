@@ -170,14 +170,16 @@ float3 terrain_surface(float3 P, float3 Ng, float pathW, float wet, float duff, 
     N = normalize(Ng - g * bumpStrength);
     if (hasDetail) N = bump_normal(P, N, hDetail * (1.0 - smoothstep(0.25, 0.75, pathW)), 1.0);        // the layers' own relief: grit, moss, stones, grains
     N = normalize(mix(N, bump_normal(P, N, cob.x * (cob.w > 0.5 ? 0.04 : 0.022) * (cob.w > 0.5 ? featVis(0.30, fpix) : featVis(0.10, fpix)), 1.0), pm));
-    // Sand and flat pale ground carry faint wind ripples (crests across the wind, bent by a slow noise) so open flats are not a
-    // smooth dome. They fade with the pixel footprint so distant sand does not shimmer.
-    float rippleFade = featVis(0.5, fpix) * max(sandMask, 0.0) * smoothstep(0.6, 0.95, Ng.y);
+    // Sand carries a few broad, soft swells, not combed rows (F03 #33, #50): crest to crest about 2.6 m (water in a swash zone does not sort sand into fine
+    // rows), bent and broken by slow noise so crests fork and fade out, strongest in the swash zone and gone by 3 m above the sea. The long wavelength and the
+    // small amplitude also leave nothing to alias: the stripes seen on the Glass Wood's shelf at 50 m were 1 m ripples at full strength.
+    float rippleFade = featVis(1.3, fpix) * max(sandMask, 0.0) * smoothstep(0.6, 0.95, Ng.y) * (1.0 - smoothstep(0.4, 3.0, P.y));
     if (rippleFade > 0.001) {
-        float ph = dot(P.xz, float2(0.86, 0.5)) * 6.0 + (macro - 0.5) * 26.0 + (meso - 0.5) * 7.0;
-        float crest = cos(ph);
-        N = normalize(N + float3(0.86, 0.0, 0.5) * crest * 0.065 * rippleFade);
-        albedo *= 1.0 + 0.035 * crest * rippleFade;
+        float ph = dot(P.xz, float2(0.86, 0.5)) * 2.4 + (macro - 0.5) * 9.0 + (meso - 0.5) * 3.0 + (vnoiseV(P * 0.31 + 9.0) - 0.5) * 3.4;
+        float patchy = smoothstep(0.30, 0.65, fbmV(P * 0.17 + 4.0));                        // crests come and go
+        float crest = cos(ph) * (0.35 + 0.65 * vnoiseV(P * 0.45 + 2.0)) * patchy;           // and vary in height
+        N = normalize(N + float3(0.86, 0.0, 0.5) * crest * 0.03 * rippleFade);
+        albedo *= 1.0 + 0.018 * crest * rippleFade;
     }
 
     rough = mix(mix(0.92, 0.85, rockMask), mix(0.95, 0.45, wetSand), sandMask);

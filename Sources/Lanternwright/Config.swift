@@ -104,7 +104,7 @@ struct LaunchOptions {
         while i < args.count {
             switch args[i] {
             case "--screenshot": o.screenshotPath = next()
-            case "--view": o.viewName = next()
+            case "--view": o.viewName = next(); if o.viewName == "material-sheet" { Props.includeMaterialSheet = true }
             case "--camera":
                 let v = next().split(separator: ",").compactMap { Float($0) }
                 guard v.count == 5 else { fail("--camera expects x,y,z,yaw,pitch") }
@@ -267,6 +267,23 @@ enum Viewpoints {
 
     /// `tree-needle-05` (0.5 m), `-near` (1.5 m), `-2m`, `-mid` (3.5 m), `-5m` and `-far` (6 m): a conifer's lower crown seen from that far, at the height of its lowest whorl, looking at the foliage
     /// (F02 T66.13: the needle-level foliage and its dissolve into the stylised sprays).
+    /// `tree-trunk-sun` / `tree-trunk-away`: a conifer's trunk seen from 0.5 m clear of its bark at chest height, from the side the sun is on and from the side it is not (F03 G3: solid, convex,
+    /// furrowed bark; no light on the far side). The same tree as `tree-needle-*`.
+    static func treeTrunk(terrain t: Terrain, name: String, sun: SIMD3<Float>) -> Camera? {
+        guard name == "tree-trunk-sun" || name == "tree-trunk-away" else { return nil }
+        let sites = Island.treeSites(terrain: t).prefix(420).filter { t.sampleHeight(x: $0.x, z: $0.y) > 6 && t.sampleHeight(x: $0.x, z: $0.y) < 26 && t.normal(x: $0.x, z: $0.y).y > 0.93 }
+        let from = SIMD2(Layout.dockShore.x, Layout.dockShore.z)
+        guard let tree = sites.filter({ simd_length($0 - from) > 25 }).min(by: { simd_length($0 - from) < simd_length($1 - from) }) else { return nil }
+        var toSun = SIMD2(sun.x, sun.z); toSun = simd_length(toSun) > 1e-4 ? simd_normalize(toSun) : SIMD2(1, 0)
+        let side: Float = name == "tree-trunk-sun" ? 1 : -1
+        let cam2 = tree + toSun * side * 1.0
+        let g = t.sampleHeight(x: cam2.x, z: cam2.y)
+        let target = SIMD3(tree.x, t.sampleHeight(x: tree.x, z: tree.y) + 1.5, tree.y)
+        let eye = SIMD3(cam2.x, g + 1.5, cam2.y)
+        let d = target - eye
+        return Camera(position: eye, yaw: atan2(d.x, -d.z), pitch: asin(d.y / simd_length(d)))
+    }
+
     static func treeNeedle(terrain t: Terrain, name: String) -> Camera? {
         let dist: Float
         switch name { case "tree-needle-05": dist = 0.5; case "tree-needle-near": dist = 1.5; case "tree-needle-2m": dist = 2; case "tree-needle-mid": dist = 3.5; case "tree-needle-5m": dist = 5; case "tree-needle-far": dist = 6; default:

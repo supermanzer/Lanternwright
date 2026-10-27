@@ -351,7 +351,14 @@ extension SelfTestRunner {
             check(up > low * 1.2, "the wind is stronger on the summit than at the shore on average")
             // A gust travels downwind: the same gust reaches a point 90 m downwind 10 s later.
             let there = SIMD3<Float>(Wind.direction.x * 90, 0, Wind.direction.y * 90)
-            check(abs(Wind.strength(at: there, time: 25 + 10) - Wind.strength(at: .zero, time: 25)) < 1e-4, "gusts travel downwind at 9 m/s")
+            // (F03 #48 gave each patch a small phase offset, so this is the best-matching lag over ten minutes, not an exact identity.)
+            var bestLag: Float = 0, bestErr = Float.greatestFiniteMagnitude
+            for li in 0...80 {
+                let lag = Float(li) * 0.25; var err: Float = 0
+                for k in 0..<1200 { let t = Float(k) * 0.5 + 40; err += abs(Wind.strength(at: there, time: t + lag) - Wind.strength(at: .zero, time: t)) }
+                if err < bestErr { bestErr = err; bestLag = lag }
+            }
+            check(abs(bestLag - 10) < 3.0, "gusts travel downwind at about 9 m/s: a gust reaches a point 90 m downwind \(bestLag) s later (7 to 13 s)")
         }
         if name == "all" || name == "clutter" {
             let sc = Scene.makeWorld(device: device)

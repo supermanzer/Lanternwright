@@ -60,7 +60,10 @@ final class Scene {
     }
     /// Debug (`--hard-lod`): the pre-R09 behaviour, one level per cell chosen by distance to its box, no dithering. Only for measuring.
     static var hardLOD = false
+    /// Debug (selftest `needles`): draw no conifer cells, to render the background a crown stands against.
+    nonisolated(unsafe) static var hideTrees = false
     func applyLOD(eye: SIMD3<Float>) {
+        defer { if Scene.hideTrees { for i in items.indices where items[i].name.hasPrefix("trees_") || items[i].name.hasPrefix("needles_") { items[i].hidden = true } } }
         if Scene.hardLOD {
             for g in lodGroups {
                 let dx = max(g.min.x - eye.x, 0, eye.x - g.max.x), dz = max(g.min.y - eye.z, 0, eye.z - g.max.y)
@@ -222,7 +225,7 @@ final class Scene {
         let dock = Layout.dockStrip()
         scene.walkables.append(Walkable(a: dock.a, b: dock.b, halfWidth: 1.2, y0: dock.y0, y1: dock.y1))
         Island.populate(scene, device: device)
-        Props.addMaterialSheet(scene, device: device)
+        if Props.includeMaterialSheet { Props.addMaterialSheet(scene, device: device) }
         return scene
     }
 }

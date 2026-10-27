@@ -25,9 +25,20 @@ enum Wind {
         return pow(min(max(g, 0), 1), shape)
     }
 
+    /// How far a blade tip leans along the wind at full strength, as a fraction of the blade's height (F03 #48: 0.9 flattened the whole meadow in a gust).
+    static let grassLean: Float = 0.42
+
+    /// A gust is not a flat wall of wind (F03 #48: the whole meadow leaned and sprang back in unison, which read as the grass blinking): its front is tilted a
+    /// little across the wind and arrives up to about 2.2 s early or late from place to place, so neighbouring patches of grass are never in the same phase.
+    static let frontTilt: Float = 0.45, frontScatter: Float = 2.2
+    static func delay(at p: SIMD2<Float>) -> Float {
+        let along = simd_dot(p, direction) + frontTilt * (direction.x * p.y - direction.y * p.x)
+        return along / travelSpeed + frontScatter * sin(simd_dot(p, SIMD2(0.031, -0.047)) + 1.7)
+    }
+
     /// Strength 0...1 at a place and time: the gust as it reaches this spot, stronger up high.
     static func strength(at p: SIMD3<Float>, time t: Float) -> Float {
-        let delay = simd_dot(SIMD2(p.x, p.z), direction) / travelSpeed
+        let delay = delay(at: SIMD2(p.x, p.z))
         let altitude = altitudeBase + altitudeSpan * min(max(p.y / altitudeTop, 0), 1)
         return min(max(gust(time: t - delay) * altitude, 0), 1)
     }
@@ -38,6 +49,7 @@ enum Wind {
     /// The same functions in Metal, generated from the constants above: `wind_strength(float3 worldPos, float time)` and `wind_dir`.
     static var mslSource: String {
         """
+        constant float WIND_GRASS_LEAN = \(grassLean);
         constant float2 WIND_DIR = float2(\(direction.x), \(direction.y));
         constant float3 WIND_OMEGA = float3(\(omega.x), \(omega.y), \(omega.z));
         constant float3 WIND_PHASE = float3(\(phase.x), \(phase.y), \(phase.z));
@@ -47,7 +59,7 @@ enum Wind {
             return pow(clamp(g, 0.0, 1.0), \(shape));
         }
         inline float wind_strength(float3 p, float t) {
-            float delay = dot(p.xz, WIND_DIR) / \(travelSpeed);
+            float delay = (dot(p.xz, WIND_DIR) + \(frontTilt) * (WIND_DIR.x * p.z - WIND_DIR.y * p.x)) / \(travelSpeed) + \(frontScatter) * sin(dot(p.xz, float2(0.031, -0.047)) + 1.7);
             float altitude = \(altitudeBase) + \(altitudeSpan) * clamp(p.y / \(altitudeTop), 0.0, 1.0);
             return clamp(wind_gust(t - delay) * altitude, 0.0, 1.0);
         }

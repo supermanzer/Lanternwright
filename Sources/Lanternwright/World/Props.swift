@@ -65,6 +65,8 @@ enum Props {
 
     /// A gallery of every procedural material (F01 W0): a sphere and a slab of each, in two rows, floating over the open sea north of the island, lit by the same
     /// sun as everything else. `--view material-sheet` looks at it. Costs nothing in play (it is far outside the view frustum of every ordinary view).
+    /// Off in the game: a player on the north shore could see the sheet as a strip of colour 900 m away (F03 #46). Only `--view material-sheet` builds it.
+    nonisolated(unsafe) static var includeMaterialSheet = false
     static let sheetOrigin = SIMD3<Float>(-60, 95, -900)
     static let sheetMaterials: [(String, MaterialID, SIMD3<Float>)] = [
         ("masonry", .masonry, SIMD3(0.40, 0.38, 0.35)), ("paint white", .paint, SIMD3(0.82, 0.80, 0.74)), ("paint red", .paint, SIMD3(0.62, 0.22, 0.16)),

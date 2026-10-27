@@ -130,6 +130,7 @@ enum Screenshot {
         default: break
         }
         if let c = Viewpoints.treeNeedle(terrain: terrain, name: name) { return c }
+        if let c = Viewpoints.treeTrunk(terrain: terrain, name: name, sun: Renderer.sunDirection(elevationDeg: renderer.options.sunElevation, azimuthDeg: renderer.options.sunAzimuth)) { return c }
         if let c = Viewpoints.poolView(terrain: terrain, name: name) { return c }
         if let c = Viewpoints.pageView(scene: renderer.scene, name: name) { return c }
         if let c = Viewpoints.treeBase(terrain: terrain, name: name) { return c }

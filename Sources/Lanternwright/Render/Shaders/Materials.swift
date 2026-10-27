@@ -433,23 +433,43 @@ inline MatOut mat_wood(float3 Pl, float3 P, float3 N, float3 base, float fpix) {
     return o;
 }
 
-// ---- Bark: long vertical fissures between raised plates, moss on the north (windward) side. --------------------------------
+// ---- Bark (F03 G3, notes #38, #39): pine bark. Plates of corky, warm grey-brown bark separated by deep dark furrows that run up the trunk, meander and fork, the plates
+// scaled across by finer cracks. The lattice is stretched along the trunk (about 14 cm wide, 90 cm tall plates), unrotated so the stretch really is vertical, and the
+// relief is a RAISED plate with a rounded edge, so the groove is the low part (the old pattern read as dark stains on a smooth tube). Matte: no specular lobe to speak of.
+inline float3 bark_cells(float3 x) {                      // F1, F2 and the nearest cell's id of an unrotated 3D lattice
+    float3 i = floor(x), f = fract(x);
+    float d1 = 1e9, d2 = 1e9, id = 0.0;
+    for (int k = 0; k < 27; k++) {
+        float3 g = float3(float(k % 3) - 1.0, float((k / 3) % 3) - 1.0, float(k / 9) - 1.0);
+        float3 h = hash33w(i + g);
+        float3 r = g + h - f;
+        float d = dot(r, r);
+        if (d < d1) { d2 = d1; d1 = d; id = h.x; } else if (d < d2) { d2 = d; }
+    }
+    return float3(sqrt(d1), sqrt(d2), id);
+}
 inline MatOut mat_bark(float3 P, float3 N, float3 base, float fpix) {
     MatOut o;
-    float3 q = float3(P.x * 8.0 + P.z * 3.0, P.y * 1.1, P.z * 8.0 - P.x * 3.0);          // stretched along the trunk axis
-    float w1 = featVis(0.12, fpix), w2 = featVis(0.05, fpix);
-    float f1 = 1.0 - abs(2.0 * vnoise3(q) - 1.0);
-    float f2 = 1.0 - abs(2.0 * vnoise3(q * float3(2.2, 1.4, 2.2) + 5.0) - 1.0);
-    float ridge = mix(0.55, f1, w1) * 0.65 + mix(0.55, f2, w2) * 0.35;
-    float plates = smoothstep(0.38, 0.74, ridge);
-    float3 albedo = mix(base * 0.28, base * (0.8 + 0.4 * vnoise3(P * 6.0)), plates);
-    float moss = smoothstep(0.45, 0.7, fbm3(P * 2.2 + 8.0)) * smoothstep(-0.1, -0.5, N.z) * plates;
-    albedo = mix(albedo, float3(0.10, 0.19, 0.05) * (0.8 + 0.4 * vnoise3(P * 20.0)), moss * 0.75);
+    float wFur = featVis(0.12, fpix), wCrack = featVis(0.05, fpix);
+    float3 wq = P + 0.035 * float3(vnoise3(P * 2.7), 0.0, vnoise3(P * 2.7 + 7.0));          // furrows meander
+    float3 c1 = bark_cells(float3(wq.x * 7.0, wq.y * 1.1, wq.z * 7.0));
+    float3 c2 = bark_cells(float3(wq.x * 15.0, wq.y * 3.6, wq.z * 15.0) + 11.0);
+    float crev = c1.y - c1.x;                               // 0 along a furrow, rising into the plate
+    float plate = mix(0.8, smoothstep(0.0, 0.22, crev), wFur);
+    float scaly = mix(0.85, smoothstep(0.0, 0.12, c2.y - c2.x), wCrack);
+    float relief = plate * mix(0.9, 1.0, scaly);
+    float lum = dot(base, float3(0.3333));
+    float3 warm = mix(base, float3(1.10, 0.97, 0.84) * lum, 0.5);                           // warm grey-brown: the saturated tan was not pine
+    float3 plateCol = warm * (0.74 + 0.34 * c1.z) * (0.86 + 0.28 * scaly) * (0.9 + 0.2 * vnoise3(P * 9.0));
+    float3 albedo = mix(base * 0.20, plateCol, relief);
+    albedo *= 1.0 + 0.10 * smoothstep(0.05, 0.18, crev) * (1.0 - smoothstep(0.18, 0.4, crev));   // a faint pale rim where a plate turns toward the light
+    float moss = smoothstep(0.45, 0.7, fbm3(P * 2.2 + 8.0)) * smoothstep(-0.1, -0.5, N.z) * plate;
+    albedo = mix(albedo, float3(0.10, 0.19, 0.05) * (0.8 + 0.4 * vnoise3(P * 20.0)), moss * 0.55);
     o.albedo = albedo;
-    o.rough = clamp(0.92 - 0.1 * moss, 0.6, 1.0);
+    o.rough = clamp(0.96 - 0.08 * moss, 0.7, 1.0);
     o.metal = 0.0;
-    o.N = bump_normal(P, N, 0.03 * plates + 0.012 * moss, 1.0);
-    o.ao = mix(0.5, 1.0, plates);
+    o.N = bump_normal(P, N, 0.032 * relief * wFur + 0.012 * moss, 1.0);
+    o.ao = mix(0.5, 1.0, smoothstep(0.0, 0.16, crev) * mix(0.8, 1.0, scaly));
     return o;
 }
 
@@ -472,14 +492,20 @@ inline float4 cell2n(float2 p) {
 // density so the card keeps its tone instead of aliasing.
 inline float needle_cover(float u, float v, float cs, float fpix) {
     float av = abs(v);
-    float a = (u - av * 0.34) * 22.0 + cs * 6.0;
+    // F03 G4 (#40): the needles were too orderly, every one leaving the midrib at exactly the same angle and the same length. Each now has its own angle about the common
+    // slant (0.34 = 19 degrees; +-0.075 is about +-4 degrees) and its own length (+-15 %), fixed per needle (seeded by its band and the card), never per frame.
+    float a0 = (u - av * 0.34) * 22.0 + cs * 6.0;
+    float band0 = floor(a0);
+    float j0 = fract(sin(band0 * 12.9898 + cs * 78.233) * 43758.5453);
+    float a = (u - av * (0.34 + 0.075 * (2.0 * j0 - 1.0))) * 22.0 + cs * 6.0;
     float band = floor(a);
     float jit = fract(sin(band * 12.9898 + cs * 78.233) * 43758.5453);                // every needle has its own thickness and offset
+    float lim = 0.92 * (1.0 + 0.15 * (2.0 * fract(jit * 7.31 + 0.37) - 1.0));        // and its own length
     float f = fract(a) + (jit - 0.5) * 0.30;
     float w = (0.52 + 0.32 * jit) * (1.0 - 0.35 * av);
     float edge = 0.14;
     float line = smoothstep(0.0, edge, f) * smoothstep(w, w - edge, f);
-    float inside = smoothstep(1.0, 0.82, av) * smoothstep(0.0, 0.05, u) * smoothstep(1.0, 0.88, u) * (0.75 + 0.25 * jit);
+    float inside = smoothstep(lim + 0.08, lim - 0.10, av) * smoothstep(0.0, 0.05, u) * smoothstep(1.0, 0.88, u) * (0.75 + 0.25 * jit);
     float rib = (1.0 - smoothstep(0.04, 0.09, av)) * smoothstep(0.0, 0.04, u) * smoothstep(1.0, 0.9, u);
     float cover = max(line * inside, rib);
     // A needle is about 1.4 cm across a card, so the herringbone is resolved when a pixel is under about 5 mm (up to about 6 m). Beyond that the pattern would only alias into
