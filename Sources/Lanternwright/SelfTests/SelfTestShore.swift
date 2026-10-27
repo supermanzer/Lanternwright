@@ -129,6 +129,7 @@ extension SelfTestRunner {
         let ring = number(mat, after: "float ringPos = (r + warp) * ") ?? 999
         let fibreAmp = number(mat, after: "wood *= mix(0.90, 1.06, mix(0.5, late, vGrain)) * (0.95 + ") ?? 9
         check(2 * Float.pi / ring >= 0.10 && fibreAmp <= 0.12, "planks show wide soft figure, not dense lines: growth rings \(String(format: "%.0f", 2 * 100 * Float.pi / ring)) cm apart (at least 10 cm; was 4 cm), fibre streak contrast \(String(format: "%.0f", fibreAmp * 100)) % (at most 12 %; was 24 %)")
+        check(mat.contains("o.N = bump_normal(P, N, 0.0011 * (late - 0.5) * vGrain + 0.003 * knot, 1.0);") && mat.contains("albedo *= 1.0 - 0.28 * check - 0.55 * knot;"), "the plank relief is only the wide ring term and the knots, and checks are faint hairlines: thin fibre and check lines in the relief derivative alias into dashed lines at grazing angles (F03 G1 review)")
         let caustic = number(water, after: "sceneCol += float3(0.9, 1.0, 1.1) * caustic * shallow * ") ?? 9
         check(caustic <= 0.04, "the shallow-water caustics are a faint hint (\(String(format: "%.1f", caustic * 100)) % of the bed's brightness; was 13 %, which read as drawn lines on the sand under thin water)")
     }

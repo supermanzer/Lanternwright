@@ -1,5 +1,33 @@
 # F03: third playtest (notes #33 to #51)
 
+## Outcome: what was actually implemented (as of the F03 closing commit; see the git log for the hash)
+
+Added after the work landed; the plan below is kept as written. Task ids refer to `docs/TASKS.md` (the F03 section, T68.x). "Needs you" means a person must look or listen. Every task had an independent reviewer (docs/REVIEW-STEP.md); evidence, numbers and honest limits are in each `> done:` note and in `docs/INSPECT.md`. The full selftest is 785 PASS, 0 FAIL.
+
+| # | Final solution | Task | Status |
+|---|---|---|---|
+| 33 | The 6 cm sand rows are gone (a faint 0.5 m swell and the 2.6 m swells remain); plank growth rings 12 cm apart instead of 4 cm, fibre contrast 24 % to 10 %, and the dashed lines were thin fibre and check lines aliasing in the relief derivative (removed from it); **the "lines in the water" were the shallow-water caustic net** (13 % of the bed's brightness), now 3.5 % and wider. | T68.13 | Needs you |
+| 34 | Shore physics (World/Shore.swift, shared with the shaders): crests are delayed by shallow water (5-20 s at the contact line) and die at it; the sheet there is a swash FILM (at most 5 cm over the ground, 3.8 mm at its tip, no step over 4.5 cm; the edge runs up fast, drains slowly and draws down below the sea's contact between surges, in groups); the lee of the island is reached about 6.6 s later by waves 55 % as high; the wet sand follows the swash groups' reach. +0.08 ms. | T68.14 | Needs you |
+| 35 | **The step limit was not the fault** (already 0.5 m, above the 0.35-0.4 asked). The dock's first board was refused as a steep slope because only Platforms were exempt; a deck is now a step. | T68.12 | Done, test-backed |
+| 36 | Deck step pinned: `DeckPin`, +-5 %; the recipe is untouched. | T68.15 | Done |
+| 37 | Wind lull -26 dB (was -14) and gust -10 dB (was -2) against the waterline surf, 89 % of its energy under 300 Hz, a faint grass-driven rustle only; grass sways 2.5 times as far, conifer crowns carry a slow breeze sway. The drone keeps its old absolute level. | T68.7 | Needs your ears |
+| 38, 39, 42 | **Every `tube()` was wound inside out**: the near wall of every trunk, branch and rail was culled and you saw the inside of the far wall; the "unlit highlight" was that inner wall catching the sun on the wrong side. Fixed, selftested; new pine bark; 12-sided trunks. | T68.5 | Needs you |
+| 40, 41 | Needle angle (+-4 degrees) and length (+-15 %) jitter; the near crown had a third less greenery than the far sprays: cards 1.5x longer, 1.3x wider; measured equal within 10 % from the same elevation, 16 % from the player's eye. About +0.7 ms among trees. | T68.6 | Needs you |
+| 43, 51 | Dropped pages: no lectern, glow, thread, motes, chime, banner or marker; sheets settled 3 mm onto the surface under them with loose sheets beside; a gust-flutter is the only clue. **The altar lectern had been set into the dais; the arrival plate and chime base (raised slabs) were not walkable and had buried the pages there: now platforms.** | T68.11 | Needs you: the balance is yours |
+| 44 | Door: knock, rattle (2-4, 16-42 ms apart), then the jangle 0.13 s later; harder with repeated tries. | T68.8 | Needs your ears |
+| 45 | Gravel slide voice, level follows speed, gone in 0.2 s, grass softer. | T68.9 | Needs your ears |
+| 46 | The debug material sheet, floating 900 m north, was built into every game: only built for `--view material-sheet` now. | T68.1 | Done, frames |
+| 47 | The mist pass drew the ocean's indices over the last crystal tree's vertices (the ghost in the sky); fixed. The dark bars are real shard shadows (`--hide gw_tufts`). | T68.2 | Done, frames |
+| 48 | NOT reproduced headlessly; most likely the flat gust flipping the whole meadow's lean in unison: front tilted and scattered, lean halved; coverage and TAA-walk selftests. | T68.3 | Needs you: tell me if it still blinks |
+| 49 | Water is bubbles (3.26/r Hz, 5-30 ms, rising), a low splash body per footfall, sparse bubbles for the wash. Very quiet. | T68.10 | Needs your ears |
+| 50 | Bands: 1 m ripples at full strength seen at 50 m, now broad and soft; streaks: the page-5 thread and motes. | T68.4 | Done, frames |
+
+**Where the build differs from the plan.** R3 is "most likely cause", not "cause found". The A2 rattle impacts are 16-42 ms apart, not "a few ms". The ground-eye needle test allows 16 % (a steep view into a crown shows less), the level-eye one 10 %. The M1 limit was left at 0.5 m (the plan asked to raise it to 0.35-0.4; it was already higher). The G2 swash is a model on the existing sea plane (no real wave solver; no wave breaking foam change). The sight-line test for pages is weak (a heading test, not occlusion). Not done: a second deck-pin plank; windblown particles (F02).
+
+**Process.** All 15 tasks went through the independent reviewer step. Changes were required on T68.2 (debug hooks I had left in; evidence for the shadows), T68.3 (a real coverage test and honest wording), T68.9 (an end-to-end slide test, a lower level), T68.15 (a tighter pin). One mistake of mine worth naming: I committed once with two full-selftest failures (the wind retune moved a level the drone and one audio test were defined against) after running only the wind group; the next full run caught it and it was fixed before any review of that commit.
+
+**Next.** docs/plans/G10-graphics-audit.md (see docs/plans/X00-roadmap-and-coordination.md first).
+
 Source: `Lanternwright --feedback` entries #33 to #51 (screenshots in `~/Library/Application Support/Lanternwright/feedback/`, files `20261025-1630*` to `20261026-0729*`). The reviewer read every note and opened the screenshots for #46, #47, #50 and #51.
 
 **Triage into TASKS.md first (accept with an Accept line, or REJECT with a reason).** Some of #33 to #34 and #38 to #42 may already be covered by R11 / T67.x or F02 T66.x: check each against current code, and mark "already done" only with a frame or a test as evidence. Same rules as before: before/after frames Read and compared (0.5 m close-up from two sides for any geometry), absolute targets asserted in selftests where a number can capture it, per-task review step, selftests green before each commit, `docs/INSPECT.md` updated, `scripts/bundle.sh` at the end, story ending untouched. Fill in an "Outcome" section at the top of this file when finished, in the style of F02's.
