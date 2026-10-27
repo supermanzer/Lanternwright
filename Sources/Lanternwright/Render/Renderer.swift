@@ -529,9 +529,6 @@ final class Renderer {
                 for item in glass {
                     let b = item.worldBounds
                     guard camFrustum.intersects(min: b.min, max: b.max) else { continue }
-                    if let h = ProcessInfo.processInfo.environment["LW_GLASSHIDE"], item.name.contains(h) { continue }
-                    if let h = ProcessInfo.processInfo.environment["LW_GLASSONLY"], !item.name.contains(h) { continue }
-                    if ProcessInfo.processInfo.environment["LW_GLASSDUMP"] != nil { let c = (b.min + b.max) * 0.5; print("GLASS", item.name, c, simd_length(c - camera.position), b.max - b.min) }
                     var u = item.uniforms
                     enc.setVertexBuffer(item.mesh.vertexBuffer, offset: 0, index: 0)
                     enc.setVertexBytes(&u, length: MemoryLayout<ObjectUniforms>.stride, index: 2)

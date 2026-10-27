@@ -43,6 +43,7 @@ final class AudioEngine {
     /// React to a game event (a chime, the causeway rumble).
     func handle(_ event: GameEvent) {
         switch event {
+        case .doorTry(let s): synth.doorStrength = s
         case .chime(let kind): synth.play(kind)
         case .drone(let i, let on): synth.setDrone(i, on: on)
         case .droneSour: synth.sourDrone()

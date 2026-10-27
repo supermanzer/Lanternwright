@@ -89,8 +89,8 @@ vertex LitOut grass_vertex(uint vid [[vertex_id]], uint iid [[instance_id]],
 
     // Wind: a travelling wave plus per-blade flutter, bending the upper part more (bend ~ t^2).
     float time = frame.cameraPos.w;
-    float wave = sin(dot(xz, float2(0.35, 0.21)) + time * 1.7) * 0.6 + sin(dot(xz, float2(-0.8, 0.5)) + time * 2.9 + hr * 6.0) * 0.4;
-    float bend = (0.22 + 0.16 * hr) + 0.16 * wave * (0.45 + 0.9 * wind_strength(float3(xz.x, y, xz.y), time));                              // each blade arcs over a little
+    float wave = sin(dot(xz, float2(0.35, 0.21)) + time * 1.1) * 0.6 + sin(dot(xz, float2(-0.8, 0.5)) + time * 1.9 + hr * 6.0) * 0.4;          // slower: a breeze, not a flutter (F03 A1)
+    float bend = (0.22 + 0.16 * hr) + WIND_GRASS_SWAY * wave * (0.45 + 0.9 * wind_strength(float3(xz.x, y, xz.y), time));                              // each blade arcs over a little
     float3 wp = float3(xz.x, y, xz.y);
     wp.xz += side * sideSign * width * taper;
     wp.xz += facing * (bend * height * t * t);

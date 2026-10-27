@@ -4,6 +4,8 @@ import Foundation
 /// speakers or the UI directly: it emits events, which keeps it testable without either.
 enum GameEvent: Equatable {
     case chime(ChimeKind)
+    /// How hard the player is trying the locked door, 0...1 (rises with repeated attempts within a few seconds); sent just before its chime (F03 A2).
+    case doorTry(Float)
     case pageCollected(Int)
     case journalOpened
     case journalClosed

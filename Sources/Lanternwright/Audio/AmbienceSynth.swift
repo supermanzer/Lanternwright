@@ -37,6 +37,14 @@ final class AmbienceSynth {
     var stepPlank = 0
     var stepHollow: Float = 1
     // Water contact (F02 A5, see WaterContact): requests from the main thread, and two continuous layers, the wash while wading and the lap while standing.
+    /// One-shot buffers (Audio/Foley.swift) playing now, and how hard the last locked-door attempt was (0...1, set by the engine before the chime).
+    private struct FoleyVoice { var buf: [Float]; var pos = 0; var gain: Float; var pan: Float }
+    private var foleyVoices: [FoleyVoice] = []
+    var doorStrength: Float = 0.6
+    /// Selftest hooks: the delays (s) of the bell voices waiting or ringing, and how many one-shot buffers play.
+    var chimeDelaysForTest: [Float] { chimes.map { $0.delay } }
+    var foleyCountForTest: Int { foleyVoices.count }
+    func playFoley(_ buf: [Float], gain: Float = 1, pan: Float = 0) { if foleyVoices.count < 8 { foleyVoices.append(FoleyVoice(buf: buf, gain: gain, pan: pan)) } }
     private let waterLock = NSLock()
     private var pendingWater: [WaterContact.Event] = []
     func waterEvent(_ e: WaterContact.Event) { waterLock.lock(); pendingWater.append(e); waterLock.unlock() }
@@ -131,7 +139,7 @@ final class AmbienceSynth {
     /// Linear amplitude of the wind at `windStrength` 1 and `windGain` 1 relative to the unit the level targets are measured in (calibrated by `--selftest wind`).
     static let windUnit: Float = 0.5
     /// Level in dB against the surf at the waterline: a lull and a full gust (A3: the lull at most -6 dB, a gust peak at most +2 dB, so at least 12 dB between them).
-    static let windLullDB: Float = -14, windGustDB: Float = -2
+    static let windLullDB: Float = -25, windGustDB: Float = -8
     private var windSm: Float = 0, windTargetSm: Float = 0
     private var windBrown = [Float](repeating: 0, count: 2), windLP1 = [Float](repeating: 0, count: 2), windLP2 = [Float](repeating: 0, count: 2)
     private var windW1 = [Float](repeating: 0, count: 2), windW2 = [Float](repeating: 0, count: 2)      // low-passed WHITE noise: the mid-range body that speakers can reproduce
@@ -223,9 +231,12 @@ final class AmbienceSynth {
             }
             chimes.append(ChimeVoice(delay: 0.0, f0: 3520, gain: 0.025, partials: [Partial(ratio: 1, gain: 1, decay: 0.5)], pan: 0))      // a thin paper-bright shimmer on top
         case .doorLocked:
-            chimes.append(ChimeVoice(delay: 0, f0: 74, gain: 0.34, partials: [Partial(ratio: 1, gain: 1, decay: 0.16), Partial(ratio: 2.1, gain: 0.5, decay: 0.09)], pan: 0))            // the weight of the door against the bolt
-            for (i, hz) in [Float(1850), 2400, 1650, 2750].enumerated() {                                                                                                    // the latch: four small iron ticks
-                chimes.append(ChimeVoice(delay: 0.03 + Float(i) * 0.055 + 0.015 * Float(i % 2), f0: hz, gain: 0.07, partials: [Partial(ratio: 1, gain: 1, decay: 0.035), Partial(ratio: 3.1, gain: 0.4, decay: 0.02)], pan: 0))
+            // F03 A2 (#44): the door shifts and hits the stone reveal (a dull thunk and a short transient), the planks and ironwork rattle loose (2-4 quick damped impacts),
+            // and THEN the pull ring jangles, a moment later. How hard the attempt was (`doorStrength`) scales all of it. The wood-on-stone part is noise, not a tone.
+            playFoley(Foley.doorLocked(strength: doorStrength, sampleRate: sampleRate), gain: 1, pan: 0)
+            let jd = Foley.jangleDelay
+            for (i, hz) in [Float(1850), 2400, 1650, 2750].enumerated() {                                                                                                    // the latch: four small bright taps
+                chimes.append(ChimeVoice(delay: jd + Float(i) * 0.055 + 0.015 * Float(i % 2), f0: hz, gain: 0.07 * (0.6 + 0.4 * doorStrength), partials: [Partial(ratio: 1, gain: 1, decay: 0.035), Partial(ratio: 3.1, gain: 0.4, decay: 0.02)], pan: 0))
             }
         case .rumble: rumbleLeft = 5.5
         case .buoy: if buoyGain > 0.004 { chimes.append(bell(ToneTable.buoyHz, gain: 0.5 * buoyGain, decayScale: 1.6, pan: buoyPan)) }
@@ -277,8 +288,8 @@ final class AmbienceSynth {
             windSm += (windTargetSm - windSm) * 0.0006
             let ws = min(max(windSm, 0), 1)
             if i & 15 == 0 {
-                windA = 1 - exp(-2 * .pi * (200 + 700 * ws) / sampleRate)                     // the body's corner rides the gust: 200 Hz in a lull, 900 Hz in a gust
-                windF = 2 * sin(.pi * (280 + 420 * ws) / sampleRate)
+                windA = 1 - exp(-2 * .pi * (110 + 330 * ws) / sampleRate)                     // the body's corner rides the gust: 110 Hz in a lull, 440 Hz in a gust (F03 A1: a light breeze, mostly below 300 Hz)
+                windF = 2 * sin(.pi * (200 + 260 * ws) / sampleRate)
                 windAmp = windGain * AmbienceSynth.windUnit * pow(10, (AmbienceSynth.windLullDB + (AmbienceSynth.windGustDB - AmbienceSynth.windLullDB) * pow(ws, 0.9)) / 20)
             }
             // Surf (F02 A1): discrete waves from SurfWaves (a swash, a crest, a drain, a quiet gap), evaluated every 32 samples and smoothed. Far inland the waves
@@ -300,8 +311,8 @@ final class AmbienceSynth {
                 howlLow[ch][0] += windF * howlBand[ch][0]; let hi1 = w * 0.4 - howlLow[ch][0] - howlBand[ch][0] / 1.2; howlBand[ch][0] += windF * hi1
                 let wr = white(ch)                                                            // its own noise: independent of the body
                 rustleA[ch] += 0.35 * (wr - rustleA[ch]); rustleB[ch] += 0.15 * (wr - rustleB[ch])
-                let rustle = (rustleA[ch] - rustleB[ch]) * ws * ws * vegetation * 2.4
-                let windOut = ((windLP2[ch] * 1.1 + windW2[ch] * 1.4) + howlBand[ch][0] * ws * ws * 0.5 + rustle) * windAmp
+                let rustle = (rustleA[ch] - rustleB[ch]) * ws * vegetation * 0.8
+                let windOut = ((windLP2[ch] * 1.1 + windW2[ch] * 1.4) + howlBand[ch][0] * ws * ws * 0.22 + rustle) * windAmp
 
                 // --- surf. The two channels have independent noise, so the wash has width.
                 brown[ch] = 0.997 * brown[ch] + 0.03 * white(ch)
@@ -458,6 +469,14 @@ final class AmbienceSynth {
             }
             out[0] = out[0] * (1 - duckAmount) + bellL + rl * 0.4 + rumble
             out[1] = out[1] * (1 - duckAmount) + bellR + rr * 0.4 + rumble
+            if !foleyVoices.isEmpty {                                                       // one-shot buffers (F03): the door, ...
+                for k in foleyVoices.indices {
+                    var v = foleyVoices[k]
+                    if v.pos < v.buf.count { let x = v.buf[v.pos] * v.gain; out[0] += x * (0.5 - 0.5 * v.pan); out[1] += x * (0.5 + 0.5 * v.pan); v.pos += 1 }
+                    foleyVoices[k] = v
+                }
+                foleyVoices.removeAll { $0.pos >= $0.buf.count }
+            }
 
             // Soft clip: tanh keeps any pile-up of sounds from ever hard-clipping the speakers.
             left[i] = tanh((out[0] + stepL * 1.4) * m)

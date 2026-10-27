@@ -56,6 +56,7 @@ enum WindShaders {
             float s = wind_strength(wp, t);
             float q2 = q * q;
             wp.xz += WIND_DIR * (q2 * (0.06 + 0.40 * s));
+            wp.xz += float2(sin(t * 0.55 + wp.x * 0.05 + wp.z * 0.03), cos(t * 0.43 + wp.z * 0.04)) * (q2 * WIND_TREE_BREEZE * (0.5 + s));          // a slow continuous sway, visible even in a lull (F03 A1)
             wp.xz += float2(sin(t * 1.7 + wp.x * 0.7 + wp.z * 0.5), cos(t * 1.3 + wp.z * 0.6)) * (q2 * 0.06 * (0.3 + s));
             return wp;
         }

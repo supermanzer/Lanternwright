@@ -35,6 +35,8 @@ final class Game {
     private var lastTime: Double?
     private(set) var time: Float = 0
     private var pending: [GameEvent] = []
+    private var doorTries = 0
+    private var lastDoorTry: Float = -100
     /// Footfalls since start; audio compares against the last value it saw.
     private(set) var footfalls = 0
     private(set) var lastFootWasRun = false
@@ -188,6 +190,10 @@ final class Game {
         } else if id.hasPrefix("page_"), let n = Int(id.dropFirst(5)) {
             collectPage(n)
         } else if id == "lh_door" {
+            // The harder and longer the player tries (repeated attempts within about 4 s), the harder the door knocks and the longer it rattles (F03 A2).
+            doorTries = (time - lastDoorTry < 4.0) ? doorTries + 1 : 0
+            lastDoorTry = time
+            pending.append(.doorTry(min(1, 0.45 + 0.2 * Float(doorTries))))
             pending.append(.chime(.doorLocked))
             showBanner("Locked. The keeper took the key with her.")
         } else if id == "lens" {

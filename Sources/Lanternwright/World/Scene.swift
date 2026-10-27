@@ -62,8 +62,11 @@ final class Scene {
     static var hardLOD = false
     /// Debug (selftest `needles`): draw no conifer cells, to render the background a crown stands against.
     nonisolated(unsafe) static var hideTrees = false
+    /// Debug (`--hide <text>`): draw no item whose name contains this, for bisecting what draws or shadows something in a frame.
+    nonisolated(unsafe) static var hideNamed: String?
     func applyLOD(eye: SIMD3<Float>) {
-        defer { if Scene.hideTrees { for i in items.indices where items[i].name.hasPrefix("trees_") || items[i].name.hasPrefix("needles_") { items[i].hidden = true } } }
+        defer { if let h = Scene.hideNamed { for i in items.indices where items[i].name.contains(h) { items[i].hidden = true } }
+               if Scene.hideTrees { for i in items.indices where items[i].name.hasPrefix("trees_") || items[i].name.hasPrefix("needles_") { items[i].hidden = true } } }
         if Scene.hardLOD {
             for g in lodGroups {
                 let dx = max(g.min.x - eye.x, 0, eye.x - g.max.x), dz = max(g.min.y - eye.z, 0, eye.z - g.max.y)

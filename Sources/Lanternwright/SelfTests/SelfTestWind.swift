@@ -43,7 +43,14 @@ extension SelfTestRunner {
         check(prom < 3.0, "the wind has no resonant peak above 300 Hz: no band stands out from its neighbours (prominence \(String(format: "%.2f", prom)), 10 dB would be 10; a whistling kettle is a narrow peak)")
         let m = Self.measureAmbience(xs, sampleRate: sr)
         check(m.centroid < 700 && m.highShare < 0.05, "and it is low, a rush and not a hiss (centroid \(Int(m.centroid)) Hz, share above 800 Hz \(String(format: "%.3f", m.highShare)))")
-        check(abs(AmbienceSynth.windLullDB - (-14)) < 1e-4 && AmbienceSynth.windGustDB - AmbienceSynth.windLullDB >= 10, "the synth's wind range is lull -14 dB to gust -2 dB against the waterline surf (12 dB)")
+        check(abs(AmbienceSynth.windLullDB - (-25)) < 1e-4 && AmbienceSynth.windGustDB - AmbienceSynth.windLullDB >= 10, "the synth's wind range is lull -25 dB to gust -8 dB against the waterline surf (F03 A1: a further -11 dB in lulls and -6 dB at gust peaks)")
+        // F03 A1 (#37, "the audio implies a very high velocity wind"): ABSOLUTE targets, measured on the rendered output at the summit against the surf at the waterline.
+        check(lull <= -24 && gust <= -7.5, "a light breeze, not a gale: the lull is at most -24 dB and the loudest gust at most -7.5 dB against the waterline surf (lull \(String(format: "%.1f", lull)) dB, gust \(String(format: "%.1f", gust)) dB)")
+        let specs0 = chunks.prefix(60).map { FootstepAnalysis.spectrum($0) }
+        let totalP = FootstepAnalysis.mean(specs0.map { FootstepAnalysis.band($0, 20, 9000) })
+        let lowShare = FootstepAnalysis.mean(specs0.map { FootstepAnalysis.band($0, 20, 300) }) / max(totalP, 1e-12)
+        let highShare = FootstepAnalysis.mean(specs0.map { FootstepAnalysis.band($0, 2000, 9000) }) / max(totalP, 1e-12)
+        check(lowShare > 0.6 && highShare < 0.003, "the wind is a low rush: below 300 Hz holds \(String(format: "%.0f", lowShare * 100)) % of its power (at least 60 %) and above 2 kHz \(String(format: "%.3f", highShare * 100)) % (at most 0.3 %) with no grass underfoot")
         // Rustle only where there is something to rustle: with no vegetation the high band is absent, with grass underfoot it appears in a gust.
         func rustleBand(_ veg: Float) -> Float {
             let x = Self.renderWind(at: summit, seconds: 40, sampleRate: sr, vegetation: veg)
@@ -51,6 +58,20 @@ extension SelfTestRunner {
             return FootstepAnalysis.mean(ch.map { FootstepAnalysis.band(FootstepAnalysis.spectrum($0), 1200, 3500) })
         }
         let bare = rustleBand(0), grassy = rustleBand(1)
+        do {   // the rustle is the ONLY thing above 2 kHz, faint, and it follows the grass's own gust (the same Wind.strength the blades bend with)
+            let xg = Self.renderWind(at: summit, seconds: 120, sampleRate: sr, vegetation: 1)
+            let cg = stride(from: 0, to: xg.count - Int(sr), by: Int(sr)).map { Array(xg[$0..<$0 + Int(sr)]) }
+            let sp = cg.map { FootstepAnalysis.spectrum($0) }
+            let tot = FootstepAnalysis.mean(sp.map { FootstepAnalysis.band($0, 20, 9000) })
+            let hiShare = FootstepAnalysis.mean(sp.map { FootstepAnalysis.band($0, 2000, 9000) }) / max(tot, 1e-12)
+            let rus = sp.map { FootstepAnalysis.band($0, 1200, 3500) }
+            let ws = (0..<cg.count).map { Wind.strength(at: summit, time: Float($0) + 0.5) }
+            let mr = FootstepAnalysis.mean(rus), mw = FootstepAnalysis.mean(ws)
+            var sxy: Float = 0, sxx: Float = 0, syy: Float = 0
+            for k in 0..<rus.count { sxy += (rus[k] - mr) * (ws[k] - mw); sxx += (rus[k] - mr) * (rus[k] - mr); syy += (ws[k] - mw) * (ws[k] - mw) }
+            let cor = sxy / max((sxx * syy).squareRoot(), 1e-12)
+            check(hiShare < 0.03 && cor > 0.5, "with grass underfoot the only sound above 2 kHz is a faint rustle (\(String(format: "%.2f", hiShare * 100)) % of the power, at most 3 %) that follows the gust the grass bends with (correlation \(String(format: "%.2f", cor)), at least 0.5)")
+        }
         check(grassy > bare * 1.5, "the wind rustles only where there is grass or leaf underfoot (power at 1.2-3.5 kHz: bare \(String(format: "%.2e", bare)), grass \(String(format: "%.2e", grassy)))")
 
         // One wind, one clock: drive the REAL plumbing (the engine's `windInput` from the game's player and clock; the renderer's clock) for a minute of play and
@@ -89,6 +110,9 @@ extension SelfTestRunner {
         var roundTrip = true
         for st: Float in stride(from: -1, through: 1, by: 0.25) { for k in 0...7 { let (s2, q2) = decode(encode(st, Float(k) / 7)); if abs(s2 - st) > 1e-4 || abs(q2 - Float(k) / 7) > 1e-4 { roundTrip = false } } }
         check(roundTrip && decode(1).1 == 0 && decode(1).0 == 0, "a tree vertex's LOD stagger and sway weight survive being packed into position.w (and ordinary vertices read 0, 0)")
+        check(abs(Wind.grassSway / Wind.grassSwayWas - 2.5) < 0.05 && Wind.treeBreeze >= 0.12, "the grass sways 2.5 times as far as before F03 (\(Wind.grassSwayWas) -> \(Wind.grassSway) of its height) and the conifer crowns carry a continuous breeze sway (\(Wind.treeBreeze) m at the top), so the visuals read as the breeze the audio implies")
+        let src2 = ShaderLibrary.sources.joined(separator: "\n")
+        check(src2.contains("WIND_GRASS_SWAY * wave") && src2.contains("WIND_TREE_BREEZE"), "the shaders use those constants")
         // The gust is the shared one and has the shape the plan asks for.
         var gl: Float = 1, gh: Float = 0
         for k in 0..<12_000 { let v = Wind.gust(time: Float(k) * 0.05); gl = min(gl, v); gh = max(gh, v) }

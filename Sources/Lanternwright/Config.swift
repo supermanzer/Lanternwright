@@ -85,6 +85,7 @@ struct LaunchOptions {
       --controls-md                Print the README controls table, generated from App/Controls.swift
       --feedback                   Print all saved player feedback and exit
       --feedback-dir               Print the feedback folder and exit
+      --hide <text>                Debug: draw no scene item whose name contains <text> (bisect what draws or shadows something)
       --new                        Start a new game, ignoring (and later overwriting) the save
       --fps                        Show frames per second in the window title
       --bench N                    Render N offscreen frames at --size and report GPU time
@@ -128,6 +129,7 @@ struct LaunchOptions {
                 let w = next()
                 guard let k = (w == "glass" ? WorldKind.glassWood : WorldKind(rawValue: w)) else { fail("--world expects varrow or glass") }
                 o.world = k
+            case "--hide": Scene.hideNamed = next()
             case "--new": o.newGame = true
             case "--feedback": o.showFeedback = true
             case "--feedback-dir": o.showFeedbackDir = true

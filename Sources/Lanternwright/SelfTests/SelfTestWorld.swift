@@ -83,6 +83,7 @@ extension SelfTestRunner {
             var rebuilt = MeshBuilder(); _ = rebuilt
             let probe = Scene.makeWorld(device: device)
             check(probe.items.first { $0.name == "dock" } != nil, "the dock exists")
+            check(!probe.items.contains { $0.name == "material_sheet" } && Props.includeMaterialSheet == false, "F03 R1: the debug material sheet (a gallery floating 900 m north, visible from the north shore as a strip of colour) is not in the game; only --view material-sheet builds it")
         }
         if name == "all" || name == "dockfurniture" {
             let src = MaterialShaders.source

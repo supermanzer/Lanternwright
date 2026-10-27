@@ -27,6 +27,10 @@ enum Wind {
 
     /// How far a blade tip leans along the wind at full strength, as a fraction of the blade's height (F03 #48: 0.9 flattened the whole meadow in a gust).
     static let grassLean: Float = 0.42
+    /// F03 A1 (#37: "the audio implies a very high velocity wind" while the grass hardly moved): the continuous breeze sway of a blade, as a fraction of its height at full
+    /// strength, was 0.16 and is 0.40 (2.5 times); the conifer crowns carry a slow continuous sway of `treeBreeze` metres at the top besides the gust's.
+    static let grassSway: Float = 0.40, grassSwayWas: Float = 0.16
+    static let treeBreeze: Float = 0.16
 
     /// A gust is not a flat wall of wind (F03 #48: the whole meadow leaned and sprang back in unison, which read as the grass blinking): its front is tilted a
     /// little across the wind and arrives up to about 2.2 s early or late from place to place, so neighbouring patches of grass are never in the same phase.
@@ -50,6 +54,8 @@ enum Wind {
     static var mslSource: String {
         """
         constant float WIND_GRASS_LEAN = \(grassLean);
+        constant float WIND_GRASS_SWAY = \(grassSway);
+        constant float WIND_TREE_BREEZE = \(treeBreeze);
         constant float2 WIND_DIR = float2(\(direction.x), \(direction.y));
         constant float3 WIND_OMEGA = float3(\(omega.x), \(omega.y), \(omega.z));
         constant float3 WIND_PHASE = float3(\(phase.x), \(phase.y), \(phase.z));
