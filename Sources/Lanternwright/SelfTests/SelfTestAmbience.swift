@@ -135,10 +135,11 @@ extension SelfTestRunner {
         }
         let dry = steps(0), wade = steps(1), run = steps(1, run: true)
         let eDry = A.mean(dry.map { $0.reduce(0) { $0 + $1 * $1 } }), eWade = A.mean(wade.map { $0.reduce(0) { $0 + $1 * $1 } })
-        check(eWade > 3 * eDry, "wading adds a splash: much more energy than the same step on wet sand (\(eWade) vs \(eDry))")
+        check(eWade > 1.6 * eDry, "wading adds a splash (a low body and a handful of bubbles): clearly more energy than the same step on wet sand (\(eWade) vs \(eDry))")
         let low = A.mean(wade.map { A.band(A.spectrum($0), 80, 400) / max(A.band(A.spectrum($0), 80, 9000), 1e-12) })
         let cWade = A.mean(wade.map { A.centroid(A.spectrum($0)) })
-        check(low > 0.35 && cWade < 1500, "the splash is wet and low (\(Int(low * 100)) % of its energy below 400 Hz, centroid \(Int(cWade)) Hz)")
+        let bubbleShare = A.mean(wade.map { A.band(A.spectrum($0), 800, 4000) / max(A.band(A.spectrum($0), 80, 9000), 1e-12) })
+        check(low > 0.25 && bubbleShare > 0.15 && cWade < 2500, "the splash is a low body with bubbles above it (\(Int(bubbleShare * 100)) % of its energy at 0.8-4 kHz, \(Int(low * 100)) % of its energy below 400 Hz, centroid \(Int(cWade)) Hz)")
         check(A.mean(wade.map { A.decayTime($0, lowpass: 400, dB: 30) }) > 0.12, "it sloshes for a moment, not a click")
         check((wade + run).allSatisfy { ($0.map { abs($0) }.max() ?? 0) < 0.9 } && !wade.joined().contains { !$0.isFinite }, "no clipping, all finite")
     }

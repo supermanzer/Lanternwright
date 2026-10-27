@@ -58,6 +58,13 @@ final class AudioEngine {
     /// How much grass is underfoot (the wind only rustles where there is something to rustle).
     static func vegetationInput(game: Game) -> Float { game.surfaceMix.mix[StepMaterial.grass.rawValue] }
 
+    /// The slide (F03 A3): how fast the ground is giving way under the player, and how stony it is (anything that is not grass). Static so the selftests drive what the engine drives.
+    static func feedSlide(into synth: AmbienceSynth, game: Game) {
+        synth.slideSpeed = game.player.slipAmount
+        let grass = game.surfaceMix.mix[StepMaterial.grass.rawValue]
+        synth.slideGravel = 1 - 0.85 * grass
+    }
+
     /// Water contact every frame (F02 A5): events once per entry and exit, and the wash and lap levels. Static so the selftests drive what the engine drives.
     static func feedWater(_ water: inout WaterContact, into synth: AmbienceSynth, game: Game) {
         let p = game.player.position
@@ -71,6 +78,7 @@ final class AudioEngine {
         synth.windStrength = AudioEngine.windInput(game: game)
         AudioEngine.feedWater(&water, into: synth, game: game)
         synth.vegetation = AudioEngine.vegetationInput(game: game)
+        AudioEngine.feedSlide(into: synth, game: game)
         if game.footfalls != lastFootfalls {
             lastFootfalls = game.footfalls
             synth.stepSurface = game.currentSurface

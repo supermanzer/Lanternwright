@@ -123,8 +123,12 @@ final class Footsteps {
     /// Selftests only: false drops the toe strike so the heel contact can be measured alone.
     var toeEnabled = true
 
+    /// Water: splashes and plunges are bubbles (F03 A4).
+    private(set) var bubbles: BubbleSynth
+
     init(sampleRate: Float) {
         sr = sampleRate
+        bubbles = BubbleSynth(sampleRate: sampleRate)
         impacts.reserveCapacity(48); modes.reserveCapacity(96); grains.reserveCapacity(Footsteps.maxGrains + 16)
     }
 
@@ -149,7 +153,7 @@ final class Footsteps {
         guard total > 0 else { return }
         let vary = 0.85 + 0.3 * rnd(), bright = 0.9 + 0.2 * rnd()
         if splash > 0.02 {                       // ankle-deep water: the splash joins whatever the foot is on (wet sand underneath)
-            emit(FootstepRecipe.splash, level: splash * (run ? 1.3 : 1), vary: vary, bright: bright, delay: 0.01, toe: false, run: run, pan: pan, plank: plank, pebble: 0)
+            bubbles.burst(strength: min(1.3, splash * (run ? 1.3 : 1.0)), pan: pan)          // F03 A4: a low splash body and a handful of bubbles (BubbleSynth), not a noise swish
         }
         for (m, w) in weights {
             let level = w / total
@@ -166,7 +170,8 @@ final class Footsteps {
     /// F02 A5: the player enters the water (a splash scaled by `strength` 0...1: a harder, brighter, bigger one at speed) or leaves it (drips).
     func startWaterEntry(strength: Float, pan: Float = 0) {
         let vary = 0.9 + 0.2 * rnd(), bright = 0.85 + 0.5 * strength
-        emit(FootstepRecipe.splash, level: 0.5 + 2.6 * strength, vary: vary, bright: bright, delay: 0, toe: false, run: strength > 0.7, pan: pan, plank: 0, pebble: 0)
+        _ = vary; _ = bright
+        bubbles.burst(strength: 1.5 * strength, pan: pan)                                         // a plunge: a bigger body and more bubbles
     }
     func startWaterExit(pan: Float = 0) {
         emit(FootstepRecipe.drip, level: 1, vary: 0.9 + 0.2 * rnd(), bright: 0.9 + 0.2 * rnd(), delay: 0.05, toe: false, run: false, pan: pan, plank: 0, pebble: 0)
@@ -215,6 +220,8 @@ final class Footsteps {
     /// One stereo sample of every step voice (add this to the mix); `sendL/R` hold the reverb send for the same sample.
     func render(dt: Float) -> (Float, Float) {
         var l: Float = 0, r: Float = 0, sl: Float = 0, sr_: Float = 0
+        let bub = bubbles.next()
+        l += bub.0; r += bub.1; sl += bub.0 * 0.25; sr_ += bub.1 * 0.25
         func add(_ s: Float, _ pan: Float, _ send: Float) {
             let a = s * (0.5 - 0.5 * pan), b = s * (0.5 + 0.5 * pan)
             l += a; r += b; sl += a * send; sr_ += b * send

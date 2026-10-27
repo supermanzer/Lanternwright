@@ -41,6 +41,11 @@ final class AmbienceSynth {
     private struct FoleyVoice { var buf: [Float]; var pos = 0; var gain: Float; var pan: Float }
     private var foleyVoices: [FoleyVoice] = []
     var doorStrength: Float = 0.6
+    private lazy var washBubbles = BubbleSynth(sampleRate: sampleRate, seed: 0xFA5E)
+    /// How fast the player is slipping on a steep slope (0...1, 0 = standing on firm ground) and how stony it is (0 grass ... 1 gravel); see SlideSynth.
+    var slideSpeed: Float = 0, slideGravel: Float = 1
+    private lazy var slide = SlideSynth(sampleRate: sampleRate)
+    var slideForTest: SlideSynth { slide }
     /// Selftest hooks: the delays (s) of the bell voices waiting or ringing, and how many one-shot buffers play.
     var chimeDelaysForTest: [Float] { chimes.map { $0.delay } }
     var foleyCountForTest: Int { foleyVoices.count }
@@ -140,6 +145,9 @@ final class AmbienceSynth {
     static let windUnit: Float = 0.5
     /// Level in dB against the surf at the waterline: a lull and a full gust (A3: the lull at most -6 dB, a gust peak at most +2 dB, so at least 12 dB between them).
     static let windLullDB: Float = -25, windGustDB: Float = -8
+    /// The wind lull before F03 A1 (-14 dB). The drone's level is defined against THIS: the user asked to keep the drone where it was (-24 dB under that lull, -38 dB against the
+    /// waterline surf) when the wind came down, so the pad no longer tracks the wind's new, lower lull.
+    static let windLullDBBeforeF03: Float = -14
     private var windSm: Float = 0, windTargetSm: Float = 0
     private var windBrown = [Float](repeating: 0, count: 2), windLP1 = [Float](repeating: 0, count: 2), windLP2 = [Float](repeating: 0, count: 2)
     private var windW1 = [Float](repeating: 0, count: 2), windW2 = [Float](repeating: 0, count: 2)      // low-passed WHITE noise: the mid-range body that speakers can reproduce
@@ -372,18 +380,12 @@ final class AmbienceSynth {
             // --- water against the legs: a low wash while wading (louder with depth and speed), a quiet lap while standing; both exactly silent out of the water
             dragSm += (waterDrag - dragSm) * 0.0008; lapSm += (waterLap - lapSm) * 0.0004
             var waterL: Float = 0, waterR: Float = 0
-            if dragSm > 1e-4 || lapSm > 1e-4 {
-                let pushPhase: Double = td * 2 * Double.pi * 1.9 + 0.6 * sin(td * 0.7)
-                let push: Float = 0.55 + 0.45 * Float(sin(pushPhase))                                     // the water being pushed aside, about twice a second
-                let slapA: Float = sin(t * 2 * .pi * 0.53), slapB: Float = sin(t * 2 * .pi * 0.31 + 1)
-                let slap: Float = pow(max(0, slapA * slapB), 2)
-                for ch in 0..<2 {
-                    let w = white(ch)
-                    dragLP[ch] += (0.03 + 0.06 * dragSm) * (w - dragLP[ch]); dragLP2[ch] += (0.03 + 0.06 * dragSm) * (dragLP[ch] - dragLP2[ch])      // two poles, about 200-600 Hz: a wash, never a hiss
-                    lapLP[ch] += 0.03 * (w - lapLP[ch])
-                    let v = dragLP2[ch] * dragSm * push * 0.8 + lapLP[ch] * lapSm * slap * 0.16
-                    if ch == 0 { waterL = v } else { waterR = v }
-                }
+            if dragSm > 1e-4 || lapSm > 1e-4 || washBubbles.isActive {
+                // F03 A4 (#49: "like shag carpet"): the wash is a sparse stream of bubbles (3.26 / r Hz, 5-30 ms, rising a little), a few to a few tens a second with depth and speed;
+                // standing in the water, a slow trickle of the same. No filtered noise.
+                let rate = (dragSm > 1e-4 ? 4 + 40 * dragSm : 0) + (lapSm > 1e-4 ? 1.2 * lapSm : 0)
+                let wb = washBubbles.next(washRate: rate, washLevel: 0.35 + 0.45 * min(1, dragSm))
+                waterL = wb.0; waterR = wb.1
             }
             out[0] += waterL; out[1] += waterR
 
@@ -469,6 +471,8 @@ final class AmbienceSynth {
             }
             out[0] = out[0] * (1 - duckAmount) + bellL + rl * 0.4 + rumble
             out[1] = out[1] * (1 - duckAmount) + bellR + rr * 0.4 + rumble
+            let slideOut = slide.next(speed: slideSpeed, gravel: slideGravel)                 // the gravel slide (F03 A3): silent unless slipping
+            out[0] += slideOut; out[1] += slideOut
             if !foleyVoices.isEmpty {                                                       // one-shot buffers (F03): the door, ...
                 for k in foleyVoices.indices {
                     var v = foleyVoices[k]

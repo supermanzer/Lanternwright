@@ -28,7 +28,7 @@ extension SelfTestRunner {
             let surf = renderSeconds { $0.windGain = 0; $0.surfGain = 0.8 }
             let everything = renderSeconds { $0.windGain = 1; $0.surfGain = 1; $0.master = 1; $0.stepSurface = .wood; $0.stepCounter = 1 }
             check(!wind.contains { !$0.isFinite } && !surf.contains { !$0.isFinite }, "wind and surf contain no NaN/inf")
-            check(rms(wind[...]) > 0.005 && rms(wind[...]) < 0.4, "wind level is audible but not loud (rms \(String(format: "%.3f", rms(wind[...]))))")
+            check(rms(wind[...]) > 0.0008 && rms(wind[...]) < 0.4, "wind level is audible but not loud (F03 A1: a light breeze, was 0.005 at its lowest) (rms \(String(format: "%.3f", rms(wind[...]))))")
             check(rms(surf[...]) > 0.005 && rms(surf[...]) < 0.4, "surf level is audible but not loud (rms \(String(format: "%.3f", rms(surf[...]))))")
             check((everything.map { abs($0) }.max() ?? 2) < 1.0, "everything at full volume never clips (peak \(String(format: "%.2f", everything.map { abs($0) }.max() ?? 0)))")
             // Surf should swell: compare the loudest and quietest second.

@@ -51,7 +51,8 @@ extension SelfTestRunner {
         }
         // Level: silent on the beach, fading in over 60 m, steady inland, at a fixed dB under the wind lull.
         let summit = SIMD3<Float>(Layout.summitStone.x, Layout.summitStone.y, Layout.summitStone.z)
-        let lullRMS = Self.envelope1s(Self.renderWind(at: summit, seconds: 150, sampleRate: sr), sampleRate: sr).min()!
+        // The drone's level is held where the user kept it: against the wind lull as it was before F03 A1 (-14 dB; the wind itself is now -25 dB).
+        let lullRMS = Self.envelope1s(Self.renderWind(at: summit, seconds: 150, sampleRate: sr), sampleRate: sr).min()! * pow(10, (AmbienceSynth.windLullDBBeforeF03 - AmbienceSynth.windLullDB) / 20)
         func padDB(_ d: Float) -> Float {
             let x = Self.renderPad(gain: AudioSpace.padLevel(shoreDistance: d), score: .varrow, seconds: 60, start: 100, sampleRate: sr)
             return 20 * log10(max(Self.rms(Array(x[Int(30 * sr)...])), 1e-12) / lullRMS)

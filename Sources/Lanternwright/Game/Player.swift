@@ -60,6 +60,8 @@ struct Player {
     }
 
     var speed: Float { length(velocity) }
+    /// 0...1: how hard the ground is giving way under the feet right now (0 on footing that holds). The slide sound follows it (F03 A3).
+    private(set) var slipAmount: Float = 0
 
     var camera: Camera {
         // The head dips as each foot lands (phase = whole number) and rises between; it also sways side to side
@@ -132,10 +134,12 @@ struct Player {
         for candidate in [from + delta, from + slide, from + SIMD2(delta.x, 0), from + SIMD2(0, delta.y)] where candidate != from {
             if canMove(from: from, to: candidate, scene: scene) { pos = candidate; break }
         }
+        var slipNow: Float = 0
         if Player.slipEnabled, length(grad) > Player.maxSlope {                      // too steep to stand on: slide down the fall line (a metre or two, no inertia)
             let down = -normalize(grad) * Player.slipSpeed * dt
-            if canMove(from: pos, to: pos + down, scene: scene) || scene.groundHeight(x: pos.x + down.x, z: pos.y + down.y) < scene.groundHeight(x: pos.x, z: pos.y) { pos += down }
+            if canMove(from: pos, to: pos + down, scene: scene) || scene.groundHeight(x: pos.x + down.x, z: pos.y + down.y) < scene.groundHeight(x: pos.x, z: pos.y) { pos += down; slipNow = 0.55 + 0.45 * min(1, length(velocity) / Player.walkSpeed) }
         }
+        slipAmount = slipNow
         scene.colliders.resolve(position: &pos, radius: Player.radius, feetY: position.y, height: Player.eyeHeight)
         // The push-out must not shove us into the sea or up a cliff either.
         if !canMove(from: from, to: pos, scene: scene) { pos = from }
