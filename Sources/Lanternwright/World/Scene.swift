@@ -10,10 +10,16 @@ struct DrawItem {
     /// Glass: drawn in its own pass after the opaque scene (it refracts a copy of it), and casts no shadow.
     var refractive = false
 
-    /// F04 L1 (#57: "should a beam of light throw a shadow?"): light does not cast shadows. Anything that glows (emissive above zero: the beams and columns of light, the altar glow,
-    /// lamps and lanterns' cores, the lens, rings, glyph faces, glowing tufts) is left out of the shadow pass, and so is glass. Read every frame, so a lens that blazes only once
-    /// lit stops casting then. Solid things with a faint self-light (the mirrors, chime glass) are left out too: the rule is one test, not a list.
-    var castsShadow: Bool { uniforms.emissive.w <= 0 && !refractive }
+    /// F04 L1 (#57: "should a beam of light throw a shadow?"): light does not cast shadows. `lightOnly` marks the things that are only light (set when the item is added, from
+    /// `isLightOnly`): the beams, the columns of light, the altar glow, the lanterns' and the lens's cores and rings, the source and return cores, the lamps and the pane markers.
+    /// A blazing emitter (emissive 3 or more: the lit lens, a lamp) is light too, read every frame so the lens stops casting once lit. Solid things with a faint glow of their own
+    /// (the stones' glyph faces 0.3, caps, mirrors, chimes, glyph decals) are NOT light: they keep their shadows. Glass never casts.
+    var lightOnly = false
+    var castsShadow: Bool { !refractive && !lightOnly && uniforms.emissive.w < 3 }
+    static func isLightOnly(_ name: String) -> Bool {
+        name.hasPrefix("beam_") || name.hasPrefix("gw_beam_") || name.hasPrefix("gw_column") || name == "gw_altar_glow" || name == "lantern_cores" || name == "lens_core" || name == "lens_ring"
+            || name == "gw_return_core" || name == "gw_return_ring" || name == "gw_source" || name == "gw_lamps" || (name.hasPrefix("gw_pane_") && name.hasSuffix("_marker"))
+    }
 
     /// World-space bounding box: the mesh's local box transformed by the model matrix.
     var worldBounds: (min: SIMD3<Float>, max: SIMD3<Float>) {
@@ -40,7 +46,9 @@ final class Scene {
     func add(_ name: String, mesh: Mesh, uniforms: ObjectUniforms = ObjectUniforms(), hidden: Bool = false, refractive: Bool = false) {
         precondition(nameIndex[name] == nil, "duplicate scene item \(name)")
         nameIndex[name] = items.count
-        items.append(DrawItem(name: name, mesh: mesh, uniforms: uniforms, hidden: hidden, refractive: refractive))
+        var item = DrawItem(name: name, mesh: mesh, uniforms: uniforms, hidden: hidden, refractive: refractive)
+        item.lightOnly = DrawItem.isLightOnly(name)
+        items.append(item)
     }
 
     func has(_ name: String) -> Bool { nameIndex[name] != nil }
