@@ -11,6 +11,12 @@ final class OpaquePass: RenderPass {
         let commandBuffer = c.commandBuffer
         let camera = c.camera
         var frame = c.frame
+        // G10.G.1: which grass cells are worth drawing, decided on the GPU before the opaque encoder opens.
+        let drawGrass = !Renderer.skipGrass && !RenderLayer.isOff(.grass)
+        let windNow = Wind.strength(at: camera.position, time: r.clock)
+        var gp = [SIMD4<Float>(LookDefaults.grassCell, Float(r.grassCellsPerSide), LookDefaults.grassRadius, GrassField.cullEnabled ? 1 : 0),
+                  SIMD4<Float>(Wind.direction.x, Wind.direction.y, windNow, 0)]
+        if drawGrass && GrassField.cullEnabled, let terrain = r.terrainTextures[r.world] { r.grassField.encodeCull(commandBuffer, frame: &frame, params: &gp, terrain: terrain) }
         // 1. Opaque geometry into HDR.
         let pass = MTLRenderPassDescriptor()
         pass.colorAttachments[0].texture = r.hdrTexture
@@ -58,17 +64,19 @@ final class OpaquePass: RenderPass {
                 }
             }
             // Grass: one instanced draw, 7 vertices per blade, positions generated in the vertex shader.
-            enc.setRenderPipelineState(r.grassPipeline)
+            enc.setRenderPipelineState(GrassField.vertexOnly ? (r.grassField.vertexOnlyPipeline ?? r.grassPipeline) : r.grassPipeline)
             enc.setCullMode(.none)
-            let windNow = Wind.strength(at: camera.position, time: r.clock)
-            var gp = [SIMD4<Float>(LookDefaults.grassCell, Float(r.grassCellsPerSide), LookDefaults.grassRadius, 0),
-                      SIMD4<Float>(Wind.direction.x, Wind.direction.y, windNow, 0)]
             enc.setVertexBytes(&frame, length: MemoryLayout<FrameUniforms>.stride, index: 1)
             enc.setVertexBytes(&gp, length: MemoryLayout<SIMD4<Float>>.stride * gp.count, index: 3)
             enc.setVertexTexture(r.terrainTextures[r.world], index: 5)
             var identity = ObjectUniforms()
             enc.setFragmentBytes(&identity, length: MemoryLayout<ObjectUniforms>.stride, index: 2)
-            if !Renderer.skipGrass && !RenderLayer.isOff(.grass) { enc.drawPrimitives(type: .triangleStrip, vertexStart: 0, vertexCount: 7, instanceCount: r.grassCellsPerSide * r.grassCellsPerSide) }
+            enc.setVertexBuffer(r.grassField.cells, offset: 0, index: 4)
+            enc.setVertexBuffer(r.grassField.gridBase, offset: 0, index: 5)
+            if drawGrass {
+                if GrassField.cullEnabled { enc.drawPrimitives(type: .triangleStrip, indirectBuffer: r.grassField.arguments, indirectBufferOffset: 0) }
+                else { enc.drawPrimitives(type: .triangleStrip, vertexStart: 0, vertexCount: 7, instanceCount: r.grassCellsPerSide * r.grassCellsPerSide) }
+            }
             enc.setCullMode(.back)
 
             // Sky last, so the depth test rejects it everywhere geometry was drawn (saves shading those pixels).

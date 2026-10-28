@@ -1,4 +1,4 @@
-// Instanced grass. Nothing is stored per blade: each instance's position, height, colour and sway come from a hash of its
+// Instanced grass (cells culled by GrassField's compute pass, G10.G.1). Nothing is stored per blade: each instance's position, height, colour and sway come from a hash of its
 // world-space grid cell, so the field is stable (blades don't swim as you walk) and costs no memory. The vertex stage
 // reads terrain height from a texture, so blades sit on the ground; the fragment stage is the ordinary lit shader.
 enum GrassShaders {
@@ -27,9 +27,10 @@ float4 terrain_sample(texture2d<float> tex, float2 xz) {
     return mix(mix(a, b, fx), mix(c, d, fx), fz);
 }
 
-vertex LitOut grass_vertex(uint vid [[vertex_id]], uint iid [[instance_id]],
+vertex LitOut grass_vertex(uint vid [[vertex_id]], uint instance [[instance_id]],
                            constant FrameUniforms& frame [[buffer(1)]],
                            constant GrassParams& gp [[buffer(3)]],
+                           device const uint* cells [[buffer(4)]], device const int2* gridBase [[buffer(5)]],
                            texture2d<float> terrainTex [[texture(5)]]) {
     LitOut o;
     o.position = float4(0.0, 0.0, 2.0, 1.0);        // default: outside the clip volume = culled
@@ -37,9 +38,12 @@ vertex LitOut grass_vertex(uint vid [[vertex_id]], uint iid [[instance_id]],
 
     float cell = gp.field.x;
     int n = int(gp.field.y);
+    // G10.G.1: with gp.field.w set, the instances are the cells the culling pass kept (and the grid's corner is the one it used); otherwise every cell, as before.
+    bool culled = gp.field.w > 0.5;
+    uint iid = culled ? cells[instance] : instance;
     int ix = int(iid) % n, iz = int(iid) / n;
     // World-snapped grid centred on the camera: the same blade always lands in the same world cell.
-    int2 base = int2(floor(frame.cameraPos.xz / cell)) - int2(n / 2);
+    int2 base = culled ? gridBase[0] : int2(floor(frame.cameraPos.xz / cell)) - int2(n / 2);
     int2 gcell = base + int2(ix, iz);
     float2 rnd = hash22(float2(gcell));
     float2 xz = (float2(gcell) + rnd) * cell;

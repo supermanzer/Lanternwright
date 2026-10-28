@@ -48,6 +48,8 @@ final class Renderer {
     let irradianceMap: MTLTexture
     let skyPipeline: MTLRenderPipelineState
     let grassPipeline: MTLRenderPipelineState
+    /// G10.G.1: the compute pass that picks the grass cells worth drawing (and the buffers it fills).
+    let grassField: GrassField
     /// Terrain heights (r) and path weight (g) on a 513 x 513 grid, for the grass vertex shader.
     var terrainTextures: [WorldKind: MTLTexture] = [:]
     var grassCellsPerSide: Int { Int((2 * LookDefaults.grassRadius / LookDefaults.grassCell).rounded()) }
@@ -214,6 +216,7 @@ final class Renderer {
         gr.colorAttachments[1].pixelFormat = Renderer.distanceFormat
         gr.depthAttachmentPixelFormat = Renderer.depthFormat
         grassPipeline = try! device.makeRenderPipelineState(descriptor: gr)
+        grassField = GrassField(device: device, library: lib, cellsPerSide: Int((2 * LookDefaults.grassRadius / LookDefaults.grassCell).rounded()))
 
         // Terrain heights (r) and path weight (g) per world, for the grass vertex shader.
         for (kind, sc) in scenes {
