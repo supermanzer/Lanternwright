@@ -13,8 +13,9 @@ extension SelfTestRunner {
         desc.usage = [.renderTarget, .shaderRead]; desc.storageMode = .shared
         guard let tex = device.makeTexture(descriptor: desc) else { check(false, "grass cull: could not make a target"); return }
         func shot(_ renderer: Renderer, _ cam: Camera, culled: Bool) -> [UInt8] {
+            let was = GrassField.cullEnabled
             GrassField.cullEnabled = culled
-            defer { GrassField.cullEnabled = true }
+            defer { GrassField.cullEnabled = was }
             guard let cb = renderer.queue.makeCommandBuffer() else { return [] }
             renderer.encode(commandBuffer: cb, target: tex, camera: cam)
             cb.commit(); cb.waitUntilCompleted()

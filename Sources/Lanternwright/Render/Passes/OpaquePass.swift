@@ -14,9 +14,10 @@ final class OpaquePass: RenderPass {
         // G10.G.1: which grass cells are worth drawing, decided on the GPU before the opaque encoder opens.
         let drawGrass = !Renderer.skipGrass && !RenderLayer.isOff(.grass)
         let windNow = Wind.strength(at: camera.position, time: r.clock)
-        var gp = [SIMD4<Float>(LookDefaults.grassCell, Float(r.grassCellsPerSide), LookDefaults.grassRadius, GrassField.cullEnabled ? 1 : 0),
+        let culling = GrassField.cullEnabled && r.terrainTextures[r.world] != nil          // the draw below uses the pass's output only if the pass ran
+        var gp = [SIMD4<Float>(LookDefaults.grassCell, Float(r.grassCellsPerSide), LookDefaults.grassRadius, culling ? 1 : 0),
                   SIMD4<Float>(Wind.direction.x, Wind.direction.y, windNow, 0)]
-        if drawGrass && GrassField.cullEnabled, let terrain = r.terrainTextures[r.world] { r.grassField.encodeCull(commandBuffer, frame: &frame, params: &gp, terrain: terrain) }
+        if drawGrass && culling, let terrain = r.terrainTextures[r.world] { r.grassField.encodeCull(commandBuffer, frame: &frame, params: &gp, terrain: terrain) }
         // 1. Opaque geometry into HDR.
         let pass = MTLRenderPassDescriptor()
         pass.colorAttachments[0].texture = r.hdrTexture
@@ -74,7 +75,7 @@ final class OpaquePass: RenderPass {
             enc.setVertexBuffer(r.grassField.cells, offset: 0, index: 4)
             enc.setVertexBuffer(r.grassField.gridBase, offset: 0, index: 5)
             if drawGrass {
-                if GrassField.cullEnabled { enc.drawPrimitives(type: .triangleStrip, indirectBuffer: r.grassField.arguments, indirectBufferOffset: 0) }
+                if culling { enc.drawPrimitives(type: .triangleStrip, indirectBuffer: r.grassField.arguments, indirectBufferOffset: 0) }
                 else { enc.drawPrimitives(type: .triangleStrip, vertexStart: 0, vertexCount: 7, instanceCount: r.grassCellsPerSide * r.grassCellsPerSide) }
             }
             enc.setCullMode(.back)
