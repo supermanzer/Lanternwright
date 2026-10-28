@@ -29,11 +29,13 @@ enum Shimmer {
         return out
     }
 
+    /// Metres of walk per frame. The F02 default is 0.028; `SHIMMER_STEP` overrides it (an experiment: how much of a metric is real parallax rather than crawl).
+    static let walkStep: Float = Float(ProcessInfo.processInfo.environment["SHIMMER_STEP"] ?? "") ?? 0.028
     static func camera(base: Camera, motion: Motion, frame k: Int) -> Camera {
         var c = base
         switch motion {
         case .pan: c.yaw += 0.0022 * Float(k)
-        case .walk: c.position += simd_normalize(SIMD3(base.forward.x, 0, base.forward.z)) * (0.028 * Float(k))
+        case .walk: c.position += simd_normalize(SIMD3(base.forward.x, 0, base.forward.z)) * (walkStep * Float(k))
         }
         return c
     }
@@ -152,6 +154,7 @@ extension Shimmer {
     /// The walk is 0.028 m a frame; at the player's walking pace (2.3 m/s) that is this many seconds of game clock a frame, so wind and walk keep their real ratio.
     static let clockStep: Float = 0.028 / 2.3
 
+    nonisolated(unsafe) static let cliOff: Set<RenderLayer> = RenderLayer.off
     typealias Frames = [(cam: Camera, y: [Float], dist: [Float])]
     /// One walk of `frames` frames with TAA on (as in the game), the clock advancing (`moving`) or frozen, and the given layers off. Every walk starts from the same TAA state and
     /// jitter, so two walks differ only where a layer made them differ (the GPU is deterministic: identical pixels come out bit-identical).
@@ -159,8 +162,9 @@ extension Shimmer {
         renderer.world = scene.world
         let base = Screenshot.viewCamera(scene.view, renderer: renderer)
         let savedHidden = renderer.scene.hiddenFlags
-        RenderLayer.off = off
-        defer { RenderLayer.off = []; renderer.scene.hiddenFlags = savedHidden }
+        let cli = cliOff
+        RenderLayer.off = off.union(cli)          // `--layers-off` on the command line applies to every walk, to measure what is left
+        defer { RenderLayer.off = cli; renderer.scene.hiddenFlags = savedHidden }
         renderer.taaEnabled = true; renderer.resetTAA(); renderer.taaFrameIndex = 0
         let savedAuto = renderer.autoExposure; renderer.autoExposure = false          // the eye-adaptation readback is asynchronous: it would make two identical walks differ
         defer { renderer.autoExposure = savedAuto }
@@ -210,7 +214,8 @@ extension Shimmer {
         desc.usage = [.renderTarget, .shaderRead]; desc.storageMode = .shared
         guard let target = renderer.device.makeTexture(descriptor: desc) else { throw Screenshot.Failure.texture }
         var rows: [Attribution] = []
-        for sc in movingScenes {
+        let only = ProcessInfo.processInfo.environment["SHIMMER_SCENES"]?.split(separator: ",").map(String.init)          // e.g. SHIMMER_SCENES=woods,grove
+        for sc in movingScenes where only == nil || only!.contains(sc.name) {
             _ = try walk(renderer: renderer, scene: sc, off: [], moving: true, width: width, height: height, frames: 4, target: target)          // settles anything the renderer keeps between frames
             let all = try walk(renderer: renderer, scene: sc, off: [], moving: true, width: width, height: height, frames: frames, target: target)
             let allRun = score(frames: all, width: width, height: height)
@@ -248,7 +253,8 @@ extension Shimmer {
         var weighted: [RenderLayer: Double] = [:], edgeWeighted: [RenderLayer: Double] = [:], total = 0.0, edgeTotal = 0.0
         for r in rows {
             total += r.all.sum; edgeTotal += r.edge.sum
-            s += String(format: "%-8@ surface %7.3f (clock frozen %7.3f, %d px)   edge %7.3f (clock frozen %7.3f, %d px)\n", r.scene as NSString, r.all.flicker, r.frozen.flicker, r.all.n, r.edge.flicker, r.edgeFrozen.flicker, r.edge.n)
+            let perFrame = Double(max(frames - 1, 1)) * Double(width * height)
+            s += String(format: "%-8@ surface %7.3f (clock frozen %7.3f, %d px)   edge %7.3f (clock frozen %7.3f, %d px)   energy per pixel-frame: surface %.4f edge %.4f\n", r.scene as NSString, r.all.flicker, r.frozen.flicker, r.all.n, r.edge.flicker, r.edgeFrozen.flicker, r.edge.n, r.all.sum / perFrame, r.edge.sum / perFrame)
             for l in RenderLayer.allCases.sorted(by: { r.layers[$0]!.share + r.layers[$0]!.edgeShare > r.layers[$1]!.share + r.layers[$1]!.edgeShare }) {
                 let v = r.layers[l]!
                 weighted[l, default: 0] += Double(v.share) * r.all.sum
