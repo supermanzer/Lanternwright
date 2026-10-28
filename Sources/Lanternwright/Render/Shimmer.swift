@@ -219,6 +219,7 @@ extension Shimmer {
             _ = try walk(renderer: renderer, scene: sc, off: [], moving: true, width: width, height: height, frames: 4, target: target)          // settles anything the renderer keeps between frames
             let all = try walk(renderer: renderer, scene: sc, off: [], moving: true, width: width, height: height, frames: frames, target: target)
             let allRun = score(frames: all, width: width, height: height)
+            if let prefix = ProcessInfo.processInfo.environment["SHIMMER_HEAT"] { try writeHeat(frames: all, width: width, height: height, device: renderer.device, to: "\(prefix)-\(sc.name).png") }
             let frozenFrames = try walk(renderer: renderer, scene: sc, off: [], moving: false, width: width, height: height, frames: frames, target: target)
             let frozen = score(frames: frozenFrames, width: width, height: height)
             let edgeAll = edgeScore(frames: all, width: width, height: height), edgeFrozen = edgeScore(frames: frozenFrames, width: width, height: height)
@@ -271,5 +272,35 @@ extension Shimmer {
             s += String(format: "  %d. %-8@ %5.1f %%               %d. %-8@ %5.1f %%\n", i + 1, a.rawValue as NSString, 100 * weighted[a, default: 0] / max(total, 1e-9), i + 1, b.rawValue as NSString, 100 * edgeWeighted[b, default: 0] / max(edgeTotal, 1e-9))
         }
         return s
+    }
+}
+
+extension Shimmer {
+    /// `SHIMMER_HEAT=<prefix>`: for each scene write `<prefix>-<scene>.png`, the middle frame dimmed with the edge crawl of the walk painted over it in red (where it crawls, not just how much).
+    static func writeHeat(frames: Frames, width: Int, height: Int, device: MTLDevice, to path: String) throws {
+        var heat = [Float](repeating: 0, count: width * height)
+        for k in 1..<frames.count {
+            let a = frames[k - 1].y, b = frames[k].y
+            for y in 2..<(height - 2) { for x in 2..<(width - 2) {
+                let i = y * width + x
+                var best = Float.infinity
+                for dy in -1...1 { for dx in -1...1 { let d = b[i] - a[i + dy * width + dx]; best = min(best, d * d) } }
+                heat[i] += best
+            } }
+        }
+        let mid = frames[frames.count / 2].y
+        var px = [UInt8](repeating: 255, count: width * height * 4)
+        for i in 0..<(width * height) {
+            let h = min(1, heat[i] / Float(frames.count - 1) / 60)
+            let l = min(255, max(0, mid[i])) * 0.45
+            px[i * 4 + 0] = UInt8(min(255, l * (1 - h)))             // blue
+            px[i * 4 + 1] = UInt8(min(255, l * (1 - h)))             // green
+            px[i * 4 + 2] = UInt8(min(255, l * (1 - h) + 255 * h))   // red
+        }
+        let d = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: Renderer.outputFormat, width: width, height: height, mipmapped: false)
+        d.usage = [.shaderRead]; d.storageMode = .shared
+        guard let t = device.makeTexture(descriptor: d) else { throw Screenshot.Failure.texture }
+        t.replace(region: MTLRegionMake2D(0, 0, width, height), mipmapLevel: 0, withBytes: px, bytesPerRow: width * 4)
+        try Screenshot.writePNG(texture: t, to: path)
     }
 }

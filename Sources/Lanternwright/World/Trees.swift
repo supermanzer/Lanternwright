@@ -170,6 +170,7 @@ enum Trees {
         // not rounded blobs. 60-140 of them near the camera, a few large ones at mid range.
         var sprayId = 0
         func spray(at p: SIMD3<Float>, dir: SIMD3<Float>, length: Float, width: Float, droop: Float, detail: Int? = nil) {
+            if Trees.skipSprays { return }
             sprayId += 1
             Trees.addSpray(&b, origin: p, dir: dir, length: length, width: width, droop: droop, seed: Int(seed) &+ sprayId * 31, detail: detail ?? lod, surface: leaf, noise: n)
         }
@@ -210,6 +211,8 @@ enum Trees {
 
     /// The full-detail trunk's sides (F03 G3: 12, so its outline is round and not an octagon).
     static let trunkSides = 12
+    /// Debug (`--no-foliage`): build conifers without their spray foliage (trunk and branches only), to measure what the trunk alone does.
+    nonisolated(unsafe) static var skipSprays = false
     static let cardScale: Float = 1.5, cardWidth: Float = 0.47
     private static var needleCache: [Int: MeshBuilder] = [:]
     static func needleVariant(_ style: Style, _ index: Int) -> MeshBuilder {

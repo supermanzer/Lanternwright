@@ -97,6 +97,7 @@ struct LaunchOptions {
       --controls-md                Print the README controls table, generated from App/Controls.swift
       --feedback                   Print all saved player feedback and exit
       --feedback-dir               Print the feedback folder and exit
+      --no-foliage                 Debug: conifers without spray foliage (trunk and branches only; add --hide needles_ for no needle cards either)
       --no-grass                   Debug: draw no grass
       --hide <text>                Debug: draw no scene item whose name contains <text> (bisect what draws or shadows something)
       --new                        Start a new game, ignoring (and later overwriting) the save
@@ -144,6 +145,7 @@ struct LaunchOptions {
                 o.world = k
             case "--hide": Scene.hideNamed = next()
             case "--no-grass": Renderer.skipGrass = true
+            case "--no-foliage": Trees.skipSprays = true
             case "--layers-off": guard let set = RenderLayer.parse(next()) else { fail("--layers-off expects a comma list of: \(RenderLayer.allCases.map(\.rawValue).joined(separator: ", "))") }; RenderLayer.off = set
             case "--banding": o.banding = true
             case "--shimmer-layers": if i + 1 < args.count, let n = Int(args[i + 1]) { o.shimmerLayers = n; _ = next() } else { o.shimmerLayers = 60 }
