@@ -202,6 +202,12 @@ final class Renderer {
         wp.fragmentFunction = ShaderLibrary.function(library, "water_fragment")
         wp.colorAttachments[0].pixelFormat = Renderer.hdrFormat
         wp.depthAttachmentPixelFormat = Renderer.depthFormat
+        // F04 W1: the water's alpha is its coverage (the swash film fades out at the contact line); everywhere else it is 1, which blends to exactly the unblended result.
+        wp.colorAttachments[0].isBlendingEnabled = true
+        wp.colorAttachments[0].sourceRGBBlendFactor = .sourceAlpha
+        wp.colorAttachments[0].destinationRGBBlendFactor = .oneMinusSourceAlpha
+        wp.colorAttachments[0].sourceAlphaBlendFactor = .zero
+        wp.colorAttachments[0].destinationAlphaBlendFactor = .one
         waterPipeline = try! device.makeRenderPipelineState(descriptor: wp)
         let wds = MTLDepthStencilDescriptor()
         wds.depthCompareFunction = .less

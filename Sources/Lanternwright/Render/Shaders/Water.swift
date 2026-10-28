@@ -10,6 +10,7 @@ struct WaterOut {
     float4 position [[position]];
     float3 worldPos;
     float3 gNormal;
+    float seaY;         // the sea's own height here (waves included) before the swash film replaces it near the shore: the fragment redoes the film per pixel
     float jac;          // Jacobian of the horizontal displacement: 1 = flat water, toward 0 where a crest folds (whitecaps)
 };
 
@@ -65,7 +66,10 @@ vertex WaterOut water_vertex(uint vid [[vertex_id]],
     float3 wp = float3(w0.x + disp.x, w0.y + disp.y, w0.z + disp.z);
     // The swash film (Shore.sheetHeight): near and above the waterline the sheet is the swash, at most 5 cm over the ground, ending at the swash's edge, which runs up the beach
     // and draws down below the sea's contact between surges; out in the open sea it is the waves. A still pool (the Glass Wood) has none.
-    if (frame.worldB.x < 0.5) wp.y = shore_sheet(wp.y, gT.x, shore_swash_edge(xz, t, shSlope));
+    o.seaY = wp.y;
+    // F04 W1: the film's true height and edge are worked out PER PIXEL (water_fragment); the mesh only has to lie above the ground where there may be film, so near the shore it follows the
+    // ground 35 cm above it (a vertex-level film cut the beach in the mesh's straight facets).
+    if (frame.worldB.x < 0.5) { float own = shore_swash_owns(gT.x); wp.y = wp.y * (1.0 - own) + (gT.x + 0.35) * own; }
     o.worldPos = wp;
     o.gNormal = normalize(nrm);
     o.jac = (1.0 + jxx) * (1.0 + jzz) - jxz * jxz;
@@ -93,15 +97,33 @@ fragment float4 water_fragment(WaterOut in [[stage_in]],
                                constant FrameUniforms& frame [[buffer(1)]],
                                texture2d<float> skyLUT [[texture(1)]],
                                texture2d<float> sceneCopy [[texture(2)]],
-                               texture2d<float> distTex [[texture(3)]]) {
+                               texture2d<float> distTex [[texture(3)]],
+                               texture2d<float> terrainTex [[texture(5)]]) {
     float t = frame.cameraPos.w;
     float3 P = in.worldPos;
+    // F04 W1 (#52): the waterline is decided PER PIXEL. The sea is a coarse mesh (cells of 1 to 2 m near the shore) and its swash film sat at ground + a few cm only at its vertices, so between
+    // them the film cut the real ground in straight facets (flat brown polygons, a sand bar clipped in steps). Here the water's height at the pixel is compared with the ground under THIS
+    // pixel (the same height field the vertices read); the film fades to nothing over its last 10 cm (the pipeline blends on this alpha), so the contact line is the beach's own contour.
+    bool calmPool = frame.worldB.x > 0.5;
+    float groundH = terrain_sample(terrainTex, P.xz).x;
+    float filmDepth = 1.0e3;                                           // vertical depth of water over the ground at this pixel (negative on land)
+    if (!calmPool) {
+        float filmY = in.seaY;
+        if (groundH > -1.2) {
+            float2 gg = float2(terrain_sample(terrainTex, P.xz + float2(2.0, 0.0)).x - terrain_sample(terrainTex, P.xz - float2(2.0, 0.0)).x,
+                               terrain_sample(terrainTex, P.xz + float2(0.0, 2.0)).x - terrain_sample(terrainTex, P.xz - float2(0.0, 2.0)).x) / 4.0;
+            filmY = shore_sheet(in.seaY, groundH, shore_swash_edge(P.xz, t, length(gg)));
+        }
+        filmDepth = filmY - groundH;
+    }
+    float cover = smoothstep(0.0, 0.02, filmDepth);
+    if (cover <= 0.0) discard_fragment();
     float3 toCam = frame.cameraPos.xyz - P;
     float waterDist = length(toCam);
     float3 V = toCam / waterDist;
 
     // Normal = geometric (Gerstner) + ripples, with the ripples fading out with distance to avoid shimmer.
-    float rippleAmt = 0.35 * (1.0 - smoothstep(40.0, 400.0, waterDist));
+    float rippleAmt = 0.35 * (1.0 - smoothstep(40.0, 400.0, waterDist)) * (calmPool ? 1.0 : smoothstep(0.03, 0.45, filmDepth));      // ripples die out over the last half metre of water
     float e = 0.08;
     float fpw = max(length(dfdx(P.xz)), length(dfdy(P.xz)));                      // metres per pixel on the water
     float2 fade = float2(1.0 - smoothstep(0.25, 0.8, fpw * 2.3), 1.0 - smoothstep(0.25, 0.8, fpw * 5.7));
@@ -132,6 +154,7 @@ fragment float4 water_fragment(WaterOut in [[stage_in]],
     if (sceneD < waterDist) { uv2 = uv; sceneD = sceneD0; }      // never refract a pixel from in front of the water
     float3 sceneCol = sceneCopy.sample(waterLinear, uv2).rgb;
     float thick = min(max(sceneD - waterDist, 0.0), 200.0);       // path length through the water
+    if (!calmPool) thick = min(thick, max(filmDepth, 0.0) / max(V.y, 0.1));          // a thin film over sand is thin, however the mesh above it lies
 
     // Beer-Lambert: transmitted fraction falls off exponentially with distance, red fastest.
     float3 absorb = float3(0.45, 0.09, 0.06);
@@ -166,13 +189,13 @@ fragment float4 water_fragment(WaterOut in [[stage_in]],
     float3 col = refracted * (1.0 - F) + reflection * F + glint;
 
     // Shore foam: where the water is shallow (vertical depth = path length x cos of the view angle).
-    float vDepth = thick * V.y;
+    float vDepth = calmPool ? thick * V.y : max(filmDepth, 0.0);        // on the sea the foam follows the per-pixel contact, not the mesh's
     float n1 = vnoiseV(float3(P.xz * 1.3, t * 0.4));
     float n2 = vnoiseV(float3(P.xz * 4.1, -t * 0.6));
     float surge = 0.5 + 0.5 * sin(t * 0.9 + n1 * 6.0);                // foam line advances and retreats
     // Surf-washed beaches get a wide, lively foam line; the Glass Wood's still pool gets a thin, irregular, faint meniscus (F02 G3: a 6 m shelf under the beach foam rule
     // drew a surf ring round a pool that has no surf).
-    bool calm = frame.worldB.x > 0.5;
+    bool calm = calmPool;
     float foamReach = calm ? 0.10 + 0.06 * surge : 0.55 + 0.25 * surge;
     float foam = smoothstep(foamReach, 0.0, vDepth + (n1 - 0.5) * (calm ? 0.12 : 0.3)) * (0.55 + 0.45 * n2) * (calm ? 0.55 : 1.0);
     foam *= smoothstep(0.0, 0.08, vDepth);                            // clean edge where water meets land
@@ -187,7 +210,7 @@ fragment float4 water_fragment(WaterOut in [[stage_in]],
     col = mix(col, foamLit, saturate(foam) * 0.85);
 
     col = apply_fog(col, P, frame, skyLUT);
-    return float4(col, 1.0);
+    return float4(col, cover);
 }
 """#
 }

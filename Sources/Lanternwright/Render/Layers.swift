@@ -4,6 +4,8 @@ import Foundation
 /// aid only: nothing is off unless a tool says so, and the hooks are one `contains` test each.
 enum RenderLayer: String, CaseIterable {
     case grass, trees, water, glass, props, sky, shadows
+    /// The two mist sheets over the sea (a flat haze at 1.6 m and 6.5 m: also over low beach ground). `water` switches them off too; this switches only them (F04 W1's test needs the surface alone).
+    case mist
     nonisolated(unsafe) static var off: Set<RenderLayer> = []
     static func isOff(_ l: RenderLayer) -> Bool { !off.isEmpty && off.contains(l) }
 

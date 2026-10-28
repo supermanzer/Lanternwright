@@ -110,6 +110,7 @@ enum Shore {
             float run = SHORE_SWASH_MAX * (0.4 + 0.6 * shore_group(p, t));
             return -\(drawDown) + (run + \(drawDown)) * shore_runup(u);
         }
+        inline float shore_swash_owns(float T) { return smoothstep(-0.8, -0.3, T); }
         inline float shore_sheet(float seaY, float T, float S) {
             float film = min(S, T + \(filmThickness));
             float k = smoothstep(-0.8, -0.3, T);

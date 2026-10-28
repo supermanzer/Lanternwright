@@ -38,6 +38,7 @@ final class WaterPass: RenderPass {
             enc.setVertexTexture(r.terrainTextures[r.world], index: 5)           // F03 G2: the water's vertices read the ground to shoal, delay and swash
             enc.setFragmentBytes(&frame, length: MemoryLayout<FrameUniforms>.stride, index: 1)
             enc.setFragmentTexture(r.skyLUT, index: 1)
+            enc.setFragmentTexture(r.terrainTextures[r.world], index: 5)          // F04 W1: the water fragment compares its height with the ground under the pixel
             enc.setFragmentTexture(r.sceneCopy, index: 2)
             enc.setFragmentTexture(r.distanceTexture, index: 3)
             if !RenderLayer.isOff(.water) { enc.drawIndexedPrimitives(type: .triangle, indexCount: r.ocean.mesh.indexCount, indexType: .uint32,
@@ -71,7 +72,7 @@ final class WaterPass: RenderPass {
             // drawn with the ocean's indices over a crystal tree's vertices, a faint faceted ghost in the sky near the horizon).
             enc.setVertexBuffer(r.ocean.mesh.vertexBuffer, offset: 0, index: 0)
             enc.setRenderPipelineState(r.mistPipeline)
-            for (height, strength, seed) in [(Float(1.6), Float(0.85), Float(0.0)), (Float(6.5), Float(0.5), Float(0.37))] where !RenderLayer.isOff(.water) {
+            for (height, strength, seed) in [(Float(1.6), Float(0.85), Float(0.0)), (Float(6.5), Float(0.5), Float(0.37))] where !RenderLayer.isOff(.water) && !RenderLayer.isOff(.mist) {
                 var mu = r.ocean.uniforms(camera: camera, level: height)
                 mu.tint = SIMD4(strength * r.mistScale, beamHeading, r.world == .varrow ? r.beamIntensity : 0, seed)
                 mu.emissive = SIMD4(Landmarks.lensPosition, 0)
