@@ -247,3 +247,9 @@ M10 (guided movement, `docs/plans/M10-guided-movement.md`; tasks in `docs/TASKS-
 - **New tools:** `--bench N [--taa] [--world glass]` prints GPU ms per pass; `--shimmer-layers [N]` ranks which layer (trees, props, water, grass, ...) the crawl comes from (`docs/shots/shimmer-baseline.txt`); `--banding` measures sky banding (`docs/shots/banding-baseline.txt`); `--layers-off trees,grass,...` for any view. The F key now also records `pass ms` in the feedback context.
 - **What the numbers say:** trees (needle cards and crowns) are about half of the edge shimmer, props a fifth, water 6 %, grass only about 4 %; wind adds almost nothing, it is the camera moving over fine detail. So stream 2 starts with the trees. The night sky bands in runs of up to 275 rows (dither is queued as G10.2.3).
 - **Code shape:** `Renderer.encode` is a list of nine pass objects (`Render/Passes/`), textures that follow the window size live in `RenderTargets`, the lit shader is split into terrain, shadow lookup and fragment files.
+
+## F04: the fourth playtest (notes #52-#57)
+- **#52 the water at the dock's beach.** Stand where you stood (end of the dock, looking along the east beach): the water now ends in the beach's own smooth line, with no straight-edged brown polygons in the shallows and the sand bar a smooth shape under a thin film. Walk the shore at low and high eye heights and tell me if any facet or "ripple on the sand" survives (and where).
+- **#53-#55 the extra sheets.** Each page is one sheet now. Look at the dock, the hill by the tide stone and the summit.
+- **#56 page 3** reads as first written. The stones are still tide, wind, stone; the rank notches on the stones carry the order.
+- **#57 the white column at the Glass Wood altar** casts no shadow now (nothing that glows does; the mirrors and chimes lost their shadows with it).
