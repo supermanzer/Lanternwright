@@ -15,6 +15,9 @@ extension SelfTestRunner {
         check(aids.isEmpty, "no lectern, light thread or mote remains for any page (\(aids.map(\.name)))")
         let lit = (home.items + glass.items).filter { $0.name.hasPrefix("page_") && $0.uniforms.emissive.w != 0 }
         check(lit.isEmpty, "no page glows (emissive 0 on every one of \((home.items + glass.items).filter { $0.name.hasPrefix("page_") }.count))")
+        // F04 T1 (#56): page 3 reads as first written, byte for byte (the pages are the player's clue text: no one reworded them without being asked).
+        check(JournalContent.pages.first { $0.number == 3 }?.text == "I tune the lamp each evening the way I first climbed this island: from the water, through the wind, to the stone. Out of order, they only argue.",
+              "page 3 text is the original wording, byte for byte")
         // F04 P1 (#53-#55): each page is ONE paper object. No decoy sheet, and nothing else in either world is named like paper.
         var perPage: [String] = []
         for n in 1...8 {
