@@ -23,6 +23,10 @@ Written 2026-10-26 after the user's request for (1) a graphics architecture audi
 ## Git (supersedes rules 1, 4 and 7 above where they differ)
 See `docs/GIT-WORKFLOW.md`: remote `origin` is on GitHub, one worktree per builder (A moves out of the integration checkout at its next pausing point), work branches `a/<topic>` / `b/<topic>`, `main` integration-only with ff-only merges under a board merge lock, push and tag at the end of each plan phase, the merging builder bundles in the integration checkout.
 
+## Added 2026-10-28
+- `F04-fourth-playtest.md` (notes #52-#59): builder A, before the rest of G10 stream 2; then A takes G10 stream 3 (efficiency) before more de-aliasing, because the user's `pass ms` shows 13-17 ms frames at full resolution.
+- `S03-phase1-fork.md` (story Phase 1: return, lighthouse as the place of choice, gate, interior, tone-plate door, dock portal, fork): builder B after the grass phase (G10.G.1). B additionally owns `Game/**`, the journal UI, and NEW files `World/LighthouseInterior.swift`, `World/DockPortal.swift`, `Game/Story*.swift`, `Game/Gate.swift`, `Game/Contradictions.swift`; rendering and audio needs go to A via the board.
+
 ## Decisions already taken (the user asked the reviewer to proceed without approval)
 
 - Slow camera and limited freedom are wanted; implement, make the amount of freedom a setting so the feedback key can correct it.
