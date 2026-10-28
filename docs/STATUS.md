@@ -1,23 +1,39 @@
 # Project status and how to resume
 
-**Paused 2026-10-27 at the end of G10 stream 1** (user request). Everything is committed, merged to `main`, and pushed to https://github.com/supermanzer/Lanternwright.git. `main` = `origin/main`; selftest 941 PASS / 0 FAIL; `Lanternwright.app` in the integration checkout was bundled after HEAD.
+**Paused 2026-10-28 at the end of F04** (user request). `main` = `origin/main` (code last changed at `a7bed9a`, docs at `2994270`); selftest green at the F04 merge; `Lanternwright.app` in the integration checkout was bundled after the last code commit (07:44 vs 07:43). Both builders are idle with clean, pushed worktrees.
 
 ## Phases done (tags on `main`)
 | Tag | What |
 |---|---|
-| `f03-done` | F03: 19 playtest notes (rendering artifacts, trunks and needles, audio, dropped pages, shore physics, step fix). Outcome at the top of `docs/plans/F03-third-playtest.md`. |
-| `m10-done`, `m10-pace` | M10 guided movement: calmer look, pace 2.6 / 4.4 m/s, navigation corridors with soft confinement, vantage stations (stones pilot), reachable-region API and soft-lock audit, Guidance setting (Guided / Loose / Free roam). Hand-off notes in `docs/INSPECT.md` under "From builder B". |
-| `g10-s0` | G10 stream 0 (measure): per-pass GPU timer, shimmer attribution, banding probe. Baselines in `docs/shots/` (`pass-times-baseline.txt`, `shimmer-baseline.txt`, `banding-baseline.txt`). |
-| `g10-s1` | G10 stream 1 (modularise): `RenderTargets`, the frame as a list of passes (`Renderer.encode` is 8 lines), per-pass frame-uniform values, `Lit` shader split by concern. 27 frames byte-identical to `docs/shots/frame-hashes-baseline.txt`; check with `scripts/stream1-check.sh`. |
+| `f03-done` | F03: notes #33-#51 (artifacts, trunks and needles, audio, dropped pages, shore physics, step fix). |
+| `m10-done`, `m10-pace` | M10 guided movement: calmer look, pace 2.6 / 4.4 m/s, navigation corridors with soft confinement, vantage stations, reachable-region audit, Guidance setting (Guided / Loose / Free). |
+| `g10-s0` | G10 stream 0: per-pass GPU timer (`--bench`, `pass ms` in the F-key context), shimmer attribution (`--shimmer-layers`), banding probe. Baselines in `docs/shots/`. |
+| `g10-s1` | G10 stream 1: the frame is a list of passes, `RenderTargets`, per-pass uniforms, Lit shader split. 27 frames byte-identical (`scripts/stream1-check.sh`). |
+| `g10-g1` | G10.G.1 (builder B): grass compute culling and indirect draw; grass cost about 0.5 ms to about zero, frames byte-identical. |
+| `f04-done` | F04: notes #52-#59 that were bugs: the shore waterline decided per pixel (#52), decoy loose sheets removed (#53-55), page 3 wording restored (#56), light sources cast no shadow (#57). Plan: `docs/plans/F04-fourth-playtest.md`. |
 
-## What to do next (in order)
-1. **Playtest** what is bundled (F03 + M10). Ask for the notes with F; they record guidance mode and pace. Things to judge: calm look and pace; corridor edges (use Guidance = Loose if it feels policed); stones' framing stations; deck footsteps at the slower cadence; shallows, door rattle, gravel slide, wind (by ear).
-2. **Resume G10 at stream 2, task G10.2.2** (builder A). The order was re-set from the measurements: thin geometry with TREES first, then props, grass last (G10.2.2); output dither (G10.2.3); water and glass specular AA (G10.2.4); shadow seams, re-measure first (G10.2.5); velocity buffer last with a restated accept (G10.2.1); LOD dither review (G10.2.6). Then stream 3 (efficiency; pinned LOD, shadow bounds, terrain and grass bounds, margin cue now unblocked by the region API), stream 4 (MetalFX), and the grass stream for builder B (compute culling; its crawl-fix half is dropped: grass is about 1% of the crawl). Restart steps are in the RESUME NOTE at the top of the G10 section of `docs/TASKS.md`.
-3. **Pending small items:** `PropAudit.materialName` lacks names for some material ids; intermittent TAA frame-hash flake (about 2 in 25 on the same build, also before the refactor; cause unknown, possibly a real race: the stream-1 gate retries and reports it; harden it to print the alternate hash); the framegraph selftest only greps for `r.frame`.
-4. **User decisions still open** (`docs/INSPECT.md`): the story ending (Ilse vs Oren; S02 fork, Phase 1 not yet planned for the builders), conifers/needle look verdict, whether the corridors feel right, door interior (decided: stays locked), page findability balance (F03 P1 made pages overlookable on purpose).
+## Not merged (on pushed branches)
+- **`b/s03-1`** (builder B): S03.1 "pages as data, route flags and story block in the save", implemented, **review pending**. Also contains `13aa7ac`: restores the `runGrassCull` registration in `SelfTest.swift` that the F04 L1 merge dropped from `main` (a test, not behaviour; **main currently does not run the grass-cull selftest**). `docs/TASKS-B.md` with the resume note lives on this branch.
+- **`a/g10-stream2`** (builder A): the G10.2.2 pre-check, bark investigation tools (`--no-foliage`, `SHIMMER_HEAT`, `SHIMMER_STEP`, `SHIMMER_SCENES`), `PropAudit.materialName` fix, gate script printing alternate hashes. Needs a rebase onto main (expect a conflict on the selftest registration line). `a/g10-resume` is A's current worktree branch (docs only).
 
-## How the team works (details in `docs/GIT-WORKFLOW.md`, `docs/plans/X00-roadmap-and-coordination.md`)
-Reviewer session (research, plan, review) plus two builders in herdr panes: A = `w1:p1` (owns `Render/**`, `Audio/**`), B = `w1:p5` (movement, navigation, later grass). One git worktree per builder (`../lanternwright-a`, `../lanternwright-b`), `main` integration-only with ff-only merges, push and tag at the end of each phase. The reviewer says when a build is ready to play; the user is not asked to play before that.
+## Resume: in this order
+1. **Playtest what is bundled** (F04 + everything before). The user has not yet played the F04 build. Look for: the shore from the dock and the east beach (no polygons in the shallows, no ripples on the sand bar), one sheet per page, page 3 reads as it originally did, no shadow from the altar's light column. Notes with F as before (they record guidance mode, pace and pass ms).
+2. **Builder A** (pane `w1:p1`, worktree `../lanternwright-a`): follow the RESUME NOTE at the top of the G10 section of `docs/TASKS.md`: rebase `a/g10-stream2`; then bark/trunk-edge band-limit, tree LOD dither, the shared `thin_coverage` helper (post on board topic `ownership` when on main: builder B's G10.G.2 waits for it), then **G10 stream 3 efficiency** (the user's pass ms shows 13-17 ms frames at full resolution: overdraw check on opaque + sky, AO copy, shadow cache, MetalFX below render scale 1), then the rest of stream 2 (dither, water/glass specular, shadows measured-no-action, velocity buffer last). Also look at the faint pale streak on the sand in the high-side shore view (`--camera 150,14,172,-1.2,-0.6`).
+3. **Builder B** (pane `w1:p5`, worktree `../lanternwright-b`): merge the `13aa7ac` registration fix first, finish S03.1's review, then S03.2 onward per `docs/plans/S03-phase1-fork.md` (the story fork). G10.G.3 was dropped; G10.G.2 (grass far-field coverage) waits for A's helper.
+4. **Re-brief both panes** (they kept their worktrees; their context is old): point them at this file and their resume notes.
+
+## Open decisions for the user (builders must not decide these)
+- S03's three questions: (1) is moving Oren's decisive act (turning the beam to open the dock arch) from the shore into the lighthouse's lens room what notes #58/#59 mean? (2) Is "3 pages of each author" the right gate now that pages are overlookable? (3) Warn on sealing the other exit, or only dim it (default: only dim)?
+- Page revisions R1-R4 (S02 appendix) are **held** until the user has seen the text (`S03.10` produces a review file); the user has twice reacted to page wording.
+- Story ending (Ilse vs Oren reconciliation, S02 section 8), conifer look verdict, whether the corridors feel right (Guidance: Loose is the quick test), door interior (decided: stays locked).
+
+## Known issues
+- Intermittent TAA frame-hash flake (about 2 in 25 renders of the same build, also before the refactor; cause unknown, maybe a race). `stream1-check.sh` retries and now prints the alternate hash.
+- The grass cull margin (10 m) has about 1 m of headroom against a 5.2 m Glass Wood tuft in a full gust; if grass gets taller the margin must grow.
+- Effort measured so far says: shimmer is mostly tree trunks/branches/bark and the tree LOD dither, then props and water, not grass.
+
+## How the team works (details: `docs/GIT-WORKFLOW.md`, `docs/plans/X00-roadmap-and-coordination.md`)
+Reviewer session (research, plan, review) plus two builders in herdr panes: A = `w1:p1` (owns `Render/**`, `Audio/**`, `World/**`), B = `w1:p5` (movement, navigation, story/Game, grass files). One git worktree per builder, `main` integration-only with ff-only merges, push and tag at the end of each phase, the merging builder bundles in the integration checkout. The reviewer says when a build is ready to play.
 
 ## Plans
-`docs/plans/`: F01, F02, F03 (playtests), S01/S02 (story, the fork), G10 (graphics audit), M10 (guided movement), X00 (coordination), M10-puzzle-notes (what corridors and stations make possible for each puzzle).
+`docs/plans/`: F01-F04 (playtests), S01/S02 (story, the fork), S03 (story phase 1: the return, the lighthouse as the place of choice, the gate, interior, tone-plate door, dock portal), G10 (graphics audit), M10 (guided movement), M10-puzzle-notes, X00 (coordination).
