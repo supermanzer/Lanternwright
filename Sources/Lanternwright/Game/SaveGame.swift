@@ -18,16 +18,17 @@ struct SaveData: Codable, Equatable {
     var pitch: Float
     var playTime: Float
     var world: String? = nil            // absent in saves from before the second world: means Varrow
+    var story: StoryState? = nil        // absent in saves from before S03.1: the defaults
 
     /// Every saved flag, whichever bucket it is in.
     var flags: [String] { worldFlags.values.flatMap { $0 }.sorted() }
 
-    init(worldFlags: [String: [String]], pages: [Int], position: [Float], yaw: Float, pitch: Float, playTime: Float, world: String? = nil) {
+    init(worldFlags: [String: [String]], pages: [Int], position: [Float], yaw: Float, pitch: Float, playTime: Float, world: String? = nil, story: StoryState? = nil) {
         self.worldFlags = worldFlags; self.pages = pages; self.position = position
-        self.yaw = yaw; self.pitch = pitch; self.playTime = playTime; self.world = world
+        self.yaw = yaw; self.pitch = pitch; self.playTime = playTime; self.world = world; self.story = story
     }
 
-    private enum CodingKeys: String, CodingKey { case version, worldFlags, flags, pages, position, yaw, pitch, playTime, world }
+    private enum CodingKeys: String, CodingKey { case version, worldFlags, flags, pages, position, yaw, pitch, playTime, world, story }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -44,6 +45,7 @@ struct SaveData: Codable, Equatable {
         pitch = try c.decode(Float.self, forKey: .pitch)
         playTime = try c.decode(Float.self, forKey: .playTime)
         world = try c.decodeIfPresent(String.self, forKey: .world)
+        story = try c.decodeIfPresent(StoryState.self, forKey: .story)
         if v < SaveData.currentVersion { version = SaveData.currentVersion }      // migrated in memory; rewritten as v2 on the next save
     }
 
@@ -57,6 +59,7 @@ struct SaveData: Codable, Equatable {
         try c.encode(pitch, forKey: .pitch)
         try c.encode(playTime, forKey: .playTime)
         try c.encodeIfPresent(world, forKey: .world)
+        try c.encodeIfPresent(story, forKey: .story)
     }
 
     /// Sort a v1 flat flag list into worlds. This table is frozen history (v1 only ever had these flags), so it is the one
@@ -122,13 +125,16 @@ extension Game {
         SaveData(worldFlags: savedFlagsByWorld(),
                  pages: journal.collectedPages.map(\.number),
                  position: [player.position.x, player.position.y, player.position.z],
-                 yaw: player.yaw, pitch: player.pitch, playTime: time, world: world.rawValue)
+                 yaw: player.yaw, pitch: player.pitch, playTime: time, world: world.rawValue, story: story)
     }
 
     /// Bring a freshly created game to the saved state.
     func restore(_ s: SaveData) {
         for f in Game.ownFlags where s.worldFlags[SaveData.gameBucket]?.contains(f) == true { state.set(f) }
         if state.has("hint_run") { markHintSeen() }
+        // The two routes exclude each other: a save that has both (only a hand-edited one can) is treated as undecided rather than guessing which came first.
+        if state.has(Game.pathIlseFlag) && state.has(Game.pathOrenFlag) { state.set(Game.pathIlseFlag, false); state.set(Game.pathOrenFlag, false) }
+        story = s.story ?? StoryState()
         for p in puzzles { p.restore(from: Set(s.worldFlags[p.world.rawValue] ?? [])) }
         for n in s.pages { restorePage(n) }
         if let w = s.world.flatMap(WorldKind.init(rawValue:)), w != world { travel(to: w) }

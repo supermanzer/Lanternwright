@@ -21,6 +21,8 @@ final class Game {
     var interactables: [Interactable] { worldInteractables[world] ?? [] }
     private(set) var hovered: Interactable?
     var journal = JournalState()
+    /// The story beyond the flags (S03.1): glyphs understood, contradictions resolved. The route flags are in `state`.
+    var story = StoryState()
     /// 0...1 white fade used when stepping through a lens to another world.
     private(set) var whiteout: Float = 0
     /// Text shown over the white (nil = none).
@@ -100,7 +102,7 @@ final class Game {
     /// A restored save that already showed the hint counts as having been told (the hint never repeats).
     func markHintSeen() { hasRun = true }
     static let runHintAfter: Float = 45
-    static let ownFlags = ["lensTouched", "hint_run"]
+    static let ownFlags = ["lensTouched", "hint_run", Game.pathIlseFlag, Game.pathOrenFlag]
     /// 0...1: how far the "look closer" zoom has eased in (right mouse button or Z).
     private(set) var zoomAmount: Float = 0
     /// 0...1: how far into a run the player is (eased), which widens the view a little: speed you can see.
