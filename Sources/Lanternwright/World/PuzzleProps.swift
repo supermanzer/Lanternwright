@@ -74,8 +74,8 @@ enum PuzzleProps {
         }
     }
     /// The journal page's sheet origin, resting on the surface under it (F03 P1: dropped pages, not lecterns): see World/DroppedPages.swift.
-    static func pagePosition(_ number: Int, scene: Scene) -> SIMD3<Float> { pageLie(number, scene: scene).main.origin }
-    static func pageLie(_ number: Int, scene: Scene) -> (main: DroppedPages.Lie, loose: [DroppedPages.Lie]) {
+    static func pagePosition(_ number: Int, scene: Scene) -> SIMD3<Float> { pageLie(number, scene: scene).origin }
+    static func pageLie(_ number: Int, scene: Scene) -> DroppedPages.Lie {
         let b = pageBase(number, terrain: scene.terrain)
         return DroppedPages.lie(page: number, base: SIMD2(b.x, b.z), sheet: pageMesh().vertices.map { SIMD3($0.position.x, $0.position.y, $0.position.z) }, ground: { scene.groundHeight(x: $0, z: $1) })
     }
@@ -236,11 +236,8 @@ enum PuzzleProps {
         let mesh = pageMesh().build(device: device, label: "page")
         for n in 1...4 {
             let lie = pageLie(n, scene: scene)
-            // No emissive: a page is paper in the light of the day, nothing more (F03 #43). Loose sheets lie beside it, a little darker (older, blank, trodden).
-            scene.add("page_\(n)", mesh: mesh, uniforms: ObjectUniforms(model: lie.main.model, tint: SIMD4(1, 1, 1, 1), emissive: SIMD4(0, 0, 0, 0)))
-            for (k, l) in lie.loose.enumerated() {
-                scene.add("page_loose_\(n)_\(k)", mesh: mesh, uniforms: ObjectUniforms(model: l.model, tint: SIMD4(0.82, 0.78, 0.72, 1), emissive: SIMD4(0, 0, 0, 0)))
-            }
+            // No emissive: a page is paper in the light of the day, nothing more (F03 #43).
+            scene.add("page_\(n)", mesh: mesh, uniforms: ObjectUniforms(model: lie.model, tint: SIMD4(1, 1, 1, 1), emissive: SIMD4(0, 0, 0, 0)))
         }
     }
 }

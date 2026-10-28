@@ -79,7 +79,6 @@ final class Game {
         guard !state.has("page_\(n)") else { return }
         shownPages.insert(n)
         scenes[.glassWood]?.update("page_\(n)") { $0.hidden = false }
-        for k in 0..<3 { scenes[.glassWood]?.update("page_loose_\(n)_\(k)") { $0.hidden = false } }
         setInteractable("page_\(n)", enabled: true)
     }
 
@@ -133,7 +132,7 @@ final class Game {
         }
         for n in 1...4 {
             let p = PuzzleProps.pagePosition(n, scene: varrow)
-            pageModels[n] = PuzzleProps.pageLie(n, scene: varrow).main.model
+            pageModels[n] = PuzzleProps.pageLie(n, scene: varrow).model
             list.append(Interactable(id: "page_\(n)", min: p - SIMD3(0.5, 0.3, 0.5), max: p + SIMD3(0.5, 0.4, 0.5),
                                      prompt: "Read the page", reach: 3.4))
         }
@@ -150,7 +149,7 @@ final class Game {
             gwList += glass?.interactables() ?? []
             for n in 5...8 {
                 let p = GlassPuzzleProps.pagePosition(n, scene: scenes[.glassWood]!)
-                pageModels[n] = GlassPuzzleProps.pageLie(n, scene: scenes[.glassWood]!).main.model
+                pageModels[n] = GlassPuzzleProps.pageLie(n, scene: scenes[.glassWood]!).model
                 gwList.append(Interactable(id: "page_\(n)", min: p - SIMD3(0.5, 0.3, 0.5), max: p + SIMD3(0.5, 0.4, 0.5),
                                            prompt: "Read the page", reach: 3.4, enabled: n == 5))     // 6-8 are revealed by the puzzles
             }
@@ -205,7 +204,7 @@ final class Game {
         state.set("page_\(n)")
         journal.collect(n)
         for sc in scenes.values {                                                      // the page lives in whichever world it belongs to
-            sc.update("page_\(n)") { $0.hidden = true }                                  // the page itself goes into the journal; the loose sheets stay where they lie
+            sc.update("page_\(n)") { $0.hidden = true }                                  // the page itself goes into the journal
         }
         setInteractable("page_\(n)", enabled: false)
     }

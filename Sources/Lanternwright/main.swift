@@ -91,7 +91,7 @@ if options.listPages {
     for n in 1...8 {
         let sc = renderer.scenes[n <= 4 ? .varrow : .glassWood]!
         let lie = n <= 4 ? PuzzleProps.pageLie(n, scene: sc) : GlassPuzzleProps.pageLie(n, scene: sc)
-        print("page \(n)  \(n <= 4 ? "Varrow" : "Glass Wood")  sheet at \(f(lie.main.origin))  \(lie.loose.count) loose sheet(s) near  \(how[n - 1])")
+        print("page \(n)  \(n <= 4 ? "Varrow" : "Glass Wood")  sheet at \(f(lie.origin))  \(how[n - 1])")
     }
     exit(0)
 }
