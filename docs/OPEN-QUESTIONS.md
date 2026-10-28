@@ -30,6 +30,10 @@ Format: `### Q<n> (date, who): the question` then *Default taken*, *Where it liv
 *What changes if the answer differs:* editing the strings; or showing a cue earlier (before the altar) is one `guard` in `cue(for:)`.
 *Status:* open.
 
+### Q5 (2026-10-28, builder A): how soft may the bark's furrows get with distance?
+*Default taken:* the furrow and plate edges widen by one pixel footprint (`EDGE_K = 1.0`): the 0.5 m look is unchanged to the eye, the 5 m trunk is very slightly softer, and the woods' near-trunk surface crawl falls by half (trunk-only; with foliage woods 0.049 -> 0.022, grove 0.037 -> 0.029 energy per pixel-frame at the slow step). *Where it lives:* `constant float EDGE_K` above `mat_bark` in `Render/Shaders/Materials.swift`. *What changes if the answer differs:* 2.0 cuts the woods trunk crawl by 72 % but visibly smooths the plates at 3 to 5 m; 0 restores the old look and crawl. *Status:* open.
+
+
 ## Answered
 - 2026-10-28 S03 Oren's exit location: both exits at the original lighthouse; Oren's is a lens portal in the lens room, the dock arch is not an exit.
 - 2026-10-28 Page gate: 3 pages of each sibling.

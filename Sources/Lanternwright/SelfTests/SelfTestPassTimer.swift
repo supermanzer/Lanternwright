@@ -61,4 +61,13 @@ extension SelfTestRunner {
         let body = enc.components(separatedBy: "    func encode(commandBuffer: MTLCommandBuffer, target: MTLTexture, camera: Camera) {").last?.components(separatedBy: "\n    }\n").first ?? ""
         check(!body.isEmpty && body.split(separator: "\n").count < 60, "framegraph: Renderer.encode is under 60 lines (\(body.split(separator: "\n").count))")
     }
+
+    /// Every material id the shaders know has a name in the prop audit (it crashed on the ids past `slab`, and silently misnamed them before that).
+    func runMaterialNames() {
+        guard name == "all" || name == "framegraph" else { return }
+        let ids = (0..<40).filter { MaterialID(rawValue: Float($0)) != nil }
+        let names = ids.map { PropAudit.materialName($0) }
+        check(ids.count >= 26 && Set(names).count == ids.count && !names.contains { $0.hasPrefix("id") } && PropAudit.materialName(99) == "id99" && PropAudit.materialName(25) == "rope",
+              "prop audit: all \(ids.count) material ids have distinct names (needles, post, rope included)")
+    }
 }

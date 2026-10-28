@@ -12,7 +12,8 @@ for run in 1 2 3; do
   grep -Fxf /tmp/s1-hashes.txt /tmp/s1-missing.txt > /tmp/s1-matched.txt
   grep -Fxvf /tmp/s1-matched.txt /tmp/s1-missing.txt > /tmp/s1-next.txt; mv /tmp/s1-next.txt /tmp/s1-missing.txt
   [ -s /tmp/s1-missing.txt ] || break
-  echo "run $run: $(wc -l < /tmp/s1-missing.txt | tr -d ' ') frame(s) not yet matching: $(cut -d' ' -f1 /tmp/s1-missing.txt | tr '\n' ' ')"
+  echo "run $run: $(wc -l < /tmp/s1-missing.txt | tr -d ' ') frame(s) not yet matching (the hash seen is printed so a repeated alternate can be told from a new one):"
+  while read -r n h; do echo "    $n: baseline $h, seen $(grep "^$n " /tmp/s1-hashes.txt | cut -d' ' -f2)"; done < /tmp/s1-missing.txt
 done
 if [ -s /tmp/s1-missing.txt ]; then echo "frames: DIFFER: $(cut -d' ' -f1 /tmp/s1-missing.txt | tr '\n' ' ')"; else echo "frames: all $(wc -l < docs/shots/frame-hashes-baseline.txt | tr -d ' ') byte-identical to the baseline (after $run run(s))"; fi
 .build/release/Lanternwright --bench 120 --taa 2>&1 | grep -E "avg"

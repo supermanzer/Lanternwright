@@ -13,9 +13,9 @@ enum PropAudit {
         var merged: Bool
     }
 
+    /// The case name of `MaterialID` (so a new material is named here the day it is added); an id with no case reads `id<N>`.
     static func materialName(_ id: Int) -> String {
-        ["standard", "terrain", "emissiveGlass", "foliage", "bird", "masonry", "paint", "iron", "copper", "wood", "bark", "dressed", "plank", "timber", "glyphStone",
-         "paper", "pebble", "glassStone", "mirror", "paleMetal", "glyphGlass", "rock", "slab"][min(max(id, 0), 22)]
+        MaterialID(rawValue: Float(id)).map { String(describing: $0) } ?? "id\(id)"
     }
 
     static func rows(scenes: [WorldKind: Scene]) -> [Row] {
@@ -33,7 +33,7 @@ enum PropAudit {
                 let glowing = item.uniforms.emissive.w > 0.5 || item.refractive
                 let isTerrain = (counts[1] ?? 0) > n / 2
                 out.append(Row(world: kind.rawValue, name: item.name, triangles: item.mesh.indexCount / 3, size: ext, flatShare: flat,
-                               materials: Dictionary(counts.map { (materialName($0.key), $0.value) }, uniquingKeysWith: +),          // ids past the last name all read 'slab'
+                               materials: Dictionary(counts.map { (materialName($0.key), $0.value) }, uniquingKeysWith: +),
                                largeFlat: !merged && !glowing && !isTerrain && flat > 0.6 && sorted[0] * sorted[1] > 0.30, merged: merged))
             }
         }
