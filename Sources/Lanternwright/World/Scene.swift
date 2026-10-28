@@ -10,6 +10,11 @@ struct DrawItem {
     /// Glass: drawn in its own pass after the opaque scene (it refracts a copy of it), and casts no shadow.
     var refractive = false
 
+    /// F04 L1 (#57: "should a beam of light throw a shadow?"): light does not cast shadows. Anything that glows (emissive above zero: the beams and columns of light, the altar glow,
+    /// lamps and lanterns' cores, the lens, rings, glyph faces, glowing tufts) is left out of the shadow pass, and so is glass. Read every frame, so a lens that blazes only once
+    /// lit stops casting then. Solid things with a faint self-light (the mirrors, chime glass) are left out too: the rule is one test, not a list.
+    var castsShadow: Bool { uniforms.emissive.w <= 0 && !refractive }
+
     /// World-space bounding box: the mesh's local box transformed by the model matrix.
     var worldBounds: (min: SIMD3<Float>, max: SIMD3<Float>) {
         var lo = SIMD3<Float>(repeating: .infinity), hi = SIMD3<Float>(repeating: -.infinity)

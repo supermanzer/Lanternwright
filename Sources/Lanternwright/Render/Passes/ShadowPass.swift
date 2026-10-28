@@ -34,7 +34,7 @@ final class ShadowPass: RenderPass {
             let sunFrustum = Frustum(viewProj: matrix)
             for item in r.scene.items where !RenderLayer.isOff(.shadows) {
                 let b = item.worldBounds
-                guard !item.hidden, !item.refractive, item.uniforms.lod.w < 0.5, sunFrustum.intersects(min: b.min, max: b.max) else { continue }          // needle cards cast no shadow (the sprays of the same trees do)
+                guard !item.hidden, item.castsShadow, item.uniforms.lod.w < 0.5, sunFrustum.intersects(min: b.min, max: b.max) else { continue }          // needle cards cast no shadow (the sprays of the same trees do)
                 r.lastShadowDraws += 1
                 var u = item.uniforms
                 enc.setVertexBuffer(item.mesh.vertexBuffer, offset: 0, index: 0)
