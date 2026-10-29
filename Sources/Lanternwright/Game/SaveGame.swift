@@ -135,7 +135,7 @@ extension Game {
         // The two routes exclude each other: a save that has both (only a hand-edited one can) is treated as undecided rather than guessing which came first.
         if state.has(Game.pathIlseFlag) && state.has(Game.pathOrenFlag) { state.set(Game.pathIlseFlag, false); state.set(Game.pathOrenFlag, false) }
         story = s.story ?? StoryState()
-        syncInterior()                       // an open lighthouse door puts the walls and floors in place BEFORE the player is (a save made inside the tower)
+        syncInterior(snap: true)             // an open lighthouse door puts the walls and floors in place BEFORE the player is (a save made inside the tower)
         for p in puzzles { p.restore(from: Set(s.worldFlags[p.world.rawValue] ?? [])) }
         for n in s.pages { restorePage(n) }
         if let w = s.world.flatMap(WorldKind.init(rawValue:)), w != world { travel(to: w) }

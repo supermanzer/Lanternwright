@@ -225,10 +225,23 @@ final class Game {
     private(set) var interiorApplied = false
 
     /// Make the scene match `door_open`: the solid tower core becomes the hollow ring of wall colliders (with the door as a gap) and the inside is drawn, or the reverse.
-    func syncInterior() {
+    /// How far the door leaf is swung (radians; 0 shut) and how far it opens: about 80 degrees, over `doorSwingSeconds`.
+    private(set) var doorAngle: Float = 0
+    static let doorSwing: Float = 1.4, doorSwingSeconds: Float = 1.6
+
+    private func setDoorAngle(_ a: Float) {
+        doorAngle = a
+        scenes[.varrow]?.update("lh_door_leaf") { $0.uniforms.model = Lighthouse.doorLeafModel(open: a) }
+    }
+
+    /// `snap`: a loaded game shows the door as it was left, at once; in play it swings.
+    func syncInterior(snap: Bool = false) {
         let open = state.has(Game.doorOpenFlag)
         guard open != interiorApplied, let sc = scenes[.varrow] else { return }
         interiorApplied = open
+        let from = doorAngle, to: Float = open ? Game.doorSwing : 0
+        if snap { setDoorAngle(to) }
+        else { animator.tween(duration: Game.doorSwingSeconds, ease: .inOutCubic) { [weak self] t in self?.setDoorAngle(from + (to - from) * t) } }
         setInteractable("lh_door", enabled: !open)                             // an open door is not tried
         let o = interior.origin
         func isTowerCore(_ c: CylinderCollider) -> Bool { c.center == o && abs(c.radius - Lighthouse.colliderRadius) < 1e-4 }

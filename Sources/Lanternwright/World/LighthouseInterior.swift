@@ -256,5 +256,6 @@ struct LighthouseInterior {
             ring.box(size: SIMD3(0.025, 0.05, k % 6 == 0 ? 0.14 : 0.07), surface: iron, transform: translation(SIMD3(cos(a) * (ringMajor + 0.07), lensFloorY + ringHeight, sin(a) * (ringMajor + 0.07))) * rotationY(-a))
         }
         scene.add(ringName, mesh: ring.build(device: device, label: "lighthouse lens ring"), uniforms: ObjectUniforms(model: place), hidden: !shownForTools)
+        if shownForTools { scene.update("lh_door_leaf") { $0.uniforms.model = Lighthouse.doorLeafModel(open: Game.doorSwing) } }        // tools: the door open too
     }
 }

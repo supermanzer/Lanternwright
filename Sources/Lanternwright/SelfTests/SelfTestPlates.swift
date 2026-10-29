@@ -90,6 +90,20 @@ extension SelfTestRunner {
         strike(nn, [0, 1, 2]); nn.simulate(seconds: 5); step(nn)
         check(nn.scene.items.first { $0.name == DoorNote.itemName }?.hidden == true, "plates: and gone when the door is open")
 
+        // The door swings: shut before, swinging after (the leaf's own model turns about its hinge), wide open at the end; a game loaded with it open shows it open at once.
+        let sw = readyGame(); step(sw)
+        func leafModel(_ g: Game) -> float4x4? { g.scene.items.first { $0.name == "lh_door_leaf" }?.uniforms.model }
+        func same(_ a: float4x4?, _ b: float4x4) -> Bool { a.map { m in simd_length(m.columns.0 - b.columns.0) < 1e-4 && simd_length(m.columns.1 - b.columns.1) < 1e-4 && simd_length(m.columns.2 - b.columns.2) < 1e-4 && simd_length(m.columns.3 - b.columns.3) < 1e-4 } ?? false }
+        check(same(leafModel(sw), Lighthouse.doorLeafModel(open: 0)) && sw.doorAngle == 0, "plates: the door leaf is shut while the door is")
+        strike(sw, [0, 1, 2]); sw.simulate(seconds: TonePlatePuzzle.Timing.answerDelay + TonePlatePuzzle.Timing.openDelay + 0.3)
+        step(sw); sw.simulate(seconds: Game.doorSwingSeconds / 2)
+        let mid = sw.doorAngle
+        check(sw.state.has(Game.doorOpenFlag) && mid > 0.1 && mid < Game.doorSwing - 0.1, "plates: when the door opens the leaf starts to swing (\(mid) of \(Game.doorSwing) rad)")
+        sw.simulate(seconds: Game.doorSwingSeconds + 0.5)
+        check(abs(sw.doorAngle - Game.doorSwing) < 1e-3 && same(leafModel(sw), Lighthouse.doorLeafModel(open: Game.doorSwing)), "plates: and ends wide open (about 80 degrees)")
+        let loaded = twoWorlds(); loaded.restore(sw.makeSave())
+        check(abs(loaded.doorAngle - Game.doorSwing) < 1e-3 && same(leafModel(loaded), Lighthouse.doorLeafModel(open: Game.doorSwing)), "plates: a game loaded with the door open shows it open at once")
+
         // Saved open, loaded open.
         let back = twoWorlds(); back.restore(g.makeSave()); step(back)
         check(back.state.has(Game.doorOpenFlag) && back.interiorApplied, "plates: a game saved with the door open loads with it open")
