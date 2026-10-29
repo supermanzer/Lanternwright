@@ -1,5 +1,30 @@
 # G10: graphics architecture audit
 
+## Outcome (builder A, 2026-10-29; details and numbers in `docs/TASKS.md` under G10 and in `docs/shots/*-final.txt`)
+
+**Status: NOT closed, so no `g10-done` tag.** Three items are open: G10.4.2 (never started, see below) and G10.G.2 / G10.G.3 (builder B's grass stream; G10.G.1 is done and tagged `g10-g1`). Everything else is done, measured with no action, or dropped. Tags on `main`: `g10-s0`, `g10-s1`, `g10-g1`, `g10-s2`, `g10-s3`, `g10-s4`.
+
+**Done.** Stream 0 (G10.0.1 pass timer, 0.2 shimmer attribution, 0.3 banding probe). Stream 1 (1.1 `RenderTargets`, 1.2 passes extracted, 1.3 uniforms are values, 1.4 shader split, 1.5 tools green; 27 frames byte-identical). G10.2.0 bark/trunk band-limit (reviewer order 1). G10.2.2 the shared `thin_coverage` helper (the rest of 2.2 is "measured ceiling", below). G10.2.3 output dither. G10.2.1 camera-motion velocity buffer. G10.3.5 terrain-shader skips (opaque + sky -17 to -31 % at 2560x1440 on island views). G10.3.9 margin cue. G10.4.1 MetalFX temporal upscaling AS AN OPTION (`--render-scale`, pause-menu setting). G10.G.1 grass compute culling (B).
+
+**Measured, no action** (each recorded with its numbers): G10.2.1 animated-vertex velocity (grass tips move <= 1.5 px/frame at 5 m, trees < 0.2 px; MetalFX is not the default), G10.2.2 thin tree geometry (branches change tree edge crawl +-2 %), G10.2.4 water/glass specular AA, G10.2.5 shadow seams, G10.2.6 tree LOD dither (<= 5 % of the edge crawl), G10.3.1 shadow cascade cache (ceiling 0 to 0.4 ms), G10.3.2 the scene copy (no gain, reverted), G10.3.4 CPU encode (0.2 ms), G10.3.6 / 3.7 / 3.8 the region consumers (measured ceilings), G10.4.1's DEFAULT scale (0.75 is not 25 % faster and loses detail: default stays 1.0).
+
+**Dropped.** G10.3.3 as a task of stream 3 (it is stream G's G.1, done). The plan's "grass first" and "30 % better on grass and trees" (grass is about 1 % of the crawl).
+
+**Not done.** G10.4.2 "spend the headroom": there is no headroom to spend while MetalFX is not the default and the pass-ms tables show no stream-3 saving large enough to buy detail; revisit only if the user asks for more distant grass or a larger near cascade. G10.G.2 chunked fade and G10.G.3 corridor-bounded chunks: builder B's.
+
+**Before / after (stream-0 baselines against main at tag `g10-s2`).**
+| Pass ms at 2560x1440, TAA, frame / opaque+sky | before | after |
+|---|---|---|
+| varrow dock | 9.51 / 5.62 | 8.37 / 4.51 |
+| varrow overview | 9.44 / 5.56 | 7.54 / 3.76 |
+| varrow shore | 9.29 / 5.60 | 9.21 / 4.81 |
+| varrow summit | 10.32 / 6.95 | 9.49 / 6.26 |
+| glass wood overview | 8.26 / 5.10 | 7.05 / 3.56 |
+| glass wood court | 7.25 / 5.02 | 6.59 / 4.11 |
+
+Banding, longest identical run of rows in the worst sky strip (Glass Wood night): 275 -> 41; flat share 67.7 -> 46.2 %. Slow-step shimmer, energy per pixel-frame (surface / edge): woods 0.0486 / 1.705 -> 0.0279 / 1.693 (surface -43 %, the bark band-limit); grove, shore, crystal within +-12 % (the surface rises are the dither's own grain: `LW_DITHER=0` removes them, edge unaffected); dock edge +7 %, traced by bisection to F04 W1 (the per-pixel waterline, commit 3c4623f: dock raw edge 34.1 -> 36.9 on that commit alone; the film's fade width changes it by < 2 %), so it is a deliberate image change at the dock's waterline, not a regression to fix.
+
+
 Owner: builder A, after F03. User request (2026-10-26): "I still notice shimmering and odd behaviors that I assume are aliasing related. Given how many features we have added piece by piece, perform an architectural review of the entire graphics system. Identify ways to modularize it and make it more efficient. If you can find ways to improve the quality of the fine detail as well, that would be appreciated. Go ahead and make the changes you find."
 
 Rules for this plan: **measure first** (stream 0), every change is judged by numbers from the tools that already exist (`--shimmer`, `--parallax`, `--approach`, `--bench`) plus the new per-pass timer, and by frames Read before and after. A change that cannot show a gain is reverted, not kept "because it is cleaner". A change that alters the look says so in INSPECT.md.
