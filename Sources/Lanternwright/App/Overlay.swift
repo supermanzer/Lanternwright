@@ -69,7 +69,7 @@ final class OverlayView: NSView {
     var onNotebookTone: ((Int) -> Void)?
     /// S03.9: the contradiction shown in the Notebook (the first with evidence found): its two claims, the pieces of evidence (found or not, and which claim each is set against), and the quiet line.
     struct ClaimRow: Equatable { var page: Int; var excerpt: String; var found: Bool; var side: String? }
-    struct ClaimCard: Equatable { var id: String; var hers: String; var his: String; var rows: [ClaimRow]; var status: String? }
+    struct ClaimCard: Equatable { var id: String; var hers: String; var his: String; var rows: [ClaimRow]; var status: String?; var waiting = false }
     var claimCards: [ClaimCard] = []
     var onClaim: ((String, Int, Claim) -> Void)?
 
@@ -280,8 +280,8 @@ final class OverlayView: NSView {
                     for side in Claim.allCases {
                         let b = claimBox(i, side), chosen = row.side == side.title
                         if chosen { ink.withAlphaComponent(0.12).setFill(); NSBezierPath(roundedRect: b, xRadius: 4, yRadius: 4).fill() }
-                        text(side.title, serif(14), chosen ? ink : faded, NSRect(x: b.minX, y: b.minY + 1, width: b.width, height: 18), .center, 0)
-                        (chosen ? ink.withAlphaComponent(0.7) : faded.withAlphaComponent(0.4)).setStroke()
+                        text(side.title, serif(14), card.waiting ? faded.withAlphaComponent(0.5) : (chosen ? ink : faded), NSRect(x: b.minX, y: b.minY + 1, width: b.width, height: 18), .center, 0)
+                        (card.waiting ? faded.withAlphaComponent(0.2) : (chosen ? ink.withAlphaComponent(0.7) : faded.withAlphaComponent(0.4))).setStroke()
                         let box = NSBezierPath(roundedRect: b, xRadius: 4, yRadius: 4); box.lineWidth = 1; box.stroke()
                     }
                 }
@@ -601,7 +601,7 @@ enum OverlayDump {
         v = make(); v.journalOpen = true; v.journalTab = .notebook; v.notebookSeen = [true, true, false]; v.notebookStruck = [true, false, false]
         try v.snapshot(to: base + "-notebook.png")
         v = make(); v.journalOpen = true; v.journalTab = .notebook; v.notebookSeen = [true, true, true]; v.notebookStruck = [true, true, true]; v.notebookNotes = [Story.doorNote]
-        v.claimCards = Contradictions.all.map { c in OverlayView.ClaimCard(id: c.id, hers: c.hers, his: c.his, rows: c.evidence.enumerated().map { OverlayView.ClaimRow(page: $1.page, excerpt: $1.excerpt, found: true, side: $0 == 0 ? "His" : ($0 == 1 ? "Hers" : "His")) }, status: "These pages disagree. Read them again.") }
+        v.claimCards = Contradictions.all.map { c in OverlayView.ClaimCard(id: c.id, hers: c.hers, his: c.his, rows: c.evidence.enumerated().map { OverlayView.ClaimRow(page: $1.page, excerpt: $1.excerpt, found: true, side: $0 == 0 ? "His" : ($0 == 1 ? "Hers" : "His")) }, status: "These pages disagree. Read them again, and give it a little while.", waiting: true) }
         try v.snapshot(to: base + "-notebook-note.png")
         v = make(); v.whiteout = 1; v.whiteoutCaption = "The light folds…"
         try v.snapshot(to: base + "-end.png")

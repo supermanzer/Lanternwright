@@ -72,6 +72,8 @@ extension Game {
     func isSettled(_ id: String) -> Bool { story.contradictionsResolved.contains(id) }
 
     /// The verdict for a contradiction as it stands: settled once kept; `.notYet` for `retrySeconds` after a wrong group (the pages were cleared); otherwise judged from what the player has set.
+    /// True while the Notebook is waiting after a wrong group (it takes no pages until `retryAt`).
+    func isWaiting(_ id: String) -> Bool { time < (retryAt[id] ?? -.infinity) }
     func verdict(_ id: String) -> Contradictions.Verdict {
         guard let c = Contradictions.find(id) else { return .incomplete }
         if isSettled(id) { return .settled }

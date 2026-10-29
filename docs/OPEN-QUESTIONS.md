@@ -94,7 +94,7 @@ Format: `### Q<n> (date, who): the question` then *Default taken*, *Where it liv
 ### Q16 (2026-10-29, builder B, S03.9 follow-up): how is the contradiction made fair and not brute-forceable?
 *Default taken:* a fourth piece of evidence (page 9, Hers: "I would break it again.") and any three found-and-set pieces must all agree; a wrong group clears the pages and the Notebook takes nothing for 30 s, saying only that the pages disagree.
 *Where it lives:* `Contradictions.all` (the evidence), `Contradictions.groupSize` (3), `Contradictions.retrySeconds` (30), `Game.setClaim`.
-*What changes if the answer differs:* change the constants (a longer wait; groupSize 4 to require all) or the sides in the data; the tests follow the constants.
+*What changes if the answer differs:* change the constants (a longer wait; groupSize 4 to require all) or the sides in the data; the tests follow the constants. The wait is not saved: quitting and relaunching skips it (a 10 to 20 s cost against 30 s; accepted, persisting it is a `StoryState` field if wanted).
 *Status:* open.
 
 ## Answered

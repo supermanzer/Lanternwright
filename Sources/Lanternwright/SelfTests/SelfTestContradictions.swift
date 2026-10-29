@@ -54,9 +54,11 @@ extension SelfTestRunner {
         check(g.verdict("who-left") == .notYet && !g.isSettled("who-left") && g.story.contradictionsResolved.isEmpty, "contradictions: three set, not all right: 'not yet', nothing settled")
         check(c.evidence.allSatisfy { g.claim("who-left", page: $0.page) == nil }, "contradictions: a wrong group clears every page, so it must be read again")
         check((g.retryAt["who-left"] ?? 0) >= g.time + Contradictions.retrySeconds - 0.01, "contradictions: and the Notebook will not take the pages for \(Int(Contradictions.retrySeconds)) s")
+        check(g.isWaiting("who-left"), "contradictions: the Notebook reports that it is waiting (the boxes are drawn dimmed)")
         let beforeWait = g.story.claims
         check(!g.setClaim("who-left", page: 4, to: .his) && g.story.claims == beforeWait, "contradictions: during the wait a press changes nothing")
         g.retryAt["who-left"] = nil                                                  // the wait is over
+        check(!g.isWaiting("who-left"), "contradictions: and when it is over the boxes are live again")
         // Pages 4, 8, 9 (never 5): the route for a player who overlooked page 5.
         g.setClaim("who-left", page: 4, to: .his); g.setClaim("who-left", page: 8, to: .his)
         check(g.verdict("who-left") == .incomplete, "contradictions: two right of three needed is still unjudged")
@@ -65,7 +67,7 @@ extension SelfTestRunner {
         check(g.journal.hasUnread(.notebook), "contradictions: and the Notebook tab is marked (a line arrived)")
         let before = g.story.claims
         check(!g.setClaim("who-left", page: 4, to: .hers) && g.story.claims == before && g.story.contradictionsResolved == ["who-left"], "contradictions: once settled it is kept as it is")
-        g.setClaim("who-left", page: 5, to: .hers)                                   // not found? it is found; settled keeps it unchanged
+        g.setClaim("who-left", page: 5, to: .hers)                                   // page 5 is found; a settled contradiction still takes nothing
         check(g.claim("who-left", page: 5) == nil, "contradictions: a settled contradiction takes no further press")
 
         // The gate counts it, and it is saved.
