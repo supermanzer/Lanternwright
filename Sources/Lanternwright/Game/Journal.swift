@@ -10,6 +10,20 @@ enum JournalContent {
     static let pages: [JournalPage] = StoryPages.all.map { JournalPage(number: $0.id, text: $0.text) }
 }
 
+/// F05 S4: the journal's empty slots. One square per page, grouped by the WORLD it lies in (never the author, never a place): filled once the page is in the journal, hollow until then.
+/// Pages stay overlookable; this only says how many there are and in which world.
+struct PageSlotGroup: Equatable {
+    var world: String
+    var found: [Bool]
+}
+
+extension JournalState {
+    /// The slot groups in the order a player meets the worlds. The pages' worlds are `StoryPages.varrowIDs` / `glassIDs`.
+    var pageSlots: [PageSlotGroup] {
+        [("Varrow", StoryPages.varrowIDs), ("Glass Wood", StoryPages.glassIDs)].map { PageSlotGroup(world: $0.0, found: $0.1.map { collectedPages.map(\.number).contains($0) }) }
+    }
+}
+
 /// The journal's tabs (S03.2): one per sibling's pages, and the notebook. A tab shows only once there is something in it (`JournalState.visibleTabs`).
 enum JournalTab: CaseIterable {
     case ilse, oren, notebook

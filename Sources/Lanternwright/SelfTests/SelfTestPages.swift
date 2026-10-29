@@ -109,5 +109,13 @@ extension SelfTestRunner {
         var maxAngle: Float = 0
         for k in 0..<400 { let f = DroppedPages.flutter(model: m, page: 3, time: Float(k) * 0.05, gust: 1); maxAngle = max(maxAngle, abs(asin(max(-1, min(1, f.columns.1.z))))) }
         check(still == m && maxAngle < 3.5 * Float.pi / 180 && maxAngle > 0.5 * Float.pi / 180, "the only clue is faint: a page lifts at most \(String(format: "%.1f", maxAngle * 180 / .pi)) degrees in the strongest gust and is perfectly still in a lull (\(blown == m ? "no" : "some") movement at one sample)")
+        // F05 S4: the journal's empty slots: one square per page, by world only, hollow until found.
+        var js = JournalState()
+        check(js.pageSlots.map(\.world) == ["Varrow", "Glass Wood"] && js.pageSlots.map(\.found.count) == [5, 4] && js.pageSlots.allSatisfy { $0.found.allSatisfy { !$0 } }, "slots: a new journal shows five empty Varrow slots and four empty Glass Wood slots, labelled by world only")
+        js.collect(5)
+        check(js.pageSlots[1].found == [true, false, false, false] && js.pageSlots[0].found == [false, false, false, false, false], "slots: finding page 5 fills the first Glass Wood slot and nothing else")
+        for n in [1, 2, 3, 4, 9, 6, 7, 8] { js.collect(n) }
+        check(js.pageSlots.allSatisfy { $0.found.allSatisfy { $0 } }, "slots: with every page found every slot is filled")
+        check(Set(StoryPages.varrowIDs + StoryPages.glassIDs) == Set(StoryPages.all.map(\.id)) && js.pageSlots.map(\.world).allSatisfy { !$0.lowercased().contains("ilse") && !$0.lowercased().contains("oren") }, "slots: every page has a slot, and the labels name no author and no place")
     }
 }

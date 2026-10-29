@@ -122,6 +122,12 @@ Format: `### Q<n> (date, who): the question` then *Default taken*, *Where it liv
 *What changes if the answer differs:* the line is one string; the glow is one tuple; the beam in the sky is an ask for A.
 *Status:* open.
 
+### Q21 (2026-10-29, builder B, F05 S4): empty journal slots, and where page 5 lies
+*Default taken:* a quiet row above the page dots shows one square per page, grouped under the world's name ("Varrow" five squares, "Glass Wood" four), filled once the page is in the journal and hollow until then. Labelled by world ONLY (the user's instruction, which is narrower than the plan's "world and the author's side"): no author, no place, no marker. Page 5 stays where it is (one object at the arrival pad, overlookable by design, F03 P1): the slots now say a page is missing in the Glass Wood, which was the player's question, so moving it was not needed.
+*Where it lives:* `PageSlotGroup` / `JournalState.pageSlots` (`Game/Journal.swift`), `OverlayView.drawSlots`; the worlds are `StoryPages.varrowIDs` / `glassIDs`.
+*What changes if the answer differs:* adding the author is one more label; moving page 5 is `GlassPuzzleProps` (A's file) and the nav audit.
+*Status:* open.
+
 ## Answered
 - 2026-10-28 S03 Oren's exit location: both exits at the original lighthouse; Oren's is a lens portal in the lens room, the dock arch is not an exit.
 - 2026-10-28 Page gate: 3 pages of each sibling.

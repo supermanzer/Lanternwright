@@ -16,6 +16,8 @@ final class OverlayView: NSView {
     /// One tab on the journal's top edge (S03.2): its label and whether it holds something not yet read (a small amber diamond).
     struct TabItem: Equatable { var tab: JournalTab; var title: String; var unread: Bool }
     var tabItems: [TabItem] = [TabItem(tab: .ilse, title: "Pages", unread: false), TabItem(tab: .notebook, title: "Notebook", unread: false)]
+    /// F05 S4: one square per page by world, hollow while the page is not found.
+    var pageSlots: [PageSlotGroup] = []
     /// Notebook: per stone, whether its glyph has been seen / struck.
     var notebookSeen = [false, false, false]
     var notebookStruck = [false, false, false]
@@ -237,9 +239,30 @@ final class OverlayView: NSView {
             text("‹", font: serif(34), color: pageIndex > 0 ? ink : faded.withAlphaComponent(0.2), in: leftArrow, align: .center)
             text("›", font: serif(34), color: pageIndex < pages.count - 1 ? ink : faded.withAlphaComponent(0.2), in: rightArrow, align: .center)
         }
+        if journalTab != .notebook { drawSlots(ink: ink, faded: faded, text: text) }
         if journalTab != .notebook {
             text("← →  turn pages     Esc or J  close", font: .systemFont(ofSize: 11), color: faded,
                  in: NSRect(x: p.minX, y: p.maxY - 26, width: p.width, height: 16), align: .center)
+        }
+    }
+
+    /// F05 S4: the empty slots, a quiet row above the page dots: each world's name with a square per page (filled when found, hollow when not). No place, no author, no marker.
+    private func drawSlots(ink: NSColor, faded: NSColor, text: (String, NSFont, NSColor, NSRect, NSTextAlignment, CGFloat) -> Void) {
+        guard !pageSlots.isEmpty else { return }
+        let p = panel, size: CGFloat = 11, gap: CGFloat = 5, between: CGFloat = 34
+        let widths = pageSlots.map { max(CGFloat($0.found.count) * (size + gap) - gap, 70) }
+        var x = p.midX - (widths.reduce(0, +) + between * CGFloat(pageSlots.count - 1)) / 2
+        let y = p.maxY - 92
+        for (g, group) in pageSlots.enumerated() {
+            text(group.world, .systemFont(ofSize: 11), faded, NSRect(x: x - 10, y: y - 20, width: widths[g] + 20, height: 14), .center, 0)
+            var sx = x + (widths[g] - (CGFloat(group.found.count) * (size + gap) - gap)) / 2
+            for found in group.found {
+                let r = NSRect(x: sx, y: y, width: size, height: size)
+                if found { ink.withAlphaComponent(0.65).setFill(); NSBezierPath(roundedRect: r, xRadius: 2, yRadius: 2).fill() }
+                else { faded.withAlphaComponent(0.7).setStroke(); let b = NSBezierPath(roundedRect: r.insetBy(dx: 0.5, dy: 0.5), xRadius: 2, yRadius: 2); b.lineWidth = 1; b.stroke() }
+                sx += size + gap
+            }
+            x += widths[g] + between
         }
     }
 
@@ -611,6 +634,7 @@ enum OverlayDump {
         func make() -> OverlayView {
             let v = OverlayView(frame: NSRect(x: 0, y: 0, width: 1600, height: 900))
             v.debugBackdrop = backdrop
+            v.pageSlots = [PageSlotGroup(world: "Varrow", found: [true, true, true, true, false]), PageSlotGroup(world: "Glass Wood", found: [false, false, false, false])]      // F05 S4 sample: pages 1-4 found
             return v
         }
         var v = make(); v.captured = true; v.prompt = "Touch the stone"; v.step(dt: 1)
