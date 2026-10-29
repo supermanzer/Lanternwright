@@ -116,11 +116,22 @@ final class Game {
 
     /// The ground material under the player's feet (drives footstep sounds).
     /// The weighted version (for the footstep voice), and the dock plank under the foot.
-    var surfaceMix: (mix: StepMix, pebble: Float) { scene.surfaceMix(x: player.position.x, z: player.position.z) }
+    /// S03.5b: inside the open tower the footstep voice stands on the interior's own floors (stone flags in the ground room, boards on the stair and in the lens room); outside, the scene's ground.
+    private var interiorSurface: SurfaceKind? {
+        interiorApplied ? interior.surface(x: player.position.x, z: player.position.z, feetY: player.position.y) : nil
+    }
+    var surfaceMix: (mix: StepMix, pebble: Float) {
+        if let k = interiorSurface {
+            var m = StepMix(repeating: 0)
+            m[(k == .wood ? StepMaterial.wood : StepMaterial.stone).rawValue] = 1
+            return (m, 0)
+        }
+        return scene.surfaceMix(x: player.position.x, z: player.position.z)
+    }
     var currentPlank: Int { scene.plankIndex(x: player.position.x, z: player.position.z) }
     /// 0...1: how hollow the dock sounds under the feet (from the clearance under the planks).
     var currentHollowness: Float { scene.hollowness(x: player.position.x, z: player.position.z) }
-    var currentSurface: SurfaceKind { scene.surface(x: player.position.x, z: player.position.z) }
+    var currentSurface: SurfaceKind { interiorSurface ?? scene.surface(x: player.position.x, z: player.position.z) }
 
     /// Events since the last call (audio and UI consume these).
     func drainEvents() -> [GameEvent] { defer { pending = [] }; return pending }

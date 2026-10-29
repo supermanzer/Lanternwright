@@ -273,3 +273,36 @@ extension SelfTestRunner {
         check(msl.contains("if (obj.lod.z > 0.5)") && msl.contains("ambient *= 0.10;"), "interiorlight: the lit shader cuts the sky's ambient and adds the lamps only for flagged items")
     }
 }
+
+extension SelfTestRunner {
+    /// S03.5b: inside the open tower the footstep surface comes from the interior (stone flags in the ground room, wood on the stair), and nothing changes while the door is closed.
+    func runInteriorSteps() {
+        guard name == "all" || name == "interiorsteps" else { return }
+        guard let device = MTLCreateSystemDefaultDevice() else { check(false, "interiorsteps: no Metal device"); return }
+        let g = Game(scene: Scene.makeWorld(device: device))
+        let o = SIMD2(Layout.lighthouse.x, Layout.lighthouse.z)
+        var stoneSpot: SIMD3<Float>?, woodSpot: SIMD3<Float>?
+        for r in stride(from: Float(0.5), to: 3.4, by: 0.25) { for k in 0..<24 {
+            let a = Float(k) / 24 * 2 * .pi, x = o.x + r * cos(a), z = o.y + r * sin(a)
+            if let f = g.interior.floor(x: x, z: z, feetY: Layout.lighthouse.y + LighthouseInterior.floorY) {
+                if !f.wood, stoneSpot == nil { stoneSpot = SIMD3(x, f.y, z) }
+                if f.wood, woodSpot == nil, f.y < Layout.lighthouse.y + LighthouseInterior.floorY + 0.3 { woodSpot = SIMD3(x, f.y, z) }
+            }
+        } }
+        guard let stone = stoneSpot else { check(false, "interiorsteps: no stone floor found in the ground room"); return }
+        g.player.position = stone
+        let closed = g.currentSurface
+        var clock: Double = 0
+        let idle = InputState()
+        g.state.set(Game.doorOpenFlag); for _ in 0..<2 { clock += 0.05; g.advance(now: clock, input: idle) }
+        g.player.position = stone
+        let mixStone = g.surfaceMix.mix
+        check(g.currentSurface == .stone && mixStone[StepMaterial.stone.rawValue] == 1, "interiorsteps: standing on the ground room's flags with the door open the foot is on stone (closed door: \(closed))")
+        if let w = woodSpot {
+            g.player.position = w
+            check(g.currentSurface == .wood && g.surfaceMix.mix[StepMaterial.wood.rawValue] == 1, "interiorsteps: on the stair's low treads the foot is on wood (surface \(g.currentSurface), wood weight \(g.surfaceMix.mix[StepMaterial.wood.rawValue]) at \(w))")
+        } else { check(true, "interiorsteps: no low stair tread found in the sampled ring (skipped)") }
+        g.player.position = SIMD3(o.x + 30, g.scene.groundHeight(x: o.x + 30, z: o.y), o.y)
+        check(g.currentSurface == g.scene.surface(x: g.player.position.x, z: g.player.position.z), "interiorsteps: outside the tower the scene's own ground still decides")
+    }
+}
