@@ -31,16 +31,21 @@ float3 terrain_surface(float3 P, float3 Ng, float pathW, float wet, float duff, 
     // Strata are horizontal bands (noise squashed along Y). They only read as rock layers on steep faces: on flat or gently
     // rolling ground the same bands trace elevation contours (concentric rings), so there the rock is isotropic, and the bands
     // are warped by a slow horizontal noise so they never follow a height contour exactly.
-    float stratWarp = (vnoiseV(P * 0.045) - 0.5) * 5.0;
-    float stratBands = fbmV(float3(P.x * 0.12, (P.y + stratWarp) * 0.55, P.z * 0.12));
-    float strata = mix(fbmV(P * 0.16), stratBands, smoothstep(0.93, 0.72, slope));
-    float3 rock = mix(glass ? float3(0.10, 0.09, 0.18) : float3(0.20, 0.185, 0.165), glass ? float3(0.30, 0.26, 0.42) : float3(0.40, 0.355, 0.30), strata) * (0.85 + 0.3 * micro);
-
     float rockMask = 1.0 - smoothstep(0.72, 0.90, slope);
     rockMask = max(rockMask, 0.65 * smoothstep(52.0, 66.0, P.y + 12.0 * (macro - 0.5)));
     // Height blending: let the layers' own grain decide where one gives way to the other, so a boundary is a crisp, ragged
     // edge (rock poking through grass) rather than a soft linear fade.
     rockMask = mix(rockMask, smoothstep(0.30, 0.70, rockMask + ((meso - 0.5) * 0.55 + (micro - 0.5) * 0.25) * min(rockMask * 4.0, 1.0)), 0.5);   // half-sharpened: grain acts only where rock is already likely
+    // G10.3.5: the strata (three fractal noises) colour the rock only; where the rock mask is exactly zero (most flat ground: slope above 0.90 and below the high rock line) the rock
+    // is blended in with weight 0 below, so skipping it there leaves the image byte-identical.
+    float3 rock = float3(0.0);
+    if (rockMask > 0.0) {
+        float stratWarp = (vnoiseV(P * 0.045) - 0.5) * 5.0;
+        float stratBands = fbmV(float3(P.x * 0.12, (P.y + stratWarp) * 0.55, P.z * 0.12));
+        float strata = mix(fbmV(P * 0.16), stratBands, smoothstep(0.93, 0.72, slope));
+        rock = mix(glass ? float3(0.10, 0.09, 0.18) : float3(0.20, 0.185, 0.165), glass ? float3(0.30, 0.26, 0.42) : float3(0.40, 0.355, 0.30), strata) * (0.85 + 0.3 * micro);
+    }
+
     // F03 G2: the sand stays wet up to the reach of the recent swash (Shore.wetReach: it breathes with the wave groups) and dries, lighter, with height above it, instead of
     // a fixed band at one height.
     float wetReach = shore_wet_reach(P.xz, clock) * (glass ? 0.25 : 1.0);
@@ -78,19 +83,22 @@ float3 terrain_surface(float3 P, float3 Ng, float pathW, float wet, float duff, 
 
     // Path surface (R06): Worley cobbles, rounded pebbles of varied size with dark soil-and-sand gaps, a few large stones, a tone and
     // roughness per pebble. The dome heights feed the bump normal and darken the gaps (a little occlusion) below.
-    float4 cob = cobbles(P.xz, fpix);
-    float3 gapCol = (glass ? float3(0.11, 0.11, 0.19) : float3(0.15, 0.11, 0.075)) * (0.8 + 0.4 * meso);
-    float3 stoneA = glass ? float3(0.36, 0.40, 0.58) : float3(0.40, 0.34, 0.27);
-    float3 stoneB = glass ? float3(0.58, 0.52, 0.74) : float3(0.30, 0.285, 0.265);
-    float3 stoneCol = mix(stoneA, stoneB, cob.z) * (0.8 + 0.4 * fract(cob.z * 7.3)) * (0.9 + 0.2 * micro);
-    stoneCol *= mix(0.78, 1.08, cob.x);                                      // tops catch more light, flanks sit darker
-    float3 earth = mix(gapCol, stoneCol, cob.y) * (0.9 + 0.2 * meso);
     float pm = smoothstep(0.25, 0.75, pathW + (meso - 0.5) * 0.5);
     // The islet's ground (R10-5): a worn paved ring of flagstones round the pillars and the lens, with ragged edges, instead of bare turf.
     if (!glass) {
         float di = length(P.xz - float2(-40.0, -320.0)) + 1.6 * (vnoiseV(P * 0.9) - 0.5) * 2.0;
         pm = max(pm, (1.0 - smoothstep(6.0, 9.5, di)) * 0.9);
     }
+    // G10.3.5: the cobbles (a Worley search) matter only where the path or the islet's paving has weight; in a quad where nobody does, they are blended in with weight 0 (and their
+    // bump derivative is multiplied by 0), so skipping them is byte-identical. quad_any keeps the four pixels together so the bump's derivative stays valid at the edge of the path.
+    float4 cob = float4(0.0);
+    if (quad_any(pm > 0.0)) cob = cobbles(P.xz, fpix);
+    float3 gapCol = (glass ? float3(0.11, 0.11, 0.19) : float3(0.15, 0.11, 0.075)) * (0.8 + 0.4 * meso);
+    float3 stoneA = glass ? float3(0.36, 0.40, 0.58) : float3(0.40, 0.34, 0.27);
+    float3 stoneB = glass ? float3(0.58, 0.52, 0.74) : float3(0.30, 0.285, 0.265);
+    float3 stoneCol = mix(stoneA, stoneB, cob.z) * (0.8 + 0.4 * fract(cob.z * 7.3)) * (0.9 + 0.2 * micro);
+    stoneCol *= mix(0.78, 1.08, cob.x);                                      // tops catch more light, flanks sit darker
+    float3 earth = mix(gapCol, stoneCol, cob.y) * (0.9 + 0.2 * meso);
     albedo = mix(albedo, earth, pm);
 
     // Forest floor under conifers: warm brown needle litter and duff, finer-grained and darker than the meadow, with lighter fallen
