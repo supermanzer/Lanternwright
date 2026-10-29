@@ -78,6 +78,11 @@ Format: `### Q<n> (date, who): the question` then *Default taken*, *Where it liv
 *Default taken:* ONE contradiction, "who left": Hers: "He left me." / His: "She would not follow." (the book's own: page 8, "Hers says I left her. Mine says she would not follow."). Its evidence is three journal pages, each of which the story says supports one account: page 4 (Ilse: he asked again for the lens, he did not answer) supports His, page 5 (Oren: "I went through the lens first") supports Hers, page 8 (Oren: "I will be waiting where the wood ends") supports His. The Notebook shows the contradiction once any of the three is found; each found page is a row the player presses to cycle unset, Hers, His, Hers; the game says nothing until all three are found and set, then either "Settled." or only "These three do not agree yet." (never which one is wrong: Obra Dinn's rule, S02 section 4); settled it is kept and saved and is what the gate asks for (the waiver is gone). The sides are interpretation: change them as the story is settled. Resolved contradictions do not yet unlock margin lines (glyphs) or change the epilogue (later phases).
 *Where it lives:* `Game/Contradictions.swift` (the data: texts, pages, sides; `judge`; `Game.cycleClaim`, `verdict`), `StoryState.claims` / `contradictionsResolved` (saved), the Notebook card in `App/Overlay.swift`, `GateState.contradictionWaived = false`.
 *What changes if the answer differs:* the contradiction, its wording, its evidence and sides are one entry in `Contradictions.all`; a second contradiction is another entry (the Notebook shows the first with evidence found for now); a group of other than three is `evidence.count`; margin-line unlocks hang off `contradictionsResolved`.
+
+### Q13 (2026-10-29, builder A, S03.4 lantern chain): does the lantern flare run on every return to Varrow, or only the first?
+*Default taken:* every time the player arrives on Varrow with the altar solved (the edge from not-returned to returned while the game runs); a save loaded with the altar already solved does not flare.
+*Where it lives:* `Game.syncLanternChain` (one edge test), `World/LanternChain.swift` (step 0.4 s, flare 1.6 s, +16 glow).
+*What changes if the answer differs:* first-only is one extra saved flag (`lantern_chain_seen`) tested in `syncLanternChain`.
 *Status:* open.
 
 ## Answered
