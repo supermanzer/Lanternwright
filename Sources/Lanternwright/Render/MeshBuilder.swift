@@ -111,7 +111,7 @@ struct MeshBuilder {
     /// segments stay crisp (plinth steps, string courses, cornices) while each band is smooth around its ring. Wind the profile
     /// bottom to top along the outside of the solid.
     mutating func lathe(profile: [SIMD2<Float>], segments: Int = 32, smooth: Bool = true, surface: Surface,
-                        transform: float4x4 = matrix_identity_float4x4) {
+                        transform: float4x4 = matrix_identity_float4x4, omit: Set<Int> = []) {
         let n = max(3, segments)
         for k in 0..<max(profile.count - 1, 0) {
             let p0 = profile[k], p1 = profile[k + 1]
@@ -127,7 +127,7 @@ struct MeshBuilder {
                 let a = Float(i) / Float(n) * 2 * .pi, (c, s) = (cos(a), sin(a))
                 pos.append(SIMD3(p1.x * c, p1.y, p1.x * s)); nrm.append(SIMD3(n2.x * c, n2.y, n2.x * s))
             }
-            for i in 0..<n {
+            for i in 0..<n where !omit.contains(i) {          // `omit`: quads (by segment index) left out, for a doorway
                 let j = (i + 1) % n
                 let (b0, b1, t0, t1) = (UInt32(i), UInt32(j), UInt32(n + i), UInt32(n + j))
                 idx.append(contentsOf: [b0, t0, t1, b0, t1, b1])

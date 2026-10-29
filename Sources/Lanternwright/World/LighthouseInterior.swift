@@ -175,11 +175,13 @@ struct LighthouseInterior {
         var shell = MeshBuilder()
         var profile: [SIMD2<Float>] = []
         var y = Lighthouse.topY
-        while y > floorY {
+        let doorTop = floorY + 2.4                                                   // the doorway's lintel (`Lighthouse.shaftWithDoor`): the same two south quads of the 48-ring are left out
+        while y > doorTop + 0.5 {
             profile.append(SIMD2(innerR(y), y)); y -= 3
         }
-        profile.append(SIMD2(innerR(floorY), floorY))
+        profile.append(SIMD2(innerR(doorTop), doorTop))
         shell.lathe(profile: profile, segments: 48, smooth: true, surface: lime, transform: place)
+        shell.lathe(profile: [SIMD2(innerR(doorTop), doorTop), SIMD2(innerR(floorY), floorY)], segments: 48, smooth: true, surface: lime, transform: place, omit: [11, 12])
         // Flags on the ground room's floor.
         shell.cylinder(radiusTop: innerR(floorY), radiusBottom: innerR(floorY), height: 0.02, segments: 48, smooth: false, surface: stone, transform: place * translation(SIMD3(0, floorY - 0.01, 0)))
         // The lens room's floor: a disc less the hatch the stair comes up through, in six sectors (a disc over the well and the part outside the hatch).

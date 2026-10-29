@@ -32,6 +32,10 @@ enum Lighthouse {
         translation(Layout.lighthouse) * translation(doorHinge) * rotationY(-angle) * translation(-doorHinge)
     }
 
+    /// The five windows' heights (local y) and angles (atan2(z, x), 0 = east, pi/2 = south): the stone frames outside, and the light shafts inside (S03.5b).
+    static let windowYs: [Float] = [6.2, 10.4, 14.6, 18.2, 21.8]
+    static func windowAngle(_ i: Int) -> Float { .pi / 2 + Float(i) * 1.9 + 0.5 }
+
     static func build(into scene: Scene, device: MTLDevice) {
         let granite = Surface(color: SIMD3(0.47, 0.44, 0.41), roughness: 0.9, material: .masonry)
         let graniteDark = Surface(color: SIMD3(0.36, 0.34, 0.32), roughness: 0.9, material: .masonry)
@@ -96,7 +100,7 @@ enum Lighthouse {
             var pos: [SIMD3<Float>] = [], nrm: [SIMD3<Float>] = []
             for a in [aW, aE] { for r in [LighthouseInterior.innerR(ys[4]), wallR(ys[4])] { pos.append(SIMD3(r * cos(a), ys[4], r * sin(a))); nrm.append(SIMD3(0, -1, 0)) } }
             // pos: 0 = W inner, 1 = W outer, 2 = E inner, 3 = E outer
-            b.addIndexed(positions: pos, indices: [0, 2, 3, 0, 3, 1], smoothNormals: nrm, surface: granite, transform: matrix_identity_float4x4)
+            b.addIndexed(positions: pos, indices: [0, 3, 2, 0, 1, 3], smoothNormals: nrm, surface: granite, transform: matrix_identity_float4x4)
         }
         shaftWithDoor()
         shaft(from: baseY + 2.4, to: 3.6, granite)
@@ -152,9 +156,9 @@ enum Lighthouse {
         }
 
         // ---- Windows (splayed reveals): a stone frame standing proud, a dark recessed pane behind iron bars, a sill with a drip groove.
-        let windowYs: [Float] = [6.2, 10.4, 14.6, 18.2, 21.8]
+        let windowYs = Lighthouse.windowYs
         for (i, wy) in windowYs.enumerated() {
-            let ang = .pi / 2 + Float(i) * 1.9 + 0.5
+            let ang = Lighthouse.windowAngle(i)
             let rw = wallR(wy)
             let place = translation(SIMD3(cos(ang) * rw, wy, sin(ang) * rw)) * rotationY(.pi / 2 - ang)
             b.bevelBox(size: SIMD3(0.14, 1.15, 0.36), bevel: 0.02, surface: granite, transform: place * translation(SIMD3(-0.4, 0, 0.08)))
