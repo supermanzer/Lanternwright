@@ -71,7 +71,7 @@ final class OverlayView: NSView {
     var onNotebookTone: ((Int) -> Void)?
     /// S03.9: the contradiction shown in the Notebook (the first with evidence found): its two claims, the pieces of evidence (found or not, and which claim each is set against), and the quiet line.
     struct ClaimRow: Equatable { var page: Int; var excerpt: String; var found: Bool; var side: String? }
-    struct ClaimCard: Equatable { var id: String; var hers: String; var his: String; var rows: [ClaimRow]; var status: String?; var waiting = false }
+    struct ClaimCard: Equatable { var id: String; var hers: String; var his: String; var rows: [ClaimRow]; var status: String? }
     var claimCards: [ClaimCard] = []
     var onClaim: ((String, Int, Claim) -> Void)?
 
@@ -99,7 +99,8 @@ final class OverlayView: NSView {
     // MARK: Journal geometry (shared by drawing and clicking)
 
     private var panel: NSRect {
-        let w = min(640, bounds.width * 0.86), h = min(500, bounds.height * 0.78)
+        let tall = journalTab == .notebook && !claimCards.isEmpty          // F05 S2: the Notebook's two accounts get room to breathe
+        let w = min(640, bounds.width * 0.86), h = tall ? min(660, bounds.height * 0.88) : min(500, bounds.height * 0.78)
         return NSRect(x: bounds.midX - w / 2, y: bounds.midY - h / 2, width: w, height: h)
     }
     private var leftArrow: NSRect { NSRect(x: panel.minX + 24, y: panel.maxY - 66, width: 56, height: 36) }
@@ -118,9 +119,9 @@ final class OverlayView: NSView {
         return NSRect(x: panel.minX + 48 + CGFloat(i) * (w + 24), y: panel.minY + 102, width: w, height: 150)
     }
     /// The box for `side` on a row: Hers on the left, His on the right, at the row's right end.
-    func claimBox(_ i: Int, _ side: Claim) -> NSRect { let r = claimRow(i); return NSRect(x: r.maxX - (side == .hers ? 150 : 74), y: r.minY + 1, width: 68, height: 20) }
+    func claimBox(_ i: Int, _ side: Claim) -> NSRect { let r = claimRow(i); return NSRect(x: r.maxX - (side == .hers ? 160 : 80), y: r.minY + 2, width: 74, height: 26) }
     /// A piece of evidence's row in the claims card, under the three cells.
-    func claimRow(_ i: Int) -> NSRect { NSRect(x: panel.minX + 48, y: panel.minY + 312 + CGFloat(i) * 22, width: panel.width - 96, height: 22) }
+    func claimRow(_ i: Int) -> NSRect { NSRect(x: panel.minX + 48, y: panel.minY + 400 + CGFloat(i) * 34, width: panel.width - 96, height: 30) }
 
     override func mouseDown(with event: NSEvent) {
         if introOpen { dismissIntro(); return }
@@ -273,27 +274,27 @@ final class OverlayView: NSView {
             }
         }
         if let card = claimCards.first {
-            text("Two accounts", .systemFont(ofSize: 11), faded, NSRect(x: p.minX + 56, y: p.minY + 256, width: p.width - 112, height: 16), .left, 0)
-            text("Hers: \u{201C}\(card.hers)\u{201D}", serif(15), ink, NSRect(x: p.minX + 56, y: p.minY + 271, width: p.width - 112, height: 20), .left, 0)
-            text("His: \u{201C}\(card.his)\u{201D}", serif(15), ink, NSRect(x: p.minX + 56, y: p.minY + 290, width: p.width - 112, height: 20), .left, 0)
+            text("Two accounts of the same night. They disagree.", serif(17), ink, NSRect(x: p.minX + 56, y: p.minY + 282, width: p.width - 112, height: 24), .left, 0)
+            text("Which page is whose memory?", serif(15), faded, NSRect(x: p.minX + 56, y: p.minY + 308, width: p.width - 112, height: 20), .left, 0)
+            text("Hers: \u{201C}\(card.hers)\u{201D}", serif(15), ink, NSRect(x: p.minX + 56, y: p.minY + 346, width: p.width - 112, height: 20), .left, 0)
+            text("His: \u{201C}\(card.his)\u{201D}", serif(15), ink, NSRect(x: p.minX + 56, y: p.minY + 368, width: p.width - 112, height: 20), .left, 0)
             for (i, row) in card.rows.enumerated() {
                 let r = claimRow(i)
-                text(row.found ? row.excerpt : "?", serif(14), row.found ? ink : faded.withAlphaComponent(0.4), NSRect(x: r.minX + 8, y: r.minY + 2, width: r.width - 170, height: 20), .left, 0)
+                text(row.found ? row.excerpt : "?", serif(14), row.found ? ink : faded.withAlphaComponent(0.4), NSRect(x: r.minX + 8, y: r.minY + 4, width: r.width - 190, height: 22), .left, 0)
                 if row.found {
                     for side in Claim.allCases {
                         let b = claimBox(i, side), chosen = row.side == side.title
                         if chosen { ink.withAlphaComponent(0.12).setFill(); NSBezierPath(roundedRect: b, xRadius: 4, yRadius: 4).fill() }
-                        text(side.title, serif(14), card.waiting ? faded.withAlphaComponent(0.5) : (chosen ? ink : faded), NSRect(x: b.minX, y: b.minY + 1, width: b.width, height: 18), .center, 0)
-                        (card.waiting ? faded.withAlphaComponent(0.2) : (chosen ? ink.withAlphaComponent(0.7) : faded.withAlphaComponent(0.4))).setStroke()
+                        text(side.title, serif(14), chosen ? ink : faded, NSRect(x: b.minX, y: b.minY + 3, width: b.width, height: 22), .center, 0)
+                        (chosen ? ink.withAlphaComponent(0.7) : faded.withAlphaComponent(0.4)).setStroke()
                         let box = NSBezierPath(roundedRect: b, xRadius: 4, yRadius: 4); box.lineWidth = 1; box.stroke()
                     }
                 }
             }
-            if let status = card.status { text(status, serif(14), faded, NSRect(x: p.minX + 56, y: p.minY + 402, width: p.width - 112, height: 20), .left, 0) }
+            if let status = card.status { text(status, serif(14), faded, NSRect(x: p.minX + 56, y: p.minY + 540, width: p.width - 112, height: 20), .left, 0) }
         }
         if !notebookNotes.isEmpty {
-            text("Notes", .systemFont(ofSize: 11), faded, NSRect(x: p.minX + 56, y: p.minY + 428, width: p.width - 112, height: 14), .left, 0)
-            text(notebookNotes.joined(separator: "\n"), serif(15), ink, NSRect(x: p.minX + 56, y: p.minY + 442, width: p.width - 112, height: 30), .left, 2)
+            text(notebookNotes.joined(separator: "\n"), serif(15), ink, NSRect(x: p.minX + 56, y: p.minY + (claimCards.isEmpty ? 270 : 580), width: p.width - 112, height: 30), .left, 2)
         }
         text("Tab  next tab     Esc or J  close", .systemFont(ofSize: 11), faded, NSRect(x: p.minX, y: p.maxY - 26, width: p.width, height: 16), .center, 0)
     }
@@ -624,8 +625,11 @@ enum OverlayDump {
         v = make(); v.journalOpen = true; v.journalTab = .notebook; v.notebookSeen = [true, true, false]; v.notebookStruck = [true, false, false]
         try v.snapshot(to: base + "-notebook.png")
         v = make(); v.journalOpen = true; v.journalTab = .notebook; v.notebookSeen = [true, true, true]; v.notebookStruck = [true, true, true]; v.notebookNotes = [Story.doorNote]
-        v.claimCards = Contradictions.all.map { c in OverlayView.ClaimCard(id: c.id, hers: c.hers, his: c.his, rows: c.evidence.enumerated().map { OverlayView.ClaimRow(page: $1.page, excerpt: $1.excerpt, found: true, side: $0 == 0 ? "His" : ($0 == 1 ? "Hers" : "His")) }, status: "These pages disagree. Read them again, and give it a little while.", waiting: true) }
+        v.claimCards = Contradictions.all.map { c in OverlayView.ClaimCard(id: c.id, hers: c.hers, his: c.his, rows: c.evidence.enumerated().map { OverlayView.ClaimRow(page: $1.page, excerpt: $1.excerpt, found: true, side: $0 == 0 ? "His" : ($0 == 1 ? "Hers" : "His")) }, status: "These pages disagree. Read them again.") }
         try v.snapshot(to: base + "-notebook-note.png")
+        let big = OverlayView(frame: NSRect(x: 0, y: 0, width: 2560, height: 1440)); big.debugBackdrop = backdrop      // F05 S2: judged at 2560 x 1440 as well
+        big.journalOpen = true; big.journalTab = .notebook; big.notebookSeen = v.notebookSeen; big.notebookStruck = v.notebookStruck; big.notebookNotes = v.notebookNotes; big.claimCards = v.claimCards
+        try big.snapshot(to: base + "-notebook-note-2560.png")
         v = make(); v.whiteout = 1; v.whiteoutCaption = "The light folds…"
         try v.snapshot(to: base + "-end.png")
         v = make(); v.titleOpen = true; v.titleHasSave = true

@@ -21,8 +21,6 @@ final class Game {
     private(set) var tonePlates: TonePlatePuzzle!
     /// S03.7: the lens ring and Oren's portal in the lens room.
     private(set) var lensPortal: LensPortalPuzzle!
-    /// S03.10b: the game time before which the Notebook will not take a contradiction's pages after a wrong group (not saved: a reload is a fresh start).
-    var retryAt: [String: Float] = [:]
     /// S03.8: the route whose entry the next arrival in the Glass Wood is (set by `beginRoute`, used once by `travel`).
     var pendingEntry: PageAuthor?
     private var worldInteractables: [WorldKind: [Interactable]] = [:]

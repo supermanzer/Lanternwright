@@ -17,9 +17,8 @@ struct Evidence: Equatable {
 
 /// A contradiction (S03.9, first slice): two claims, and pieces of evidence the player sets, one by one, against one claim or the other. The game confirms only in GROUPS (S02: Obra Dinn's
 /// rule): it says nothing until `groupSize` (three) found pieces are set; then it settles if every one set agrees with the story, and otherwise says only that the pages disagree, never WHICH
-/// one is wrong. There are MORE pieces of evidence than the group (S03.10b), so any three found settle it and a player who overlooked one still has a way. A wrong group is not free, quietly:
-/// the pages are cleared and the Notebook will not judge again for `retrySeconds`, so a guess costs minutes, not a click (nothing else is taken away). Settled, it is kept (saved) and is what
-/// the gate asks for.
+/// one is wrong. There are MORE pieces of evidence than the group (S03.10b), so any three found settle it and a player who overlooked one still has a way. There is no penalty (F05 S2, Q19): a wrong group
+/// just stays as it is, with a quiet line, and the player may change any page. It does not gate anything (F05 S1); settled, it is kept (saved).
 struct Contradiction: Equatable {
     let id: String
     let hers: String
@@ -39,9 +38,8 @@ enum Contradictions {
     ]
     static func find(_ id: String) -> Contradiction? { all.first { $0.id == id } }
 
-    /// How many found pieces must be set before anything is said (Obra Dinn's group), and how long the Notebook will not judge after a wrong group.
+    /// How many found pieces must be set before anything is said (Obra Dinn's group).
     static let groupSize = 3
-    static let retrySeconds: Float = 30
 
     enum Verdict: Equatable {
         /// Fewer than `groupSize` found pieces are set: nothing is said.
@@ -71,32 +69,26 @@ extension Game {
     func claim(_ id: String, page: Int) -> Claim? { story.claims[claimKey(id, page)].flatMap(Claim.init(rawValue:)) }
     func isSettled(_ id: String) -> Bool { story.contradictionsResolved.contains(id) }
 
-    /// The verdict for a contradiction as it stands: settled once kept; `.notYet` for `retrySeconds` after a wrong group (the pages were cleared); otherwise judged from what the player has set.
-    /// True while the Notebook is waiting after a wrong group (it takes no pages until `retryAt`).
-    func isWaiting(_ id: String) -> Bool { time < (retryAt[id] ?? -.infinity) }
+    /// The verdict for a contradiction as it stands: settled once kept; otherwise judged from what the player has set.
     func verdict(_ id: String) -> Contradictions.Verdict {
         guard let c = Contradictions.find(id) else { return .incomplete }
         if isSettled(id) { return .settled }
-        if time < (retryAt[id] ?? -.infinity) { return .notYet }
         var assignments: [Int: Claim] = [:]
         for e in c.evidence { if let a = claim(id, page: e.page) { assignments[e.page] = a } }
         return Contradictions.judge(c, assignments: assignments, found: Set(journal.collectedPages.map(\.number)))
     }
 
     /// Set the evidence on `page` against `side` in one step (setting the side it already has unsets it, so a page can be taken back before the group is judged). Only found evidence can be set, a
-    /// settled contradiction is kept as it is, and while the Notebook is waiting after a wrong group nothing can be set. When `groupSize` or more found pieces are set: if all agree with the story it is
-    /// settled and saved; if not, the pages are cleared and the Notebook waits `retrySeconds` before it will judge again. Returns false if nothing was changed.
+    /// settled contradiction is kept as it is. When `groupSize` or more found pieces are set and all agree with the story it is settled and saved; a wrong
+    /// group is left as it is (the verdict says only 'not yet'). Returns false if nothing was changed.
     @discardableResult
     func setClaim(_ id: String, page: Int, to side: Claim) -> Bool {
-        guard let c = Contradictions.find(id), c.evidence.contains(where: { $0.page == page }), !isSettled(id), time >= (retryAt[id] ?? -.infinity),
+        guard let c = Contradictions.find(id), c.evidence.contains(where: { $0.page == page }), !isSettled(id),
               journal.collectedPages.contains(where: { $0.number == page }) else { return false }
         story.claims[claimKey(id, page)] = claim(id, page: page) == side ? nil : side.rawValue
         switch verdict(id) {
         case .settled: story.contradictionsResolved.append(id); journal.addNotebookEntry()
-        case .notYet:
-            for e in c.evidence { story.claims[claimKey(id, e.page)] = nil }                    // a wrong group is cleared: it must be read again
-            retryAt[id] = time + Contradictions.retrySeconds
-        case .incomplete: break
+        case .notYet, .incomplete: break
         }
         return true
     }

@@ -284,8 +284,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, MTKViewDelegate {
             let v = game.verdict(c.id)
             return OverlayView.ClaimCard(id: c.id, hers: c.hers, his: c.his,
                 rows: c.evidence.map { OverlayView.ClaimRow(page: $0.page, excerpt: $0.excerpt, found: found.contains($0.page), side: game.claim(c.id, page: $0.page)?.title) },
-                status: v == .settled ? "Settled." : (v == .notYet ? "These pages disagree. Read them again, and give it a little while." : nil),
-                waiting: game.isWaiting(c.id))
+                status: v == .settled ? "Settled." : (v == .notYet ? "These pages disagree. Read them again." : nil))
         })
         set(&overlay.notebookSeen, StoneID.allCases.map { game.state.has(Notebook.seenFlag($0)) })
         set(&overlay.notebookStruck, StoneID.allCases.map { game.state.has(Notebook.struckFlag($0)) })

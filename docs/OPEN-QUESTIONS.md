@@ -110,6 +110,12 @@ Format: `### Q<n> (date, who): the question` then *Default taken*, *Where it liv
 *What changes if the answer differs:* set `contradictionWaived = false` and the gate asks for one settled contradiction again (the quiet line `cueContradiction` is kept); the selftest "only the waiver lets that save in" shows the user's save would then not be ready.
 *Status:* open.
 
+### Q19 (2026-10-29, builder B, F05 S2): the Notebook's two accounts, simplified: no penalty, more room
+*Default taken:* the contradiction has no penalty timer and no clearing: a wrong group of three stays as set, with the quiet line "These pages disagree. Read them again.", and any page can be changed at once (it is optional and does not gate the door, Q18, so brute force costs nothing that matters; this supersedes the 30 s wait of Q16). One tap per page: each found page has its own Hers and His boxes. The card says what it is ("Two accounts of the same night. They disagree." / "Which page is whose memory?"), the Hers and His quotes stay (they are what the boxes mean), and the Notebook panel is taller (660 pt) while a contradiction is showing. The "Notes" label is gone; the door note's line stands alone.
+*Where it lives:* `Game/Contradictions.swift` (`setClaim`, no `retrySeconds`), `App/Overlay.swift` (`drawNotebook`, `panel`, `claimRow`, `claimBox`).
+*What changes if the answer differs:* a penalty is a `retryAt` check in `setClaim` (see git history, S03.9 follow-up); a different heading is one string.
+*Status:* open.
+
 ## Answered
 - 2026-10-28 S03 Oren's exit location: both exits at the original lighthouse; Oren's is a lens portal in the lens room, the dock arch is not an exit.
 - 2026-10-28 Page gate: 3 pages of each sibling.

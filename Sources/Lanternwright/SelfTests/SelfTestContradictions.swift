@@ -10,7 +10,7 @@ extension SelfTestRunner {
 
         // The data: one contradiction, four pieces of evidence (pages 4, 5, 8, 9) with a story-side each, two and two, so no uniform guess is the answer; any three settle it.
         check(Contradictions.all.count == 1 && c.evidence.map(\.page) == [4, 5, 8, 9] && c.evidence.map(\.supports) == [.his, .hers, .his, .hers], "contradictions: one contradiction, four pieces of evidence (pages 4, 5, 8, 9), supporting His, Hers, His, Hers")
-        check(Contradictions.groupSize == 3 && Contradictions.retrySeconds >= 30, "contradictions: three matched pieces judge it, and a wrong group costs at least 30 s")
+        check(Contradictions.groupSize == 3, "contradictions: three matched pieces judge it")
         check(c.hers == "He left me." && c.his == "She would not follow.", "contradictions: the two accounts are the book's own (Hers: He left me. His: She would not follow.)")
 
         // The grouping rule (pure): nothing is judged until three found pieces are set; then only agreed or not yet, never which.
@@ -48,19 +48,14 @@ extension SelfTestRunner {
         g.setClaim("who-left", page: 4, to: .his)
         g.restorePage(5); g.restorePage(8); g.restorePage(9)
         g.setClaim("who-left", page: 5, to: .his)                                   // wrong
-        check(g.verdict("who-left") == .incomplete && g.retryAt["who-left"] == nil, "contradictions: two set is still unjudged")
-        // The third set page judges; the group is wrong, so it is cleared and the Notebook waits.
+        check(g.verdict("who-left") == .incomplete, "contradictions: two set is still unjudged")
+        // The third set page judges; the group is wrong, so it is 'not yet'. Nothing is cleared and nothing waits (F05 S2, Q19): the player may simply change a page.
         g.setClaim("who-left", page: 8, to: .hers)                                  // wrong
         check(g.verdict("who-left") == .notYet && !g.isSettled("who-left") && g.story.contradictionsResolved.isEmpty, "contradictions: three set, not all right: 'not yet', nothing settled")
-        check(c.evidence.allSatisfy { g.claim("who-left", page: $0.page) == nil }, "contradictions: a wrong group clears every page, so it must be read again")
-        check((g.retryAt["who-left"] ?? 0) >= g.time + Contradictions.retrySeconds - 0.01, "contradictions: and the Notebook will not take the pages for \(Int(Contradictions.retrySeconds)) s")
-        check(g.isWaiting("who-left"), "contradictions: the Notebook reports that it is waiting (the boxes are drawn dimmed)")
-        let beforeWait = g.story.claims
-        check(!g.setClaim("who-left", page: 4, to: .his) && g.story.claims == beforeWait, "contradictions: during the wait a press changes nothing")
-        g.retryAt["who-left"] = nil                                                  // the wait is over
-        check(!g.isWaiting("who-left"), "contradictions: and when it is over the boxes are live again")
-        // Pages 4, 8, 9 (never 5): the route for a player who overlooked page 5.
-        g.setClaim("who-left", page: 4, to: .his); g.setClaim("who-left", page: 8, to: .his)
+        check(g.claim("who-left", page: 4) == .his && g.claim("who-left", page: 5) == .his && g.claim("who-left", page: 8) == .hers, "contradictions: a wrong group is left as the player set it (no clearing, no wait)")
+        // Take page 5 back and put page 8 right: pages 4 and 8 are right, 9 is not yet set: the route for a player who overlooked page 5.
+        check(g.setClaim("who-left", page: 5, to: .his) && g.claim("who-left", page: 5) == nil, "contradictions: a page can be taken back at once")
+        g.setClaim("who-left", page: 8, to: .his)
         check(g.verdict("who-left") == .incomplete, "contradictions: two right of three needed is still unjudged")
         g.setClaim("who-left", page: 9, to: .hers)
         check(g.verdict("who-left") == .settled && g.isSettled("who-left") && g.story.contradictionsResolved == ["who-left"], "contradictions: three right, without page 5, settled and kept")
