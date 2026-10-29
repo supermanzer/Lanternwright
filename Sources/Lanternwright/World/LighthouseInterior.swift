@@ -259,7 +259,7 @@ struct LighthouseInterior {
         var panes = MeshBuilder()
         let sky = Surface(color: SIMD3(0.70, 0.82, 1.0), roughness: 0.2, material: .emissiveGlass)
         for i in 0..<Lighthouse.windowYs.count {
-            let wy = Lighthouse.windowYs[i], a = Lighthouse.windowAngle(i), r = innerR(wy)
+            let wy = Lighthouse.windowYs[i], a = Lighthouse.windowAngle(i), r = innerR(wy) - 0.06          // the shell is a 48-gon sampled every 3 m, so its real face is a few cm inside `innerR`: stand clear of it
             let f = place * translation(SIMD3(cos(a) * r, wy, sin(a) * r)) * rotationY(atan2(-cos(a), -sin(a)))      // local z toward the axis
             panes.box(size: SIMD3(0.66, 1.08, 0.012), surface: sky, transform: f * translation(SIMD3(0, 0, 0.012)))
             for sx: Float in [-0.17, 0.17] { fit.box(size: SIMD3(0.025, 1.08, 0.02), surface: iron, transform: f * translation(SIMD3(sx, 0, 0.028))) }
