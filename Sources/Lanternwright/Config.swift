@@ -95,7 +95,7 @@ struct LaunchOptions {
       --shimmer [N]                Measure the crawl of fine detail with TAA off and on against a supersampled reference (N frames, default 60)
       --taa                        Turn temporal anti-aliasing on for screenshots, benchmarks and tools (always on in the game; use --frames N to let it converge)
       --clock T                    Screenshot clock in seconds (default 12): the wind, the grass and the trees depend on it
-      --list-pages                 Print where each of the eight journal pages stands (world, lectern foot, what makes it appear)
+      --list-pages                 Print where each of the nine journal pages stands (world, lectern foot, what makes it appear)
       --freeroam                   Ignore the navigation corridors (free roam), whatever the saved Guidance setting says (M10.7)
       --nav-audit [out.txt]        Check that every interactable, page and vantage is reachable and visible inside the navigation corridors; print the region numbers (M10.6)
       --nav-overlay <path.png>     Write a top-down map of each world's navigation corridors to <path>-varrow.png and <path>-glasswood.png (M10.3)
@@ -255,6 +255,7 @@ enum Viewpoints {
         case 2: return SIMD3(StoneID.tide.approachFrom.x, 0, StoneID.tide.approachFrom.z)
         case 3: return SIMD3(StoneID.wind.approachFrom.x, 0, StoneID.wind.approachFrom.z)
         case 4: return SIMD3(Layout.summitStone.x, 0, Layout.summitStone.z)
+        case 9: let s = Layout.dockStrip(); return SIMD3(s.a.x, 0, s.a.y)           // S03.10: seen from the landward side, looking out along the boards toward the dock's end
         case 5: return GlassLayout.arrival
         case 6: return GlassLayout.path[min(3, GlassLayout.path.count - 1)]
         case 7: return GlassLayout.path[min(6, GlassLayout.path.count - 1)]
@@ -262,14 +263,14 @@ enum Viewpoints {
         }
     }
 
-    /// `page-stand-N` / `page-far-N` / `page-close-N` / `page-back-N` (home pages 1-4) and the same with a `gw-` prefix (Glass Wood pages 5-8): the dropped page seen from 3 m or
+    /// `page-stand-N` / `page-far-N` / `page-close-N` / `page-back-N` (Varrow pages 1-4 and 9) and the same with a `gw-` prefix (Glass Wood pages 5-8): the dropped page seen from 3 m or
     /// 14 m on the side a player arrives from, from 0.7 m up and 0.5 m off looking down at it (`close`), and the same from the opposite side (`back`). F03 P1: could a player
     /// walking past miss it, and does it lie ON what it rests on?
     static func pageView(scene: Scene, name: String) -> Camera? {
         var n = name
         if n.hasPrefix("gw-") { n.removeFirst(3) }
         guard n.hasPrefix("page-stand-") || n.hasPrefix("page-far-") || n.hasPrefix("page-close-") || n.hasPrefix("page-back-"), let number = Int(n.split(separator: "-").last ?? "") else { return nil }
-        let home = number <= 4
+        let home = StoryPages.varrowIDs.contains(number)
         let pos = home ? PuzzleProps.pagePosition(number, scene: scene) : GlassPuzzleProps.pagePosition(number, scene: scene)
         let from = pageApproach(number)
         var out = SIMD2(from.x - pos.x, from.z - pos.z)

@@ -556,7 +556,9 @@ final class OverlayView: NSView {
         }
     }
 
-    private func toRoman(_ n: Int) -> String { ["", "I", "II", "III", "IV", "V", "VI", "VII", "VIII"][min(max(n, 0), 8)] }
+    private func toRoman(_ n: Int) -> String { OverlayView.roman(n) }
+    /// The page heading's numeral (pages 1 to 9; anything else clamps to the ends).
+    nonisolated static func roman(_ n: Int) -> String { ["", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX"][min(max(n, 0), 9)] }
 
     // MARK: Headless snapshot
 

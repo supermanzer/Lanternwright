@@ -10,3 +10,6 @@ The user approved S02's appendix drafts R1 to R3 and asked for them to be applie
 | 3, 8 | unchanged | | |
 
 Notes: the appendix says to add the half-line "after 'He did not answer, and I did not like the silence,'" but the sentence ends with a full stop, so the half-line follows the full stop. Page 9 lies on the boards at the seaward end of the dock, on the left-hand side (page 1 is 13 m from the landward end, on the right), one paper object, 2.6 m from the spawn and 27 m from page 1; it counts as an Ilse page (so Ilse has five pages and Oren four; the gate still asks for 3 of each, and the contradiction's evidence is pages 4, 5 and 8).
+
+Frames: no frame of `scripts/frame-hashes.sh` looks at the seaward end of the dock, so the baseline hashes do not see page 9; a frame hash for it would have to be added separately (`--camera 175.0,2.6,205.6,-0.72,-0.5` shows it; the dev cameras `page-stand-9`, `page-far-9`, `page-close-9`, `page-back-9` work from the landward end of the dock).
+The journal heading for page 9 is IX (a first version clamped it to VIII, caught by review; `OverlayView.roman` is pinned: nine different numerals).

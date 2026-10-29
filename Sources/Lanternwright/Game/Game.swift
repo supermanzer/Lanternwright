@@ -187,7 +187,7 @@ final class Game {
             let r = GlassLayout.returnLens
             var gwList = [Interactable(id: "gw_return", min: r - SIMD3(1.3, 1.3, 1.3), max: r + SIMD3(1.3, 1.3, 1.3), prompt: "Return through the lens", reach: 5)]
             gwList += glass?.interactables() ?? []
-            for n in 5...8 {
+            for n in StoryPages.glassIDs {
                 let p = GlassPuzzleProps.pagePosition(n, scene: scenes[.glassWood]!)
                 pageModels[n] = GlassPuzzleProps.pageLie(n, scene: scenes[.glassWood]!).model
                 gwList.append(Interactable(id: "page_\(n)", min: p - SIMD3(0.5, 0.3, 0.5), max: p + SIMD3(0.5, 0.4, 0.5),

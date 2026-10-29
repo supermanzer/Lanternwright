@@ -24,6 +24,10 @@ extension SelfTestRunner {
         check(t(9) == "Rule the first: keepers do not run on the shingle. Rule the second: keepers run when the lamp is going out. I have broken the second only twice, and I would break it again." && StoryPages.page(9)?.author == .ilse, "story: R2: page 9 is Ilse's, and reads as drafted")
         check(t(3) == "I tune the lamp each evening the way I first climbed this island: from the water, through the wind, to the stone. Out of order, they only argue." && t(8).hasPrefix("Two accounts will reach you, and they will not agree."), "story: page 3 is exactly as restored in F04 T1 and page 8 is unchanged")
 
+        let numerals = StoryPages.all.map { OverlayView.roman($0.id) }
+        check(Set(numerals).count == 9 && OverlayView.roman(9) == "IX" && OverlayView.roman(8) == "VIII" && !numerals.contains(""), "story: the nine page headings are all different (page 9 reads IX, not a second VIII): \(numerals)")
+        check(Viewpoints.pageApproach(9) == SIMD3(Layout.dockStrip().a.x, 0, Layout.dockStrip().a.y) && Viewpoints.pageView(scene: Scene.makeWorld(device: device), name: "page-stand-9") != nil, "story: the dev page cameras know page 9 (approach from the landward end of the dock)")
+
         func fresh() -> Game { Game(scene: Scene.makeWorld(device: device)) }
         // Round trip: pages by id, the route, glyphs, contradictions, through the JSON the save file holds.
         let g = fresh()

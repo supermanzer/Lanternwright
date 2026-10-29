@@ -28,7 +28,7 @@ enum NavCoverage {
             pts.append(Point(name: "prism source", position: MirrorCourt.world(MirrorCourt.source)))
             pts.append(Point(name: "receiver", position: MirrorCourt.world(MirrorCourt.receiver)))
             for k in 0..<5 { pts.append(Point(name: "chime \(k)", position: GlassPuzzleProps.chimePosition(k))) }
-            for n in 5...8 { pts.append(Point(name: "page \(n)", position: GlassPuzzleProps.pageBase(n))) }
+            for n in StoryPages.glassIDs { pts.append(Point(name: "page \(n)", position: GlassPuzzleProps.pageBase(n))) }
             return pts
         }
     }
