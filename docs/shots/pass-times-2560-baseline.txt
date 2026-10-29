@@ -1,0 +1,207 @@
+# G10 stream 3 baseline: per-pass GPU ms at 2560x1440 (the user's real drawable is about this), --bench 60 --taa, main + a/g10-stream2 (b14af01)
+## varrow
+benchmark at 2560x1440, 60 frames per view
+triangles: glass 0, scene total 7351590
+  dock avg 9.51 ms (105 fps)  median 9.19  worst 10.50  draws opaque 169 shadow 209
+      shadow 4096  0.426 ms   4.5 %
+      shadow 2048  0.069 ms   0.7 %
+      opaque + sky  5.622 ms  59.1 %
+      scene copy  0.103 ms   1.1 %
+      water  1.412 ms  14.9 %
+      scene copy for AO  0.366 ms   3.8 %
+      ssao  0.012 ms   0.1 %
+      ssao blur  0.154 ms   1.6 %
+      ssao apply  0.084 ms   0.9 %
+      taa resolve  0.376 ms   4.0 %
+      taa sharpen  0.093 ms   1.0 %
+      god rays  0.456 ms   4.8 %
+      bloom prefilter  0.021 ms   0.2 %
+      bloom down 1  0.027 ms   0.3 %
+      bloom down 2  0.014 ms   0.1 %
+      bloom down 3  0.009 ms   0.1 %
+      bloom down 4  0.009 ms   0.1 %
+      bloom up 3  0.006 ms   0.1 %
+      bloom up 2  0.008 ms   0.1 %
+      bloom up 1  0.014 ms   0.1 %
+      bloom up 0  0.034 ms   0.4 %
+      luma  0.119 ms   1.3 %
+      composite  0.071 ms   0.7 %
+      sum of passes  9.506 ms  of the frame's 9.51 ms (-0.0 %; each pass is charged from the previous pass's end, so the sum is the GPU busy time)
+  overview avg 9.44 ms (106 fps)  median 9.11  worst 10.70  draws opaque 178 shadow 171
+      shadow 4096  0.436 ms   4.6 %
+      opaque + sky  5.558 ms  58.9 %
+      scene copy  0.078 ms   0.8 %
+      water  1.825 ms  19.3 %
+      scene copy for AO  0.158 ms   1.7 %
+      ssao  0.002 ms   0.0 %
+      ssao blur  0.143 ms   1.5 %
+      ssao apply  0.060 ms   0.6 %
+      taa resolve  0.355 ms   3.8 %
+      taa sharpen  0.093 ms   1.0 %
+      god rays  0.368 ms   3.9 %
+      bloom prefilter  0.037 ms   0.4 %
+      bloom down 1  0.027 ms   0.3 %
+      bloom down 2  0.014 ms   0.1 %
+      bloom down 3  0.009 ms   0.1 %
+      bloom down 4  0.009 ms   0.1 %
+      bloom up 3  0.006 ms   0.1 %
+      bloom up 2  0.008 ms   0.1 %
+      bloom up 1  0.013 ms   0.1 %
+      bloom up 0  0.034 ms   0.4 %
+      luma  0.099 ms   1.0 %
+      composite  0.107 ms   1.1 %
+      sum of passes  9.438 ms  of the frame's 9.44 ms (-0.0 %; each pass is charged from the previous pass's end, so the sum is the GPU busy time)
+  shore avg 9.29 ms (108 fps)  median 8.98  worst 10.13  draws opaque 68 shadow 243
+      shadow 4096  0.468 ms   5.0 %
+      shadow 2048  0.064 ms   0.7 %
+      opaque + sky  5.601 ms  60.3 %
+      scene copy  0.074 ms   0.8 %
+      water  1.056 ms  11.4 %
+      scene copy for AO  0.388 ms   4.2 %
+      ssao  0.006 ms   0.1 %
+      ssao blur  0.142 ms   1.5 %
+      ssao apply  0.089 ms   1.0 %
+      taa resolve  0.375 ms   4.0 %
+      taa sharpen  0.093 ms   1.0 %
+      god rays  0.596 ms   6.4 %
+      bloom prefilter  0.023 ms   0.2 %
+      bloom down 1  0.027 ms   0.3 %
+      bloom down 2  0.014 ms   0.1 %
+      bloom down 3  0.009 ms   0.1 %
+      bloom down 4  0.009 ms   0.1 %
+      bloom up 3  0.006 ms   0.1 %
+      bloom up 2  0.008 ms   0.1 %
+      bloom up 1  0.014 ms   0.1 %
+      bloom up 0  0.034 ms   0.4 %
+      luma  0.121 ms   1.3 %
+      composite  0.071 ms   0.8 %
+      sum of passes  9.288 ms  of the frame's 9.29 ms (-0.0 %; each pass is charged from the previous pass's end, so the sum is the GPU busy time)
+  summit avg 10.32 ms (97 fps)  median 9.98  worst 11.26  draws opaque 98 shadow 292
+      shadow 4096  0.753 ms   7.3 %
+      shadow 2048  0.186 ms   1.8 %
+      opaque + sky  6.947 ms  67.3 %
+      scene copy  0.101 ms   1.0 %
+      water  0.379 ms   3.7 %
+      scene copy for AO  0.485 ms   4.7 %
+      ssao  0.005 ms   0.0 %
+      ssao blur  0.148 ms   1.4 %
+      ssao apply  0.090 ms   0.9 %
+      taa resolve  0.375 ms   3.6 %
+      taa sharpen  0.093 ms   0.9 %
+      god rays  0.393 ms   3.8 %
+      bloom prefilter  0.023 ms   0.2 %
+      bloom down 1  0.027 ms   0.3 %
+      bloom down 2  0.014 ms   0.1 %
+      bloom down 3  0.009 ms   0.1 %
+      bloom down 4  0.009 ms   0.1 %
+      bloom up 3  0.006 ms   0.1 %
+      bloom up 2  0.008 ms   0.1 %
+      bloom up 1  0.014 ms   0.1 %
+      bloom up 0  0.034 ms   0.3 %
+      luma  0.125 ms   1.2 %
+      composite  0.088 ms   0.9 %
+      sum of passes 10.313 ms  of the frame's 10.32 ms (-0.0 %; each pass is charged from the previous pass's end, so the sum is the GPU busy time)
+
+## glass wood
+benchmark at 2560x1440, 60 frames per view
+triangles: glass 826580, scene total 1380833
+  gw-arrival avg 6.28 ms (159 fps)  median 6.04  worst 7.33  draws opaque 66 shadow 89
+      shadow 4096  0.319 ms   5.1 %
+      shadow 2048  0.035 ms   0.6 %
+      opaque + sky  4.169 ms  66.4 %
+      scene copy  0.084 ms   1.3 %
+      water  0.143 ms   2.3 %
+      scene copy for AO  0.406 ms   6.5 %
+      ssao  0.051 ms   0.8 %
+      ssao blur  0.165 ms   2.6 %
+      ssao apply  0.070 ms   1.1 %
+      taa resolve  0.376 ms   6.0 %
+      taa sharpen  0.112 ms   1.8 %
+      god rays  0.011 ms   0.2 %
+      bloom prefilter  0.027 ms   0.4 %
+      bloom down 1  0.027 ms   0.4 %
+      bloom down 2  0.014 ms   0.2 %
+      bloom down 3  0.009 ms   0.1 %
+      bloom down 4  0.009 ms   0.1 %
+      bloom up 3  0.006 ms   0.1 %
+      bloom up 2  0.008 ms   0.1 %
+      bloom up 1  0.014 ms   0.2 %
+      bloom up 0  0.034 ms   0.5 %
+      luma  0.117 ms   1.9 %
+      composite  0.071 ms   1.1 %
+      sum of passes  6.277 ms  of the frame's 6.28 ms (-0.1 %; each pass is charged from the previous pass's end, so the sum is the GPU busy time)
+  gw-overview avg 8.26 ms (121 fps)  median 7.96  worst 9.38  draws opaque 73 shadow 78
+      shadow 4096  0.300 ms   3.6 %
+      shadow 2048  0.016 ms   0.2 %
+      opaque + sky  5.103 ms  61.8 %
+      scene copy  0.078 ms   0.9 %
+      water  1.592 ms  19.3 %
+      scene copy for AO  0.212 ms   2.6 %
+      ssao  0.001 ms   0.0 %
+      ssao blur  0.099 ms   1.2 %
+      ssao apply  0.064 ms   0.8 %
+      taa resolve  0.374 ms   4.5 %
+      taa sharpen  0.093 ms   1.1 %
+      god rays  0.011 ms   0.1 %
+      bloom prefilter  0.024 ms   0.3 %
+      bloom down 1  0.027 ms   0.3 %
+      bloom down 2  0.014 ms   0.2 %
+      bloom down 3  0.009 ms   0.1 %
+      bloom down 4  0.009 ms   0.1 %
+      bloom up 3  0.006 ms   0.1 %
+      bloom up 2  0.008 ms   0.1 %
+      bloom up 1  0.013 ms   0.2 %
+      bloom up 0  0.034 ms   0.4 %
+      luma  0.099 ms   1.2 %
+      composite  0.071 ms   0.9 %
+      sum of passes  8.256 ms  of the frame's 8.26 ms (-0.0 %; each pass is charged from the previous pass's end, so the sum is the GPU busy time)
+  gw-court avg 7.25 ms (138 fps)  median 7.00  worst 8.34  draws opaque 35 shadow 96
+      shadow 4096  0.275 ms   3.8 %
+      shadow 2048  0.034 ms   0.5 %
+      opaque + sky  5.018 ms  69.2 %
+      scene copy  0.069 ms   1.0 %
+      water  0.357 ms   4.9 %
+      scene copy for AO  0.419 ms   5.8 %
+      ssao  0.024 ms   0.3 %
+      ssao blur  0.146 ms   2.0 %
+      ssao apply  0.070 ms   1.0 %
+      taa resolve  0.411 ms   5.7 %
+      taa sharpen  0.093 ms   1.3 %
+      god rays  0.011 ms   0.1 %
+      bloom prefilter  0.026 ms   0.4 %
+      bloom down 1  0.026 ms   0.4 %
+      bloom down 2  0.014 ms   0.2 %
+      bloom down 3  0.009 ms   0.1 %
+      bloom down 4  0.009 ms   0.1 %
+      bloom up 3  0.006 ms   0.1 %
+      bloom up 2  0.008 ms   0.1 %
+      bloom up 1  0.014 ms   0.2 %
+      bloom up 0  0.034 ms   0.5 %
+      luma  0.110 ms   1.5 %
+      composite  0.071 ms   1.0 %
+      sum of passes  7.253 ms  of the frame's 7.25 ms (-0.0 %; each pass is charged from the previous pass's end, so the sum is the GPU busy time)
+  gw-altar avg 4.86 ms (206 fps)  median 4.68  worst 5.90  draws opaque 24 shadow 96
+      shadow 4096  0.285 ms   5.9 %
+      shadow 2048  0.035 ms   0.7 %
+      opaque + sky  2.027 ms  41.7 %
+      scene copy  0.076 ms   1.6 %
+      water  1.278 ms  26.3 %
+      scene copy for AO  0.137 ms   2.8 %
+      ssao  0.002 ms   0.1 %
+      ssao blur  0.144 ms   3.0 %
+      ssao apply  0.066 ms   1.4 %
+      taa resolve  0.375 ms   7.7 %
+      taa sharpen  0.093 ms   1.9 %
+      god rays  0.011 ms   0.2 %
+      bloom prefilter  0.026 ms   0.5 %
+      bloom down 1  0.027 ms   0.5 %
+      bloom down 2  0.014 ms   0.3 %
+      bloom down 3  0.009 ms   0.2 %
+      bloom down 4  0.009 ms   0.2 %
+      bloom up 3  0.006 ms   0.1 %
+      bloom up 2  0.008 ms   0.2 %
+      bloom up 1  0.014 ms   0.3 %
+      bloom up 0  0.034 ms   0.7 %
+      luma  0.110 ms   2.3 %
+      composite  0.071 ms   1.5 %
+      sum of passes  4.855 ms  of the frame's 4.86 ms (-0.0 %; each pass is charged from the previous pass's end, so the sum is the GPU busy time)
