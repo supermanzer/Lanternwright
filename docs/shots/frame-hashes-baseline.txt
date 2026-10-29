@@ -3,8 +3,8 @@ overview 80e760e1704d1505
 shore b0e15b0a18339c8e
 summit 332f3cad0b16df06
 islet 533deecf20ac911d
-lh-glass 8021d4975813aae5
-lh-door 6971b72c959dbc63
+lh-glass 4e444e15252d2235
+lh-door fd68470e79175acd
 tree-at-14 2c0d287cca7af0dd
 ground-grass-5m dba7879a9ef1308f
 ground-sand-1m 37c54248897981a4
