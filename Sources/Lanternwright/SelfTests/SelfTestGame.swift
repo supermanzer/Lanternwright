@@ -115,7 +115,7 @@ extension SelfTestRunner {
             // 3e. WorldPuzzle: the save's flag list is derived from the registered puzzles, and clicks route to the owning puzzle.
             g = freshGame()
             check(g.puzzles.count == 1 && g.puzzles[0].world == .varrow, "Varrow-only games register one puzzle")
-            check(Set(g.persistentFlags) == Set(["solved", "lighthouseLit", "causewayUp", "lensTouched", "hint_run", "path_ilse", "path_oren"] + Notebook.flags), "persistent flags come from the puzzles (+ the game's own flags, S03.1: the two route flags are saved)")
+            check(Set(g.persistentFlags) == Set(["solved", "lighthouseLit", "causewayUp", "lensTouched", "hint_run", "path_ilse", "path_oren", "door_open"] + Notebook.flags), "persistent flags come from the puzzles (+ the game's own flags, S03: the two route flags and the lighthouse door are saved)")
             g.activate("stone_tide")
             check(g.state.has("lit_tide"), "activating a stone id routes to the lighthouse puzzle")
             let both = Game(scenes: [.varrow: Scene.makeWorld(device: device), .glassWood: GlassWood.build(device: device)])

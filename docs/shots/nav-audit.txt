@@ -5,7 +5,7 @@ Margin 4.0 m. Region = corridors and plazas plus the margin. Areas on a 2 m grid
   checked 27 required places, 10 interactables, 4 vantages
   region 20928 m2 of 164400 m2 of dry land (12.7 %)
   farthest reachable point from the origin: 362 m
-  props (398 scene items) beyond the region: over 20 m 226, over 60 m 156, over 150 m 45
+  props (400 scene items) beyond the region: over 20 m 226, over 60 m 156, over 150 m 45
   interactables:
   stone_tide: stand at (119.7, 119.0), 18.0 m inside a corridor, eye 0.8 m of reach 3.5
   stone_wind: stand at (42.0, 55.0), 18.0 m inside a corridor, eye 1.0 m of reach 3.5

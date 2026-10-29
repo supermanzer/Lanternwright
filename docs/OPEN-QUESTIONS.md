@@ -46,6 +46,12 @@ Format: `### Q<n> (date, who): the question` then *Default taken*, *Where it liv
 *What changes if the answer differs:* add a `Story.notes` entry and call `story.notes.append` at the return (one line in `Game.travel`).
 *Status:* open.
 
+### Q8 (2026-10-28, builder B, S03.5): how is the lighthouse interior built and split?
+*Default taken:* S03.5 is two reviewed commits: **5a** floors, stair, collision, the test hook (`door_open`), the bot climb and walk time; **5b** the rooms' dressing (workshop furniture, the lens room's ring and lamp, the rail you can see), frames, surfaces. The inside is a round room at the foot (the plinth's top is its floor), then a spiral stair of six turns (about 4 m of rise each, 1.3 m wide, hugging the inner wall round an open well, a rail along its inner edge) up to the lens room under the lantern; the floor opening for the stair there is about 195 degrees so the stair never passes under a floor. The inside is hidden and collider-inert until `door_open`, so every existing frame is unchanged. The door stays drawn closed until A splits the door leaf out (asked on `ownership`); S03.6 sets `door_open`.
+*Where it lives:* `World/LighthouseInterior.swift` (all numbers are `static let` at the top: turns, stair width, hatch, wall thickness, tread count), `Game.syncInterior()`, the hook is `Game.doorOpenFlag`.
+*What changes if the answer differs:* a different stair (turns, width) is those constants; walls thicker or thinner is `wallThickness`; the workshop being on a mid-landing instead of the foot is a new floor candidate in `LighthouseInterior.height`.
+*Status:* open.
+
 ## Answered
 - 2026-10-28 S03 Oren's exit location: both exits at the original lighthouse; Oren's is a lens portal in the lens room, the dock arch is not an exit.
 - 2026-10-28 Page gate: 3 pages of each sibling.

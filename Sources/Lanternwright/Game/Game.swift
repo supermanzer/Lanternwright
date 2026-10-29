@@ -102,7 +102,7 @@ final class Game {
     /// A restored save that already showed the hint counts as having been told (the hint never repeats).
     func markHintSeen() { hasRun = true }
     static let runHintAfter: Float = 45
-    static let ownFlags = ["lensTouched", "hint_run", Game.pathIlseFlag, Game.pathOrenFlag]
+    static let ownFlags = ["lensTouched", "hint_run", Game.pathIlseFlag, Game.pathOrenFlag, Game.doorOpenFlag]
     /// 0...1: how far the "look closer" zoom has eased in (right mouse button or Z).
     private(set) var zoomAmount: Float = 0
     /// 0...1: how far into a run the player is (eased), which widens the view a little: speed you can see.
@@ -205,6 +205,33 @@ final class Game {
         } else if id == "gw_return" {
             fadeThrough(to: .varrow)
         }
+    }
+
+    // MARK: The inside of the lighthouse (S03.5)
+
+    /// Set when the lighthouse door is open (S03.6's tone plates set it; a test hook can too). Saved with the game's own flags.
+    static let doorOpenFlag = "door_open"
+    /// The inside: its floors (feet-aware) and wall colliders, used only while `door_open` is set.
+    let interior = LighthouseInterior()
+    private(set) var interiorApplied = false
+
+    /// Make the scene match `door_open`: the solid tower core becomes the hollow ring of wall colliders (with the door as a gap) and the inside is drawn, or the reverse.
+    private func syncInterior() {
+        let open = state.has(Game.doorOpenFlag)
+        guard open != interiorApplied, let sc = scenes[.varrow] else { return }
+        interiorApplied = open
+        let o = interior.origin
+        func isTowerCore(_ c: CylinderCollider) -> Bool { c.center == o && abs(c.radius - Lighthouse.colliderRadius) < 1e-4 }
+        let ring = interior.wallColliders()                                                    // exactly what was added (deterministic), so closing removes exactly that
+        func isInteriorPiece(_ c: CylinderCollider) -> Bool { ring.contains { $0.center == c.center && $0.radius == c.radius && $0.minY == c.minY && $0.maxY == c.maxY } }
+        if open {
+            sc.colliders.cylinders.removeAll(where: isTowerCore)
+            sc.colliders.cylinders += ring
+        } else {
+            sc.colliders.cylinders.removeAll(where: isInteriorPiece)
+            sc.colliders.addCylinder(center: o, radius: Lighthouse.colliderRadius, minY: Layout.lighthouse.y - 1, maxY: Layout.lighthouse.y + 30)
+        }
+        for name in [LighthouseInterior.wallName, LighthouseInterior.stairName] { sc.update(name) { $0.hidden = !open && !LighthouseInterior.shownForTools } }
     }
 
     // MARK: The return (S03.4)
@@ -339,7 +366,7 @@ final class Game {
 
     /// One fixed 1/120 s step of everything that moves.
     func fixedStep(input: InputState) {
-        if player.step(dt: Game.tick, input: isTraveling ? InputState() : input, scene: scene, nav: Layout.Navigation.active(for: world)) { footfalls += 1; lastFootWasRun = player.lastStepWasRun }
+        if player.step(dt: Game.tick, input: isTraveling ? InputState() : input, scene: scene, nav: Layout.Navigation.active(for: world), interior: world == .varrow && interiorApplied ? interior : nil) { footfalls += 1; lastFootWasRun = player.lastStepWasRun }
         animator.update(Game.tick)
         time += Game.tick
         let target = atmosphereTargets
@@ -388,6 +415,7 @@ final class Game {
         if journal.isOpen && input.pageFlip != 0 { journal.flip(input.pageFlip) }
         journal.markShown()
         syncDoorNote()
+        syncInterior()
 
         player.applyLook(input.look * LookCloser.lookScale(zoom: zoomAmount), dt: dt, nav: journal.isOpen || isTraveling ? nil : Layout.Navigation.active(for: world), assistScale: LookCloser.lookScale(zoom: zoomAmount))     // slower aim when zoomed, so it stays controllable
         accumulator += dt

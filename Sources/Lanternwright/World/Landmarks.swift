@@ -164,6 +164,7 @@ enum Landmarks {
         let lh = Layout.lighthouse
         Lighthouse.build(into: scene, device: device)
         DoorNote.build(into: scene, device: device)                 // S03.4: hidden until the altar is solved and the player is back (Game)
+        LighthouseInterior.build(into: scene, device: device)       // S03.5: hidden until the door is open (Game.syncInterior)
 
         // Glass of the lantern room (material 2: glossy; it glows once the lighthouse is lit).
         var glass = MeshBuilder()

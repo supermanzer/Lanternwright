@@ -127,9 +127,9 @@ struct Player {
     }
 
     /// Can the feet move from `from` to `to`? Rejects wading too deep, ledges that are too tall, slopes that are too steep.
-    private func canMove(from: SIMD2<Float>, to: SIMD2<Float>, scene: Scene) -> Bool {
-        let g0 = scene.groundHeight(x: from.x, z: from.y)
-        let g1 = scene.groundHeight(x: to.x, z: to.y)
+    private func canMove(from: SIMD2<Float>, to: SIMD2<Float>, scene: Scene, ground: (Float, Float) -> Float) -> Bool {
+        let g0 = ground(from.x, from.y)
+        let g1 = ground(to.x, to.y)
         if g1 < Player.minGround && g1 < g0 { return false }       // never wade deeper (but allow retreating)
         let rise = g1 - g0
         if rise > Player.maxStep { return false }
@@ -140,7 +140,10 @@ struct Player {
 
     /// Advance one fixed step. Returns true on the tick a foot lands (for footstep sounds).
     @discardableResult
-    mutating func step(dt: Float, input: InputState, scene: Scene, nav: NavNetwork? = nil) -> Bool {
+    mutating func step(dt: Float, input: InputState, scene: Scene, nav: NavNetwork? = nil, interior: LighthouseInterior? = nil) -> Bool {
+        // S03.5: inside the open lighthouse the floor is the feet-aware stair/room query; everywhere else it is the scene's ground (one height per spot).
+        let feetY = position.y
+        let ground: (Float, Float) -> Float = { x, z in interior?.height(x: x, z: z, feetY: feetY) ?? scene.groundHeight(x: x, z: z) }
         // M10.4: if the feet stand beyond the margin (a teleport, a load, a world change) they are put on the nearest connected inside point. The vertical
         // difference goes through the eye spring below, so the camera settles instead of popping.
         var sdHere: Float = -1
@@ -161,13 +164,13 @@ struct Player {
         var wishDir = right * input.move.x + forward * input.move.y
         // Pace follows the ground ahead of the feet (1 m look-ahead along the direction of travel).
         var pace: Float = 1
-        let here = scene.groundHeight(x: position.x, z: position.z)
+        let here = ground(position.x, position.z)
         let wading = Player.wading(ground: here)
         if length(wishDir) > 0.01 {
             wishDir = normalize(wishDir) * min(length(wishDir), 1)
             let dir = normalize(wishDir)
-            let g0 = scene.groundHeight(x: position.x, z: position.z)
-            let g1 = scene.groundHeight(x: position.x + dir.x, z: position.z + dir.y)
+            let g0 = ground(position.x, position.z)
+            let g1 = ground(position.x + dir.x, position.z + dir.y)
             if g0 > Player.minGround || g1 > Player.minGround { pace = Player.paceFactor(slope: g1 - g0) }
         }
         var wish = wishDir * Player.wishSpeed(run: input.run, pace: pace, wading: wading)
@@ -191,20 +194,20 @@ struct Player {
         // Ground too steep to climb behaves like a wall (F01 W4.1): the uphill part of the move is removed and the player slides along the contour,
         // instead of stopping dead. The old fall-backs (each axis alone) remain for ledges and the sea's edge.
         var slide = delta
-        let gx = scene.groundHeight(x: from.x + 0.3, z: from.y) - scene.groundHeight(x: from.x - 0.3, z: from.y)
-        let gz = scene.groundHeight(x: from.x, z: from.y + 0.3) - scene.groundHeight(x: from.x, z: from.y - 0.3)
+        let gx = ground(from.x + 0.3, from.y) - ground(from.x - 0.3, from.y)
+        let gz = ground(from.x, from.y + 0.3) - ground(from.x, from.y - 0.3)
         let grad = SIMD2(gx, gz) / 0.6
         if length(grad) > 1e-4 {
             let uphill = normalize(grad)
             slide -= uphill * max(dot(delta, uphill), 0)
         }
         for candidate in [from + delta, from + slide, from + SIMD2(delta.x, 0), from + SIMD2(0, delta.y)] where candidate != from {
-            if canMove(from: from, to: candidate, scene: scene) { pos = candidate; break }
+            if canMove(from: from, to: candidate, scene: scene, ground: ground) { pos = candidate; break }
         }
         var slipNow: Float = 0
         if Player.slipEnabled, length(grad) > Player.maxSlope {                      // too steep to stand on: slide down the fall line (a metre or two, no inertia)
             let down = -normalize(grad) * Player.slipSpeed * dt
-            if canMove(from: pos, to: pos + down, scene: scene) || scene.groundHeight(x: pos.x + down.x, z: pos.y + down.y) < scene.groundHeight(x: pos.x, z: pos.y) { pos += down; slipNow = 0.55 + 0.45 * min(1, length(velocity) / Player.walkSpeed) }
+            if canMove(from: pos, to: pos + down, scene: scene, ground: ground) || ground(pos.x + down.x, pos.y + down.y) < ground(pos.x, pos.y) { pos += down; slipNow = 0.55 + 0.45 * min(1, length(velocity) / Player.walkSpeed) }
         }
         slipAmount = slipNow
         scene.colliders.resolve(position: &pos, radius: Player.radius, feetY: position.y, height: Player.eyeHeight)
@@ -218,16 +221,16 @@ struct Player {
             }
         }
         // The push-out must not shove us into the sea or up a cliff either.
-        if !canMove(from: from, to: pos, scene: scene) { pos = from }
+        if !canMove(from: from, to: pos, scene: scene, ground: ground) { pos = from }
         // The backstop: whatever happened above (a player placed just past the limit where the projection cannot be walked), the feet never end a tick beyond it.
         if let nav, nav.signedDistance(pos) > Player.margin + 1e-3 { pos = nav.nearestReachable(pos) }
         position.x = pos.x; position.z = pos.y
 
         // F02 M1: the FEET are physical, always on the ground that is drawn (Scene.groundHeight: terrain, boards, platforms). The CAMERA's vertical offset
         // is what is smoothed: a riser or a drop moves the feet at once and the eye follows with a critically damped spring (see `eyeLag`).
-        let ground = scene.groundHeight(x: pos.x, z: pos.y)
-        let dy = ground - position.y
-        position.y = ground
+        let floorHere = ground(pos.x, pos.y)
+        let dy = floorHere - position.y
+        position.y = floorHere
         if abs(dy) > Player.stepJump { eyeLag = min(max(eyeLag - dy, -Player.maxEyeLag), Player.maxEyeLag) }      // a step: the eye stays where it was
         let decay = exp(-Player.eyeOmega * dt)
         let c2 = eyeVel + Player.eyeOmega * eyeLag
