@@ -1,0 +1,23 @@
+# G10.2.3 after the output dither. Command: Lanternwright --banding (compare docs/shots/banding-baseline.txt, taken before)
+banding probe (G10.0.3): the final 8-bit image of smooth sky strips, 1600x900, TAA on, up to 40 columns per view, the longest smooth sky strip in each.
+HEADLINE for G10.2.3: longest run (most identical rows in a row) and flat (share of adjacent rows with no change at all). Banding = long runs and a high flat share; dither must cut both.
+steps = share of adjacent rows whose largest channel step is 0 / 1 / 2 / 3+ (strips are cut at steps over 3). fill = distinct levels used / levels spanned by the strip (max - min + 1), mean over strips:
+a banded ramp is already near 1 (it visits every level), so fill is context, not the target. Clouds and the sun's glow are included wherever they are smooth enough.
+
+dusk-away: 30 columns, strips up to 705 rows
+    red longest run  14 rows   flat 45.0 %   steps 0/1/2/3+ 45.0 / 47.1 /  6.6 /  1.3 %   fill 0.89
+    green longest run  13 rows   flat 45.8 %   steps 0/1/2/3+ 45.8 / 47.3 /  6.3 /  0.5 %   fill 0.93
+    blue longest run  10 rows   flat 32.7 %   steps 0/1/2/3+ 32.7 / 50.7 / 15.5 /  1.1 %   fill 0.96
+dusk-toward: 30 columns, strips up to 683 rows
+    red longest run  14 rows   flat 40.4 %   steps 0/1/2/3+ 40.4 / 48.5 /  9.9 /  1.2 %   fill 0.93
+    green longest run  13 rows   flat 42.1 %   steps 0/1/2/3+ 42.1 / 48.2 /  8.9 /  0.7 %   fill 0.95
+    blue longest run  10 rows   flat 32.5 %   steps 0/1/2/3+ 32.5 / 49.8 / 16.3 /  1.4 %   fill 0.98
+dusk-high: 30 columns, strips up to 900 rows
+    red longest run  25 rows   flat 48.2 %   steps 0/1/2/3+ 48.2 / 47.5 /  3.9 /  0.5 %   fill 0.90
+    green longest run  29 rows   flat 50.8 %   steps 0/1/2/3+ 50.8 / 46.6 /  2.5 /  0.1 %   fill 0.94
+    blue longest run  13 rows   flat 33.7 %   steps 0/1/2/3+ 33.7 / 53.6 / 12.3 /  0.4 %   fill 0.98
+glass-night: 30 columns, strips up to 835 rows
+    red longest run  41 rows   flat 46.2 %   steps 0/1/2/3+ 46.2 / 47.2 /  6.0 /  0.6 %   fill 0.85
+    green longest run  39 rows   flat 47.7 %   steps 0/1/2/3+ 47.7 / 46.2 /  5.5 /  0.6 %   fill 0.86
+    blue longest run  11 rows   flat 32.0 %   steps 0/1/2/3+ 32.0 / 51.3 / 14.7 /  2.0 %   fill 0.86
+
