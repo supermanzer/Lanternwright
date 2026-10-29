@@ -17,8 +17,9 @@ struct LighthouseInterior {
     /// The lens room's floor: just above the gallery (the shaft ends at `topY`).
     static let lensFloorY = Lighthouse.topY + 0.2
     static let turns: Float = 6
-    /// Where the stair starts (the angle `atan2(dz, dx)` of its foot) and ends. The door is at angle pi/2 (south, +Z); the stair starts a little to one side of it.
-    static let startAngle: Float = .pi / 2 + 0.6
+    /// Where the stair starts (the angle `atan2(dz, dx)` of its foot) and ends (six turns later, the same angle). The door is at angle pi/2 (south, +Z); the foot is a quarter turn round, to the
+    /// west, so that the stair's opening in the lens room's floor (the 195 degrees before the end angle) lies to the south and east and the floor is whole under the north window.
+    static let startAngle: Float = .pi
     static var endAngle: Float { startAngle + 2 * .pi * turns }
     /// The stair hugs the wall as a band `stairWidth` wide round an open well; the well is never narrower than `wellMin` (at the top the shaft is only 2 m across). A low rail along the
     /// band's inner edge keeps the player out of the well and from walking under the low treads.
@@ -28,10 +29,17 @@ struct LighthouseInterior {
     /// Treads at the foot without a rail: the way onto the stair from the room.
     static let openTreads = 3
     static let wallThickness: Float = 0.8
-    static let minInner: Float = 2.0
+    /// The inside radius under the lantern: the lantern room's glass is 2.1 m round, so the lens room is too.
+    static let minInner: Float = 2.1
+    // The lens room (S03.7 builds in it; the space is reserved here and measured by SelfTestInterior): the lens stands in the middle of the floor with its ring round it (`ringOuter`), and the
+    // north window (`portalAngle`: the seaward side, atan2(dz, dx) = -pi/2) is where the doorway of turned light opens, so the floor must reach it: the stair's opening is on the other side.
+    /// The lens (about 0.7 m across) with a 0.2 m collar round it: nothing else stands inside this radius.
+    static let ringOuter: Float = 0.9
+    static let portalAngle: Float = -.pi / 2
+    static let portalWidth: Float = 1.1
     /// How far the stair's last stretch is cut out of the lens room's floor (it rises through the hatch): the angle over which the stair rises from head height (2 m) to the floor, so it never
     /// passes under the floor.
-    static let hatch: Float = 3.4
+    static let hatch: Float = 3.2
     static let treadsPerTurn = 25
     static let treadThickness: Float = 0.16
     /// The surface may be this far above the feet and still be stepped onto (the same limit as the player's own: `Player.maxStep`).
@@ -106,6 +114,14 @@ struct LighthouseInterior {
             let h = LighthouseInterior.stairY(phi)
             let e = LighthouseInterior.stairInner(h) - 0.05
             out.append(CylinderCollider(center: origin + SIMD2(cos(phi), sin(phi)) * e, radius: 0.14, minY: baseY + h - 0.3, maxY: baseY + h + 1.1))
+        }
+        // The hatch's far edge, on the lens room's floor: a drop of two metres onto the stair below if you walk off it. Posts across the opening's width, from the floor up (a player on the
+        // stair below is at the ramp's height there, 2 m lower, and passes under them).
+        let edge = LighthouseInterior.endAngle - LighthouseInterior.hatch
+        var rr = LighthouseInterior.stairInner(LighthouseInterior.lensFloorY)
+        while rr <= LighthouseInterior.innerR(LighthouseInterior.lensFloorY) + 0.05 {
+            out.append(CylinderCollider(center: origin + SIMD2(cos(edge), sin(edge)) * rr, radius: 0.14, minY: baseY + LighthouseInterior.lensFloorY - 0.05, maxY: baseY + LighthouseInterior.lensFloorY + 1.1))
+            rr += 0.3
         }
         return out
     }

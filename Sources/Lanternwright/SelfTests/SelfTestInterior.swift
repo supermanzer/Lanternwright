@@ -104,6 +104,76 @@ extension SelfTestRunner {
         let rNow = simd_length(SIMD2(ub.feet.x - lh.x, ub.feet.z - lh.z))
         check(!walked && rNow < I.stairInner(I.stairY(lowPhi)) + 0.05 && abs(ub.feet.y - (lh.y + I.floorY)) < 0.01, "interior: the room's floor under the low treads cannot be walked to: the rail stops the player at radius \(String(format: "%.2f", rNow)) (the stair's inner edge there is \(String(format: "%.2f", I.stairInner(I.stairY(lowPhi)))))")
         let rails = w.scene.colliders.cylinders.filter { $0.radius == 0.14 }.count
-        check(rails == I.treadsPerTurn * Int(I.turns) - I.openTreads, "interior: the inner rail has a post for every tread but the first \(I.openTreads) (\(rails))")
+        check(rails == I.treadsPerTurn * Int(I.turns) - I.openTreads + 5, "interior: the inner rail has a post for every tread but the first \(I.openTreads), and 5 posts close the hatch's far edge (\(rails))")
+
+        // Running and walking, up and down, with the real controller and the stair's own steering (a bot that holds forward toward each waypoint; `run` holds Shift).
+        func trip(_ g: Game, _ points: [(x: Float, z: Float)], run: Bool, timeout: Float = 90) -> (ok: Bool, seconds: Float, maxJump: Float) {
+            let b = PlaythroughBot(g)
+            var worst: Float = 0, lastY = g.player.position.y, t: Float = 0
+            for q in points {
+                while simd_length(SIMD2(q.x - g.player.position.x, q.z - g.player.position.z)) > 0.5 {
+                    if t > timeout { return (false, t, worst) }
+                    let d = SIMD2(q.x - g.player.position.x, q.z - g.player.position.z)
+                    g.player.yaw = atan2(d.x, -d.y); g.player.pitch = 0
+                    var inp = InputState(); inp.move = SIMD2(0, 1); inp.run = run
+                    b.tick(inp); t += 1.0 / 60
+                    worst = max(worst, abs(g.player.position.y - lastY)); lastY = g.player.position.y
+                }
+            }
+            return (true, t, worst)
+        }
+        let upPoints = stride(from: I.startAngle, to: I.endAngle + 0.5, by: 0.3).map { pt($0, band(min($0, I.endAngle))) } + [pt(I.endAngle + 1.2, 1.2)]
+        let downPoints = Array(upPoints.reversed())
+        func freshOpen(at p: (x: Float, z: Float), y: Float) -> Game {
+            let g = twoWorlds(); g.state.set(Game.doorOpenFlag); step(g)
+            g.player = Player(position: SIMD3(p.x, y, p.z), yaw: 0)
+            return g
+        }
+        let runUp = trip(freshOpen(at: pt(I.startAngle, band(I.startAngle)), y: lh.y + I.floorY), upPoints, run: true)
+        check(runUp.ok && runUp.maxJump < 0.08, "interior: running up the stair works: \(String(format: "%.0f", runUp.seconds)) s, largest height change in one tick \(String(format: "%.3f", runUp.maxJump)) m")
+        let topStart = pt(I.endAngle + 1.2, 1.2)
+        let dg = freshOpen(at: topStart, y: lh.y + I.lensFloorY)
+        let down = trip(dg, downPoints, run: false)
+        check(down.ok && abs(dg.player.position.y - (lh.y + I.floorY)) < 0.25 && down.maxJump < 0.08, "interior: walking down from the lens room to the room's floor works: \(String(format: "%.0f", down.seconds)) s, ends at \(dg.player.position.y - lh.y) m, r \(String(format: "%.2f", simd_length(SIMD2(dg.player.position.x - lh.x, dg.player.position.z - lh.z)))), angle \(String(format: "%.2f", atan2(dg.player.position.z - lh.z, dg.player.position.x - lh.x)))")
+
+        // The lens room's space, measured (S03.7 builds the ring and the portal here): the floor a player's feet can stand on, with the lens ring's footprint kept clear, and the floor in front of the north window.
+        let lg = twoWorlds(); lg.state.set(Game.doorOpenFlag); step(lg)
+        var standable = 0, frontOfWindow = 0
+        let cell: Float = 0.05
+        var gx = lh.x - 2.2
+        while gx <= lh.x + 2.2 {
+            var gz = lh.z - 2.2
+            while gz <= lh.z + 2.2 {
+                let r = simd_length(SIMD2(gx - lh.x, gz - lh.z))
+                if r >= I.ringOuter + Player.radius, let h = o.height(x: gx, z: gz, feetY: lh.y + I.lensFloorY), abs(h - (lh.y + I.lensFloorY)) < 1e-3 {
+                    var p = SIMD2(gx, gz)
+                    lg.scene.colliders.resolve(position: &p, radius: Player.radius, feetY: lh.y + I.lensFloorY, height: Player.eyeHeight)
+                    if simd_length(p - SIMD2(gx, gz)) < 1e-3 {
+                        standable += 1
+                        let a = atan2(gz - lh.z, gx - lh.x)
+                        var da = abs(a - I.portalAngle).truncatingRemainder(dividingBy: 2 * .pi); if da > .pi { da = 2 * .pi - da }
+                        if da < 0.5 { frontOfWindow += 1 }
+                    }
+                }
+                gz += cell
+            }
+            gx += cell
+        }
+        let area = Float(standable) * cell * cell, windowArea = Float(frontOfWindow) * cell * cell
+        if name == "interior" { print("interior: the lens room has \(String(format: "%.2f", area)) m2 of standable floor outside the ring's radius, \(String(format: "%.2f", windowArea)) m2 of it within 0.5 rad of the north window") }
+        check(area > 2.0, "interior: the lens room has room to stand outside the ring: \(String(format: "%.2f", area)) m2 of standable floor beyond a ring \(I.ringOuter) m in radius (S03.7: the lens ring and portal are built inside this)")
+        check(windowArea > 0.55, "interior: and the floor reaches the north window, where the portal opens: \(String(format: "%.2f", windowArea)) m2 within 0.5 rad of it")
+        // A player can stand 0.4 m from the glass, in front of the window, with the doorway's width clear to either side.
+        let atGlass = SIMD2(lh.x + cos(I.portalAngle) * 1.6, lh.z + sin(I.portalAngle) * 1.6)
+        var standing = atGlass
+        lg.scene.colliders.resolve(position: &standing, radius: Player.radius, feetY: lh.y + I.lensFloorY, height: Player.eyeHeight)
+        check(simd_length(standing - atGlass) < 1e-3 && abs((o.height(x: atGlass.x, z: atGlass.y, feetY: lh.y + I.lensFloorY) ?? -9) - (lh.y + I.lensFloorY)) < 1e-3, "interior: a player can stand in front of the north window, 1.6 m from the axis")
+
+        // A save made inside the tower (the lens room) loads back there, not at the islet.
+        let sv = twoWorlds(); sv.state.set(Game.doorOpenFlag); step(sv)
+        sv.player = Player(position: SIMD3(lh.x - 1.2, lh.y + I.lensFloorY, lh.z - 0.5), yaw: 1.0)
+        let saved = sv.makeSave()
+        let back = twoWorlds(); back.restore(saved)
+        check(back.world == .varrow && abs(back.player.position.y - (lh.y + I.lensFloorY)) < 0.1 && abs(back.player.position.x - (lh.x - 1.2)) < 0.3, "interior: a game saved in the lens room loads back in the lens room (\(back.player.position))")
     }
 }

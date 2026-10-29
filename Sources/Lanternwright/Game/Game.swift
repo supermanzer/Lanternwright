@@ -216,7 +216,7 @@ final class Game {
     private(set) var interiorApplied = false
 
     /// Make the scene match `door_open`: the solid tower core becomes the hollow ring of wall colliders (with the door as a gap) and the inside is drawn, or the reverse.
-    private func syncInterior() {
+    func syncInterior() {
         let open = state.has(Game.doorOpenFlag)
         guard open != interiorApplied, let sc = scenes[.varrow] else { return }
         interiorApplied = open

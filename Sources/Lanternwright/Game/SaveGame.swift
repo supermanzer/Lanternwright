@@ -135,12 +135,16 @@ extension Game {
         // The two routes exclude each other: a save that has both (only a hand-edited one can) is treated as undecided rather than guessing which came first.
         if state.has(Game.pathIlseFlag) && state.has(Game.pathOrenFlag) { state.set(Game.pathIlseFlag, false); state.set(Game.pathOrenFlag, false) }
         story = s.story ?? StoryState()
+        syncInterior()                       // an open lighthouse door puts the walls and floors in place BEFORE the player is (a save made inside the tower)
         for p in puzzles { p.restore(from: Set(s.worldFlags[p.world.rawValue] ?? [])) }
         for n in s.pages { restorePage(n) }
         if let w = s.world.flatMap(WorldKind.init(rawValue:)), w != world { travel(to: w) }
         let p = SIMD3(s.position[0], s.position[1], s.position[2])
         // A save from an older world layout could put you in the sea or inside a hill: fall back to the world's arrival point.
-        if scene.groundHeight(x: p.x, z: p.z) > Player.minGround && abs(p.y - scene.groundHeight(x: p.x, z: p.z)) < 3 {
+        // S03.5: inside the open lighthouse the floor is the interior's (a stair turn or the lens room is metres above the hill's ground at that spot).
+        let floor = world == .varrow && state.has(Game.doorOpenFlag) ? interior.height(x: p.x, z: p.z, feetY: p.y) : nil
+        let ground = floor ?? scene.groundHeight(x: p.x, z: p.z)
+        if ground > Player.minGround && abs(p.y - ground) < 3 {
             player = Player(position: p, yaw: s.yaw)
             player.pitch = s.pitch
         }
