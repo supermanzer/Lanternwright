@@ -82,7 +82,7 @@ final class Game {
     }
 
     /// Pages that are standing in their world right now (1-4 on Varrow, 5 at the Glass Wood's arrival, 6-8 once their puzzle has revealed them).
-    private(set) var shownPages: Set<Int> = [1, 2, 3, 4, 5]
+    private(set) var shownPages: Set<Int> = [1, 2, 3, 4, 5, 9]
     /// F03 #43: a page is no longer announced (no chime, banner or HUD marker): the player finds it by looking. The journal marker is kept for a collected page that
     /// has not been read, which does not happen while a pickup opens the journal on that page, so it stays false.
     var pageWaiting: Bool { false }
@@ -154,7 +154,7 @@ final class Game {
                                      min: SIMD3(p.x - 0.95, p.y, p.z - 0.95), max: SIMD3(p.x + 0.95, p.y + StoneID.height + 1.4, p.z + 0.95),
                                      prompt: "Touch the stone"))
         }
-        for n in 1...4 {
+        for n in StoryPages.varrowIDs {
             let p = PuzzleProps.pagePosition(n, scene: varrow)
             pageModels[n] = PuzzleProps.pageLie(n, scene: varrow).model
             list.append(Interactable(id: "page_\(n)", min: p - SIMD3(0.5, 0.3, 0.5), max: p + SIMD3(0.5, 0.4, 0.5),
@@ -452,7 +452,7 @@ final class Game {
         updateDiscoveries()
         Birds.update(scene, time: time)
         // The one clue a dropped page is allowed (F03 #43): in a gust its edge lifts a degree or two and settles. Nothing outlines or lights it.
-        for n in (world == .varrow ? 1...4 : 5...8) where !state.has("page_\(n)") && shownPages.contains(n) {
+        for n in (world == .varrow ? StoryPages.varrowIDs : StoryPages.glassIDs) where !state.has("page_\(n)") && shownPages.contains(n) {
             if let base = pageModels[n] {
                 let gust = Wind.strength(at: SIMD3(base.columns.3.x, base.columns.3.y, base.columns.3.z), time: time)
                 scene.update("page_\(n)") { $0.uniforms.model = DroppedPages.flutter(model: base, page: n, time: self.time, gust: gust) }

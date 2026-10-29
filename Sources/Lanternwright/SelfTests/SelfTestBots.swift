@@ -12,8 +12,11 @@ extension SelfTestRunner {
         let path = Layout.lanternPath
 
         // --- Varrow: walk the lantern path, strike the stones in the order the world teaches, collect pages on the way.
+        // S03.10: page 9 lies on the boards a few metres from the spawn at the seaward end, away from page 1; the bot reads it first.
+        check(bot.walk(to: PuzzleProps.pagePosition(9, scene: g.scene), within: 1.6) && bot.click("page_9") && g.journal.collectedPages.map(\.number) == [9], "bot: reads page 9 at the seaward end of the dock with a real click")
+        bot.closeJournal()
         check(bot.walk(to: path[0], within: 2.5), "bot: from the spawn at the end of the dock to the shore")
-        check(bot.walk(to: PuzzleProps.pagePosition(1, scene: g.scene), within: 1.6) && bot.click("page_1") && g.journal.collectedPages.map(\.number) == [1], "bot: reads page 1 on the dock with a real click")
+        check(bot.walk(to: PuzzleProps.pagePosition(1, scene: g.scene), within: 1.6) && bot.click("page_1") && g.journal.collectedPages.map(\.number) == [1, 9], "bot: reads page 1 on the dock with a real click")
         bot.closeJournal()
         check(!g.journal.isOpen, "bot: closes the journal with J")
         check(bot.walk(to: path[0], within: 2.5), "bot: back to the shore")
@@ -111,8 +114,8 @@ extension SelfTestRunner {
         }
         check(heard && g.state.has("gw_end"), "bot: hears both accounts and reaches the end of the second world (the Glass Wood took \(Int((bot.elapsed - glassStart).rounded())) s of play, arrival to the second account)")
         collectGW(8)
-        check(g.journal.collectedPages.map(\.number) == Array(1...8), "bot: every one of the eight pages was found by walking the normal route (\(g.journal.collectedPages.map(\.number)))")
-        check(g.gate.missing == [.contradiction] && g.gate.ilsePages == 4 && g.gate.orenPages == 4, "bot: the normal route leaves the gate asking only for a contradiction: altar solved, 4 Ilse pages and 4 Oren pages (it asks for 3 of each) (\(g.gate.missing))")
+        check(g.journal.collectedPages.map(\.number) == Array(1...9), "bot: every one of the nine pages was found by walking the normal route (\(g.journal.collectedPages.map(\.number)))")
+        check(g.gate.missing == [.contradiction] && g.gate.ilsePages == 5 && g.gate.orenPages == 4, "bot: the normal route leaves the gate asking only for a contradiction: altar solved, 5 Ilse pages and 4 Oren pages (it asks for 3 of each) (\(g.gate.missing))")
         // The Notebook's contradiction, settled through the real API from what the walk found: page 4 supports His, page 5 Hers, page 8 His (each press cycles unset -> Hers -> His).
         for (page, presses) in [(4, 2), (5, 1), (8, 2)] { for _ in 0..<presses { g.cycleClaim("who-left", page: page) } }
         check(g.isSettled("who-left") && g.gate.ready, "bot: and settling the contradiction from the pages it found makes the gate ready")

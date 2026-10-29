@@ -62,6 +62,14 @@ enum PuzzleProps {
             let p = strip.a + dir * along - side * 0.6
             let y = strip.y0 + (strip.y1 - strip.y0) * along / simd_length(strip.b - strip.a)
             return SIMD3(p.x, y, p.y)
+        case 9:      // S03.10: the seaward end of the dock, on the LEFT-hand side (page 1 is 13 m from the landward end on the right), one sheet
+            let strip = Layout.dockStrip()
+            let dir = normalize(strip.b - strip.a), side = SIMD2(-dir.y, dir.x)
+            let len = simd_length(strip.b - strip.a)
+            let along = len - 4.5
+            let p = strip.a + dir * along + side * 0.55
+            let y = strip.y0 + (strip.y1 - strip.y0) * along / len
+            return SIMD3(p.x, y, p.y)
         case 2, 3:   // by the stone, on the arrival side, a few steps off the line you walk in on
             let id: StoneID = number == 2 ? .tide : .wind
             let toward = normalize(SIMD2(id.approachFrom.x - id.position.x, id.approachFrom.z - id.position.z))
@@ -234,7 +242,7 @@ enum PuzzleProps {
 
     static func addPages(_ scene: Scene, device: MTLDevice) {
         let mesh = pageMesh().build(device: device, label: "page")
-        for n in 1...4 {
+        for n in StoryPages.varrowIDs {
             let lie = pageLie(n, scene: scene)
             // No emissive: a page is paper in the light of the day, nothing more (F03 #43).
             scene.add("page_\(n)", mesh: mesh, uniforms: ObjectUniforms(model: lie.model, tint: SIMD4(1, 1, 1, 1), emissive: SIMD4(0, 0, 0, 0)))

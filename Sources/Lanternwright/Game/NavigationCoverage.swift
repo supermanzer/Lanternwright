@@ -14,7 +14,7 @@ enum NavCoverage {
                        Point(name: "arrival from the Glass Wood", position: Layout.isletCenter + SIMD3(0, 0, 5)),
                        Point(name: "lighthouse door", position: Layout.lighthouse + SIMD3(0, 0, Lighthouse.wallR(2.0) + 1))]
             for id in StoneID.allCases { pts.append(Point(name: "\(id.name) stone", position: id.position)) }
-            for n in 1...4 { pts.append(Point(name: "page \(n)", position: PuzzleProps.pageBase(n, terrain: scene.terrain))) }
+            for n in StoryPages.varrowIDs { pts.append(Point(name: "page \(n)", position: PuzzleProps.pageBase(n, terrain: scene.terrain))) }
             let plan = PuzzleProps.causewayPlan(terrain: scene.terrain)
             for k in 0..<PuzzleProps.slabCount { let c = plan.center(k); pts.append(Point(name: "causeway slab \(k)", position: SIMD3(c.x, 0, c.y))) }
             return pts

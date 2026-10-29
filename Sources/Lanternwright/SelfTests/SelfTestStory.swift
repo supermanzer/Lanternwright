@@ -8,13 +8,21 @@ extension SelfTestRunner {
     func runStory() {
         guard name == "all" || name == "story" else { return }
         func sha(_ s: String) -> String { SHA256.hash(data: Data(s.utf8)).map { String(format: "%02x", $0) }.joined().prefix(16).description }
-        let pinned: [Int: String] = [1: "1d6b37740915dbc7", 2: "e272f0ff6d62259b", 3: "2243ff480bc14b15", 4: "e03b471a0681bf00",
-                                     5: "e86587d10ca93831", 6: "1ab3060595cf8ae5", 7: "602ddb09393e0d31", 8: "87ac886b7d441cbe"]
+        let pinned: [Int: String] = [1: "1d6b37740915dbc7", 2: "e272f0ff6d62259b", 3: "2243ff480bc14b15", 4: "6aa8964f69566dfa",
+                                     5: "86e5c27c6f0cf494", 6: "1ab3060595cf8ae5", 7: "602ddb09393e0d31", 8: "87ac886b7d441cbe", 9: "a3cf6bd467e9c41a"]
         let drifted = StoryPages.all.filter { pinned[$0.id] != sha($0.text) }.map(\.id)
-        check(StoryPages.all.map(\.id) == Array(1...8) && drifted.isEmpty, "story: the eight pages are in order and every text is byte-identical to main at the start of S03.1 (changed: \(drifted))")
+        check(StoryPages.all.map(\.id) == Array(1...9) && drifted.isEmpty, "story: the nine pages are in order and every text is byte-identical to its pin: 1, 2, 3, 6, 7, 8 as on main at the start of S03.1, 4, 5 and 9 as revised in S03.10 (changed: \(drifted))")
         check(JournalContent.pages.map(\.number) == StoryPages.all.map(\.id) && JournalContent.pages.map(\.text) == StoryPages.all.map(\.text), "story: the journal's pages are the story data, number for number and word for word")
-        check(StoryPages.ids(by: .ilse) == [1, 2, 3, 4] && StoryPages.ids(by: .oren) == [5, 6, 7, 8] && StoryPages.ids(by: .neutral).isEmpty, "story: Ilse wrote the four Varrow pages, Oren the four Glass Wood pages")
-        check(Set(StoryPages.all.map(\.location)).count == 8 && StoryPages.all.allSatisfy { !$0.location.isEmpty && $0.glyphLevel == 0 }, "story: every page has its own location key and no page has margin lines yet")
+        check(StoryPages.ids(by: .ilse) == [1, 2, 3, 4, 9] && StoryPages.ids(by: .oren) == [5, 6, 7, 8] && StoryPages.ids(by: .neutral).isEmpty && StoryPages.varrowIDs == [1, 2, 3, 4, 9] && StoryPages.glassIDs == [5, 6, 7, 8], "story: Ilse wrote the five Varrow pages (page 9 on the dock), Oren the four Glass Wood pages")
+        check(Set(StoryPages.all.map(\.location)).count == 9 && StoryPages.all.allSatisfy { !$0.location.isEmpty && $0.glyphLevel == 0 }, "story: every page has its own location key and no page has margin lines yet")
+
+        // The approved revisions (S02 appendix R1 to R3, user decision 6, 2026-10-28), spelled out so a change is deliberate: page 5 begins with the new first sentence and keeps the rest, page 4
+        // gains its half-line after the old ending, page 9 is the new Ilse page, and pages 3 and 8 are as they were.
+        let t = { (n: Int) in StoryPages.page(n)?.text ?? "" }
+        check(t(5).hasPrefix("The week before the fog, I went through the lens first. Ilse will say I stole it, and she will be right about the lens and wrong about the reason."), "story: R1: page 5 begins 'The week before the fog, I went through the lens first.' and goes on as before")
+        check(t(4).hasPrefix("Oren has asked again for the lens. He says light that can fold can also carry. Carry what, brother? He did not answer, and I did not like the silence.") && t(4).hasSuffix(" I told him the lens room is not a place for the impatient, which is not what he asked."), "story: R3: page 4 keeps its words and gains 'I told him the lens room is not a place for the impatient, which is not what he asked.' at the end")
+        check(t(9) == "Rule the first: keepers do not run on the shingle. Rule the second: keepers run when the lamp is going out. I have broken the second only twice, and I would break it again." && StoryPages.page(9)?.author == .ilse, "story: R2: page 9 is Ilse's, and reads as drafted")
+        check(t(3) == "I tune the lamp each evening the way I first climbed this island: from the water, through the wind, to the stone. Out of order, they only argue." && t(8).hasPrefix("Two accounts will reach you, and they will not agree."), "story: page 3 is exactly as restored in F04 T1 and page 8 is unchanged")
 
         func fresh() -> Game { Game(scene: Scene.makeWorld(device: device)) }
         // Round trip: pages by id, the route, glyphs, contradictions, through the JSON the save file holds.

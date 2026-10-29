@@ -24,7 +24,7 @@ extension SelfTestRunner {
             j.flip(1); check(j.tabPages[j.current].number == 3, "flip forward")
             j.flip(1); check(j.tabPages[j.current].number == 3, "flipping past the end stays on the last page")
             j.flip(-5); check(j.current == 0, "flipping past the start stays on the first page")
-            check(JournalContent.pages.count == 8 && JournalContent.pages.map(\.number) == Array(1...8) && JournalContent.pages.allSatisfy { !$0.text.isEmpty }, "all eight journal pages (4 Ilse, 4 Oren) exist, numbered 1-8, with text")
+            check(JournalContent.pages.count == 9 && JournalContent.pages.map(\.number) == Array(1...9) && JournalContent.pages.allSatisfy { !$0.text.isEmpty }, "all nine journal pages (5 Ilse, 4 Oren) exist, numbered 1-9, with text")
         }
         if name == "all" || name == "puzzle" {
             func freshGame() -> Game { Game(scene: Scene.makeWorld(device: device)) }

@@ -20,15 +20,15 @@ extension SelfTestRunner {
               "page 3 text is the original wording, byte for byte")
         // F04 P1 (#53-#55): each page is ONE paper object. No decoy sheet, and nothing else in either world is named like paper.
         var perPage: [String] = []
-        for n in 1...8 {
+        for n in 1...9 {
             let c = (home.items + glass.items).filter { $0.name == "page_\(n)" || ($0.name.hasPrefix("page_") && $0.name.split(separator: "_").dropFirst().first.flatMap { Int($0) } == n) }.count
             if c != 1 { perPage.append("page \(n): \(c)") }
         }
-        let strays = (home.items + glass.items).filter { $0.name.hasPrefix("page_") && !(1...8).contains(Int($0.name.dropFirst(5)) ?? 0) }.map(\.name)
+        let strays = (home.items + glass.items).filter { $0.name.hasPrefix("page_") && !(1...9).contains(Int($0.name.dropFirst(5)) ?? 0) }.map(\.name)
         check(perPage.isEmpty && strays.isEmpty, "each page is exactly one paper object and no decoy sheet exists (counts off: \(perPage), stray page_ items: \(strays))")
         // Every sheet lies on what is under it, within 5 mm, and rests on it (not on stilts).
         var worst: (Float, Float) = (1, -1), tallest: Float = 0, count = 0
-        for (sc, pages) in [(home, 1...4), (glass, 5...8)] {
+        for (sc, pages) in [(home, StoryPages.varrowIDs), (glass, StoryPages.glassIDs)] {
             for n in pages {
                 for item in sc.items where item.name == "page_\(n)" {
                     let verts = sheet
@@ -40,7 +40,7 @@ extension SelfTestRunner {
             }
         }
         if verbose { print(String(format: "%d sheets: lowest vertex %.1f to %.1f mm above the ground under it; highest vertex at most %.1f cm", count, worst.0 * 1000, worst.1 * 1000, tallest * 100)) }
-        check(count == 8 && worst.0 >= 0.0005 && worst.1 <= 0.005, "every dropped sheet lies ON its surface: the lowest vertex of each of \(count) sheets is \(String(format: "%.1f", worst.0 * 1000)) to \(String(format: "%.1f", worst.1 * 1000)) mm above the ground under it (0 to 5 mm; none sunk, none floating)")
+        check(count == 9 && worst.0 >= 0.0005 && worst.1 <= 0.005, "every dropped sheet lies ON its surface: the lowest vertex of each of \(count) sheets is \(String(format: "%.1f", worst.0 * 1000)) to \(String(format: "%.1f", worst.1 * 1000)) mm above the ground under it (0 to 5 mm; none sunk, none floating)")
         check(tallest < 0.20, "none stands on stilts or against a wall: the highest point of any sheet is \(String(format: "%.0f", tallest * 100)) cm above the ground under it")
         // Nothing is laid across a raised inlay: no sheet vertex within 6 cm (radially) of the arrival plate's rings and rim, the chime base's rings, or the altar's ring, and none over a
         // chime's foot or an altar pedestal (the inlays stand a few cm proud of the stone: a sheet across one would intersect it).
@@ -71,6 +71,10 @@ extension SelfTestRunner {
         let limit: [Float] = [1.3, 3.6, 3.6, 5.0, 3.6, 3.6, 5.2, 3.6]
         if verbose { print("distance of each page from its landmark (dock axis, tide stone, wind stone, lighthouse door, arrival, receiver, chime ring, altar): \(d.map { String(format: "%.1f", $0) })") }
         check(zip(d, limit).allSatisfy { $0 <= $1 }, "each page lies within a few metres of its landmark (\(d.map { String(format: "%.1f", $0) }) m; limits \(limit))")
+        // S03.10: page 9 lies on the dock's boards at the SEAWARD end (within 4 m of the spawn), on its own, far from page 1's spot (user note #53: nothing near a page looks like a second sheet).
+        let p9 = PuzzleProps.pagePosition(9, scene: home), p1 = PuzzleProps.pagePosition(1, scene: home)
+        check(distToDock(p9) < 1.0 && simd_length(flat(p9) - SIMD3(Layout.dockEnd.x, 0, Layout.dockEnd.z)) < 4.0 && simd_length(flat(p9) - flat(p1)) > 20 && distToDock(p1) < 1.3,
+              "page 9 lies on the dock's boards at the seaward end (\(String(format: "%.1f", simd_length(flat(p9) - SIMD3(Layout.dockEnd.x, 0, Layout.dockEnd.z)))) m from the spawn), \(String(format: "%.0f", simd_length(flat(p9) - flat(p1)))) m from page 1")
         // Off the main line of sight on the way in: along the route, between 3 and 8 m from the page (where a flat sheet can be told from the ground), the page is within 10 degrees
         // of straight ahead for at most half of the steps. And the route passes close enough to see it at all.
         let route1: [SIMD3<Float>] = [Layout.dockEnd] + Layout.route

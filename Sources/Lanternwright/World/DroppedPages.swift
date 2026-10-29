@@ -19,6 +19,7 @@ enum DroppedPages {
         case 5: return Spec(yaw: 0.50, lean: 0.06)           // inside the band between the plate's inlaid rings, clear of both and of the edge
         case 6: return Spec(yaw: -2.00, lean: 0.22)
         case 7: return Spec(yaw: 2.60, lean: 0.09)
+        case 9: return Spec(yaw: -0.55, lean: 0.03)           // along the boards, like page 1, at the other end of the dock
         default: return Spec(yaw: 0.90, lean: 0.10)
         }
     }
