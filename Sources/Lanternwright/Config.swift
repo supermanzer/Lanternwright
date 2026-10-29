@@ -54,6 +54,7 @@ struct LaunchOptions {
     var shimmer: Int?
     var shimmerLayers: Int?
     var banding = false
+    var beamSignal = false
     var renderScale: Float = 1
     var parallaxSea = false
     var clock: Float = 12
@@ -86,6 +87,7 @@ struct LaunchOptions {
       --parallax-sea               Walk toward the sea and report how much the far water changes at the ocean disc's snap steps versus the others
       --shimmer-layers [N]         Shimmer attribution (G10.0.2): the same moving-world walk (wind on, clock advancing, TAA on) with each layer switched off in turn; ranked table
       --render-scale <0.4-1>       Draw the scene at this fraction of the output size and upscale with MetalFX's temporal scaler (G10.4.1); 1 = native (the TAA off/on columns of --shimmer are then identical: MetalFX runs either way)
+      --beam-signal                The lighthouse beam as the signal pattern (S03.4a; as after the Glass Wood altar), for screenshots (use --clock and --state both)
       --banding                    Banding probe (G10.0.3): distinct 8-bit levels, largest step and longest run along smooth sky strips in the final image
       --layers-off <list>          Debug: switch off layers (grass,trees,water,glass,props,sky,shadows) for any view or tool
       --shimmer [N]                Measure the crawl of fine detail with TAA off and on against a supersampled reference (N frames, default 60)
@@ -150,6 +152,7 @@ struct LaunchOptions {
             case "--no-foliage": Trees.skipSprays = true
             case "--layers-off": guard let set = RenderLayer.parse(next()) else { fail("--layers-off expects a comma list of: \(RenderLayer.allCases.map(\.rawValue).joined(separator: ", "))") }; RenderLayer.off = set
             case "--render-scale": guard let v = Float(next()), v >= 0.4, v <= 1 else { fail("--render-scale expects a number from 0.4 to 1") }; o.renderScale = v
+            case "--beam-signal": o.beamSignal = true
             case "--banding": o.banding = true
             case "--shimmer-layers": if i + 1 < args.count, let n = Int(args[i + 1]) { o.shimmerLayers = n; _ = next() } else { o.shimmerLayers = 60 }
             case "--new": o.newGame = true

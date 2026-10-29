@@ -14,7 +14,9 @@ final class BeamsPass: RenderPass {
         // 1c-3. The lit lighthouse's beams and the glow at the lens, added as light AFTER the temporal resolve (F02 R1): they sweep round with no motion vectors, so
         // temporal filtering would dim their leading edge and trail them; they are soft and additive, so they have nothing to anti-alias anyway.
         if r.world == .varrow && r.beamIntensity > 0.001, let hdr = r.hdrTexture {
-            let beamHeading = 0.6 + r.clock * Renderer.beamRate
+            let signal: BeamSignal.Pose? = r.beamSignal ? BeamSignal.pose(clock: r.clock) : nil
+            let beamHeading = signal?.heading ?? (0.6 + r.clock * Renderer.beamRate)
+            let beamLevel = r.beamIntensity * (signal?.intensity ?? 1)
             let bpass = MTLRenderPassDescriptor()
             bpass.colorAttachments[0].texture = hdr
             bpass.colorAttachments[0].loadAction = .load
@@ -36,8 +38,9 @@ final class BeamsPass: RenderPass {
                 enc.setFragmentBytes(&beamFrame, length: MemoryLayout<FrameUniforms>.stride, index: 1)
                 enc.setFragmentTexture(r.distanceTexture, index: 3)
                 for (sign, glow) in [(Float(1), Float(0)), (Float(-1), Float(0)), (Float(1), Float(1))] {
+                    if signal != nil && sign < 0 && !(signal!.opposite) { continue }          // the rest and the flash are ONE beam
                     var bu = ObjectUniforms()
-                    bu.tint = SIMD4(sign, beamHeading, r.beamIntensity, 0)
+                    bu.tint = SIMD4(sign, beamHeading, glow > 0.5 ? r.beamIntensity * max(signal?.intensity ?? 1, 0.35) : beamLevel, 0)
                     bu.emissive = SIMD4(Landmarks.lensPosition, glow)
                     enc.setVertexBytes(&bu, length: MemoryLayout<ObjectUniforms>.stride, index: 2)
                     enc.setFragmentBytes(&bu, length: MemoryLayout<ObjectUniforms>.stride, index: 2)

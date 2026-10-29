@@ -100,6 +100,8 @@ final class Renderer {
     /// G10.3.9: the margin cue. `marginPressure` (0...1, Player.marginPressure: how far past the edge of the walkable corridor the player stands) thickens the fog by up to 15 %, smoothed
     /// over about a second into `marginCue`, which `updateFrame` applies. Nothing at 0; tools that hold the clock still never move it.
     var marginPressure: Float = 0
+    /// S03.4a: the lit lighthouse's beam follows the signal pattern (`BeamSignal`) instead of turning continuously. Set from `Game.lighthouseSignal`; off: every frame as before.
+    var beamSignal = false
     var marginCue: Float = 0
     var lastMarginClock: Float?
     /// G10.4.1: the fraction of the output size the scene is drawn at. 1 = native (the temporal anti-aliasing resolves at the output size); below 1 the scene is drawn smaller and
@@ -404,6 +406,7 @@ final class Renderer {
         skyDepthState = device.makeDepthStencilState(descriptor: sds)!
         taaEnabled = options.taa
         renderScale = options.renderScale
+        beamSignal = options.beamSignal
         let env = ProcessInfo.processInfo.environment
         if let a = env["TAA_ALPHA"] { let v = a.split(separator: " ").compactMap { Float($0) }; if v.count == 2 { taaTuning.x = v[0]; taaTuning.y = v[1] } }
         if let g = env["TAA_GAMMA"], let v = Float(g) { taaTuning.z = v }

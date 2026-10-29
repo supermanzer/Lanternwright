@@ -205,3 +205,34 @@ extension SelfTestRunner {
         check(closed < 0.9 * open, "margin: at full pressure the ambience bed is darker (high-frequency share \(String(format: "%.5f", closed)) against \(String(format: "%.5f", open)))")
     }
 }
+
+extension SelfTestRunner {
+    /// S03.4a: the lighthouse signal pattern is a pure function of the clock with a 20 s period.
+    func runBeamSignal() {
+        guard name == "all" || name == "beamsignal" else { return }
+        let trail = BeamSignal.trailHeading, door = BeamSignal.doorHeading
+        func wrap(_ a: Float) -> Float { var x = a.truncatingRemainder(dividingBy: 2 * .pi); if x > .pi { x -= 2 * .pi }; if x < -.pi { x += 2 * .pi }; return x }
+        // The headings really point from the lens at the trail point and at the door.
+        let lens = Landmarks.lensPosition
+        let toTrail = SIMD2(Layout.Navigation.signalTrailPoint.x - lens.x, Layout.Navigation.signalTrailPoint.z - lens.z)
+        check(abs(sin(trail) * toTrail.y + cos(trail) * toTrail.x) < 1e-3 * simd_length(toTrail) && sin(trail) * toTrail.x - cos(trail) * toTrail.y > 0, "beamsignal: the trail heading points from the lens along the causeway (\(String(format: "%.1f", trail * 180 / .pi)) degrees), the door heading at the south face (\(String(format: "%.1f", door * 180 / .pi)) degrees)")
+        check(abs(abs(wrap(door)) - .pi) < 0.2 || abs(wrap(door)) > 2.5, "beamsignal: the door heading points south (about 180 degrees): \(String(format: "%.1f", door * 180 / .pi))")
+        // Period: any clock and clock + 20 give the same pose.
+        var same = true
+        for c in stride(from: Float(0), to: 20, by: 0.37) { let a = BeamSignal.pose(clock: c), b = BeamSignal.pose(clock: c + 20), d = BeamSignal.pose(clock: c + 200); if abs(wrap(a.heading - b.heading)) > 1e-3 || abs(a.intensity - b.intensity) > 1e-3 || abs(wrap(a.heading - d.heading)) > 1e-3 { same = false } }
+        check(same, "beamsignal: the pattern repeats every 20 s")
+        // The first sweep starts at clock 0 mod 20 and turns; both sweeps turn the same way.
+        let h0 = BeamSignal.pose(clock: 0.5).heading, h1 = BeamSignal.pose(clock: 2.5).heading, h2 = BeamSignal.pose(clock: 7.5).heading
+        check(abs(wrap(h1 - h0)) > 0.3 && abs(wrap(h2 - BeamSignal.pose(clock: 5.5).heading)) > 0.3 && BeamSignal.pose(clock: 3).opposite, "beamsignal: at clock 0 the first sweep starts and the second follows at 5 s, two opposite beams turning (\(String(format: "%.2f", h1 - h0)) rad in 2 s)")
+        // The rest: at least 4 s, standing still on the trail, one beam.
+        var restOK = true
+        for c in stride(from: Float(11), to: 15.9, by: 0.25) { let p = BeamSignal.pose(clock: c); if abs(wrap(p.heading - trail)) > 1e-4 || p.opposite || p.intensity < 0.5 { restOK = false } }
+        check(restOK, "beamsignal: from 11 s to 16 s the beam stands still on the trail heading, a single beam")
+        // The flash: about 1 s, on the door, brighter than anything else.
+        let flash = BeamSignal.pose(clock: 16.5), steady = BeamSignal.pose(clock: 3)
+        check(flash.flash && abs(wrap(flash.heading - door)) < 1e-4 && flash.intensity > 1.8 * steady.intensity && !BeamSignal.pose(clock: 18.5).flash && BeamSignal.pose(clock: 18.5).intensity < 0.2,
+              "beamsignal: the flash at 16-17 s points at the door at \(String(format: "%.1f", flash.intensity)) x the sweep's brightness, then the beam is dark (\(String(format: "%.2f", BeamSignal.pose(clock: 18.5).intensity)))")
+        // The end of the second sweep meets the rest without a jump.
+        check(abs(wrap(BeamSignal.pose(clock: 9.99).heading - BeamSignal.pose(clock: 10.01).heading)) < 0.02, "beamsignal: the second sweep ends on the trail heading where the rest begins")
+    }
+}
