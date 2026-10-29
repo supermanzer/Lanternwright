@@ -61,6 +61,8 @@ final class OverlayView: NSView {
     /// Brief confirmation shown after sending ("Thank you: saved").
     var toast: String?
 
+    /// Lines logged in the Notebook (the door note, S03.4), drawn under the rubbings.
+    var notebookNotes: [String] = []
     var onFlip: ((Int) -> Void)?
     var onClose: (() -> Void)?
     var onTab: ((JournalTab) -> Void)?
@@ -255,6 +257,10 @@ final class OverlayView: NSView {
                 text("?", serif(54), faded.withAlphaComponent(0.3), NSRect(x: c.minX, y: c.minY + 70, width: c.width, height: 70), .center, 0)
                 text("not yet found", .systemFont(ofSize: 11), faded, NSRect(x: c.minX, y: c.minY + 206, width: c.width, height: 16), .center, 0)
             }
+        }
+        if !notebookNotes.isEmpty {
+            text("Notes", .systemFont(ofSize: 11), faded, NSRect(x: p.minX + 56, y: p.minY + 392, width: p.width - 112, height: 16), .left, 0)
+            text(notebookNotes.joined(separator: "\n"), serif(17), ink, NSRect(x: p.minX + 56, y: p.minY + 410, width: p.width - 112, height: 58), .left, 4)
         }
         text("Tab  next tab     Esc or J  close", .systemFont(ofSize: 11), faded, NSRect(x: p.minX, y: p.maxY - 26, width: p.width, height: 16), .center, 0)
     }
@@ -556,6 +562,8 @@ enum OverlayDump {
         try v.snapshot(to: base + "-journal-empty.png")
         v = make(); v.journalOpen = true; v.journalTab = .notebook; v.notebookSeen = [true, true, false]; v.notebookStruck = [true, false, false]
         try v.snapshot(to: base + "-notebook.png")
+        v = make(); v.journalOpen = true; v.journalTab = .notebook; v.notebookSeen = [true, true, true]; v.notebookStruck = [true, true, true]; v.notebookNotes = [Story.doorNote]
+        try v.snapshot(to: base + "-notebook-note.png")
         v = make(); v.whiteout = 1; v.whiteoutCaption = "The light folds…"
         try v.snapshot(to: base + "-end.png")
         v = make(); v.titleOpen = true; v.titleHasSave = true

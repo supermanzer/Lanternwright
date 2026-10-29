@@ -96,6 +96,11 @@ extension Layout {
         /// What the player is confined to right now (`Player.guidance`): nil in free roam.
         static func active(for kind: WorldKind) -> NavNetwork? { network(for: kind, guidance: Player.guidance) }
 
+        /// S03.4a: where the lighthouse signal points once the altar is solved (builder A draws it from these, so nothing is spelled out twice): along the way the player comes up from the
+        /// lens islet (the causeway's start), and at the door (its south face).
+        static var signalTrailPoint: SIMD3<Float> { causewayStart }
+        static var signalDoorPoint: SIMD3<Float> { lighthouse + SIMD3(0, 0, Lighthouse.wallR(2.0) + 1) }
+
         /// Varrow: dock -> beach -> shore path -> tide stone -> ridge -> wind stone -> summit route -> lighthouse -> north descent -> causeway -> islet.
         static let varrow: NavNetwork = {
             let r = Layout.route.map(xz)                       // dockShore, tide, wind, summit, lighthouse, causewayStart

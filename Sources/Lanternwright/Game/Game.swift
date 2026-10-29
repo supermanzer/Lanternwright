@@ -141,6 +141,10 @@ final class Game {
         // F01 W4.2 phase 1: the lighthouse door can be tried. It is locked (what is behind it is the user's choice: see INSPECT.md).
         let lh = Layout.lighthouse, doorZ = lh.z + 4.25
         list.append(Interactable(id: "lh_door", min: SIMD3(lh.x - 0.65, lh.y, doorZ - 0.35), max: SIMD3(lh.x + 0.65, lh.y + 2.4, doorZ + 0.45), prompt: "Try the door", reach: 4))
+        // S03.4: the note nailed to the door (enabled only while it is shown: `syncDoorNote`).
+        let dn = DoorNote.worldCenter, dns = DoorNote.size
+        list.append(Interactable(id: DoorNote.itemName, min: SIMD3(dn.x - dns.x / 2 - 0.05, dn.y - dns.y / 2 - 0.05, dn.z - 0.05), max: SIMD3(dn.x + dns.x / 2 + 0.05, dn.y + dns.y / 2 + 0.05, dn.z + 0.08),
+                                 prompt: "Read the note", reach: 3.4, enabled: false))
         let l = PuzzleProps.lensRestPosition
         list.append(Interactable(id: "lens", min: l - SIMD3(1.3, 1.3, 1.3), max: l + SIMD3(1.3, 1.3, 1.3), prompt: "Touch the lens", reach: 5))
         worldInteractables[.varrow] = list
@@ -187,6 +191,8 @@ final class Game {
             owner.activate(id)
         } else if id.hasPrefix("page_"), let n = Int(id.dropFirst(5)) {
             collectPage(n)
+        } else if id == DoorNote.itemName {
+            readNote(id)
         } else if id == "lh_door" {
             // The harder and longer the player tries (repeated attempts within about 4 s), the harder the door knocks and the longer it rattles (F03 A2).
             doorTries = (time - lastDoorTry < 4.0) ? doorTries + 1 : 0
@@ -199,6 +205,32 @@ final class Game {
         } else if id == "gw_return" {
             fadeThrough(to: .varrow)
         }
+    }
+
+    // MARK: The return (S03.4)
+
+    /// The player has solved the Glass Wood's altar and is back on Varrow: the lighthouse is where to go. The beam turns into a signal (builder A draws it), and the note appears on the door.
+    var hasReturned: Bool { state.has("gw_end") && world == .varrow }
+    /// The lighthouse beam is a signal rather than a sweep (S03.4a, the renderer reads it).
+    var lighthouseSignal: Bool { hasReturned }
+    private var doorNoteShown = false
+
+    /// Show the note on the door (and let it be read) exactly while the player has returned; hide it again in the Glass Wood.
+    private func syncDoorNote() {
+        let on = hasReturned
+        guard on != doorNoteShown else { return }
+        doorNoteShown = on
+        scenes[.varrow]?.update(DoorNote.itemName) { $0.hidden = !on && !DoorNote.shownForTools }
+        setInteractable(DoorNote.itemName, enabled: on)
+    }
+
+    /// Read a notebook line (the door note): it is logged in the Notebook once, and the journal opens on it. Not a page: it is not collected and counts for nothing at the gate.
+    func readNote(_ id: String) {
+        guard Story.noteText(id) != nil else { return }
+        if !story.notes.contains(id) { story.notes.append(id); journal.addNotebookEntry() }
+        journal.isOpen = true
+        journal.select(.notebook)
+        pending.append(.journalOpened)
     }
 
     /// Mark a page as already collected (loading a save): hides it and disables it, without opening the journal.
@@ -355,6 +387,7 @@ final class Game {
         if journal.isOpen && input.tabPressed { journal.cycleTab() }
         if journal.isOpen && input.pageFlip != 0 { journal.flip(input.pageFlip) }
         journal.markShown()
+        syncDoorNote()
 
         player.applyLook(input.look * LookCloser.lookScale(zoom: zoomAmount), dt: dt, nav: journal.isOpen || isTraveling ? nil : Layout.Navigation.active(for: world), assistScale: LookCloser.lookScale(zoom: zoomAmount))     // slower aim when zoomed, so it stays controllable
         accumulator += dt

@@ -7,6 +7,18 @@ struct StoryState: Codable, Equatable {
     var glyphsKnown = 0
     /// Ids of the contradictions the player has resolved (S03.9 defines them); the gate wants at least one.
     var contradictionsResolved: [String] = []
+    /// Ids of the notebook lines the player has read (`Story.notes`): the door note (S03.4), later the contradictions' margin lines.
+    var notes: [String] = []
+
+    init() {}
+    /// Tolerant of a save written before a field existed (S03.1 saves have no `notes`).
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        glyphsKnown = try c.decodeIfPresent(Int.self, forKey: .glyphsKnown) ?? 0
+        contradictionsResolved = try c.decodeIfPresent([String].self, forKey: .contradictionsResolved) ?? []
+        notes = try c.decodeIfPresent([String].self, forKey: .notes) ?? []
+    }
+    private enum CodingKeys: String, CodingKey { case glyphsKnown, contradictionsResolved, notes }
 }
 
 extension Game {

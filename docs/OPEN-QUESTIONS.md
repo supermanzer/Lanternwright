@@ -34,6 +34,18 @@ Format: `### Q<n> (date, who): the question` then *Default taken*, *Where it liv
 *Default taken:* the furrow and plate edges widen by one pixel footprint (`EDGE_K = 1.0`): the 0.5 m look is unchanged to the eye, the 5 m trunk is very slightly softer, and the woods' near-trunk surface crawl falls by half (trunk-only; with foliage woods 0.049 -> 0.022, grove 0.037 -> 0.029 energy per pixel-frame at the slow step). *Where it lives:* `constant float EDGE_K` above `mat_bark` in `Render/Shaders/Materials.swift`. *What changes if the answer differs:* 2.0 cuts the woods trunk crawl by 72 % but visibly smooths the plates at 3 to 5 m; 0 restores the old look and crawl. *Status:* open.
 
 
+### Q6 (2026-10-28, builder B, S03.4): how does the door note look and behave?
+*Default taken:* one small cream sheet (22 x 30 cm, smaller than a page) with two iron nail heads and a curled corner, nailed between the lower and middle iron straps of the lighthouse door, a little off true; no glow, no marker, no sound. It appears when the altar is solved AND the player is on Varrow, and goes away in the Glass Wood. Reading it opens the journal on the Notebook tab and logs the text once under "Notes"; it is not a page and does not count for the gate. Page 4 lies on the ground by the door steps, so the two papers are close: the note is vertical and nailed, the page lies flat.
+*Where it lives:* `World/DoorNote.swift` (look, size, `local` position), `Story.doorNote` (text), `Game.hasReturned` / `syncDoorNote()` / `readNote(_:)` (behaviour), `Overlay.drawNotebook` (the Notes line).
+*What changes if the answer differs:* position and size are two constants in `DoorNote`; the condition is one line (`Game.hasReturned`); showing the line elsewhere than the Notebook is the Overlay's `notebookNotes`.
+*Status:* open.
+
+### Q7 (2026-10-28, builder B, S03.4): "The lamp is waiting." journal line, and the arrival chime
+*Default taken:* the plan's one journal line "The lamp is waiting." is NOT added: the user's door note ("the lamp is waiting at the top") says it, in the Notebook, and a second line would say it twice. The arrival chime phrase (the answer motif, once on arrival, again within 40 m of the door) is asked of builder A on the board topic `story`; B emits the event once A names it.
+*Where it lives:* `Story.doorNote`; no code for the line.
+*What changes if the answer differs:* add a `Story.notes` entry and call `story.notes.append` at the return (one line in `Game.travel`).
+*Status:* open.
+
 ## Answered
 - 2026-10-28 S03 Oren's exit location: both exits at the original lighthouse; Oren's is a lens portal in the lens room, the dock arch is not an exit.
 - 2026-10-28 Page gate: 3 pages of each sibling.

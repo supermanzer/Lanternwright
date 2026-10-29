@@ -274,6 +274,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, MTKViewDelegate {
         set(&overlay.pageIndex, journal.current)
         set(&overlay.journalTab, journal.tab)
         set(&overlay.tabItems, journal.visibleTabs.map { OverlayView.TabItem(tab: $0, title: journal.title($0), unread: journal.hasUnread($0)) })
+        set(&overlay.notebookNotes, game.story.notes.compactMap { Story.noteText($0) })
         set(&overlay.notebookSeen, StoneID.allCases.map { game.state.has(Notebook.seenFlag($0)) })
         set(&overlay.notebookStruck, StoneID.allCases.map { game.state.has(Notebook.struckFlag($0)) })
         set(&overlay.whiteout, CGFloat(game.whiteout))
