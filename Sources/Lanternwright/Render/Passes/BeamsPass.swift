@@ -13,7 +13,7 @@ final class BeamsPass: RenderPass {
         var frame = c.frame
         // 1c-3. The lit lighthouse's beams and the glow at the lens, added as light AFTER the temporal resolve (F02 R1): they sweep round with no motion vectors, so
         // temporal filtering would dim their leading edge and trail them; they are soft and additive, so they have nothing to anti-alias anyway.
-        if r.world == .varrow && r.beamIntensity > 0.001, let hdr = r.hdrTexture {
+        if r.world == .varrow && (r.beamIntensity > 0.001 || r.interiorOpen), let hdr = r.hdrTexture {
             let signal: BeamSignal.Pose? = r.beamSignal ? BeamSignal.pose(clock: r.clock) : nil
             let beamHeading = signal?.heading ?? (0.6 + r.clock * Renderer.beamRate)
             let beamLevel = r.beamIntensity * (signal?.intensity ?? 1)
@@ -37,7 +37,7 @@ final class BeamsPass: RenderPass {
                 enc.setVertexBytes(&beamFrame, length: MemoryLayout<FrameUniforms>.stride, index: 1)
                 enc.setFragmentBytes(&beamFrame, length: MemoryLayout<FrameUniforms>.stride, index: 1)
                 enc.setFragmentTexture(r.distanceTexture, index: 3)
-                for (sign, glow) in [(Float(1), Float(0)), (Float(-1), Float(0)), (Float(1), Float(1))] {
+                for (sign, glow) in [(Float(1), Float(0)), (Float(-1), Float(0)), (Float(1), Float(1))] where r.beamIntensity > 0.001 {
                     if signal != nil && sign < 0 && !(signal!.opposite) { continue }          // the rest and the flash are ONE beam
                     var bu = ObjectUniforms()
                     bu.tint = SIMD4(sign, beamHeading, glow > 0.5 ? r.beamIntensity * max(signal?.intensity ?? 1, 0.35) : beamLevel, 0)
@@ -47,6 +47,30 @@ final class BeamsPass: RenderPass {
                     enc.drawIndexedPrimitives(type: .triangle, indexCount: r.beamMesh.indexCount, indexType: .uint32, indexBuffer: r.beamMesh.indexBuffer, indexBufferOffset: 0)
                 }
             }
+                // S03.5b: the windows' light shafts inside the open tower (no shadow: light casts none). Each window on the sun's side lets a soft warm shaft fall along the sun's direction.
+                if r.interiorOpen {
+                    let sunToward = simd_normalize(SIMD3(frame.sunDir.x, frame.sunDir.y, frame.sunDir.z))
+                    if sunToward.y > 0.0 {
+                        let travel = -sunToward
+                        let horiz = SIMD2(travel.x, travel.z)
+                        for (i, wy) in Lighthouse.windowYs.enumerated() {
+                            let a = Lighthouse.windowAngle(i)
+                            let inward = SIMD2(-cos(a), -sin(a))
+                            let facing = simd_length(horiz) > 1e-4 ? simd_dot(simd_normalize(horiz), inward) : 0
+                            guard facing > 0.2 else { continue }
+                            let ri = LighthouseInterior.innerR(wy)
+                            let origin = Layout.lighthouse + SIMD3(cos(a) * ri, wy, sin(a) * ri)
+                            let level = facing * min(1, sunToward.y * 6 + 0.25)
+                            var su = ObjectUniforms()
+                            su.model = float4x4(columns: (SIMD4(0.42, 0, 0, 0), SIMD4(7.5, 0, 0, 0), SIMD4(travel.x, travel.y, travel.z, 0), SIMD4(origin.x, origin.y, origin.z, 1)))
+                            su.tint = SIMD4(0, 0, 1, 0)
+                            su.emissive = SIMD4(frame.sunColor.x * 3.0 * level, frame.sunColor.y * 3.0 * level, frame.sunColor.z * 3.0 * level, 2)
+                            enc.setVertexBytes(&su, length: MemoryLayout<ObjectUniforms>.stride, index: 2)
+                            enc.setFragmentBytes(&su, length: MemoryLayout<ObjectUniforms>.stride, index: 2)
+                            enc.drawIndexedPrimitives(type: .triangle, indexCount: r.beamMesh.indexCount, indexType: .uint32, indexBuffer: r.beamMesh.indexBuffer, indexBufferOffset: 0)
+                        }
+                    }
+                }
                 enc.endEncoding()
             }
         }

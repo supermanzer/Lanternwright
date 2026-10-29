@@ -21,7 +21,7 @@ vertex BeamOut beam_vertex(uint vid [[vertex_id]],
     float s = verts[vid].position.x, side = verts[vid].position.y;
     float3 lens = obj.emissive.xyz;
     BeamOut o;
-    if (obj.emissive.w > 0.5) {                                          // the glow at the lens: a camera-facing square
+    if (obj.emissive.w > 0.5 && obj.emissive.w < 1.5) {                                          // the glow at the lens: a camera-facing square
         float3 toCam = normalize(frame.cameraPos.xyz - lens);
         float3 right = normalize(cross(float3(0.0, 1.0, 0.0), toCam));
         float3 up = cross(toCam, right);
@@ -29,6 +29,16 @@ vertex BeamOut beam_vertex(uint vid [[vertex_id]],
         float3 p = lens + (right * side + up * (2.0 * s - 1.0)) * size;
         o.worldPos = p; o.position = frame.viewProj * float4(p, 1.0);
         o.uv = float2(side, 2.0 * s - 1.0); o.dist = 0.0; o.mode = 1.0;
+        return o;
+    }
+    if (obj.emissive.w > 1.5) {                                          // S03.5b: a window's light shaft inside the tower: origin = model column 3, direction = column 2, width = column 0 x, length = column 1 x
+        float3 origin = obj.model.columns[3].xyz, dir = obj.model.columns[2].xyz;
+        float3 center = origin + dir * (obj.model.columns[1].x * s);
+        float3 toCam2 = frame.cameraPos.xyz - center;
+        float3 perp2 = normalize(cross(dir, toCam2) + float3(1e-5));
+        float3 p2 = center + perp2 * side * obj.model.columns[0].x * (0.6 + 0.8 * s);          // the shaft spreads a little as it goes
+        o.worldPos = p2; o.position = frame.viewProj * float4(p2, 1.0);
+        o.uv = float2(s, side); o.dist = 0.0; o.mode = 2.0;
         return o;
     }
     float h = obj.tint.y;
@@ -56,12 +66,17 @@ fragment float4 beam_fragment(BeamOut in [[stage_in]],
     float sceneD = distTex.read(min(uint2(in.position.xy), size - 1)).r;
     float myD = length(in.worldPos - frame.cameraPos.xyz);
     float hide = smoothstep(-3.0, 6.0, sceneD - myD);
-    if (in.mode > 0.5) {
+    if (in.mode > 0.5 && in.mode < 1.5) {
         float r = length(in.uv);
         float core = exp(-r * r * 22.0), halo = exp(-r * r * 3.2) * 0.45;
         float star = exp(-abs(in.uv.x) * 9.0) * exp(-in.uv.y * in.uv.y * 90.0) * 0.8 + exp(-abs(in.uv.y) * 9.0) * exp(-in.uv.x * in.uv.x * 90.0) * 0.5;      // a faint cross of rays
         float3 c = float3(3.4, 2.6, 1.3) * (core * 2.2 + halo + star * 0.6) * on * (0.92 + 0.08 * sin(t * 3.1));
         return float4(c * smoothstep(1.0, 0.7, r) * hide, 1.0);
+    }
+    if (in.mode > 1.5) {                                                 // the window shaft: warm sun, brightest at the window, fading along its length and across; no shadow (light casts none)
+        float along2 = smoothstep(0.0, 0.06, in.uv.x) * (1.0 - in.uv.x) * (1.0 - in.uv.x);
+        float across2 = exp(-in.uv.y * in.uv.y * 2.4);
+        return float4(obj.emissive.xyz * along2 * across2 * smoothstep(0.0, 0.8, sceneD - myD), 1.0);
     }
     float3 lens = obj.emissive.xyz;
     float3 d = float3(sin(obj.tint.y), 0.0, -cos(obj.tint.y)) * obj.tint.x;
