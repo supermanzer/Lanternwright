@@ -24,3 +24,6 @@ After the altar is solved the player must be told, without a prompt, to go back.
 
 ## W2, W3, R1, A1, Q1 (A)
 W2/W3: diagnose from the screenshot positions; the wet/dry line must advance and retreat monotonically per wave (no dry line inside a wet region), and ripple rings must decay and travel, never persist. R1: remove the downed tree (prop, collider, nav, selftests, PROPS audit). A1: redesign the door rattle: layered, low and short (wood on stone knock 80-300 Hz body, iron ring clank with inharmonic partials 1-4 kHz and fast decay, no pure tones, no beeping), compare spectra in a selftest (no tone above 6 dB over its neighbours). Q1: find the floating quay parts from the screenshot (position -38.5, 3.2, -262.7) and ground them.
+
+## S4 (user question after #68: "unclear where page 5 is found") — B, after S3
+Page 5 lies at the Glass Wood arrival pad and is easily overlooked (by design, F03 P1). Add a quiet, spoiler-free cue: in the journal, an empty slot per page not yet found, labelled only with its world (Varrow / Glass Wood) and the author's side, no location. No quest marker. Pages stay overlookable. Also consider whether page 5's spot should be moved a few metres onto the first path from the pad (still one object, still overlookable); log the choice.
