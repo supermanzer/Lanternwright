@@ -8,6 +8,9 @@ enum ToneTable {
     static let glassHz: [Float] = [293.66, 369.99, 440.00, 523.25, 587.33]
     /// The bell buoy's note: G4, the fourth above the stones' D, so it sounds like a different, further thing.
     static let buoyHz: Float = 392.00
+    /// S03.4: the lamp's answer, four notes made only of the stones' tones (so it is the island's own voice): A4, D5, A4, then home to D4, struck at `answerDelays` seconds.
+    static let answerHz: [Float] = [stoneHz[1], stoneHz[2], stoneHz[1], stoneHz[0]]
+    static let answerDelays: [Float] = [0, 0.55, 1.1, 1.9]
     /// The stone drone sits an octave below the stones' own tones.
     static let droneHz: [Float] = stoneHz.map { $0 / 2 }
     /// F#4 (5/4 over D4... in just intonation over D4 = 367.08) is the third that blooms on the solved chord.

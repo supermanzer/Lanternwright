@@ -20,6 +20,7 @@ enum ChimeKind: Int, Equatable {
     case glassTick       // a small bright click for turning a mirror or changing a pane
     case glassAmbient    // a quiet random shimmer, as if the wind brushed the crystal trees
     case doorLocked      // the lighthouse door: a latch rattles and the weight of the door thumps against its bolt
+    case answer          // S03.4: the lamp's answer motif (`ToneTable.answerHz`), when the player returns to Varrow and again near the lighthouse door
     case buoy            // the bell buoy; loudness and pan come from `buoyGain` / `buoyPan` at the moment it rings
 }
 
@@ -243,6 +244,10 @@ final class AmbienceSynth {
             let jd = Foley.jangleDelay
             for (i, hz) in [Float(1850), 2400, 1650, 2750].enumerated() {                                                                                                    // the latch: four small bright taps
                 chimes.append(ChimeVoice(delay: jd + Float(i) * 0.055 + 0.015 * Float(i % 2), f0: hz, gain: 0.07 * (0.6 + 0.4 * doorStrength), partials: [Partial(ratio: 1, gain: 1, decay: 0.035), Partial(ratio: 3.1, gain: 0.4, decay: 0.02)], pan: 0))
+            }
+        case .answer:
+            for (i, f) in ToneTable.answerHz.enumerated() {
+                chimes.append(bell(f, gain: i == ToneTable.answerHz.count - 1 ? 0.24 : 0.2, decayScale: i == ToneTable.answerHz.count - 1 ? 2.0 : 1.4, delay: ToneTable.answerDelays[i], pan: 0.1 * Float(i % 2 == 0 ? 1 : -1)))
             }
         case .rumble: rumbleLeft = 5.5
         case .buoy: if buoyGain > 0.004 { chimes.append(bell(ToneTable.buoyHz, gain: 0.5 * buoyGain, decayScale: 1.6, pan: buoyPan)) }

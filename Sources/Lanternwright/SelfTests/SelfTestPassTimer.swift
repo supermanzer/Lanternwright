@@ -407,3 +407,37 @@ extension SelfTestRunner {
         check((0..<cores.count).allSatisfy { LanternChain.glow(index: $0, time: end + 0.01) == LanternChain.baseGlow }, "lanternchain: every lantern is back to the base glow after \(end) s")
     }
 }
+
+extension SelfTestRunner {
+    /// S03.4: the answer phrase: made of the stones' tones, audible, finite, not clipping, four notes at their times, and the engine maps `GameEvent.answerPhrase` to it.
+    func runAnswerPhrase() {
+        guard name == "all" || name == "answerphrase" else { return }
+        check(ToneTable.answerHz.allSatisfy { ToneTable.stoneHz.contains($0) } && ToneTable.answerHz.count == ToneTable.answerDelays.count && ToneTable.answerDelays == ToneTable.answerDelays.sorted(),
+              "answerphrase: the motif is made of the stones' own tones, in time order")
+        let sr: Float = 44100
+        let synth = AmbienceSynth(sampleRate: sr)
+        synth.windGain = 0; synth.surfGain = 0; synth.master = 1
+        synth.play(.answer)
+        let n = Int(sr) * 6
+        var l = [Float](repeating: 0, count: n), r = l
+        l.withUnsafeMutableBufferPointer { lp in r.withUnsafeMutableBufferPointer { rp in synth.render(frames: n, left: lp.baseAddress!, right: rp.baseAddress!) } }
+        check(!l.contains { !$0.isFinite } && (l.map { abs($0) }.max() ?? 2) < 0.9, "answerphrase: finite and well under clipping (peak \(l.map { abs($0) }.max() ?? 0))")
+        func power(_ hz: Float, from t0: Float, to t1: Float) -> Float {              // Goertzel over [t0, t1) seconds
+            let a = Int(t0 * sr), b = min(n, Int(t1 * sr)), w = 2 * Float.pi * hz / sr, c = 2 * cos(w)
+            var s1: Float = 0, s2: Float = 0
+            for i in a..<b { let s = l[i] + c * s1 - s2; s2 = s1; s1 = s }
+            return (s1 * s1 + s2 * s2 - c * s1 * s2) / Float(b - a)
+        }
+        // Each note's own pitch is clearly present in the 0.3 s after it is struck, and the 440 Hz note is not yet there before the phrase begins.
+        var ok = true
+        for (i, hz) in ToneTable.answerHz.enumerated() {
+            let t = ToneTable.answerDelays[i]
+            let here = power(hz, from: t + 0.05, to: t + 0.35)
+            let off = power(hz * 1.19, from: t + 0.05, to: t + 0.35)                // a pitch that is not in the phrase
+            if !(here > 4 * off) { ok = false }
+        }
+        check(ok, "answerphrase: each of the four notes sounds at its pitch when it is due")
+        let tail = l[(Int(sr) * 5)...].map { abs($0) }.max() ?? 1
+        check(tail < (l.map { abs($0) }.max() ?? 1) * 0.5, "answerphrase: it rings out and does not drone (tail \(tail))")
+    }
+}

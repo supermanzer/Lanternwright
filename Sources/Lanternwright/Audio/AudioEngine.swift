@@ -45,6 +45,7 @@ final class AudioEngine {
         switch event {
         case .doorTry(let s): synth.doorStrength = s
         case .chime(let kind): synth.play(kind)
+        case .answerPhrase: synth.play(.answer)
         case .drone(let i, let on): synth.setDrone(i, on: on)
         case .droneSour: synth.sourDrone()
         case .droneBloom: synth.bloomDrone()
