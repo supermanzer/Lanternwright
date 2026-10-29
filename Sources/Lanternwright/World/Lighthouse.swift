@@ -64,7 +64,42 @@ enum Lighthouse {
                               SIMD2(r + out, y + 0.08), SIMD2(r + out * 0.4, y + 0.16), SIMD2(r - 0.02, y + 0.16)], segments: seg, surface: s)
         }
         let bands: [(y0: Float, y1: Float, s: Surface)] = [(3.76, 8.0, white), (8.16, 13.0, red), (13.16, 20.0, white), (20.16, 24.6, red)]
-        shaft(from: baseY, to: 3.6, granite)
+        // S03.6: the shaft's lower granite ring has a real DOORWAY: the two segments of the 48-segment ring that face south (15 degrees, 1.07 m at the outside) are left out from the plinth to the
+        // lintel at baseY + 2.4, with radial jambs and a lintel soffit joining the outer face to the inside (`LighthouseInterior.innerR`). The planked leaf (`lh_door_leaf`) and the arch stones
+        // cover it from outside, so the closed tower looks as before; with the leaf swung or hidden the room inside is there to see.
+        func shaftWithDoor() {
+            let n = seg
+            let omit: Set<Int> = [n / 4 - 1, n / 4]                                   // the quads either side of the south axis (angle pi/2 is index n / 4)
+            let ys: [Float] = (0...4).map { baseY + 0.6 * Float($0) }                 // 0.9 ... 3.3
+            for k in 0..<4 {
+                let p0 = SIMD2(wallR(ys[k]), ys[k]), p1 = SIMD2(wallR(ys[k + 1]), ys[k + 1])
+                let d = p1 - p0
+                let n2 = simd_normalize(SIMD2(d.y, -d.x))
+                var pos: [SIMD3<Float>] = [], nrm: [SIMD3<Float>] = [], idx: [UInt32] = []
+                for pr in [p0, p1] { for i in 0..<n { let a = Float(i) / Float(n) * 2 * .pi, c = cos(a), sn = sin(a); pos.append(SIMD3(pr.x * c, pr.y, pr.x * sn)); nrm.append(SIMD3(n2.x * c, n2.y, n2.x * sn)) } }
+                for i in 0..<n where !omit.contains(i) { let j = (i + 1) % n; idx.append(contentsOf: [UInt32(i), UInt32(n + i), UInt32(n + j), UInt32(i), UInt32(n + j), UInt32(j)]) }
+                b.addIndexed(positions: pos, indices: idx, smoothNormals: nrm, surface: granite, transform: matrix_identity_float4x4)
+            }
+            // Jambs: a radial plane at each edge of the gap, outer face to inner face, facing into the doorway.
+            let aW = Float(n / 4 - 1) / Float(n) * 2 * .pi, aE = Float(n / 4 + 1) / Float(n) * 2 * .pi     // the gap's two edges (angle of +x east to +z south)
+            for (a, side) in [(aW, Float(1)), (aE, Float(-1))] {
+                let c = cos(a), sn = sin(a)
+                let toward = SIMD3<Float>(-sn, 0, c) * side                                   // into the doorway
+                var pos: [SIMD3<Float>] = [], nrm: [SIMD3<Float>] = [], idx: [UInt32] = []
+                for y in [ys[0], ys[4]] { for r in [LighthouseInterior.innerR(y), wallR(y)] { pos.append(SIMD3(r * c, y, r * sn)); nrm.append(toward) } }
+                // pos: 0 = inner/low, 1 = outer/low, 2 = inner/high, 3 = outer/high
+                let wind: [UInt32] = side > 0 ? [0, 1, 3, 0, 3, 2] : [0, 3, 1, 0, 2, 3]
+                idx.append(contentsOf: wind)
+                b.addIndexed(positions: pos, indices: idx, smoothNormals: nrm, surface: granite, transform: matrix_identity_float4x4)
+            }
+            // The lintel's soffit: the underside between the jambs at the top of the opening.
+            var pos: [SIMD3<Float>] = [], nrm: [SIMD3<Float>] = []
+            for a in [aW, aE] { for r in [LighthouseInterior.innerR(ys[4]), wallR(ys[4])] { pos.append(SIMD3(r * cos(a), ys[4], r * sin(a))); nrm.append(SIMD3(0, -1, 0)) } }
+            // pos: 0 = W inner, 1 = W outer, 2 = E inner, 3 = E outer
+            b.addIndexed(positions: pos, indices: [0, 2, 3, 0, 3, 1], smoothNormals: nrm, surface: granite, transform: matrix_identity_float4x4)
+        }
+        shaftWithDoor()
+        shaft(from: baseY + 2.4, to: 3.6, granite)
         stringCourse(3.68, out: 0.20, granite)
         for band in bands { shaft(from: band.y0, to: band.y1, band.s) }
         for y: Float in [8.08, 13.08, 20.08] { stringCourse(y, out: 0.12, granite) }

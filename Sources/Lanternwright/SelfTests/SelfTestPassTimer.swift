@@ -313,3 +313,38 @@ extension SelfTestRunner {
         check(inVarrow == .stone && two.world == .glassWood && two.currentSurface == two.scene.surface(x: stone.x, z: stone.z), "interiorsteps: in the Glass Wood the Varrow interior is not consulted (world \(two.world), surface \(two.currentSurface))")
     }
 }
+
+extension SelfTestRunner {
+    /// S03.6: the tower has a real doorway: a ray from the south through the door at eye height passes through the shaft (the leaf is its own item), but a ray beside the door hits the wall at once.
+    func runDoorway() {
+        guard name == "all" || name == "doorway" else { return }
+        guard let device = MTLCreateSystemDefaultDevice() else { check(false, "doorway: no Metal device"); return }
+        let sc = Scene.makeWorld(device: device)
+        guard let tower = sc.items.first(where: { $0.name == "lighthouse" }) else { check(false, "doorway: no lighthouse item"); return }
+        let verts = tower.mesh.vertexBuffer.contents().bindMemory(to: Vertex.self, capacity: tower.mesh.vertexBuffer.length / MemoryLayout<Vertex>.stride)
+        let idx = tower.mesh.indexBuffer.contents().bindMemory(to: UInt32.self, capacity: tower.mesh.indexCount)
+        func hit(origin o: SIMD3<Float>, dir d: SIMD3<Float>) -> Float? {
+            var best: Float?
+            for t in stride(from: 0, to: tower.mesh.indexCount, by: 3) {
+                let a = SIMD3(verts[Int(idx[t])].position.x, verts[Int(idx[t])].position.y, verts[Int(idx[t])].position.z)
+                let b = SIMD3(verts[Int(idx[t + 1])].position.x, verts[Int(idx[t + 1])].position.y, verts[Int(idx[t + 1])].position.z)
+                let c = SIMD3(verts[Int(idx[t + 2])].position.x, verts[Int(idx[t + 2])].position.y, verts[Int(idx[t + 2])].position.z)
+                let e1 = b - a, e2 = c - a, p = simd_cross(d, e2), det = simd_dot(e1, p)
+                if abs(det) < 1e-9 { continue }
+                let inv = 1 / det, s = o - a, u = simd_dot(s, p) * inv
+                if u < 0 || u > 1 { continue }
+                let q = simd_cross(s, e1), v = simd_dot(d, q) * inv
+                if v < 0 || u + v > 1 { continue }
+                let dist = simd_dot(e2, q) * inv
+                if dist > 0 && (best == nil || dist < best!) { best = dist }
+            }
+            return best
+        }
+        let y = Lighthouse.baseY + 1.3                                           // a metre above the sill
+        let through = hit(origin: SIMD3(0, y, 14), dir: SIMD3(0, 0, -1))
+        let beside = hit(origin: SIMD3(1.6, y, 14), dir: SIMD3(0, 0, -1))
+        let rd = Lighthouse.wallR(y)
+        check((through ?? 99) > 14 + rd - 0.5 && abs((beside ?? 0) - (14 - rd)) < 0.6,
+              "doorway: through the door a ray runs on to the far wall at \(String(format: "%.1f", through ?? -1)) m; 1.6 m beside it the wall stops it at \(String(format: "%.1f", beside ?? -1)) m (the shaft's radius here is \(String(format: "%.2f", rd)))")
+    }
+}
