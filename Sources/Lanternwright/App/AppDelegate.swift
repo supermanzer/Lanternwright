@@ -59,6 +59,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, MTKViewDelegate {
         window = NSWindow(contentRect: rect, styleMask: [.titled, .closable, .miniaturizable, .resizable],
                           backing: .buffered, defer: false)
         window.title = "Lanternwright"
+        window.contentMinSize = NSSize(width: 1000, height: 720)                    // F05 S2: the Notebook and journal layouts need about 720 pt of height
         window.collectionBehavior = [.fullScreenPrimary]
         window.center()
 
@@ -301,6 +302,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, MTKViewDelegate {
 
     private func updateTitle() {
         window.title = "Lanternwright"
+        window.contentMinSize = NSSize(width: 1000, height: 720)                    // F05 S2: the Notebook and journal layouts need about 720 pt of height
     }
 
     /// Menu bar: Quit (Cmd-Q), View > Full Screen (Ctrl-Cmd-F), Help > Controls / Send Feedback. The feedback item deliberately has NO key
