@@ -231,7 +231,7 @@ final class Game {
             sc.colliders.cylinders.removeAll(where: isInteriorPiece)
             sc.colliders.addCylinder(center: o, radius: Lighthouse.colliderRadius, minY: Layout.lighthouse.y - 1, maxY: Layout.lighthouse.y + 30)
         }
-        for name in [LighthouseInterior.wallName, LighthouseInterior.stairName] { sc.update(name) { $0.hidden = !open && !LighthouseInterior.shownForTools } }
+        for name in [LighthouseInterior.wallName, LighthouseInterior.stairName, LighthouseInterior.fittingsName, LighthouseInterior.ringName] { sc.update(name) { $0.hidden = !open && !LighthouseInterior.shownForTools } }
     }
 
     // MARK: The return (S03.4)

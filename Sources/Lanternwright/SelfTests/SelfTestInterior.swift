@@ -175,5 +175,22 @@ extension SelfTestRunner {
         let saved = sv.makeSave()
         let back = twoWorlds(); back.restore(saved)
         check(back.world == .varrow && abs(back.player.position.y - (lh.y + I.lensFloorY)) < 0.1 && abs(back.player.position.x - (lh.x - 1.2)) < 0.3, "interior: a game saved in the lens room loads back in the lens room (\(back.player.position))")
+
+        // S03.5b: the footstep surface, the fittings (hidden while the door is shut, drawn when it is open) and what they block.
+        check(o.surface(x: lh.x, z: lh.z, feetY: lh.y + I.floorY) == .stone && o.surface(x: foot.x, z: foot.z, feetY: lh.y + I.floorY + 3 * perTurn) == .wood && o.surface(x: lensAt.x, z: lensAt.z, feetY: lh.y + I.lensFloorY) == .wood && o.surface(x: lh.x + 6, z: lh.z, feetY: lh.y) == nil,
+              "interior: the foot is on stone flags in the ground room, on boards on the stair and in the lens room, and on nothing of the tower's outside")
+        let names = [I.fittingsName, I.ringName]
+        check(names.allSatisfy { n in g.scene.items.contains { $0.name == n } }, "interior: the fittings and the lens ring exist as scene items of their own (the ring so that S03.7 can turn it)")
+        let shutGame = twoWorlds(); step(shutGame)
+        check(names.allSatisfy { n in shutGame.scene.items.first { $0.name == n }?.hidden == true }, "interior: and they are not drawn while the door is shut")
+        let openGame = twoWorlds(); openGame.state.set(Game.doorOpenFlag); step(openGame)
+        check(names.allSatisfy { n in openGame.scene.items.first { $0.name == n }?.hidden == false }, "interior: and are drawn once it is open")
+        // They block: the bench's ends and the lens's footprint (a player's centre cannot get inside 0.9 m of the axis in the lens room, nor through the bench).
+        var inRing = SIMD2(lh.x + 0.5, lh.z + 0.1)
+        openGame.scene.colliders.resolve(position: &inRing, radius: Player.radius, feetY: lh.y + I.lensFloorY, height: Player.eyeHeight)
+        check(simd_length(inRing - SIMD2(lh.x, lh.z)) >= I.ringOuter - 1e-3, "interior: the lens's footprint keeps a player 0.9 m from the axis in the lens room (\(simd_length(inRing - SIMD2(lh.x, lh.z))))")
+        var atBench = SIMD2(lh.x + I.benchEnds[1].x, lh.z + I.benchEnds[1].y)
+        openGame.scene.colliders.resolve(position: &atBench, radius: Player.radius, feetY: lh.y + I.floorY, height: Player.eyeHeight)
+        check(simd_length(atBench - SIMD2(lh.x + I.benchEnds[1].x, lh.z + I.benchEnds[1].y)) >= 0.6, "interior: the bench is solid")
     }
 }

@@ -57,12 +57,19 @@ struct LighthouseInterior {
     init(origin: SIMD2<Float> = SIMD2(Layout.lighthouse.x, Layout.lighthouse.z), baseY: Float = Layout.lighthouse.y) { self.origin = origin; self.baseY = baseY }
 
     /// The height of the floor under (x, z) for feet at `feetY` (world), or nil when the spot is not inside the tower (the scene's own ground applies there).
-    func height(x: Float, z: Float, feetY: Float) -> Float? {
+    func height(x: Float, z: Float, feetY: Float) -> Float? { floor(x: x, z: z, feetY: feetY)?.y }
+
+    /// What the foot is on inside the tower: stone flags in the ground room, wood on the stair's treads and the lens room's boards (the footstep voice's surface).
+    func surface(x: Float, z: Float, feetY: Float) -> SurfaceKind? { floor(x: x, z: z, feetY: feetY).map { $0.wood ? .wood : .stone } }
+
+    /// The floor under (x, z): its height (world) and whether it is boards.
+    func floor(x: Float, z: Float, feetY: Float) -> (y: Float, wood: Bool)? {
         let dx = x - origin.x, dz = z - origin.y
         let r = (dx * dx + dz * dz).squareRoot()
         guard r <= LighthouseInterior.innerR(LighthouseInterior.floorY) else { return nil }
         let local = feetY - baseY
         var best = LighthouseInterior.floorY                                          // the ground room's floor, wherever you are inside
+        var wood = false
         let limit = local + LighthouseInterior.reach
         let a = atan2(dz, dx)
         // The stair: each turn's surface at this angle, if the spot is on the treads' band at that height.
@@ -72,16 +79,16 @@ struct LighthouseInterior {
             let phi = LighthouseInterior.startAngle + u + 2 * .pi * Float(k)
             let h = LighthouseInterior.stairY(phi)
             guard h <= LighthouseInterior.lensFloorY + 1e-4 else { continue }
-            if r >= LighthouseInterior.stairInner(h) && r <= LighthouseInterior.innerR(h) && h <= limit { best = max(best, h) }
+            if r >= LighthouseInterior.stairInner(h) && r <= LighthouseInterior.innerR(h) && h <= limit && h >= best { best = h; wood = true }
         }
         // The lens room's floor, except where the stair's last stretch comes up through it.
         if r <= LighthouseInterior.innerR(LighthouseInterior.lensFloorY) && LighthouseInterior.lensFloorY <= limit {
             var ua = (a - (LighthouseInterior.endAngle - LighthouseInterior.hatch)).truncatingRemainder(dividingBy: 2 * .pi)
             if ua < 0 { ua += 2 * .pi }
             let inHatch = ua <= LighthouseInterior.hatch && r >= LighthouseInterior.stairInner(LighthouseInterior.lensFloorY)
-            if !inHatch { best = max(best, LighthouseInterior.lensFloorY) }
+            if !inHatch { best = LighthouseInterior.lensFloorY; wood = true }
         }
-        return baseY + best
+        return (baseY + best, wood)
     }
 
     // MARK: Colliders
@@ -123,8 +130,22 @@ struct LighthouseInterior {
             out.append(CylinderCollider(center: origin + SIMD2(cos(edge), sin(edge)) * rr, radius: 0.14, minY: baseY + LighthouseInterior.lensFloorY - 0.05, maxY: baseY + LighthouseInterior.lensFloorY + 1.1))
             rr += 0.3
         }
+        // The lens's footprint in the lens room (a pedestal and collar to `ringOuter`, less the player's own radius), and the workshop bench (two round ends).
+        out.append(CylinderCollider(center: origin, radius: LighthouseInterior.ringOuter - Player.radius, minY: baseY + LighthouseInterior.lensFloorY - 0.05, maxY: baseY + LighthouseInterior.lensFloorY + 1.5))
+        for end in LighthouseInterior.benchEnds {
+            out.append(CylinderCollider(center: origin + end, radius: 0.3, minY: baseY + LighthouseInterior.floorY - 0.05, maxY: baseY + LighthouseInterior.floorY + 1.0))
+        }
         return out
     }
+
+    // MARK: Fittings
+
+    static let fittingsName = "lh_interior_fittings", ringName = "lh_lens_ring"
+    /// The workshop bench: against the north wall of the ground room, 1.4 m long, its two ends as colliders (tower frame, x/z).
+    static let benchCentre = SIMD2<Float>(0, -2.15)
+    static var benchEnds: [SIMD2<Float>] { [benchCentre + SIMD2(-0.45, 0), benchCentre + SIMD2(0.45, 0)] }
+    /// The lens ring's height above the lens room's floor and its radii (it turns in S03.7: its own item `ringName`, about the tower's axis).
+    static let ringHeight: Float = 1.05, ringMajor: Float = 0.74, ringMinor: Float = 0.06
 
     // MARK: Meshes (hidden until the door opens: see Game.syncInterior)
 
@@ -171,5 +192,54 @@ struct LighthouseInterior {
                             transform: place * rotationX(-.pi / 2))
         }
         scene.add(stairName, mesh: stair.build(device: device, label: "lighthouse interior stair"), uniforms: ObjectUniforms(model: matrix_identity_float4x4), hidden: !shownForTools)
+
+        // The fittings: the lens's pedestal and collar, the handrail with its posts along the stair's inner edge, and Ilse's workshop (a bench, a stool, three rule-plates, a tuning fork on its
+        // hook, charts pinned to the wall). Plain boxes and tubes: nothing glows, nothing is a marker.
+        let iron = Surface(color: SIMD3(0.05, 0.055, 0.07), roughness: 0.5, material: .iron)
+        let brass = Surface(color: SIMD3(0.55, 0.42, 0.18), roughness: 0.35, material: .paleMetal)
+        let paper = Surface(color: SIMD3(0.85, 0.80, 0.66), roughness: 0.9, material: .paper)
+        var fit = MeshBuilder()
+        // The lens's pedestal and collar (the lens itself, a sphere 2.1 m above the floor, is `lighthouse_lens`).
+        fit.cylinder(radiusTop: 0.16, radiusBottom: 0.16, height: 26.1 - lensFloorY, segments: 16, smooth: true, surface: brass, transform: place * translation(SIMD3(0, lensFloorY, 0)))
+        fit.cylinder(radiusTop: 0.5, radiusBottom: 0.55, height: 0.35, segments: 24, smooth: true, surface: stone, transform: place * translation(SIMD3(0, lensFloorY, 0)))
+        // The handrail: a tube along the inner edge a metre above the treads, and a post at every third tread.
+        var railPoints: [SIMD3<Float>] = [], railRadii: [Float] = []
+        for i in 0...total {
+            let phi = startAngle + Float(i) * dphi
+            let h = stairY(phi), e = stairInner(h) - 0.05
+            railPoints.append(SIMD3(cos(phi) * e, h + 0.95, sin(phi) * e)); railRadii.append(0.025)
+            if i % 3 == 0 && i >= openTreads {
+                fit.cylinder(radiusTop: 0.015, radiusBottom: 0.015, height: 0.95, segments: 6, smooth: true, surface: iron, transform: place * translation(SIMD3(cos(phi) * e, h, sin(phi) * e)))
+            }
+        }
+        fit.tube(points: railPoints, radii: railRadii, sides: 6, caps: true, surface: iron, transform: place)
+        // The workshop: the bench against the north wall (a plank top on two trestles), a stool, three engraved plates on the wall behind it, the tuning fork on a hook, two charts.
+        let bc = benchCentre
+        fit.box(size: SIMD3(1.4, 0.06, 0.6), surface: wood, transform: place * translation(SIMD3(bc.x, floorY + 0.88, bc.y)))
+        for sx: Float in [-0.55, 0.55] { fit.box(size: SIMD3(0.08, 0.86, 0.5), surface: woodDark, transform: place * translation(SIMD3(bc.x + sx, floorY + 0.43, bc.y))) }
+        fit.cylinder(radiusTop: 0.2, radiusBottom: 0.22, height: 0.5, segments: 12, smooth: true, surface: woodDark, transform: place * translation(SIMD3(bc.x + 0.3, floorY, bc.y + 0.95)))
+        let wallN = SIMD2<Float>(0, -(innerR(floorY + 2.0) - 0.04))                 // the north wall at working height
+        for (k, sx) in ([-0.55, 0.0, 0.55] as [Float]).enumerated() {
+            fit.box(size: SIMD3(0.4, 0.5, 0.03), surface: k == 1 ? stone : woodDark, transform: place * translation(SIMD3(sx, floorY + 1.75, wallN.y + 0.015)))      // rule-plates
+            fit.box(size: SIMD3(0.26, 0.016, 0.01), surface: iron, transform: place * translation(SIMD3(sx, floorY + 1.80, wallN.y + 0.035)))                       // an engraved line
+        }
+        fit.cylinder(radiusTop: 0.012, radiusBottom: 0.012, height: 0.12, segments: 6, smooth: true, surface: iron, transform: place * translation(SIMD3(1.15, floorY + 1.95, wallN.y + 0.06)) * rotationX(.pi / 2))   // the hook
+        let fork = place * translation(SIMD3(1.15, floorY + 1.55, wallN.y + 0.07))
+        fit.box(size: SIMD3(0.012, 0.3, 0.012), surface: iron, transform: fork * translation(SIMD3(0, 0.15, 0)))
+        for sx: Float in [-0.025, 0.025] { fit.box(size: SIMD3(0.01, 0.2, 0.01), surface: iron, transform: fork * translation(SIMD3(sx, 0.4, 0))) }
+        fit.box(size: SIMD3(0.06, 0.012, 0.01), surface: iron, transform: fork * translation(SIMD3(0, 0.31, 0)))
+        for (k, sx) in ([-1.45, -1.0] as [Float]).enumerated() {
+            fit.box(size: SIMD3(0.36, 0.46, 0.006), surface: paper, transform: place * translation(SIMD3(sx, floorY + 1.55 + 0.05 * Float(k), wallN.y + 0.2)) * rotationY(0.18))
+        }
+        scene.add(fittingsName, mesh: fit.build(device: device, label: "lighthouse interior fittings"), uniforms: ObjectUniforms(model: matrix_identity_float4x4), hidden: !shownForTools)
+
+        // The lens ring: its own item, brass, with a tick every 15 degrees, centred on the tower's axis at `ringHeight` above the lens room's floor (S03.7 turns it about that axis).
+        var ring = MeshBuilder()
+        ring.torus(major: ringMajor, minor: ringMinor, segments: 48, sides: 8, smooth: true, surface: brass, transform: translation(SIMD3(0, lensFloorY + ringHeight, 0)))
+        for k in 0..<24 {
+            let a = Float(k) * .pi / 12
+            ring.box(size: SIMD3(0.025, 0.05, k % 6 == 0 ? 0.14 : 0.07), surface: iron, transform: translation(SIMD3(cos(a) * (ringMajor + 0.07), lensFloorY + ringHeight, sin(a) * (ringMajor + 0.07))) * rotationY(-a))
+        }
+        scene.add(ringName, mesh: ring.build(device: device, label: "lighthouse lens ring"), uniforms: ObjectUniforms(model: place), hidden: !shownForTools)
     }
 }
