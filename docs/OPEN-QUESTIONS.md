@@ -79,7 +79,7 @@ Format: `### Q<n> (date, who): the question` then *Default taken*, *Where it liv
 *Where it lives:* `Game/Contradictions.swift` (the data: texts, pages, sides; `judge`; `Game.cycleClaim`, `verdict`), `StoryState.claims` / `contradictionsResolved` (saved), the Notebook card in `App/Overlay.swift`, `GateState.contradictionWaived = false`.
 *What changes if the answer differs:* the contradiction, its wording, its evidence and sides are one entry in `Contradictions.all`; a second contradiction is another entry (the Notebook shows the first with evidence found for now); a group of other than three is `evidence.count`; margin-line unlocks hang off `contradictionsResolved`.
 
-### Q13 (2026-10-29, builder A, S03.4 lantern chain): does the lantern flare run on every return to Varrow, or only the first?
+### Q14 (2026-10-29, builder A, S03.4 lantern chain): does the lantern flare run on every return to Varrow, or only the first?
 *Default taken:* every time the player arrives on Varrow with the altar solved (the edge from not-returned to returned while the game runs); a save loaded with the altar already solved does not flare.
 *Where it lives:* `Game.syncLanternChain` (one edge test), `World/LanternChain.swift` (step 0.4 s, flare 1.6 s, +16 glow).
 *What changes if the answer differs:* first-only is one extra saved flag (`lantern_chain_seen`) tested in `syncLanternChain`.
