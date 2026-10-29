@@ -470,6 +470,52 @@ extension SelfTestRunner {
             }
         }
         check(n > 200, "swashcoherence: \(n) waterline-band points sampled")
-        check(worstNew < 4, "swashcoherence: neighbouring waterline points differ by at most \(worstNew) s of swash delay with the beach-scale slope (the pixel-scale slope gave \(worstOld) s)")
+        check(worstNew < 3, "swashcoherence: neighbouring waterline points differ by at most \(worstNew) s of swash delay with the beach-scale slope (the pixel-scale slope gave \(worstOld) s)")
+    }
+}
+
+extension SelfTestRunner {
+    /// F05 W2 (#60), the visible property on the CPU mirror of the film: over a sweep of clocks, no DRY point of the waterline band has water both below it AND above it along the beach's own slope line
+    /// (a dry tongue inside a flooded beach). A headland is not one: its landward side is dry. The same scan with the old 6 m / 4-point ridge rule is reported for comparison.
+    func runDryInsideWet() {
+        guard name == "all" || name == "dryinsidewet" else { return }
+        guard let device = MTLCreateSystemDefaultDevice() else { check(false, "dryinsidewet: no Metal device"); return }
+        guard let terrain = Scene.makeWorld(device: device).terrain else { check(false, "dryinsidewet: no terrain"); return }
+        func h(_ x: Float, _ z: Float) -> Float { terrain.sampleHeight(x: x, z: z) }
+        func ring(_ x: Float, _ z: Float, _ r: Float, eight: Bool) -> [Float] {
+            var out = [h(x + r, z), h(x - r, z), h(x, z + r), h(x, z - r)]
+            if eight { let d = r * 0.70710678; out += [h(x + d, z + d), h(x - d, z - d), h(x + d, z - d), h(x - d, z + d)] }
+            return out
+        }
+        func wet(_ x: Float, _ z: Float, _ t: Float, old: Bool) -> Bool {
+            let raw = h(x, z)
+            guard raw > -1.2 else { return true }
+            let b = old ? Float(16) : Shore.slopeBase
+            let slope = (((h(x + b, z) - h(x - b, z)) / (2 * b)) * ((h(x + b, z) - h(x - b, z)) / (2 * b)) + ((h(x, z + b) - h(x, z - b)) / (2 * b)) * ((h(x, z + b) - h(x, z - b)) / (2 * b))).squareRoot()
+            let tEff = Shore.effectiveGround(raw: raw, ring: ring(x, z, old ? 6 : Shore.ridgeRadius, eight: !old))
+            return Shore.sheetHeight(seaY: 0, ground: tEff, swashEdge: Shore.swashEdge(x: x, z: z, time: t, slope: slope)) - tEff > 0.01
+        }
+        var bad = 0, badOld = 0, tested = 0
+        for t in stride(from: Float(0), to: 60, by: 2) {
+            for xi in stride(from: Float(130), to: 250, by: 3) {
+                for zi in stride(from: Float(160), to: 280, by: 3) {
+                    let raw = h(xi, zi)
+                    guard raw > -0.3 && raw < 0.7 else { continue }
+                    let gx = h(xi + 6, zi) - h(xi - 6, zi), gz = h(xi, zi + 6) - h(xi, zi - 6), gl = (gx * gx + gz * gz).squareRoot()
+                    guard gl > 0.05 else { continue }                                                    // a flat has no up or down
+                    let u = SIMD2(gx, gz) / gl                                                            // uphill
+                    tested += 1
+                    for old in [false, true] {
+                        guard !wet(xi, zi, t, old: old) else { continue }
+                        let below = [3, 6, 9, 12].contains { wet(xi - u.x * Float($0), zi - u.y * Float($0), t, old: old) }
+                        let above = [3, 6, 9, 12].contains { wet(xi + u.x * Float($0), zi + u.y * Float($0), t, old: old) }
+                        if below && above { if old { badOld += 1 } else { bad += 1; } }
+                    }
+                }
+            }
+        }
+        check(tested > 3000, "dryinsidewet: \(tested) waterline-band samples over 30 clocks")
+        // Not zero: a real hump or bar a few dm high in a shallow lagoon stays dry (Shore.ridgeClear flattens only what rises less than 4 cm over its 12 m surroundings). The count must stay well under the earlier rule's and under 2 % of the band.
+        check(Double(bad) < 0.8 * Double(badOld) && Double(bad) < 0.02 * Double(tested), "dryinsidewet: few dry points have water both below and above them along the beach's slope (\(bad) of \(tested); the earlier 6 m rule: \(badOld))")
     }
 }

@@ -18,7 +18,11 @@ enum Shore {
     static let maxDelay: Float = 20
     /// The swash cycle (s), the run-up of the biggest group (m above the sea) and the depth under which the swash takes the sheet over from the waves.
     /// F05 W2: the half-width (m) over which the beach's slope is measured for the swash's delay: one front, not a phase per pixel.
-    static let slopeBase: Float = 16
+    static let slopeBase: Float = 24
+    /// F05 W2: a ridge (a sandbar or berm) is judged against the ground smoothed over a ring of 8 points `ridgeRadius` m round it, and counts as at most `ridgeClear` above that: the front covers it when
+    /// it covers the beach around it, so no dry tongue stands inside a flooded beach. The shader and `effectiveGround` use the same numbers.
+    static let ridgeRadius: Float = 12, ridgeClear: Float = 0.04
+    static func effectiveGround(raw: Float, ring: [Float]) -> Float { min(raw, ring.reduce(0, +) / Float(max(ring.count, 1)) + ridgeClear) }
     static let swashPeriod: Float = 7.3, swashMax: Float = 0.55, swashDepth: Float = 0.7
 
     /// Seconds a crest takes longer than deep-water travel to reach depth `h` (m) up a beach of slope `s`: the integral of (1/sqrt(g h) - 1/c0) along the way, for a
@@ -89,7 +93,7 @@ enum Shore {
     static var mslSource: String {
         """
         constant float SHORE_DEEP = \(deepDepth), SHORE_SLOPE_FLOOR = \(slopeFloor), SHORE_MAX_DELAY = \(maxDelay);
-        constant float SHORE_SLOPE_BASE = \(slopeBase);
+        constant float SHORE_SLOPE_BASE = \(slopeBase), SHORE_RIDGE_RADIUS = \(ridgeRadius), SHORE_RIDGE_CLEAR = \(ridgeClear);
         constant float SHORE_SWASH_PERIOD = \(swashPeriod), SHORE_SWASH_MAX = \(swashMax), SHORE_SWASH_DEPTH = \(swashDepth);
         inline float shore_delay(float h, float s) {
             float hh = clamp(h, 0.0, SHORE_DEEP);
