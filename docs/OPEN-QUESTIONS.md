@@ -104,6 +104,12 @@ Format: `### Q<n> (date, who): the question` then *Default taken*, *Where it liv
 *What changes if the answer differs:* a near-field measure needs its own task (blade LOD by distance in the near field, or grass velocity); the fade constants only move where the far field melts (a later start fades earlier and cheapens the draw).
 *Status:* open.
 
+### Q18 (2026-10-29, builder B, F05 S1): the contradiction no longer gates the door
+*Default taken:* the gate is the user's own rule, the altar solved and 3 pages of each sibling; the Notebook's contradiction is an optional feature with no gate (the user could not enter: it asked for a page they had overlooked). The door note opens a small paper card with its words (not the Notebook), is still logged as a Notebook line, and the card goes away on a click, Esc, J, or walking 2.5 m off.
+*Where it lives:* `GateState.contradictionWaived` (true) in `Game/Gate.swift`; `Game.reading` / `Game.readNote`, `OverlayView.drawReading`.
+*What changes if the answer differs:* set `contradictionWaived = false` and the gate asks for one settled contradiction again (the quiet line `cueContradiction` is kept); the selftest "only the waiver lets that save in" shows the user's save would then not be ready.
+*Status:* open.
+
 ## Answered
 - 2026-10-28 S03 Oren's exit location: both exits at the original lighthouse; Oren's is a lens portal in the lens room, the dock arch is not an exit.
 - 2026-10-28 Page gate: 3 pages of each sibling.

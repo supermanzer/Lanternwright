@@ -10,7 +10,7 @@ extension SelfTestRunner {
         func readyGame() -> Game {
             let g = twoWorlds()
             for n in [1, 2, 3, 5, 6, 7] { g.restorePage(n) }
-            g.state.set("gw_end"); g.story.contradictionsResolved = ["who-left"]
+            g.state.set("gw_end")
             _ = g.drainEvents()
             return g
         }
@@ -35,6 +35,32 @@ extension SelfTestRunner {
         // After it is open the plates only ring.
         _ = g.drainEvents(); strike(g, [2, 0])
         check(chimes(g.drainEvents()) == [.stone, .tide] && g.tonePlates.sequence.isEmpty, "plates: once the door is open the plates only ring")
+
+        // F05 S1 (#67): the user's own state: pages 1, 2, 3, 4, 6, 7, 8, 9 (page 5 never found), the altar solved, no contradiction settled, back on Varrow (through a save and a load).
+        let u0 = twoWorlds()
+        for n in [1, 2, 3, 4, 6, 7, 8, 9] { u0.restorePage(n) }
+        u0.state.set("gw_end")
+        let u = twoWorlds(); u.restore(u0.makeSave()); _ = u.drainEvents()
+        step(u)
+        check(u.world == .varrow && u.hasReturned && u.gate.ready && u.gate.cue == nil && u.story.contradictionsResolved.isEmpty, "plates: the user's save (pages 1 2 3 4 6 7 8 9, altar solved, nothing settled): the gate is ready, with no contradiction")
+        check(u.interactables.first { $0.id == DoorNote.itemName }?.enabled == true, "plates: the door note can be picked there")
+        u.activate(DoorNote.itemName)
+        check(u.reading == Story.doorNote && !u.journal.isOpen && u.story.notes == ["door_note"], "plates: reading the door note shows its words on a card, logs it in the Notebook, and does not open the Notebook")
+        var click = InputState(); click.click = true
+        u.advance(now: 5000, input: InputState())
+        check(u.reading == Story.doorNote, "plates: the card stays while the player does nothing")
+        u.advance(now: 5000.1, input: click)
+        check(u.reading == nil, "plates: a click puts the card away")
+        u.activate(DoorNote.itemName); var esc = InputState(); esc.escapePressed = true
+        u.advance(now: 5000.2, input: esc)
+        check(u.reading == nil, "plates: so does Esc")
+        u.activate(DoorNote.itemName); u.player.position += SIMD3(0, 0, 4)
+        u.advance(now: 5000.3, input: InputState())
+        check(u.reading == nil, "plates: and so does walking away from it")
+        strike(u, [0, 1, 2]); u.simulate(seconds: TonePlatePuzzle.Timing.answerDelay + TonePlatePuzzle.Timing.openDelay + 1)
+        check(u.state.has(Game.doorOpenFlag), "plates: and from that save the plates answer and the door opens (nothing else is asked for)")
+        // The same state with the gate asking for a contradiction again (the constant turned back on) is NOT ready: the test above would then fail, so the waiver is what lets this player in.
+        check(!GateState.evaluate(altarSolved: true, pages: [1, 2, 3, 4, 6, 7, 8, 9], resolved: [], waived: false).ready, "plates: only the waiver lets that save in (with the constant off it is not ready)")
 
         // A wrong strike resets softly, and the set can then be done.
         let w = readyGame()

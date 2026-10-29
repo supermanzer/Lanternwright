@@ -25,6 +25,8 @@ final class OverlayView: NSView {
     var whiteoutCaption: String?
     /// A line of story text near the top of the screen ("Ilse: ..."), set by the game.
     var bannerText: String?
+    /// F05 S1: the text of a note being read in the world (the door note): a small sheet of paper over the game, not the journal.
+    var readingText: String?
     /// A page has appeared (or was announced) and has not been read yet: a small journal marker sits in the corner until it is collected (F02 P0).
     var pageWaiting = false
     /// Draws a stand-in scene behind the overlay (only used by the headless snapshot).
@@ -152,6 +154,7 @@ final class OverlayView: NSView {
         if journalOpen { drawJournal() }
         if feedbackOpen { drawFeedbackCard() }
         if let toast { drawToast(toast) }
+        if let readingText, !journalOpen, !feedbackOpen, !menuOpen, !titleOpen, !introOpen { drawReading(readingText) }
         if let bannerText, !journalOpen, !feedbackOpen, !menuOpen, !titleOpen, !introOpen { drawBanner(bannerText) }
         if pageWaiting, !journalOpen, !feedbackOpen, !menuOpen, !titleOpen, !introOpen, whiteout < 0.5 { drawPageMarker() }
         if whiteout > 0 { drawWhiteout() }
@@ -512,6 +515,26 @@ final class OverlayView: NSView {
         ("⌘↩ send     Esc cancel" as NSString).draw(at: NSPoint(x: c.minX + 28, y: c.maxY - 34), withAttributes: hint)
     }
 
+    /// A small sheet of paper, centred, with the note's words and a quiet line saying how to put it away.
+    private func drawReading(_ text: String) {
+        let width = min(460, bounds.width * 0.6)
+        let para = NSMutableParagraphStyle(); para.alignment = .center; para.lineSpacing = 6
+        let ink = NSColor(calibratedRed: 0.20, green: 0.15, blue: 0.09, alpha: 1)
+        let attrs: [NSAttributedString.Key: Any] = [.font: serif(24), .foregroundColor: ink, .paragraphStyle: para]
+        let size = (text as NSString).boundingRect(with: NSSize(width: width - 80, height: 600), options: [.usesLineFragmentOrigin], attributes: attrs).size
+        let r = NSRect(x: bounds.midX - width / 2, y: bounds.midY - (size.height + 110) / 2, width: width, height: size.height + 110)
+        let shadow = NSShadow(); shadow.shadowColor = NSColor.black.withAlphaComponent(0.5); shadow.shadowBlurRadius = 18; shadow.shadowOffset = NSSize(width: 0, height: -4)
+        NSGraphicsContext.saveGraphicsState(); shadow.set()
+        NSColor(calibratedRed: 0.91, green: 0.86, blue: 0.73, alpha: 1).setFill()
+        NSBezierPath(roundedRect: r, xRadius: 6, yRadius: 6).fill()
+        NSGraphicsContext.restoreGraphicsState()
+        ink.withAlphaComponent(0.25).setStroke()
+        let edge = NSBezierPath(roundedRect: r.insetBy(dx: 8, dy: 8), xRadius: 4, yRadius: 4); edge.lineWidth = 1; edge.stroke()
+        (text as NSString).draw(in: NSRect(x: r.minX + 40, y: r.minY + 34, width: width - 80, height: size.height + 4), withAttributes: attrs)
+        let hint = "click to put it back" as NSString
+        hint.draw(in: NSRect(x: r.minX, y: r.maxY - 38, width: width, height: 20), withAttributes: [.font: serif(13), .foregroundColor: ink.withAlphaComponent(0.55), .paragraphStyle: para])
+    }
+
     private func drawBanner(_ text: String) {
         let width = min(860, bounds.width * 0.82)
         let para = NSMutableParagraphStyle(); para.alignment = .center; para.lineSpacing = 4
@@ -614,6 +637,8 @@ enum OverlayDump {
         v = make(); v.showIntro(fromTitle: false); v.introFade = 1
         v.frame = NSRect(x: 0, y: 0, width: 800, height: 520)
         try v.snapshot(to: base + "-intro-small.png")
+        v = make(); v.readingText = Story.doorNote
+        try v.snapshot(to: base + "-reading.png")
         v = make(); v.bannerText = "Oren: \"She would not follow, so I went ahead, and I have waited here since.\""
         try v.snapshot(to: base + "-banner.png")
         v = make(); v.captured = true; v.pageWaiting = true; v.step(dt: 1)

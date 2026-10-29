@@ -39,6 +39,9 @@ final class Game {
     private(set) var isTraveling = false
     /// A line of text shown over the world for a few seconds (nil = none).
     private(set) var banner: String?
+    /// F05 S1: a small card of text being read in the world (the door note). Not modal: movement goes on, a click or Esc puts it away, and so does walking away from it.
+    private(set) var reading: String?
+    private var readingFrom = SIMD3<Float>(0, 0, 0)
     private var bannerSerial = 0
 
     private var accumulator: Float = 0
@@ -341,12 +344,14 @@ final class Game {
 
     /// Read a notebook line (the door note): it is logged in the Notebook once, and the journal opens on it. Not a page: it is not collected and counts for nothing at the gate.
     func readNote(_ id: String) {
-        guard Story.noteText(id) != nil else { return }
-        if !story.notes.contains(id) { story.notes.append(id); journal.addNotebookEntry() }
-        journal.isOpen = true
-        journal.select(.notebook)
+        guard let text = Story.noteText(id) else { return }
+        if !story.notes.contains(id) { story.notes.append(id); journal.addNotebookEntry() }       // logged once; the Notebook only HOLDS it, reading never opens the Notebook (F05 S1)
+        reading = text
+        readingFrom = camera.position
         pending.append(.journalOpened)
     }
+    /// Put the card away.
+    func putAwayReading() { reading = nil }
 
     /// Mark a page as already collected (loading a save): hides it and disables it, without opening the journal.
     func restorePage(_ n: Int, read: Bool = true) {
@@ -504,6 +509,9 @@ final class Game {
         if input.feedbackPressed { pending.append(.feedbackRequested) }
         if input.journalPressed { toggleJournal() }
         if input.escapePressed && journal.isOpen { journal.isOpen = false; pending.append(.journalClosed) }
+        if reading != nil {
+            if input.click || input.escapePressed || input.journalPressed || simd_distance(camera.position, readingFrom) > 2.5 { if input.click { input.click = false }; putAwayReading() }
+        }
         if journal.isOpen && input.tabPressed { journal.cycleTab() }
         if journal.isOpen && input.pageFlip != 0 { journal.flip(input.pageFlip) }
         else if !journal.isOpen && input.pageFlip != 0 && hovered?.id == "lens_ring" { lensPortal.turn(input.pageFlip) }       // the arrow keys turn the ring while it is under the crosshair

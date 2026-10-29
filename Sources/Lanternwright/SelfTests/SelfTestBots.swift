@@ -115,7 +115,7 @@ extension SelfTestRunner {
         check(heard && g.state.has("gw_end"), "bot: hears both accounts and reaches the end of the second world (the Glass Wood took \(Int((bot.elapsed - glassStart).rounded())) s of play, arrival to the second account)")
         collectGW(8)
         check(g.journal.collectedPages.map(\.number) == Array(1...9), "bot: every one of the nine pages was found by walking the normal route (\(g.journal.collectedPages.map(\.number)))")
-        check(g.gate.missing == [.contradiction] && g.gate.ilsePages == 5 && g.gate.orenPages == 4, "bot: the normal route leaves the gate asking only for a contradiction: altar solved, 5 Ilse pages and 4 Oren pages (it asks for 3 of each) (\(g.gate.missing))")
+        check(g.gate.ready && g.gate.ilsePages == 5 && g.gate.orenPages == 4, "bot: the normal route leaves the gate ready without any contradiction: altar solved, 5 Ilse pages and 4 Oren pages (it asks for 3 of each) (\(g.gate.missing))")
         // The Notebook's contradiction, settled through the real API from what the walk found: page 4 supports His, page 5 Hers, page 8 His (any three of the four pieces settle it).
         for (page, side) in [(4, Claim.his), (5, .hers), (8, .his)] { g.setClaim("who-left", page: page, to: side) }
         check(g.isSettled("who-left") && g.gate.ready, "bot: and settling the contradiction from the pages it found makes the gate ready")

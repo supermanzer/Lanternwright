@@ -78,7 +78,8 @@ extension SelfTestRunner {
         check(back.isSettled("who-left") && back.gate.contradictionsResolved == 1 && back.claim("who-left", page: 9) == .hers && back.verdict("who-left") == .settled, "contradictions: a save keeps the settled contradiction and what was set")
         let unsettled = twoWorlds(); for n in [1, 2, 3, 5, 6, 7, 4, 8] { unsettled.restorePage(n) }
         unsettled.state.set("gw_end")
-        check(unsettled.gate.missing == [.contradiction] && unsettled.gate.cue == GateState.cueContradiction, "contradictions: without it the gate asks only for it, in its quiet line")
+        check(unsettled.gate.ready && unsettled.gate.cue == nil, "contradictions: without it the gate is still ready (F05 S1: it is optional)")
+        check(GateState.evaluate(altarSolved: true, pages: [1, 2, 3, 5, 6, 7], resolved: [], waived: false).cue == GateState.cueContradiction, "contradictions: and with the gate constant turned back on it asks for it in its quiet line")
         // An older save (no claims) loads, and an unknown contradiction id in a save counts for nothing.
         let old = #"{"version":2,"worldFlags":{},"pages":[4],"position":[175,0.8,205],"yaw":0,"pitch":0,"playTime":1,"story":{"glyphsKnown":0,"contradictionsResolved":["no-such-thing"],"notes":[]}}"#
         let decoded = try? JSONDecoder().decode(SaveData.self, from: Data(old.utf8))

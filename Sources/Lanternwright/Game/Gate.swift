@@ -11,8 +11,10 @@ enum GateMissing: Equatable, CaseIterable {
 struct GateState: Equatable {
     /// Pages of each sibling the gate asks for (the user confirmed 3 of each, 2026-10-28; pages can be overlooked, so this is not "all four").
     static let pagesNeeded = 3
-    /// The contradiction condition was waived until there was a contradiction to resolve (S03.9 shipped one, so it is asked for now). `SelfTestGate` fails if this and `Contradictions.all` disagree.
-    static let contradictionWaived = false
+    /// F05 S1 (#67, user playtest): the contradiction does NOT gate the door. The player could not get in because the Notebook's puzzle asked for a page they had overlooked; the gate is the
+    /// user's own rule (S03 USER DECISIONS 4): the altar and `pagesNeeded` pages of each sibling. The contradiction stays in the Notebook as an optional feature. One constant: set this to
+    /// false and the gate asks for `contradictionsNeeded` resolved contradictions again (Q18).
+    static let contradictionWaived = true
     /// Contradictions the gate wants resolved.
     static let contradictionsNeeded = 1
 

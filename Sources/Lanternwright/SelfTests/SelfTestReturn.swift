@@ -34,9 +34,9 @@ extension SelfTestRunner {
         // Reading it: the journal opens on the Notebook, the line is logged once, and nothing about pages changes.
         let before = g.journal.collectedPages.map(\.number), gateBefore = g.gate
         g.activate(DoorNote.itemName)
-        check(g.journal.isOpen && g.journal.tab == .notebook && g.story.notes == ["door_note"], "return: reading the note opens the journal on the Notebook and logs the line")
+        check(!g.journal.isOpen && g.reading == Story.doorNote && g.story.notes == ["door_note"], "return: reading the note shows a card with its words (F05 S1: it does not open the Notebook) and logs the line")
         step(g)
-        check(!g.journal.hasUnread(.notebook), "return: and showing the Notebook clears its marker")
+        check(g.journal.hasUnread(.notebook), "return: and the Notebook tab is marked until the player looks at it")
         g.journal.isOpen = false
         g.activate(DoorNote.itemName)
         check(g.story.notes == ["door_note"], "return: reading it again does not log it twice")
