@@ -25,7 +25,14 @@
 ## Open decisions for the user (builders must not decide these)
 - S03's three questions: (1) is moving Oren's decisive act (turning the beam to open the dock arch) from the shore into the lighthouse's lens room what notes #58/#59 mean? (2) Is "3 pages of each author" the right gate now that pages are overlookable? (3) Warn on sealing the other exit, or only dim it (default: only dim)?
 - Page revisions R1-R4 (S02 appendix) are **held** until the user has seen the text (`S03.10` produces a review file); the user has twice reacted to page wording.
-- Story ending (Ilse vs Oren reconciliation, S02 section 8), conifer look verdict, whether the corridors feel right (Guidance: Loose is the quick test), door interior (decided: stays locked).
+- (none of the earlier items remain open; see Decided below)
+
+## Decided by the user (do not reopen without asking)
+- 2026-10-28: S03 questions: both exits at the original lighthouse (Oren's is a lens portal in the lens room, not the dock arch); a note nailed to the lighthouse door and a changed beam pattern signal the return; the gate is 3 pages of each sibling; sealing the other exit is a visible dimming only (irreversibility is not announced); page revisions R1-R3 applied (page 3 stays as restored, page 8 unchanged).
+- 2026-10-28: **the hidden reconciling third ending (S02 section 8) is approved in approach**: found only by noticing, completed between the two stands by the beat of both tones, with its cost (two keepers, the player the third).
+- 2026-10-28: **the needle-level conifer look is kept** (about 13 m, then the stylised sprays). Performance work must not shorten that range or shrink the cards; speed it up another way.
+- 2026-10-28: **the guided corridors are kept** (default Guidance = Guided, coverage about 10-13%). Loose stays available.
+- Earlier: the locked lighthouse door became the Ilse exit; Maren's fate stays ambiguous; slip on steep slopes is on; the story ending's other details are in S02 section 8.
 
 ## Known issues
 - Intermittent TAA frame-hash flake (about 2 in 25 renders of the same build, also before the refactor; cause unknown, maybe a race). `stream1-check.sh` retries and now prints the alternate hash.

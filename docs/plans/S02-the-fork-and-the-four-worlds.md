@@ -81,7 +81,7 @@ Still open: nothing blocking Phase 1. Section 8's details (the third ending's cl
 
 **Hard requirements for all story content:** pages may be overlooked (user, F03 #43: "pay attention to details"), so no critical path may require every page: the gate asks for 3 of each author and says what is missing (superseded 2026-10-28; see S03); no cutscenes, no voice, no external assets; no fail state; the existing eight pages are canon plus the approved revisions; both siblings are defensible, each right about something and wrong about something; story reachability is a selftest.
 
-## 8. The reconciling third ending (draft, for the user to react to)
+## 8. The reconciling third ending (APPROVED in approach by the user, 2026-10-28; details still drafts)
 
 **Principle.** No menu, no marker, no page that says it exists. A player on either route can finish the game without ever suspecting it. It is found by *noticing*, which fits fair mystery (every clue is in the world, near where it is used), and it is not the "good ending": it has its own cost, and the two sibling endings stay fully valid.
 
