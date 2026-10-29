@@ -2,10 +2,10 @@ Navigation audit (M10.6): every place the player must reach, every interactable,
 Margin 4.0 m. Region = corridors and plazas plus the margin. Areas on a 2 m grid.
 
 == varrow: ALL CLEAR
-  checked 27 required places, 10 interactables, 4 vantages
+  checked 27 required places, 13 interactables, 4 vantages
   region 20928 m2 of 164400 m2 of dry land (12.7 %)
   farthest reachable point from the origin: 362 m
-  props (402 scene items) beyond the region: over 20 m 226, over 60 m 156, over 150 m 45
+  props (403 scene items) beyond the region: over 20 m 226, over 60 m 156, over 150 m 45
   interactables:
   stone_tide: stand at (119.7, 119.0), 18.0 m inside a corridor, eye 0.8 m of reach 3.5
   stone_wind: stand at (42.0, 55.0), 18.0 m inside a corridor, eye 1.0 m of reach 3.5
@@ -15,6 +15,9 @@ Margin 4.0 m. Region = corridors and plazas plus the margin. Areas on a 2 m grid
   page_3: stand at (42.4, 53.9), 17.3 m inside a corridor, eye 1.2 m of reach 3.4
   page_4: stand at (-26.9, -40.8), 18.2 m inside a corridor, eye 1.3 m of reach 3.4
   lh_door: stand at (-29.7, -43.0), 21.0 m inside a corridor, eye 0.8 m of reach 4.0
+  plate_tide: stand at (-27.7, -43.4), 20.9 m inside a corridor, eye 0.7 m of reach 3.4
+  plate_wind: stand at (-27.9, -43.4), 21.0 m inside a corridor, eye 0.8 m of reach 3.4
+  plate_stone: stand at (-27.1, -43.8), 20.9 m inside a corridor, eye 0.7 m of reach 3.4
   door_note: stand at (-30.9, -43.0), 21.0 m inside a corridor, eye 0.8 m of reach 3.4
   lens: stand at (-40.0, -320.0), 36.0 m inside a corridor, eye 0.0 m of reach 5.0
 

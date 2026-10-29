@@ -53,6 +53,12 @@ Format: `### Q<n> (date, who): the question` then *Default taken*, *Where it liv
 *What changes if the answer differs:* a different stair (turns, width) is those constants; walls thicker or thinner is `wallThickness`; the workshop being on a mid-landing instead of the foot is a new floor candidate in `LighthouseInterior.height`.
 *Status:* open.
 
+### Q9 (2026-10-29, builder B, S03.6): what does "struck in order and held until the lamp answers" mean for the plates?
+*Default taken:* touch each plate in order of altitude (tide, wind, stone); each right strike keeps its tone sounding (held: the stones' own sustained voices), a wrong strike souring and resetting everything after 0.8 s; the player is NOT asked to hold the mouse button (the input layer has clicks only). On the third plate the chord blooms; if the gate is ready (S03.3) the lamp answers 1.6 s later (the lens's chime) and the door is open 1.2 s after that (`door_open`); if the gate is not ready the chord blooms and fades, the gate's quiet line is shown ("You have heard only him." etc.; nothing before the altar is solved) and the plates reset after 3 s, so nothing is lost. Partial sets never time out. The plates stand east of the door from the start (they ring whatever the player has done; they only answer when the gate is ready), carry the stones' marks, and the held tones reuse the stones' drone events (A may give them a voice of their own).
+*Where it lives:* `Game/TonePlatePuzzle.swift` (`Timing`, the order, the gate closure), `World/TonePlates.swift` (look, offsets), `GateState.cue` (the lines).
+*What changes if the answer differs:* a real hold (the mouse button down for a time) is one more state in `strike`; plates appearing only after the return is one flag in `Game.buildInteractables`; the timings are `TonePlatePuzzle.Timing`.
+*Status:* open.
+
 ## Answered
 - 2026-10-28 S03 Oren's exit location: both exits at the original lighthouse; Oren's is a lens portal in the lens room, the dock arch is not an exit.
 - 2026-10-28 Page gate: 3 pages of each sibling.

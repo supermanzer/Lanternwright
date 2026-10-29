@@ -114,14 +114,14 @@ extension SelfTestRunner {
 
             // 3e. WorldPuzzle: the save's flag list is derived from the registered puzzles, and clicks route to the owning puzzle.
             g = freshGame()
-            check(g.puzzles.count == 1 && g.puzzles[0].world == .varrow, "Varrow-only games register one puzzle")
+            check(g.puzzles.count == 2 && g.puzzles[0].world == .varrow, "Varrow-only games register their two puzzles: the stones and the tone plates")
             check(Set(g.persistentFlags) == Set(["solved", "lighthouseLit", "causewayUp", "lensTouched", "hint_run", "path_ilse", "path_oren", "door_open"] + Notebook.flags), "persistent flags come from the puzzles (+ the game's own flags, S03: the two route flags and the lighthouse door are saved)")
             g.activate("stone_tide")
             check(g.state.has("lit_tide"), "activating a stone id routes to the lighthouse puzzle")
             let both = Game(scenes: [.varrow: Scene.makeWorld(device: device), .glassWood: GlassWood.build(device: device)])
-            check(both.puzzles.map(\.world) == [.varrow, .glassWood], "a game with both worlds registers both puzzles")
+            check(both.puzzles.map(\.world) == [.varrow, .varrow, .glassWood], "a game with both worlds registers its puzzles: Varrow's stones and tone plates, then the Glass Wood's")
             check(Set(["gw_mirrors", "gw_chimes", "gw_altar", "gw_end"]).isSubset(of: Set(both.persistentFlags)), "the Glass Wood's flags appear in the derived save list")
-            check(!both.puzzles[1].handles("gw_return") && both.puzzles[1].handles("gw_mirror_0") && !both.puzzles[0].handles("gw_mirror_0"), "ownership: the return ring is the game's, mirrors are the Glass Wood's")
+            check(!both.puzzles[2].handles("gw_return") && both.puzzles[2].handles("gw_mirror_0") && !both.puzzles[0].handles("gw_mirror_0"), "ownership: the return ring is the game's, mirrors are the Glass Wood's")
 
             // 3f. The link changes the home island: the beam fades in once the lamp is lit; the mist thins after the first trip through the lens.
             g = freshGame()

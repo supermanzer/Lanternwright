@@ -17,6 +17,8 @@ final class Game {
     private(set) var glass: GlassWoodLogic?
     /// Every world's puzzle, in restore order. Saving, restoring, click routing and visuals all go through this list.
     private(set) var puzzles: [WorldPuzzle] = []
+    /// S03.6: the plates beside the lighthouse door.
+    private(set) var tonePlates: TonePlatePuzzle!
     private var worldInteractables: [WorldKind: [Interactable]] = [:]
     var interactables: [Interactable] { worldInteractables[world] ?? [] }
     private(set) var hovered: Interactable?
@@ -56,7 +58,9 @@ final class Game {
                                    showBanner: { [weak self] t in self?.showBanner(t) },
                                    setEnabled: { [weak self] id, on in self?.setInteractable(id, enabled: on) })
         }
-        puzzles = [puzzle] + (glass.map { [$0] } ?? [])
+        tonePlates = TonePlatePuzzle(state: state, animator: animator, emit: { [weak self] in self?.pending.append($0) },
+                                     gateReady: { [weak self] in self?.gate.ready ?? false }, gateCue: { [weak self] in self?.gate.cue }, say: { [weak self] in self?.showBanner($0) })
+        puzzles = [puzzle] + [tonePlates as WorldPuzzle] + (glass.map { [$0] } ?? [])
         buildInteractables()
     }
 
@@ -141,6 +145,11 @@ final class Game {
         // F01 W4.2 phase 1: the lighthouse door can be tried. It is locked (what is behind it is the user's choice: see INSPECT.md).
         let lh = Layout.lighthouse, doorZ = lh.z + 4.25
         list.append(Interactable(id: "lh_door", min: SIMD3(lh.x - 0.65, lh.y, doorZ - 0.35), max: SIMD3(lh.x + 0.65, lh.y + 2.4, doorZ), prompt: "Try the door", reach: 4))       // ends at the door's face (S03.4: it used to stand 0.45 m proud, which put it in front of the note nailed there, and a ray picks the nearest box)
+        // S03.6: the three tone plates beside the door (always there to touch; they ring, and answer only when the gate is ready).
+        for (k, name) in TonePlates.names.enumerated() {
+            let c = TonePlates.world(k), s = TonePlates.size
+            list.append(Interactable(id: name, min: SIMD3(c.x - 0.2, c.y - s.y / 2, c.z - 0.2), max: SIMD3(c.x + 0.2, c.y + s.y / 2, c.z + 0.25), prompt: "Touch the plate", reach: 3.4))
+        }
         // S03.4: the note nailed to the door (enabled only while it is shown: `syncDoorNote`).
         let dn = DoorNote.worldCenter, dns = DoorNote.size
         list.append(Interactable(id: DoorNote.itemName, min: SIMD3(dn.x - dns.x / 2 - 0.05, dn.y - dns.y / 2 - 0.05, dn.z - 0.05), max: SIMD3(dn.x + dns.x / 2 + 0.05, dn.y + dns.y / 2 + 0.05, dn.z + 0.08),
@@ -220,6 +229,7 @@ final class Game {
         let open = state.has(Game.doorOpenFlag)
         guard open != interiorApplied, let sc = scenes[.varrow] else { return }
         interiorApplied = open
+        setInteractable("lh_door", enabled: !open)                             // an open door is not tried
         let o = interior.origin
         func isTowerCore(_ c: CylinderCollider) -> Bool { c.center == o && abs(c.radius - Lighthouse.colliderRadius) < 1e-4 }
         let ring = interior.wallColliders()                                                    // exactly what was added (deterministic), so closing removes exactly that
@@ -244,7 +254,7 @@ final class Game {
 
     /// Show the note on the door (and let it be read) exactly while the player has returned; hide it again in the Glass Wood.
     private func syncDoorNote() {
-        let on = hasReturned
+        let on = hasReturned && !state.has(Game.doorOpenFlag)                  // the note goes with the door when it opens
         guard on != doorNoteShown else { return }
         doorNoteShown = on
         scenes[.varrow]?.update(DoorNote.itemName) { $0.hidden = !on && !DoorNote.shownForTools }
