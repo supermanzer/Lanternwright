@@ -83,6 +83,11 @@ enum NavigationAudit {
     /// clear of every collider (the player's own radius included: the centre of a standing stone is not a place to stand), on ground that is dry enough and not steeper than the walking limit, with the eye within its reach of the box.
     static func standingPlace(for it: Interactable, scene: Scene, net: NavNetwork) -> (point: SIMD2<Float>, sd: Float, eyeDistance: Float)? {
         let centre = SIMD2((it.min.x + it.max.x) / 2, (it.min.z + it.max.z) / 2)
+        // S03.5: an interactable high inside the lighthouse (the lens ring) is stood at on the interior's floor with the open interior's walls, not the hill's ground and the solid core.
+        let interior = LighthouseInterior()
+        let towerXZ = SIMD2(Layout.lighthouse.x, Layout.lighthouse.z)
+        let inside = simd_length(centre - towerXZ) < 3.0 && it.min.y > Layout.lighthouse.y + 3
+        let cylinders = inside ? interior.wallColliders() : scene.colliders.cylinders
         var radius: Float = 0
         while radius <= it.reach + 1 {
             var best: (SIMD2<Float>, Float, Float)?
@@ -91,11 +96,17 @@ enum NavigationAudit {
                 let s = centre + SIMD2(cos(a), sin(a)) * radius
                 let sd = net.signedDistance(s)
                 guard sd <= -0.5, net.isReachable(s) else { continue }
-                let ground = scene.groundHeight(x: s.x, z: s.y)
-                // Standable: not in water deeper than the player may wade, and not on ground steeper than the walking limit.
-                let rise = max(abs(scene.groundHeight(x: s.x + 1, z: s.y) - ground), abs(scene.groundHeight(x: s.x, z: s.y + 1) - ground))
-                guard ground > Player.minGround, rise <= Player.maxSlope || scene.isOnPlatform(s) else { continue }
-                guard scene.colliders.cylinders.allSatisfy({ simd_length(s - $0.center) >= $0.radius + Player.radius || ground >= $0.maxY || ground + Player.eyeHeight <= $0.minY }) else { continue }
+                let ground: Float
+                if inside {
+                    guard let h = interior.height(x: s.x, z: s.y, feetY: it.min.y) else { continue }
+                    ground = h
+                } else {
+                    ground = scene.groundHeight(x: s.x, z: s.y)
+                    // Standable: not in water deeper than the player may wade, and not on ground steeper than the walking limit.
+                    let rise = max(abs(scene.groundHeight(x: s.x + 1, z: s.y) - ground), abs(scene.groundHeight(x: s.x, z: s.y + 1) - ground))
+                    guard ground > Player.minGround, rise <= Player.maxSlope || scene.isOnPlatform(s) else { continue }
+                }
+                guard cylinders.allSatisfy({ simd_length(s - $0.center) >= $0.radius + Player.radius || ground >= $0.maxY || ground + Player.eyeHeight <= $0.minY }) else { continue }
                 let eye = SIMD3(s.x, ground + Player.eyeHeight, s.y)
                 let d = simd_length(eye - simd_clamp(eye, it.min, it.max))
                 if d <= it.reach - 0.3, best == nil || sd < best!.1 { best = (s, sd, d) }

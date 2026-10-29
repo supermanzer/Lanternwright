@@ -19,6 +19,8 @@ final class Game {
     private(set) var puzzles: [WorldPuzzle] = []
     /// S03.6: the plates beside the lighthouse door.
     private(set) var tonePlates: TonePlatePuzzle!
+    /// S03.7: the lens ring and Oren's portal in the lens room.
+    private(set) var lensPortal: LensPortalPuzzle!
     private var worldInteractables: [WorldKind: [Interactable]] = [:]
     var interactables: [Interactable] { worldInteractables[world] ?? [] }
     private(set) var hovered: Interactable?
@@ -60,7 +62,8 @@ final class Game {
         }
         tonePlates = TonePlatePuzzle(state: state, animator: animator, emit: { [weak self] in self?.pending.append($0) },
                                      gateReady: { [weak self] in self?.gate.ready ?? false }, gateCue: { [weak self] in self?.gate.cue }, say: { [weak self] in self?.showBanner($0) })
-        puzzles = [puzzle] + [tonePlates as WorldPuzzle] + (glass.map { [$0] } ?? [])
+        lensPortal = LensPortalPuzzle(scene: scenes[.varrow]!, state: state, emit: { [weak self] in self?.pending.append($0) }, gate: { [weak self] in self?.gate ?? GateState.evaluate(altarSolved: false, pages: [], resolved: []) }, say: { [weak self] in self?.showBanner($0) })
+        puzzles = [puzzle] + [tonePlates as WorldPuzzle, lensPortal as WorldPuzzle] + (glass.map { [$0] } ?? [])
         buildInteractables()
     }
 
@@ -106,7 +109,7 @@ final class Game {
     /// A restored save that already showed the hint counts as having been told (the hint never repeats).
     func markHintSeen() { hasRun = true }
     static let runHintAfter: Float = 45
-    static let ownFlags = ["lensTouched", "hint_run", Game.pathIlseFlag, Game.pathOrenFlag, Game.doorOpenFlag]
+    static let ownFlags = ["lensTouched", "hint_run", Game.pathIlseFlag, Game.pathOrenFlag, Game.doorOpenFlag, Game.portalOpenFlag]
     /// 0...1: how far the "look closer" zoom has eased in (right mouse button or Z).
     private(set) var zoomAmount: Float = 0
     /// 0...1: how far into a run the player is (eased), which widens the view a little: speed you can see.
@@ -165,6 +168,9 @@ final class Game {
         let dn = DoorNote.worldCenter, dns = DoorNote.size
         list.append(Interactable(id: DoorNote.itemName, min: SIMD3(dn.x - dns.x / 2 - 0.05, dn.y - dns.y / 2 - 0.05, dn.z - 0.05), max: SIMD3(dn.x + dns.x / 2 + 0.05, dn.y + dns.y / 2 + 0.05, dn.z + 0.08),
                                  prompt: "Read the note", reach: 3.4, enabled: false))
+        // S03.7: the lens ring in the lens room (enabled while the lighthouse is open: `syncInterior`).
+        let ringC = Layout.lighthouse + SIMD3(0, LensPortalProps.ringY, 0), rr = LighthouseInterior.ringOuter + 0.15
+        list.append(Interactable(id: "lens_ring", min: ringC - SIMD3(rr, 0.3, rr), max: ringC + SIMD3(rr, 0.3, rr), prompt: "Turn the ring", reach: 3.4, enabled: false))
         let l = PuzzleProps.lensRestPosition
         list.append(Interactable(id: "lens", min: l - SIMD3(1.3, 1.3, 1.3), max: l + SIMD3(1.3, 1.3, 1.3), prompt: "Touch the lens", reach: 5))
         worldInteractables[.varrow] = list
@@ -230,7 +236,7 @@ final class Game {
     // MARK: The inside of the lighthouse (S03.5)
 
     /// Set when the lighthouse door is open (S03.6's tone plates set it; a test hook can too). Saved with the game's own flags.
-    static let doorOpenFlag = "door_open"
+    static let doorOpenFlag = "door_open", portalOpenFlag = "portal_open"
     /// The inside: its floors (feet-aware) and wall colliders, used only while `door_open` is set.
     let interior = LighthouseInterior()
     private(set) var interiorApplied = false
@@ -254,6 +260,7 @@ final class Game {
         if snap { setDoorAngle(to) }
         else { animator.tween(duration: Game.doorSwingSeconds, ease: .inOutCubic) { [weak self] t in self?.setDoorAngle(from + (to - from) * t) } }
         setInteractable("lh_door", enabled: !open)                             // an open door is not tried
+        setInteractable("lens_ring", enabled: open)
         let o = interior.origin
         func isTowerCore(_ c: CylinderCollider) -> Bool { c.center == o && abs(c.radius - Lighthouse.colliderRadius) < 1e-4 }
         let ring = interior.wallColliders()                                                    // exactly what was added (deterministic), so closing removes exactly that
@@ -265,7 +272,7 @@ final class Game {
             sc.colliders.cylinders.removeAll(where: isInteriorPiece)
             sc.colliders.addCylinder(center: o, radius: Lighthouse.colliderRadius, minY: Layout.lighthouse.y - 1, maxY: Layout.lighthouse.y + 30)
         }
-        for name in [LighthouseInterior.wallName, LighthouseInterior.stairName, LighthouseInterior.fittingsName, LighthouseInterior.ringName] { sc.update(name) { $0.hidden = !open && !LighthouseInterior.shownForTools } }
+        for name in [LighthouseInterior.wallName, LighthouseInterior.stairName, LighthouseInterior.fittingsName, LighthouseInterior.ringName, LensPortalProps.receiverName, LensPortalProps.beamName] + LensPortalProps.lampNames { sc.update(name) { $0.hidden = !open && !LighthouseInterior.shownForTools } }
     }
 
     // MARK: The return (S03.4)
@@ -402,6 +409,7 @@ final class Game {
     func fixedStep(input: InputState) {
         if player.step(dt: Game.tick, input: isTraveling ? InputState() : input, scene: scene, nav: Layout.Navigation.active(for: world), interior: world == .varrow && interiorApplied ? interior : nil) { footfalls += 1; lastFootWasRun = player.lastStepWasRun }
         animator.update(Game.tick)
+        lensPortal.step(Game.tick)
         time += Game.tick
         let target = atmosphereTargets
         mistScale += (target.mist - mistScale) * min(1, Game.tick / 12)        // about 12 s to thin
@@ -447,6 +455,7 @@ final class Game {
         if input.escapePressed && journal.isOpen { journal.isOpen = false; pending.append(.journalClosed) }
         if journal.isOpen && input.tabPressed { journal.cycleTab() }
         if journal.isOpen && input.pageFlip != 0 { journal.flip(input.pageFlip) }
+        else if !journal.isOpen && input.pageFlip != 0 && hovered?.id == "lens_ring" { lensPortal.turn(input.pageFlip) }       // the arrow keys turn the ring while it is under the crosshair
         journal.markShown()
         syncDoorNote()
         syncInterior()
