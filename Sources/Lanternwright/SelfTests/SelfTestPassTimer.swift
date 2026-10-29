@@ -270,7 +270,7 @@ extension SelfTestRunner {
         check(simd_length(SIMD2(g.x - Layout.lighthouse.x, g.z - Layout.lighthouse.z)) < 0.01 && g.y > Layout.lighthouse.y + LighthouseInterior.floorY && g.y < Layout.lighthouse.y + LighthouseInterior.floorY + 4 && l.y > Layout.lighthouse.y + LighthouseInterior.lensFloorY && l.y < Layout.lighthouse.y + LighthouseInterior.lensFloorY + 3,
               "interiorlight: the two lamps hang on the tower's axis, one over each room's floor (ground y \(g.y), lens y \(l.y))")
         let msl = ShaderLibrary.sources.joined(separator: "\n")
-        check(msl.contains("if (obj.lod.z > 0.5)") && msl.contains("ambient *= 0.10;"), "interiorlight: the lit shader cuts the sky's ambient and adds the lamps only for flagged items")
+        check(msl.contains("if (obj.lod.z > 0.5)") && msl.contains("ambient *= 0.14;"), "interiorlight: the lit shader cuts the sky's ambient and adds the lamps only for flagged items")
     }
 }
 
@@ -297,12 +297,19 @@ extension SelfTestRunner {
         g.state.set(Game.doorOpenFlag); for _ in 0..<2 { clock += 0.05; g.advance(now: clock, input: idle) }
         g.player.position = stone
         let mixStone = g.surfaceMix.mix
-        check(g.currentSurface == .stone && mixStone[StepMaterial.stone.rawValue] == 1, "interiorsteps: standing on the ground room's flags with the door open the foot is on stone (closed door: \(closed))")
+        check(g.currentSurface == .stone && mixStone[StepMaterial.stone.rawValue] == 1 && closed == .stone, "interiorsteps: standing on the ground room's flags with the door open the foot is on stone (closed door: \(closed))")
         if let w = woodSpot {
             g.player.position = w
             check(g.currentSurface == .wood && g.surfaceMix.mix[StepMaterial.wood.rawValue] == 1, "interiorsteps: on the stair's low treads the foot is on wood (surface \(g.currentSurface), wood weight \(g.surfaceMix.mix[StepMaterial.wood.rawValue]) at \(w))")
         } else { check(true, "interiorsteps: no low stair tread found in the sampled ring (skipped)") }
         g.player.position = SIMD3(o.x + 30, g.scene.groundHeight(x: o.x + 30, z: o.y), o.y)
         check(g.currentSurface == g.scene.surface(x: g.player.position.x, z: g.player.position.z), "interiorsteps: outside the tower the scene's own ground still decides")
+        // Another world at the same x/z must not read the Varrow interior (the door flag stays set while away).
+        let two = Game(scenes: [.varrow: Scene.makeWorld(device: device), .glassWood: GlassWood.build(device: device)])
+        two.state.set(Game.doorOpenFlag); for _ in 0..<2 { clock += 0.05; two.advance(now: clock, input: idle) }
+        two.player.position = stone
+        let inVarrow = two.currentSurface
+        two.travel(to: .glassWood); two.player.position = stone
+        check(inVarrow == .stone && two.world == .glassWood && two.currentSurface == two.scene.surface(x: stone.x, z: stone.z), "interiorsteps: in the Glass Wood the Varrow interior is not consulted (world \(two.world), surface \(two.currentSurface))")
     }
 }

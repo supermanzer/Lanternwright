@@ -110,7 +110,7 @@ fragment LitFragOut lit_fragment(LitOut in [[stage_in]],
     // tenth; the sun still lights the inside through the shadow map (the tower's wall occludes it, the open door does not). Two warm lamps, one in the ground room and one in the lens
     // room, light it instead: a soft point light with an inverse-square-ish falloff, no shadow (light casts none, F04 L1).
     if (obj.lod.z > 0.5) {
-        ambient *= 0.10;
+        ambient *= 0.14;          // a little floor of ambient so the stair is never unreadable between the lamps
         const float3 lampPos[2] = { float3(\#(LighthouseInterior.lampGround.x), \#(LighthouseInterior.lampGround.y), \#(LighthouseInterior.lampGround.z)),
                                     float3(\#(LighthouseInterior.lampLens.x), \#(LighthouseInterior.lampLens.y), \#(LighthouseInterior.lampLens.z)) };
         for (int li = 0; li < 2; li++) {
@@ -118,7 +118,7 @@ fragment LitFragOut lit_fragment(LitOut in [[stage_in]],
             float d2 = dot(toLamp, toLamp);
             float3 Ll = toLamp * rsqrt(max(d2, 1e-4));
             float atten = 1.0 / (1.0 + d2 * 0.12);
-            ambient += albedo * (1.0 - metal) * float3(1.0, 0.62, 0.30) * \#(LighthouseInterior.lampPower) * atten * saturate(dot(n, Ll) * 0.8 + 0.2) * matAO;
+            ambient += albedo * (1.0 - metal) * float3(1.0, 0.62, 0.30) * \#(LighthouseInterior.lampPower) * atten * saturate(max(dot(n, Ll), -0.5 * dot(n, Ll)) * 0.8 + 0.2) * matAO;          // two-sided: a tread seen from either side is lit by the lamp
         }
     }
 

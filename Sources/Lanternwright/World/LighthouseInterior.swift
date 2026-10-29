@@ -159,7 +159,7 @@ struct LighthouseInterior {
     /// for items flagged as interior (`ObjectUniforms.lod.z`).
     static var lampGround: SIMD3<Float> { Layout.lighthouse + SIMD3(0, floorY + 2.4, 0) }
     static var lampLens: SIMD3<Float> { Layout.lighthouse + SIMD3(0, lensFloorY + 1.7, 0) }
-    static let lampPower: Float = 1.6
+    static let lampPower: Float = 0.85
     static let wallName = "lh_interior_wall", stairName = "lh_interior_stair"
     /// Debug: `LW_LIGHTHOUSE_OPEN=1` draws the inside from the start, so a frame tool can show it without opening the door (the game keeps it hidden until `door_open`).
     static let shownForTools = ProcessInfo.processInfo.environment["LW_LIGHTHOUSE_OPEN"] == "1"

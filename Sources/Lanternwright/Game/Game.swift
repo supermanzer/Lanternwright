@@ -118,7 +118,7 @@ final class Game {
     /// The weighted version (for the footstep voice), and the dock plank under the foot.
     /// S03.5b: inside the open tower the footstep voice stands on the interior's own floors (stone flags in the ground room, boards on the stair and in the lens room); outside, the scene's ground.
     private var interiorSurface: SurfaceKind? {
-        interiorApplied ? interior.surface(x: player.position.x, z: player.position.z, feetY: player.position.y) : nil
+        interiorApplied && world == .varrow ? interior.surface(x: player.position.x, z: player.position.z, feetY: player.position.y) : nil
     }
     var surfaceMix: (mix: StepMix, pebble: Float) {
         if let k = interiorSurface {
