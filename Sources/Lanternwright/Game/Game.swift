@@ -140,7 +140,7 @@ final class Game {
         }
         // F01 W4.2 phase 1: the lighthouse door can be tried. It is locked (what is behind it is the user's choice: see INSPECT.md).
         let lh = Layout.lighthouse, doorZ = lh.z + 4.25
-        list.append(Interactable(id: "lh_door", min: SIMD3(lh.x - 0.65, lh.y, doorZ - 0.35), max: SIMD3(lh.x + 0.65, lh.y + 2.4, doorZ + 0.45), prompt: "Try the door", reach: 4))
+        list.append(Interactable(id: "lh_door", min: SIMD3(lh.x - 0.65, lh.y, doorZ - 0.35), max: SIMD3(lh.x + 0.65, lh.y + 2.4, doorZ), prompt: "Try the door", reach: 4))       // ends at the door's face (S03.4: it used to stand 0.45 m proud, which put it in front of the note nailed there, and a ray picks the nearest box)
         // S03.4: the note nailed to the door (enabled only while it is shown: `syncDoorNote`).
         let dn = DoorNote.worldCenter, dns = DoorNote.size
         list.append(Interactable(id: DoorNote.itemName, min: SIMD3(dn.x - dns.x / 2 - 0.05, dn.y - dns.y / 2 - 0.05, dn.z - 0.05), max: SIMD3(dn.x + dns.x / 2 + 0.05, dn.y + dns.y / 2 + 0.05, dn.z + 0.08),

@@ -51,6 +51,21 @@ extension SelfTestRunner {
         let old = try? JSONDecoder().decode(SaveData.self, from: Data(s31.utf8))
         check(old?.story?.glyphsKnown == 1 && old?.story?.notes == [], "return: a save from S03.1 (a story block without notes) still loads")
 
+        // Picking with the real rays: the crosshair on the note picks the note, on the door's planks picks the door (the door's box must not stand in front of the note: found by review).
+        let pg = twoWorlds(); pg.state.set("gw_end"); step(pg)
+        func pick(from eye: SIMD3<Float>, at target: SIMD3<Float>) -> String? { Interaction.pick(origin: eye, dir: simd_normalize(target - eye), in: pg.interactables)?.id }
+        let noteC = DoorNote.worldCenter, lhp = Layout.lighthouse
+        var onNote: [String?] = [], onDoor: [String?] = []
+        for d: Float in [0.5, 1, 2, 3] {
+            onNote.append(pick(from: SIMD3(noteC.x, noteC.y, noteC.z + d), at: noteC))
+            onNote.append(pick(from: SIMD3(noteC.x + 0.2, noteC.y - 0.1, noteC.z + d), at: noteC))
+            onDoor.append(pick(from: SIMD3(lhp.x + 0.25, lhp.y + Lighthouse.baseY + 0.45, noteC.z + d), at: SIMD3(lhp.x + 0.25, lhp.y + Lighthouse.baseY + 0.45, noteC.z - 0.02)))   // the lowest plank, below the lower strap
+        }
+        check(onNote.allSatisfy { $0 == DoorNote.itemName }, "return: a ray on the note picks the note from 0.5, 1, 2 and 3 m, straight on and from the side (\(onNote))")
+        check(onDoor.allSatisfy { $0 == "lh_door" }, "return: a ray on the door's lower planks still picks the door (\(onDoor))")
+        let fresh = twoWorlds(); step(fresh)
+        check(Interaction.pick(origin: SIMD3(noteC.x, noteC.y, noteC.z + 1), dir: SIMD3(0, 0, -1), in: fresh.interactables)?.id == "lh_door", "return: before the altar the note is not there to pick: the ray on that spot picks the door")
+
         // Where the signal points: along the way up from the islet, and at the door. Fixed numbers (the landmarks).
         let trail = Layout.Navigation.signalTrailPoint, door = Layout.Navigation.signalDoorPoint
         check(trail == SIMD3<Float>(-35, 1.5, -225) && abs(door.x + 30) < 1e-4 && abs(door.z - (-48 + 4.147 + 1)) < 0.05, "return: the signal points at the causeway's start (-35, -225) and at the door's south face (-30, about -42.9) (\(door))")
