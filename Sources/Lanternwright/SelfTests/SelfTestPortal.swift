@@ -13,7 +13,7 @@ extension SelfTestRunner {
         /// A game with the door open, in the lens room, with the gate ready (or not).
         func lensGame(ready: Bool = true) -> Game {
             let g = twoWorlds()
-            if ready { for n in [1, 2, 3, 5, 6, 7] { g.restorePage(n) }; g.state.set("gw_end") }
+            if ready { for n in [1, 2, 3, 5, 6, 7] { g.restorePage(n) }; g.state.set("gw_end"); g.story.contradictionsResolved = ["who-left"] }
             g.state.set(Game.doorOpenFlag); step(g)
             _ = g.drainEvents()
             return g
@@ -77,6 +77,7 @@ extension SelfTestRunner {
         let lamps = P.lampNames.map { item(dormant, $0)?.uniforms.emissive.w ?? -1 }
         check(lamps[0] > 0 && lamps[1] == 0 && lamps[2] == 0, "portal: the lamps show the altar solved and neither sibling's pages enough (\(lamps))")
         for k in [2, 3, 6, 7] { dormant.restorePage(k) }
+        dormant.story.contradictionsResolved = ["who-left"]
         dormant.lensPortal.turn(1); dormant.lensPortal.setAngle(P.receiverAngle); dormant.simulate(seconds: 2.3)
         check(dormant.state.has(Game.portalOpenFlag), "portal: once the gate is ready the same alignment opens it")
         let before = twoWorlds(); before.state.set(Game.doorOpenFlag); step(before)

@@ -10,7 +10,7 @@ extension SelfTestRunner {
         func readyGame() -> Game {
             let g = twoWorlds()
             for n in [1, 2, 3, 5, 6, 7] { g.restorePage(n) }
-            g.state.set("gw_end")
+            g.state.set("gw_end"); g.story.contradictionsResolved = ["who-left"]
             _ = g.drainEvents()
             return g
         }
@@ -77,6 +77,7 @@ extension SelfTestRunner {
         n.simulate(seconds: TonePlatePuzzle.Timing.unansweredResetDelay + 0.5)
         check(n.tonePlates.sequence.isEmpty && !n.state.has(Game.doorOpenFlag), "plates: unanswered, they reset")
         for k in [2, 3, 6, 7] { n.restorePage(k) }
+        n.story.contradictionsResolved = ["who-left"]
         strike(n, [0, 1, 2]); n.simulate(seconds: 5)
         check(n.state.has(Game.doorOpenFlag), "plates: once the gate is ready the same order opens the door")
         let early = twoWorlds()                                                          // before the Glass Wood: no altar, nothing said

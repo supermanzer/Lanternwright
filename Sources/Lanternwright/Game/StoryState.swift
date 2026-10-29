@@ -9,6 +9,8 @@ struct StoryState: Codable, Equatable {
     var contradictionsResolved: [String] = []
     /// Ids of the notebook lines the player has read (`Story.notes`): the door note (S03.4), later the contradictions' margin lines.
     var notes: [String] = []
+    /// What the player has set against each piece of evidence, `"<contradiction id>:<page>"` -> `"hers"` or `"his"` (S03.9).
+    var claims: [String: String] = [:]
 
     init() {}
     /// Tolerant of a save written before a field existed (S03.1 saves have no `notes`).
@@ -17,8 +19,9 @@ struct StoryState: Codable, Equatable {
         glyphsKnown = try c.decodeIfPresent(Int.self, forKey: .glyphsKnown) ?? 0
         contradictionsResolved = try c.decodeIfPresent([String].self, forKey: .contradictionsResolved) ?? []
         notes = try c.decodeIfPresent([String].self, forKey: .notes) ?? []
+        claims = try c.decodeIfPresent([String: String].self, forKey: .claims) ?? [:]
     }
-    private enum CodingKeys: String, CodingKey { case glyphsKnown, contradictionsResolved, notes }
+    private enum CodingKeys: String, CodingKey { case glyphsKnown, contradictionsResolved, notes, claims }
 }
 
 extension Game {

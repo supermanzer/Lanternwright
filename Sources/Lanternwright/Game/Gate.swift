@@ -11,9 +11,8 @@ enum GateMissing: Equatable, CaseIterable {
 struct GateState: Equatable {
     /// Pages of each sibling the gate asks for (the user confirmed 3 of each, 2026-10-28; pages can be overlooked, so this is not "all four").
     static let pagesNeeded = 3
-    /// TODO(S03.9): the contradiction condition is waived until there is a contradiction to resolve. `SelfTestGate` fails when `Contradictions.all` is not empty while this is still true,
-    /// so S03.9 cannot ship without turning it off.
-    static let contradictionWaived = true
+    /// The contradiction condition was waived until there was a contradiction to resolve (S03.9 shipped one, so it is asked for now). `SelfTestGate` fails if this and `Contradictions.all` disagree.
+    static let contradictionWaived = false
     /// Contradictions the gate wants resolved.
     static let contradictionsNeeded = 1
 
@@ -35,7 +34,7 @@ struct GateState: Equatable {
     var ready: Bool { missing.isEmpty }
 
     /// The numbers, clamped: counts never go below 0, and a resolved contradiction counts once, and only if it is one that exists.
-    static func evaluate(altarSolved: Bool, pages: [Int], resolved: [String], known: Set<String> = Set(Contradictions.all), waived: Bool = GateState.contradictionWaived) -> GateState {
+    static func evaluate(altarSolved: Bool, pages: [Int], resolved: [String], known: Set<String> = Set(Contradictions.all.map(\.id)), waived: Bool = GateState.contradictionWaived) -> GateState {
         func count(_ a: PageAuthor) -> Int { Set(pages.filter { StoryPages.page($0)?.author == a }).count }
         return GateState(altarSolved: altarSolved, ilsePages: count(.ilse), orenPages: count(.oren),
                          contradictionsResolved: Set(resolved).intersection(known).count, contradictionWaived: waived)

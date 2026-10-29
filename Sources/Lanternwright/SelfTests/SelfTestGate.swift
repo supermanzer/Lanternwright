@@ -32,21 +32,21 @@ extension SelfTestRunner {
         check(GateState.cue(for: [.ilsePages, .orenPages]) == "You have heard too little of either." && GateState.cue(for: [.contradiction]) == "Two accounts, and nothing yet that tells them apart.", "gate: too little of both, and the contradiction, each have their line")
         // In the game: the altar is `gw_end`, the pages are the journal's, restored from a save.
         let g = Game(scene: Scene.makeWorld(device: device))
-        check(g.gate.missing == [.altar, .ilsePages, .orenPages] && !g.gate.ready, "gate: a new game is missing the altar and both sets of pages")
+        check(g.gate.missing == [.altar, .ilsePages, .orenPages, .contradiction] && !g.gate.ready, "gate: a new game is missing the altar, both sets of pages and the contradiction")
         for n in [1, 2, 3, 5, 6, 7] { g.restorePage(n) }
-        check(g.gate.missing == [.altar], "gate: with 3 + 3 pages collected only the altar is missing")
-        g.state.set("gw_end")
-        check(g.gate.ready && g.gate.cue == nil, "gate: and with the altar solved the gate is ready")
+        check(g.gate.missing == [.altar, .contradiction], "gate: with 3 + 3 pages collected the altar and the contradiction are missing")
+        g.state.set("gw_end"); g.story.contradictionsResolved = ["who-left"]
+        check(g.gate.ready && g.gate.cue == nil, "gate: and with the altar solved and the contradiction settled the gate is ready")
         // Saved and loaded in the real two-world game (the altar's flag belongs to the Glass Wood's puzzle, which only a game with that world has).
         func twoWorlds() -> Game { Game(scenes: [.varrow: Scene.makeWorld(device: device), .glassWood: GlassWood.build(device: device)]) }
         let w = twoWorlds()
         for n in [1, 2, 3, 5, 6, 7] { w.restorePage(n) }
-        w.state.set("gw_end")
+        w.state.set("gw_end"); w.story.contradictionsResolved = ["who-left"]
         let again = twoWorlds()
         again.restore(w.makeSave())
         check(w.gate.ready && again.gate.ready && again.gate.missing.isEmpty, "gate: it is still ready after a save and a load")
         let partial = twoWorlds(); partial.restorePage(1); partial.state.set("gw_end")
         let partialAgain = twoWorlds(); partialAgain.restore(partial.makeSave())
-        check(partialAgain.gate.missing == [.ilsePages, .orenPages], "gate: a save with the altar solved and one page loads with both page sets still missing")
+        check(partialAgain.gate.missing == [.ilsePages, .orenPages, .contradiction], "gate: a save with the altar solved and one page loads with both page sets still missing")
     }
 }

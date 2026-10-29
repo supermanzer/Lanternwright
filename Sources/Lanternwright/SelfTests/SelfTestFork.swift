@@ -15,7 +15,7 @@ extension SelfTestRunner {
         /// The player in the lens room with the lighthouse open: the gate ready or not.
         func lensGame(ready: Bool = true) -> Game {
             let g = twoWorlds()
-            if ready { for n in [1, 2, 3, 5, 6, 7] { g.restorePage(n) }; g.state.set("gw_end") }
+            if ready { for n in [1, 2, 3, 5, 6, 7] { g.restorePage(n) }; g.state.set("gw_end"); g.story.contradictionsResolved = ["who-left"] }
             g.state.set(Game.doorOpenFlag); step(g)
             g.player = Player(position: SIMD3(lh.x - 0.2, lh.y + I.lensFloorY, lh.z - 1.45), yaw: .pi)
             _ = g.drainEvents()

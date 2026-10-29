@@ -112,7 +112,10 @@ extension SelfTestRunner {
         check(heard && g.state.has("gw_end"), "bot: hears both accounts and reaches the end of the second world (the Glass Wood took \(Int((bot.elapsed - glassStart).rounded())) s of play, arrival to the second account)")
         collectGW(8)
         check(g.journal.collectedPages.map(\.number) == Array(1...8), "bot: every one of the eight pages was found by walking the normal route (\(g.journal.collectedPages.map(\.number)))")
-        check(g.gate.missing.isEmpty && g.gate.ilsePages == 4 && g.gate.orenPages == 4, "bot: the gate (S03.3) is satisfied by the normal route: altar solved, 4 Ilse pages and 4 Oren pages (it asks for 3 of each) (\(g.gate.missing))")
+        check(g.gate.missing == [.contradiction] && g.gate.ilsePages == 4 && g.gate.orenPages == 4, "bot: the normal route leaves the gate asking only for a contradiction: altar solved, 4 Ilse pages and 4 Oren pages (it asks for 3 of each) (\(g.gate.missing))")
+        // The Notebook's contradiction, settled through the real API from what the walk found: page 4 supports His, page 5 Hers, page 8 His (each press cycles unset -> Hers -> His).
+        for (page, presses) in [(4, 2), (5, 1), (8, 2)] { for _ in 0..<presses { g.cycleClaim("who-left", page: page) } }
+        check(g.isSettled("who-left") && g.gate.ready, "bot: and settling the contradiction from the pages it found makes the gate ready")
 
         // --- Home: back to the arrival ring and through it.
         check(bot.follow(Array(gp.reversed()), within: 3.0), "bot: walks the whole path back to the arrival pad")
