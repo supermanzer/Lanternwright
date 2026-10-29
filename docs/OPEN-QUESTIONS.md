@@ -24,6 +24,12 @@ Format: `### Q<n> (date, who): the question` then *Default taken*, *Where it liv
 *What changes if the answer differs:* a dwell time (a page counts only after N seconds) is a counter in `markShown()`.
 *Status:* open.
 
+### Q4 (2026-10-28, builder B, S03.3): what does the gate say is missing?
+*Default taken:* quiet lines by category, never a marker, none while the altar itself is what is missing: only Oren's pages found: "You have heard only him."; only Ilse's: "You have heard only her."; too little of both: "You have heard too little of either."; the contradiction (once S03.9 exists): "Two accounts, and nothing yet that tells them apart." Shown at the lens room ring (S03.5) and as a notebook line; not before the altar is solved.
+*Where it lives:* `Game/Gate.swift`: the four `cue...` constants and `GateState.cue(for:)`; the numbers are `GateState.pagesNeeded` (3) and `GateState.contradictionsNeeded` (1).
+*What changes if the answer differs:* editing the strings; or showing a cue earlier (before the altar) is one `guard` in `cue(for:)`.
+*Status:* open.
+
 ## Answered
 - 2026-10-28 S03 Oren's exit location: both exits at the original lighthouse; Oren's is a lens portal in the lens room, the dock arch is not an exit.
 - 2026-10-28 Page gate: 3 pages of each sibling.

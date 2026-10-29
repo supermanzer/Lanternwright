@@ -112,6 +112,7 @@ extension SelfTestRunner {
         check(heard && g.state.has("gw_end"), "bot: hears both accounts and reaches the end of the second world (the Glass Wood took \(Int((bot.elapsed - glassStart).rounded())) s of play, arrival to the second account)")
         collectGW(8)
         check(g.journal.collectedPages.map(\.number) == Array(1...8), "bot: every one of the eight pages was found by walking the normal route (\(g.journal.collectedPages.map(\.number)))")
+        check(g.gate.missing.isEmpty && g.gate.ilsePages == 4 && g.gate.orenPages == 4, "bot: the gate (S03.3) is satisfied by the normal route: altar solved, 4 Ilse pages and 4 Oren pages (it asks for 3 of each) (\(g.gate.missing))")
 
         // --- Home: back to the arrival ring and through it.
         check(bot.follow(Array(gp.reversed()), within: 3.0), "bot: walks the whole path back to the arrival pad")
