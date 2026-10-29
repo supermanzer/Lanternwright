@@ -110,11 +110,20 @@ fragment float4 water_fragment(WaterOut in [[stage_in]],
     if (!calmPool) {
         float filmY = in.seaY;
         if (groundH > -1.2) {
-            float2 gg = float2(terrain_sample(terrainTex, P.xz + float2(2.0, 0.0)).x - terrain_sample(terrainTex, P.xz - float2(2.0, 0.0)).x,
-                               terrain_sample(terrainTex, P.xz + float2(0.0, 2.0)).x - terrain_sample(terrainTex, P.xz - float2(0.0, 2.0)).x) / 4.0;
-            filmY = shore_sheet(in.seaY, groundH, shore_swash_edge(P.xz, t, length(gg)));
-        }
-        filmDepth = filmY - groundH;
+            // F05 W2 (#60): the swash's phase follows the beach's SLOPE (shallower beaches delay it by seconds), so the slope must be the beach's, not the pixel's: measured over +-16 m, neighbouring
+            // pixels share a phase and the waterline is one front that advances and retreats together. (Over +-2 m a sandbar's flanks had the phase of a steep beach and the flat behind it
+            // had a 12 s later one: a dry tongue stood inside the flooded beach.)
+            float2 gg = float2(terrain_sample(terrainTex, P.xz + float2(SHORE_SLOPE_BASE, 0.0)).x - terrain_sample(terrainTex, P.xz - float2(SHORE_SLOPE_BASE, 0.0)).x,
+                               terrain_sample(terrainTex, P.xz + float2(0.0, SHORE_SLOPE_BASE)).x - terrain_sample(terrainTex, P.xz - float2(0.0, SHORE_SLOPE_BASE)).x) / (2.0 * SHORE_SLOPE_BASE);
+            // The ground the swash is compared with is the beach's, not a ridge's: a sandbar or berm a few cm above its surroundings (smoothed over +-6 m) counts as only 4 cm above them, so the front
+            // covers it when it covers the beach around it, and it never stands dry inside a flooded beach (the water mesh lies 35 cm above the ground here and is drawn over it).
+            float tc = 0.25 * (terrain_sample(terrainTex, P.xz + float2(6.0, 0.0)).x + terrain_sample(terrainTex, P.xz - float2(6.0, 0.0)).x
+                             + terrain_sample(terrainTex, P.xz + float2(0.0, 6.0)).x + terrain_sample(terrainTex, P.xz - float2(0.0, 6.0)).x);
+            float tEff = min(groundH, tc + 0.04);
+            filmY = shore_sheet(in.seaY, tEff, shore_swash_edge(P.xz, t, length(gg)));
+            filmDepth = filmY - tEff;
+        } else { filmDepth = filmY - groundH; }
+
     }
     float cover = smoothstep(0.0, 0.02, filmDepth);
     if (cover <= 0.0) discard_fragment();

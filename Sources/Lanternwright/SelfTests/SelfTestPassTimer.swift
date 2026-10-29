@@ -444,3 +444,32 @@ extension SelfTestRunner {
         check(tail < (l.map { abs($0) }.max() ?? 1) * 0.5, "answerphrase: it rings out and does not drone (tail \(tail))")
     }
 }
+
+extension SelfTestRunner {
+    /// F05 W2/W3 (#60, #61): the swash's phase follows the beach's slope, so it must be the beach's slope: neighbouring points of the waterline band (2 m apart) get nearly the same swash delay when the slope is measured over `Shore.slopeBase`,
+    /// where the pixel's own +-2 m slope gave neighbours phases seconds apart (a dry tongue inside a flooded beach; arcs that stood still round the dock).
+    func runSwashCoherence() {
+        guard name == "all" || name == "swashcoherence" else { return }
+        guard let device = MTLCreateSystemDefaultDevice() else { check(false, "swashcoherence: no Metal device"); return }
+        guard let terrain = Scene.makeWorld(device: device).terrain else { check(false, "swashcoherence: no terrain"); return }
+        func slope(_ x: Float, _ z: Float, _ b: Float) -> Float {
+            let gx = (terrain.sampleHeight(x: x + b, z: z) - terrain.sampleHeight(x: x - b, z: z)) / (2 * b)
+            let gz = (terrain.sampleHeight(x: x, z: z + b) - terrain.sampleHeight(x: x, z: z - b)) / (2 * b)
+            return (gx * gx + gz * gz).squareRoot()
+        }
+        var worstNew: Float = 0, worstOld: Float = 0, n = 0
+        for xi in stride(from: Float(120), to: 260, by: 2) {
+            for zi in stride(from: Float(150), to: 290, by: 2) {
+                let h = terrain.sampleHeight(x: xi, z: zi)
+                guard h > -0.5 && h < 0.6 else { continue }                                             // the waterline band
+                n += 1
+                for (dx, dz) in [(Float(2), Float(0)), (0, 2)] {
+                    let d = { (b: Float) in abs(Shore.delay(depth: 0, slope: slope(xi, zi, b)) - Shore.delay(depth: 0, slope: slope(xi + dx, zi + dz, b))) }
+                    worstNew = max(worstNew, d(Shore.slopeBase)); worstOld = max(worstOld, d(2))
+                }
+            }
+        }
+        check(n > 200, "swashcoherence: \(n) waterline-band points sampled")
+        check(worstNew < 4, "swashcoherence: neighbouring waterline points differ by at most \(worstNew) s of swash delay with the beach-scale slope (the pixel-scale slope gave \(worstOld) s)")
+    }
+}

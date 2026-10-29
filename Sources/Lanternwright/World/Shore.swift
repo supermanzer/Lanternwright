@@ -17,6 +17,8 @@ enum Shore {
     static let slopeFloor: Float = 0.04
     static let maxDelay: Float = 20
     /// The swash cycle (s), the run-up of the biggest group (m above the sea) and the depth under which the swash takes the sheet over from the waves.
+    /// F05 W2: the half-width (m) over which the beach's slope is measured for the swash's delay: one front, not a phase per pixel.
+    static let slopeBase: Float = 16
     static let swashPeriod: Float = 7.3, swashMax: Float = 0.55, swashDepth: Float = 0.7
 
     /// Seconds a crest takes longer than deep-water travel to reach depth `h` (m) up a beach of slope `s`: the integral of (1/sqrt(g h) - 1/c0) along the way, for a
@@ -87,6 +89,7 @@ enum Shore {
     static var mslSource: String {
         """
         constant float SHORE_DEEP = \(deepDepth), SHORE_SLOPE_FLOOR = \(slopeFloor), SHORE_MAX_DELAY = \(maxDelay);
+        constant float SHORE_SLOPE_BASE = \(slopeBase);
         constant float SHORE_SWASH_PERIOD = \(swashPeriod), SHORE_SWASH_MAX = \(swashMax), SHORE_SWASH_DEPTH = \(swashDepth);
         inline float shore_delay(float h, float s) {
             float hh = clamp(h, 0.0, SHORE_DEEP);

@@ -22,7 +22,7 @@ extension SelfTestRunner {
         for k in 0..<4000 { let g = Shore.group(x: 100, z: 150, time: Float(k) * 0.5); lo = min(lo, g); hi = max(hi, g) }
         check(hi - lo > 0.4 && lo >= 0.29 && hi <= 1.0001, "wave groups: the run-up swings between \(String(format: "%.2f", lo)) and \(String(format: "%.2f", hi)) of its largest over half an hour")
         let msl = ShaderLibrary.sources.joined(separator: "\n")
-        check(msl.contains(Shore.mslSource) && msl.contains("shore_sheet(in.seaY, groundH, shore_swash_edge(P.xz, t, length(gg)))") && msl.contains("shore_swash_owns(gT.x)") && msl.contains("shore_wet_reach(P.xz, clock)") && msl.contains("float th = k * dot(d, xz) - omega * shTime;"), "the water vertex stage and the terrain shader use these functions (generated from the same constants)")
+        check(msl.contains(Shore.mslSource) && msl.contains("shore_sheet(in.seaY, tEff, shore_swash_edge(P.xz, t, length(gg)))") && msl.contains("shore_swash_owns(gT.x)") && msl.contains("shore_wet_reach(P.xz, clock)") && msl.contains("float th = k * dot(d, xz) - omega * shTime;"), "the water vertex stage and the terrain shader use these functions (generated from the same constants)")
         // On the real terrain: shoreline points all round the island.
         let scene = Scene.makeWorld(device: device)
         let t = scene.terrain!
