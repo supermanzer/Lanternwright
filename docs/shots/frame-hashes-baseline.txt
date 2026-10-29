@@ -1,5 +1,5 @@
-dock d5e1477f5aaf8acf
-overview d26d51e13de6b205
+dock 5232dedf2a5f9615
+overview 8ef7a3b16b2a395f
 shore b0e15b0a18339c8e
 summit 332f3cad0b16df06
 islet 533deecf20ac911d
@@ -8,13 +8,13 @@ lh-door b26f8557ea6facb8
 tree-at-14 2c0d287cca7af0dd
 ground-grass-5m dba7879a9ef1308f
 ground-sand-1m 37c54248897981a4
-dock-top 646c6d146a8efb50
+dock-top d17971cec879264c
 gw-arrival 0f64c7b6ca46a74c
 gw-overview 442bda970682176b
 gw-court fb7d2bda159498f3
 gw-altar b772ed69d6644639
 gw-mirrors 042ce2dd2ccdab84
-dock-taa 6230aae7353e28ce
+dock-taa 6085ad1276eba2eb
 shore-taa a11f4ab92300c569
 gw-court-taa 1a1028ee7e739308
 summit-beams 4aa61209142b5921
