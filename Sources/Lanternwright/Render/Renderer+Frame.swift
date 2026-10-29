@@ -49,7 +49,7 @@ extension Renderer {
             d.inputWidth = rw; d.inputHeight = rh; d.outputWidth = width; d.outputHeight = height
             d.colorTextureFormat = Renderer.hdrFormat; d.depthTextureFormat = Renderer.depthFormat
             d.motionTextureFormat = .rg16Float; d.outputTextureFormat = Renderer.hdrFormat
-            if let scaler = d.makeTemporalScaler(device: device) { temporalScaler = scaler; usage = scaler.outputTextureUsage }
+            if let scaler = d.makeTemporalScaler(device: device) { temporalScaler = scaler; usage = scaler.outputTextureUsage } else { scalerFailed = true; return ensureTargets(width: width, height: height) }
         }
         targets = RenderTargets(device: device, width: width, height: height, renderWidth: rw, renderHeight: rh, upscaleUsage: temporalScaler == nil ? nil : usage)
         taaHistoryValid = false; velocityHistoryValid = false; scalerHistoryValid = false
@@ -100,7 +100,14 @@ extension Renderer {
             }
             autoScale = adaptation.exposure
         }
-        frame.fogParams = SIMD4(wp.fogDensity, wp.fogFalloff, wp.exposure * autoScale, wp.bloom)
+        if let last = lastMarginClock {
+            let dt: Float = min(max(t - last, 0), 0.25)
+            let k: Float = 1 - exp(-dt)
+            marginCue += (marginPressure - marginCue) * k
+        }
+        lastMarginClock = t
+        let fogDensity: Float = wp.fogDensity * (1 + 0.15 * marginCue)
+        frame.fogParams = SIMD4(fogDensity, wp.fogFalloff, wp.exposure * autoScale, wp.bloom)
         frame.worldA = SIMD4(wp.starAmount, wp.lightDiskScale, wp.secondMoon?.radius ?? 0, wp.lightDiskRadius)
         if let m = wp.secondMoon {
             let d = Renderer.sunDirection(elevationDeg: m.elevation, azimuthDeg: m.azimuth)

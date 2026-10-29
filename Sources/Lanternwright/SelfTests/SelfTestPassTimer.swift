@@ -163,3 +163,45 @@ extension SelfTestRunner {
         check(scaled.passes.map(\.name).contains("metalfx") && Renderer.metalFXSupported, "upscale: the MetalFX pass is in the frame graph")
     }
 }
+
+extension SelfTestRunner {
+    /// G10.3.9: the margin cue. Nothing at pressure 0; at pressure 1 the fog is up to 15 % thicker (smoothed over about a second) and the ambience bed darker.
+    func runMarginCue() {
+        guard name == "all" || name == "margin" else { return }
+        guard let device = MTLCreateSystemDefaultDevice() else { check(false, "margin: no Metal device"); return }
+        let renderer = Renderer(device: device, options: LaunchOptions.parse(["lanternwright"]))
+        let cam = Camera(position: SIMD3(0, 3, 0), yaw: 0, pitch: 0)
+        func fog(at clock: Float) -> Float {
+            renderer.fixedTime = clock
+            renderer.updateFrame(camera: cam, width: 320, height: 180)
+            return renderer.frame.fogParams.x
+        }
+        let base = fog(at: 10)
+        renderer.marginPressure = 0
+        check(abs(fog(at: 11) - base) < 1e-7 && renderer.marginCue == 0, "margin: at pressure 0 the fog is untouched (\(base))")
+        renderer.marginPressure = 1
+        var t: Float = 11
+        var halfway: Float = 0
+        for k in 0..<5 { t += 0.25; let f = fog(at: t); if k == 3 { halfway = f } }            // one second of 0.25 s frames
+        check(halfway > base * 1.03 && halfway < base * 1.15, "margin: after a second at full pressure the fog is \(String(format: "%.1f", (halfway / base - 1) * 100)) % thicker, still easing in (under the 15 % limit)")
+        for _ in 0..<40 { t += 0.25; _ = fog(at: t) }
+        let full = fog(at: t + 0.25)
+        check(abs(full / base - 1.15) < 0.005, "margin: fully settled it is 15 % thicker (\(String(format: "%.3f", full / base)) x)")
+        renderer.marginPressure = 0
+        for _ in 0..<60 { t += 0.25; _ = fog(at: t) }
+        check(abs(fog(at: t + 0.25) / base - 1) < 0.002, "margin: back at pressure 0 the fog returns to its own value")
+        // The ambience bed: a low-pass that is silent at 0 and takes the high end off at full pressure.
+        func highShare(pressure: Float) -> Float {
+            let s = AmbienceSynth(sampleRate: 22050)
+            s.marginPressure = pressure
+            var l = [Float](repeating: 0, count: 22050 * 3), r = [Float](repeating: 0, count: 22050 * 3)
+            l.withUnsafeMutableBufferPointer { lp in r.withUnsafeMutableBufferPointer { rp in s.render(frames: 22050 * 3, left: lp.baseAddress!, right: rp.baseAddress!) } }
+            let tail = Array(l[22050...])
+            var diff: Float = 0, tot: Float = 0
+            for i in 2..<tail.count { let d2 = tail[i] - 2 * tail[i - 1] + tail[i - 2]; diff += d2 * d2; tot += tail[i] * tail[i] }       // the second difference: weighted toward the top of the spectrum
+            return diff / max(tot, 1e-12)
+        }
+        let open = highShare(pressure: 0), closed = highShare(pressure: 1)
+        check(closed < 0.9 * open, "margin: at full pressure the ambience bed is darker (high-frequency share \(String(format: "%.5f", closed)) against \(String(format: "%.5f", open)))")
+    }
+}

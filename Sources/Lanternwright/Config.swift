@@ -85,7 +85,7 @@ struct LaunchOptions {
       --parallax                   Walk 40 m north from (-39, 140) and report how far the rendered depth disagrees with a pinhole camera (F02 R2)
       --parallax-sea               Walk toward the sea and report how much the far water changes at the ocean disc's snap steps versus the others
       --shimmer-layers [N]         Shimmer attribution (G10.0.2): the same moving-world walk (wind on, clock advancing, TAA on) with each layer switched off in turn; ranked table
-      --render-scale <0.4-1>       Draw the scene at this fraction of the output size and upscale with MetalFX's temporal scaler (G10.4.1); 1 = native
+      --render-scale <0.4-1>       Draw the scene at this fraction of the output size and upscale with MetalFX's temporal scaler (G10.4.1); 1 = native (the TAA off/on columns of --shimmer are then identical: MetalFX runs either way)
       --banding                    Banding probe (G10.0.3): distinct 8-bit levels, largest step and longest run along smooth sky strips in the final image
       --layers-off <list>          Debug: switch off layers (grass,trees,water,glass,props,sky,shadows) for any view or tool
       --shimmer [N]                Measure the crawl of fine detail with TAA off and on against a supersampled reference (N frames, default 60)

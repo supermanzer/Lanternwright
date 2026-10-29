@@ -76,6 +76,7 @@ final class AudioEngine {
     /// Called every frame; does real work about 8 times a second (the wind is fed every frame).
     func update(now: Double, game: Game) {
         synth.windStrength = AudioEngine.windInput(game: game)
+        synth.marginPressure = game.player.marginPressure
         AudioEngine.feedWater(&water, into: synth, game: game)
         synth.vegetation = AudioEngine.vegetationInput(game: game)
         AudioEngine.feedSlide(into: synth, game: game)

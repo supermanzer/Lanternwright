@@ -174,6 +174,10 @@ final class AmbienceSynth {
     private var rng: [UInt32] = [0x1234567, 0x7654321]
     private var pink = [[Float]](repeating: [0, 0, 0], count: 2)
     private var windLP: [Float] = [0, 0]
+    /// G10.3.9: the margin cue darkens the ambience bed (a gentle low-pass, 12 kHz open down to 2.5 kHz at full pressure, smoothed over about a second) as the player nears the edge of the walkable region. Silent at 0.
+    var marginPressure: Float = 0
+    private var marginSm: Float = 0, marginCoef: Float = 1
+    private var marginLP: [Float] = [0, 0]
     private var brown: [Float] = [0, 0]
     private var surfLP1: [Float] = [0, 0]
     private var surfLP2: [Float] = [0, 0]
@@ -463,6 +467,12 @@ final class AmbienceSynth {
                 rumble = rumbleLP * e * 1.6
                 rumbleLeft -= dt
             }
+            marginSm += (marginPressure - marginSm) * (1 / sampleRate)
+            if marginSm > 0.001 {
+                if i & 63 == 0 { marginCoef = 1 - exp(-2 * .pi * (12000 - 9500 * marginSm) / sampleRate) }
+                marginLP[0] += marginCoef * (out[0] - marginLP[0]); marginLP[1] += marginCoef * (out[1] - marginLP[1])
+                out[0] = marginLP[0]; out[1] = marginLP[1]
+            } else { marginLP[0] = out[0]; marginLP[1] = out[1] }
             out[0] = out[0] * (1 - duckAmount) + bellL + rl * 0.4 + rumble
             out[1] = out[1] * (1 - duckAmount) + bellR + rr * 0.4 + rumble
             let slideOut = slide.next(speed: slideSpeed, gravel: slideGravel)                 // the gravel slide (F03 A3): silent unless slipping

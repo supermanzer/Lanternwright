@@ -67,9 +67,12 @@ enum Screenshot {
             let camera = Viewpoints.named(name) ?? Screenshot.viewCamera(name, renderer: renderer)
             var times: [Double] = []
             var passOrder: [String] = [], passSums: [String: Double] = [:], passFrames = 0
+            var cpuEncode: [Double] = []
             for i in 0..<((options.benchFrames ?? 60) + 5) {
                 guard let cb = renderer.queue.makeCommandBuffer() else { throw Failure.texture }
+                let encodeStart = DispatchTime.now().uptimeNanoseconds
                 renderer.encode(commandBuffer: cb, target: target, camera: camera)
+                if i >= 5 { cpuEncode.append(Double(DispatchTime.now().uptimeNanoseconds - encodeStart) / 1e6) }          // G10.3.4: CPU time to encode the frame
                 cb.commit(); cb.waitUntilCompleted()
                 if i >= 5 { times.append((cb.gpuEndTime - cb.gpuStartTime) * 1000) }      // skip warm-up frames
                 if let t = renderer.passTimer, i >= 5 {
@@ -82,6 +85,7 @@ enum Screenshot {
             let avg = times.reduce(0, +) / Double(times.count)
             print(String(format: "  %-9@ avg %.2f ms (%.0f fps)  median %.2f  worst %.2f  draws opaque %d shadow %d",
                          name as NSString, avg, 1000 / avg, times[times.count / 2], times.last!, renderer.lastOpaqueDraws, renderer.lastShadowDraws))
+            print(String(format: "      cpu encode %.3f ms (mean), %.3f ms (worst)", cpuEncode.reduce(0, +) / Double(max(cpuEncode.count, 1)), cpuEncode.max() ?? 0))
             if passFrames > 0 {
                 var total = 0.0
                 for pass in passOrder { let ms = passSums[pass]! / Double(passFrames); total += ms; print(String(format: "      %-22@ %6.3f ms  %4.1f %%", pass as NSString, ms, 100 * ms / avg)) }

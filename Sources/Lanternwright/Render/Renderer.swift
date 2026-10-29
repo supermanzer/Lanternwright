@@ -97,11 +97,18 @@ final class Renderer {
     let velocityPipeline: MTLRenderPipelineState
     /// G10.2.1: write the motion vector buffer (needed by MetalFX; off otherwise: no pass, no cost). `velocityPrevViewProj` is last frame's unjittered view-projection.
     var velocityEnabled = false
+    /// G10.3.9: the margin cue. `marginPressure` (0...1, Player.marginPressure: how far past the edge of the walkable corridor the player stands) thickens the fog by up to 15 %, smoothed
+    /// over about a second into `marginCue`, which `updateFrame` applies. Nothing at 0; tools that hold the clock still never move it.
+    var marginPressure: Float = 0
+    var marginCue: Float = 0
+    var lastMarginClock: Float?
     /// G10.4.1: the fraction of the output size the scene is drawn at. 1 = native (the temporal anti-aliasing resolves at the output size); below 1 the scene is drawn smaller and
     /// MetalFX's temporal scaler upscales it to the output (it replaces the native resolve, uses the motion vectors and the jitter), when the device supports it.
     var renderScale: Float = 1
     nonisolated(unsafe) static var metalFXSupported: Bool = { MTLCreateSystemDefaultDevice().map { MTLFXTemporalScalerDescriptor.supportsDevice($0) } ?? false }()
-    var metalFXActive: Bool { renderScale < 0.999 && Renderer.metalFXSupported }
+    var metalFXActive: Bool { renderScale < 0.999 && Renderer.metalFXSupported && !scalerFailed }
+    /// Set when the device said it supports the scaler but could not make one: the renderer then falls back to the native path instead of rebuilding its targets every frame.
+    var scalerFailed = false
     var temporalScaler: MTLFXTemporalScaler?
     var scalerHistoryValid = false
     /// The velocity pass runs when asked to (selftests, tools) and whenever MetalFX needs the vectors.
