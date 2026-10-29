@@ -368,6 +368,7 @@ final class OverlayView: NSView {
         taa.attributedTitle = NSAttributedString(string: "Smooth fine detail (anti-aliasing)", attributes: [.foregroundColor: NSColor.white.withAlphaComponent(0.85), .font: NSFont.systemFont(ofSize: 14)])
         let mfx = NSButton(checkboxWithTitle: "Sharper upscaling (MetalFX), when resolution is below 100 %", target: self, action: #selector(menuMetalFX))
         mfx.state = settings.metalFX ? .on : .off
+        mfx.isEnabled = Renderer.metalFXSupported          // greyed out where the device has no temporal scaler
         mfx.frame = NSRect(x: c.minX + 36, y: c.minY + 466, width: c.width - 72, height: 20)
         mfx.attributedTitle = NSAttributedString(string: "Sharper upscaling (MetalFX), when resolution is below 100 %", attributes: [.foregroundColor: NSColor.white.withAlphaComponent(0.85), .font: NSFont.systemFont(ofSize: 14)])
         let controls = NSButton(title: "Controls…", target: self, action: #selector(menuControls))
