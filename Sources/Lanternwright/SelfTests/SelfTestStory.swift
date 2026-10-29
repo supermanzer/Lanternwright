@@ -47,5 +47,52 @@ extension SelfTestRunner {
         check(b.chosenPath == nil && !b.state.has(Game.pathIlseFlag) && !b.state.has(Game.pathOrenFlag), "story: a save claiming both routes is treated as undecided, not as either")
         let kept = fresh(); kept.restore(e.makeSave())
         check(kept.chosenPath == .ilse && !kept.choosePath(.oren), "story: a route begun, saved and restored is still sealed against the other")
+
+        // S03.2: the journal's tabs. Pure state (JournalState), so none of it needs a window.
+        var j = JournalState()
+        check(j.visibleTabs == [.ilse, .notebook] && j.title(.ilse) == "Pages" && !j.hasUnread(.ilse) && !j.hasUnread(.oren) && !j.hasUnread(.notebook), "tabs: an empty journal shows Pages and Notebook, nothing unread")
+        j.isOpen = false
+        j.collect(2)
+        check(j.tab == .ilse && j.visibleTabs == [.ilse, .notebook] && j.title(.ilse) == "Ilse" && j.hasUnread(.ilse) && !j.hasUnread(.oren), "tabs: Ilse's first page names her tab, which is unread until it is shown")
+        j.markShown()
+        check(j.hasUnread(.ilse), "tabs: a page is not read while the journal is shut")
+        j.isOpen = true; j.markShown()
+        check(!j.hasUnread(.ilse), "tabs: it is read once it is in front of the player in the open journal")
+        j.collect(5)
+        check(j.tab == .oren && j.visibleTabs == [.ilse, .oren, .notebook] && j.hasUnread(.oren) && !j.hasUnread(.ilse), "tabs: Oren's first page opens his tab and marks only his tab")
+        check(j.pages(in: .oren).map(\.number) == [5] && j.pages(in: .ilse).map(\.number) == [2] && j.pages(in: .notebook).isEmpty, "tabs: each tab holds only its author's pages")
+        j.collect(1); j.collect(6)
+        j.flip(-9); check(j.tab == .oren && j.tabPages[j.current].number == 5, "tabs: flipping stays inside the tab")
+        j.flip(9); check(j.tabPages[j.current].number == 6, "tabs: and stops at its last page")
+        j.select(.ilse)
+        check(j.tab == .ilse && j.tabPages[j.current].number == 1, "tabs: selecting a tab opens its first unread page (Ilse's page 1)")
+        j.cycleTab(); check(j.tab == .oren, "tabs: Tab goes to the next visible tab")
+        j.cycleTab(); check(j.tab == .notebook, "tabs: and on to the notebook")
+        j.cycleTab(); check(j.tab == .ilse, "tabs: and round to the first")
+        var few = JournalState(); few.collect(1)
+        few.select(.oren); check(few.tab == .ilse, "tabs: a tab with nothing in it cannot be selected")
+        few.cycleTab(); few.cycleTab(); check(few.tab == .ilse, "tabs: and Tab skips it (Ilse, Notebook, round)")
+        // The notebook: a line added while it is not open marks the tab until it is shown.
+        var nb = JournalState(); nb.collect(1); nb.isOpen = true; nb.markShown()
+        nb.addNotebookEntry()
+        check(nb.hasUnread(.notebook), "tabs: a notebook line marks the notebook tab")
+        nb.markShown(); check(nb.hasUnread(.notebook), "tabs: showing the Pages tab does not clear it")
+        nb.select(.notebook); nb.markShown(); check(!nb.hasUnread(.notebook), "tabs: showing the notebook does")
+        // Nothing appears before the page is collected: no tab and no marker for a page that is not in the journal.
+        let none = JournalState()
+        check(!none.hasUnread(.ilse) && !none.hasUnread(.oren) && none.pages(in: .oren).isEmpty && !none.visibleTabs.contains(.oren), "tabs: no marker and no Oren tab before one of his pages is collected")
+        // In the game: a page restored from a save is read; a page picked up is not until the journal shows it.
+        let tg = fresh()
+        tg.restorePage(3); tg.restorePage(5)
+        check(!tg.journal.hasUnread(.ilse) && !tg.journal.hasUnread(.oren), "tabs: pages restored from a save count as read")
+        tg.restorePage(6, read: false)
+        check(tg.journal.hasUnread(.oren) && tg.journal.tab == .oren, "tabs: a page picked up opens its author's tab, unread")
+        tg.journal.isOpen = true
+        var idle = InputState(); idle.move = .zero
+        tg.advance(now: 500, input: idle)
+        check(!tg.journal.hasUnread(.oren), "tabs: the game marks the open page read on its next frame")
+        var tabKey = InputState(); tabKey.tabPressed = true
+        tg.advance(now: 500.1, input: tabKey)
+        check(tg.journal.tab == .notebook, "tabs: the Tab key moves along the visible tabs (Oren to Notebook)")
     }
 }

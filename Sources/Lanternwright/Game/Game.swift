@@ -202,9 +202,10 @@ final class Game {
     }
 
     /// Mark a page as already collected (loading a save): hides it and disables it, without opening the journal.
-    func restorePage(_ n: Int) {
+    func restorePage(_ n: Int, read: Bool = true) {
         state.set("page_\(n)")
         journal.collect(n)
+        if read { journal.markRead(n) }
         for sc in scenes.values {                                                      // the page lives in whichever world it belongs to
             sc.update("page_\(n)") { $0.hidden = true }                                  // the page itself goes into the journal
         }
@@ -212,8 +213,7 @@ final class Game {
     }
 
     private func collectPage(_ n: Int) {
-        restorePage(n)
-        journal.tab = .pages                       // F01 W7: a newly read page opens on the Pages tab, on that page, whatever tab was last used
+        restorePage(n, read: false)                // collect() put the journal on the page's author's tab, on that page, whatever tab was last used (F01 W7)
         journal.isOpen = true
         pending.append(.pageCollected(n))
         pending.append(.journalOpened)
@@ -352,8 +352,9 @@ final class Game {
         if input.feedbackPressed { pending.append(.feedbackRequested) }
         if input.journalPressed { toggleJournal() }
         if input.escapePressed && journal.isOpen { journal.isOpen = false; pending.append(.journalClosed) }
-        if journal.isOpen && input.tabPressed { journal.tab = journal.tab == .pages ? .notebook : .pages }
+        if journal.isOpen && input.tabPressed { journal.cycleTab() }
         if journal.isOpen && input.pageFlip != 0 { journal.flip(input.pageFlip) }
+        journal.markShown()
 
         player.applyLook(input.look * LookCloser.lookScale(zoom: zoomAmount), dt: dt, nav: journal.isOpen || isTraveling ? nil : Layout.Navigation.active(for: world), assistScale: LookCloser.lookScale(zoom: zoomAmount))     // slower aim when zoomed, so it stays controllable
         accumulator += dt

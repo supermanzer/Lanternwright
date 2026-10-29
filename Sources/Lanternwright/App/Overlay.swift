@@ -12,7 +12,10 @@ final class OverlayView: NSView {
     var promptDone = false
     var journalOpen = false
     var pages: [JournalPage] = []
-    var journalTab: JournalTab = .pages
+    var journalTab: JournalTab = .ilse
+    /// One tab on the journal's top edge (S03.2): its label and whether it holds something not yet read (a small amber diamond).
+    struct TabItem: Equatable { var tab: JournalTab; var title: String; var unread: Bool }
+    var tabItems: [TabItem] = [TabItem(tab: .ilse, title: "Pages", unread: false), TabItem(tab: .notebook, title: "Notebook", unread: false)]
     /// Notebook: per stone, whether its glyph has been seen / struck.
     var notebookSeen = [false, false, false]
     var notebookStruck = [false, false, false]
@@ -60,7 +63,7 @@ final class OverlayView: NSView {
 
     var onFlip: ((Int) -> Void)?
     var onClose: (() -> Void)?
-    var onTab: (() -> Void)?
+    var onTab: ((JournalTab) -> Void)?
     var onNotebookTone: ((Int) -> Void)?
 
     private var ring: CGFloat = 0           // 0 = dot, 1 = ring; eased toward the target
@@ -93,8 +96,13 @@ final class OverlayView: NSView {
     private var leftArrow: NSRect { NSRect(x: panel.minX + 24, y: panel.maxY - 66, width: 56, height: 36) }
     private var rightArrow: NSRect { NSRect(x: panel.maxX - 80, y: panel.maxY - 66, width: 56, height: 36) }
 
-    private var pagesTabRect: NSRect { NSRect(x: panel.minX + 24, y: panel.minY + 20, width: 90, height: 24) }
-    private var notebookTabRect: NSRect { NSRect(x: panel.minX + 118, y: panel.minY + 20, width: 100, height: 24) }
+    /// The i-th tab, left to right from the panel's corner; a tab is as wide as its label needs.
+    func tabRect(_ i: Int) -> NSRect {
+        func width(_ k: Int) -> CGFloat { max(72, 28 + 9.5 * CGFloat(tabItems[k].title.count)) }
+        var x = panel.minX + 24
+        for k in 0..<i { x += width(k) + 4 }
+        return NSRect(x: x, y: panel.minY + 20, width: width(i), height: 24)
+    }
     /// The three notebook cells, side by side.
     func notebookCell(_ i: Int) -> NSRect {
         let w = (panel.width - 96 - 2 * 24) / 3
@@ -106,7 +114,7 @@ final class OverlayView: NSView {
         if titleOpen { onBegin?(); return }
         guard journalOpen else { return }
         let p = convert(event.locationInWindow, from: nil)
-        if (pagesTabRect.contains(p) && journalTab == .notebook) || (notebookTabRect.contains(p) && journalTab == .pages) { onTab?(); return }
+        for (i, item) in tabItems.enumerated() where tabRect(i).contains(p) { if item.tab != journalTab { onTab?(item.tab) }; return }
         if journalTab == .notebook {
             for i in 0..<3 where notebookCell(i).contains(p) { onNotebookTone?(i); return }
             if !panel.contains(p) { onClose?() }
@@ -179,11 +187,16 @@ final class OverlayView: NSView {
         }
 
         // Tabs (top-left): the active one is inked, the other faded.
-        text("Pages", font: serif(16), color: journalTab == .pages ? ink : faded, in: pagesTabRect, align: .center)
-        text("Notebook", font: serif(16), color: journalTab == .notebook ? ink : faded, in: notebookTabRect, align: .center)
-        ink.withAlphaComponent(0.6).setFill()
-        let activeTab = journalTab == .pages ? pagesTabRect : notebookTabRect
-        NSRect(x: activeTab.minX + 8, y: activeTab.maxY, width: activeTab.width - 16, height: 1.5).fill()
+        for (i, item) in tabItems.enumerated() {
+            let r = tabRect(i)
+            text(item.title, font: serif(16), color: item.tab == journalTab ? ink : faded, in: r, align: .center)
+            if item.tab == journalTab { ink.withAlphaComponent(0.6).setFill(); NSRect(x: r.minX + 8, y: r.maxY, width: r.width - 16, height: 1.5).fill() }
+            if item.unread {          // an amber diamond at the tab's corner: something here has not been read
+                let d = NSBezierPath(), c = NSPoint(x: r.maxX - 6, y: r.minY + 3)
+                d.move(to: NSPoint(x: c.x, y: c.y - 4)); d.line(to: NSPoint(x: c.x + 4, y: c.y)); d.line(to: NSPoint(x: c.x, y: c.y + 4)); d.line(to: NSPoint(x: c.x - 4, y: c.y)); d.close()
+                NSColor(calibratedRed: 0.86, green: 0.58, blue: 0.16, alpha: 1).setFill(); d.fill()
+            }
+        }
 
         if journalTab == .notebook {
             drawNotebook(ink: ink, faded: faded, text: text)
@@ -193,8 +206,8 @@ final class OverlayView: NSView {
                  in: NSRect(x: p.minX + 60, y: p.minY + 130, width: p.width - 120, height: 120), align: .center, spacing: 6)
         } else {
             let page = pages[min(max(pageIndex, 0), pages.count - 1)]
-            text("The Keeper's Journal", font: serif(15), color: faded, in: NSRect(x: p.minX + 48, y: p.minY + 38, width: p.width - 96, height: 22), align: .center)
-            text("page \(toRoman(page.number))", font: .systemFont(ofSize: 12, weight: .medium), color: faded, in: NSRect(x: p.minX + 48, y: p.minY + 64, width: p.width - 96, height: 18), align: .center)
+            text(journalTab.heading, font: serif(15), color: faded, in: NSRect(x: p.minX + 48, y: p.minY + 46, width: p.width - 96, height: 22), align: .center)
+            text("page \(toRoman(page.number))", font: .systemFont(ofSize: 12, weight: .medium), color: faded, in: NSRect(x: p.minX + 48, y: p.minY + 72, width: p.width - 96, height: 18), align: .center)
             text(page.text, font: serif(24), color: ink, in: NSRect(x: p.minX + 56, y: p.minY + 110, width: p.width - 112, height: p.height - 210), spacing: 9)
             // Page dots + arrows.
             let dotsY = p.maxY - 50
@@ -207,7 +220,7 @@ final class OverlayView: NSView {
             text("‹", font: serif(34), color: pageIndex > 0 ? ink : faded.withAlphaComponent(0.2), in: leftArrow, align: .center)
             text("›", font: serif(34), color: pageIndex < pages.count - 1 ? ink : faded.withAlphaComponent(0.2), in: rightArrow, align: .center)
         }
-        if journalTab == .pages {
+        if journalTab != .notebook {
             text("← →  turn pages     Esc or J  close", font: .systemFont(ofSize: 11), color: faded,
                  in: NSRect(x: p.minX, y: p.maxY - 26, width: p.width, height: 16), align: .center)
         }
@@ -243,7 +256,7 @@ final class OverlayView: NSView {
                 text("not yet found", .systemFont(ofSize: 11), faded, NSRect(x: c.minX, y: c.minY + 206, width: c.width, height: 16), .center, 0)
             }
         }
-        text("Tab  back to the pages     Esc or J  close", .systemFont(ofSize: 11), faded, NSRect(x: p.minX, y: p.maxY - 26, width: p.width, height: 16), .center, 0)
+        text("Tab  next tab     Esc or J  close", .systemFont(ofSize: 11), faded, NSRect(x: p.minX, y: p.maxY - 26, width: p.width, height: 16), .center, 0)
     }
 
     /// A graphite-rubbing look of each glyph: the stone's carved shape, drawn with a rough stroke.
@@ -534,8 +547,11 @@ enum OverlayDump {
         }
         var v = make(); v.captured = true; v.prompt = "Touch the stone"; v.step(dt: 1)
         try v.snapshot(to: base + "-crosshair.png")
-        v = make(); v.journalOpen = true; v.pages = JournalContent.pages; v.pageIndex = 2
+        let tabs = { (ilse: Bool, oren: Bool, notebook: Bool) in [OverlayView.TabItem(tab: .ilse, title: "Ilse", unread: ilse), OverlayView.TabItem(tab: .oren, title: "Oren", unread: oren), OverlayView.TabItem(tab: .notebook, title: "Notebook", unread: notebook)] }
+        v = make(); v.journalOpen = true; v.pages = JournalContent.pages.filter { $0.number <= 4 }; v.pageIndex = 2; v.tabItems = tabs(false, true, false)       // S03.2: Oren's tab has a page not read yet
         try v.snapshot(to: base + "-journal.png")
+        v = make(); v.journalOpen = true; v.journalTab = .oren; v.pages = JournalContent.pages.filter { $0.number >= 5 }; v.pageIndex = 0; v.tabItems = tabs(true, false, true)
+        try v.snapshot(to: base + "-journal-oren.png")
         v = make(); v.journalOpen = true
         try v.snapshot(to: base + "-journal-empty.png")
         v = make(); v.journalOpen = true; v.journalTab = .notebook; v.notebookSeen = [true, true, false]; v.notebookStruck = [true, false, false]
