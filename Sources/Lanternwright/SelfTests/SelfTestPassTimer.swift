@@ -236,3 +236,24 @@ extension SelfTestRunner {
         check(abs(wrap(BeamSignal.pose(clock: 9.99).heading - BeamSignal.pose(clock: 10.01).heading)) < 0.02, "beamsignal: the second sweep ends on the trail heading where the rest begins")
     }
 }
+
+extension SelfTestRunner {
+    /// S03.6 prerequisite: the door leaf is its own scene item that swings about its hinge; the tower no longer carries the planks.
+    func runDoorLeaf() {
+        guard name == "all" || name == "doorleaf" else { return }
+        guard let device = MTLCreateSystemDefaultDevice() else { check(false, "doorleaf: no Metal device"); return }
+        let sc = Scene.makeWorld(device: device)
+        guard let leaf = sc.items.first(where: { $0.name == "lh_door_leaf" }), let tower = sc.items.first(where: { $0.name == "lighthouse" }) else { check(false, "doorleaf: lh_door_leaf or lighthouse missing"); return }
+        let rd = Lighthouse.wallR(2.0)
+        check(leaf.uniforms.model == translation(Layout.lighthouse) && leaf.mesh.indexCount > 0 && leaf.mesh.indexCount < tower.mesh.indexCount / 4, "doorleaf: closed, the leaf sits in the tower's own frame (\(leaf.mesh.indexCount / 3) triangles, the tower \(tower.mesh.indexCount / 3))")
+        let lo = leaf.mesh.boundsMin, hi = leaf.mesh.boundsMax
+        check(lo.x > -0.7 && hi.x < 0.7 && lo.y >= Lighthouse.baseY - 0.01 && hi.y < Lighthouse.baseY + 2.6 && lo.z > rd - 0.3 && hi.z < rd + 0.3,
+              "doorleaf: the leaf's mesh fills the door opening (x \(String(format: "%.2f", lo.x)) to \(String(format: "%.2f", hi.x)), up to \(String(format: "%.2f", hi.y - Lighthouse.baseY)) m, z \(String(format: "%.2f", lo.z)) to \(String(format: "%.2f", hi.z)))")
+        // Swung 90 degrees the free edge is 1.1 m out from the face, the hinge edge has not moved.
+        var open = leaf; open.uniforms.model = Lighthouse.doorLeafModel(open: .pi / 2)
+        let b = open.worldBounds
+        check(b.max.z > Layout.lighthouse.z + rd + 0.9 && abs(b.min.x - (Layout.lighthouse.x - 0.55 - 0.1)) < 0.25,
+              "doorleaf: opened 90 degrees the leaf swings outward from the hinge (world z up to \(String(format: "%.2f", b.max.z - Layout.lighthouse.z - rd)) m past the face, hinge edge x \(String(format: "%.2f", b.min.x - Layout.lighthouse.x)))")
+        check(Lighthouse.doorLeafModel(open: 0) == translation(Layout.lighthouse), "doorleaf: angle 0 is exactly the closed model")
+    }
+}

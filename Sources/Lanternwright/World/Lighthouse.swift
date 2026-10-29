@@ -25,6 +25,13 @@ enum Lighthouse {
         return 4.2 - 1.4 * t + 0.07 * sin(.pi * t)
     }
 
+    /// The door leaf's hinge, in the tower's local frame: its left edge (x = -0.55, the leaf is 1.1 m wide), on the line through the door's face at wallR(2.0) + 0.02.
+    static var doorHinge: SIMD3<Float> { SIMD3(-0.55, baseY, wallR(2.0) + 0.02) }
+    /// The model matrix of `lh_door_leaf` with the door swung `angle` radians about its hinge (0 = closed; positive swings the free edge outward, toward +z, the way the door opens to the player).
+    static func doorLeafModel(open angle: Float) -> float4x4 {
+        translation(Layout.lighthouse) * translation(doorHinge) * rotationY(-angle) * translation(-doorHinge)
+    }
+
     static func build(into scene: Scene, device: MTLDevice) {
         let granite = Surface(color: SIMD3(0.47, 0.44, 0.41), roughness: 0.9, material: .masonry)
         let graniteDark = Surface(color: SIMD3(0.36, 0.34, 0.32), roughness: 0.9, material: .masonry)
@@ -35,6 +42,7 @@ enum Lighthouse {
         let copper = Surface(color: SIMD3(0.5, 0.4, 0.3), roughness: 0.5, material: .copper)
         let glassDark = Surface(color: SIMD3(0.015, 0.02, 0.03), roughness: 0.08)
         var b = MeshBuilder()
+        var leaf = MeshBuilder()          // S03.6: the planked door (planks, straps, studs, hinge pins, escutcheon, keyhole, ring) is its own scene item, `lh_door_leaf`, so it can swing open
         let seg = segments
 
         // ---- Plinth: three granite steps sunk into the ground (the base is buried, so the terrain pad shows no ring).
@@ -70,24 +78,24 @@ enum Lighthouse {
         b.arch(width: doorW + 0.06, height: doorH + 0.03, depth: 0.7, voussoirs: 11, blockHeight: 0.40, surface: dressed,
                transform: translation(SIMD3(0, baseY, rd + 0.05)))
         let spring = doorH - doorW / 2
-        b.box(size: SIMD3(doorW + 0.04, spring, 0.12), surface: wood, transform: translation(SIMD3(0, baseY + spring / 2, rd + 0.02)))
-        b.cylinder(radiusTop: doorW / 2 + 0.02, radiusBottom: doorW / 2 + 0.02, height: 0.12, segments: 24, smooth: true, surface: wood,
+        leaf.box(size: SIMD3(doorW + 0.04, spring, 0.12), surface: wood, transform: translation(SIMD3(0, baseY + spring / 2, rd + 0.02)))
+        leaf.cylinder(radiusTop: doorW / 2 + 0.02, radiusBottom: doorW / 2 + 0.02, height: 0.12, segments: 24, smooth: true, surface: wood,
                    transform: translation(SIMD3(0, baseY + spring, rd - 0.04)) * rotationX(.pi / 2) * translation(SIMD3(0, -0.12, 0)))
         for yStrap: Float in [0.35, 1.05, 1.75] {
-            b.box(size: SIMD3(doorW + 0.06, 0.13, 0.03), surface: iron, transform: translation(SIMD3(0, baseY + yStrap, rd + 0.095)))
+            leaf.box(size: SIMD3(doorW + 0.06, 0.13, 0.03), surface: iron, transform: translation(SIMD3(0, baseY + yStrap, rd + 0.095)))
             for sx: Float in [-0.42, -0.21, 0, 0.21, 0.42] {
-                b.sphere(radius: 0.028, segments: 8, surface: iron, transform: translation(SIMD3(sx, baseY + yStrap, rd + 0.115)))
+                leaf.sphere(radius: 0.028, segments: 8, surface: iron, transform: translation(SIMD3(sx, baseY + yStrap, rd + 0.115)))
             }
             for hs: Float in [-1, 1] {
-                b.cylinder(radiusTop: 0.035, radiusBottom: 0.035, height: 0.16, segments: 8, smooth: true, surface: iron,
+                leaf.cylinder(radiusTop: 0.035, radiusBottom: 0.035, height: 0.16, segments: 8, smooth: true, surface: iron,
                            transform: translation(SIMD3(hs * (doorW / 2 + 0.03), baseY + yStrap - 0.08, rd + 0.09)))
             }
         }
-        b.cylinder(radiusTop: 0.095, radiusBottom: 0.095, height: 0.022, segments: 20, smooth: true, surface: iron,
+        leaf.cylinder(radiusTop: 0.095, radiusBottom: 0.095, height: 0.022, segments: 20, smooth: true, surface: iron,
                    transform: translation(SIMD3(0.3, baseY + 0.95, rd + 0.085)) * rotationX(.pi / 2))                                    // escutcheon plate
-        b.chamferBox(size: SIMD3(0.05, 0.12, 0.02), chamfer: 0.006, surface: iron, transform: translation(SIMD3(0.3, baseY + 0.72, rd + 0.088)))              // a keyhole plate
-        b.cylinder(radiusTop: 0.012, radiusBottom: 0.012, height: 0.01, segments: 8, smooth: true, surface: Surface(color: SIMD3(0.01, 0.01, 0.01), roughness: 1), transform: translation(SIMD3(0.3, baseY + 0.74, rd + 0.099)) * rotationX(.pi / 2))
-        b.torus(major: 0.085, minor: 0.012, segments: 24, sides: 8, surface: iron,
+        leaf.chamferBox(size: SIMD3(0.05, 0.12, 0.02), chamfer: 0.006, surface: iron, transform: translation(SIMD3(0.3, baseY + 0.72, rd + 0.088)))              // a keyhole plate
+        leaf.cylinder(radiusTop: 0.012, radiusBottom: 0.012, height: 0.01, segments: 8, smooth: true, surface: Surface(color: SIMD3(0.01, 0.01, 0.01), roughness: 1), transform: translation(SIMD3(0.3, baseY + 0.74, rd + 0.099)) * rotationX(.pi / 2))
+        leaf.torus(major: 0.085, minor: 0.012, segments: 24, sides: 8, surface: iron,
                 transform: translation(SIMD3(0.3, baseY + 0.95, rd + 0.125)) * rotationX(.pi / 2))                                       // ring handle
         b.chamferBox(size: SIMD3(1.7, 0.14, 0.78), chamfer: 0.025, surface: dressedDark, transform: translation(SIMD3(0, baseY - 0.07, rd + 0.42)))   // worn threshold
         // Four approach steps (their tops are also registered as walkable platforms, see below).
@@ -176,5 +184,6 @@ enum Lighthouse {
         b.sphere(radius: 0.035, segments: 8, surface: iron, transform: translation(SIMD3(0, topPt.y + 1.52, 0)))
 
         scene.add("lighthouse", mesh: b.build(device: device, label: "lighthouse"), uniforms: ObjectUniforms(model: translation(Layout.lighthouse)))
+        scene.add("lh_door_leaf", mesh: leaf.build(device: device, label: "lh_door_leaf"), uniforms: ObjectUniforms(model: doorLeafModel(open: 0)))
     }
 }
