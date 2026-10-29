@@ -17,7 +17,7 @@ struct DrawItem {
     var lightOnly = false
     var castsShadow: Bool { !refractive && !lightOnly && uniforms.emissive.w < 3 }
     static func isLightOnly(_ name: String) -> Bool {
-        name.hasPrefix("beam_") || name.hasPrefix("gw_beam_") || name.hasPrefix("gw_column") || name == "gw_altar_glow" || name == "lantern_cores" || name == "lens_core" || name == "lens_ring"
+        name.hasPrefix("beam_") || name.hasPrefix("gw_beam_") || name.hasPrefix("gw_column") || name == "gw_altar_glow" || name.hasPrefix(LanternChain.coreName) || name == "lens_core" || name == "lens_ring"
             || name == "gw_return_core" || name == "gw_return_ring" || name == "gw_source" || name == "gw_lamps" || (name.hasPrefix("gw_pane_") && name.hasSuffix("_marker"))
     }
 

@@ -46,7 +46,7 @@ enum PropAudit {
         let flagged = rows.filter(\.largeFlat)
         s += "## Large flat props: \(flagged.count)\n\n"
         for r in flagged { s += "- `\(r.world)/\(r.name)`: \(r.triangles) triangles, \(fmt(r.size)) m, flat \(Int(r.flatShare * 100)) %\n" }
-        let flatBatches = rows.filter { $0.merged && $0.flatShare > 0.6 && !$0.name.hasPrefix("gw_lamps") && !$0.name.hasPrefix("lantern_cores") && !$0.name.contains("_L1_") && !$0.name.contains("_L2_") && !$0.name.hasPrefix("crystals") }
+        let flatBatches = rows.filter { $0.merged && $0.flatShare > 0.6 && !$0.name.hasPrefix("gw_lamps") && !$0.name.hasPrefix(LanternChain.coreName) && !$0.name.contains("_L1_") && !$0.name.contains("_L2_") && !$0.name.hasPrefix("crystals") }
         s += "\n## Merged batches drawn mostly flat: \(flatBatches.count)\n\n"
         for r in flatBatches { s += "- `\(r.world)/\(r.name)`: \(r.triangles) triangles, flat \(Int(r.flatShare * 100)) %\n" }
         s += "\n## Every item\n\n| world | item | triangles | size (m) | flat | materials |\n|---|---|---|---|---|---|\n"

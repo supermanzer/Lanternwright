@@ -294,6 +294,21 @@ final class Game {
     var lighthouseSignal: Bool { hasReturned }
     private var doorNoteShown = false
 
+    /// The "follow the light" lead: on the moment of the return (not when a save loads with the altar already solved) the trail's lanterns flare one after another toward the lighthouse (`LanternChain`).
+    private var returnSeen: Bool?
+    private var chainStart: Float?
+    private var chainLanterns = 0
+    private func syncLanternChain() {
+        let now = hasReturned
+        defer { returnSeen = now }
+        if returnSeen == false && now { chainStart = time }
+        guard let t0 = chainStart, let sc = scenes[.varrow] else { return }
+        if chainLanterns == 0 { chainLanterns = sc.items.filter { $0.name.hasPrefix(LanternChain.coreName) }.count }
+        let t = time - t0, finished = t > LanternChain.total(count: chainLanterns)
+        for k in 0..<chainLanterns { sc.update("\(LanternChain.coreName)\(k)") { $0.uniforms.emissive.w = finished ? LanternChain.baseGlow : LanternChain.glow(index: k, time: t) } }
+        if finished { chainStart = nil }
+    }
+
     /// Show the note on the door (and let it be read) exactly while the player has returned; hide it again in the Glass Wood.
     private func syncDoorNote() {
         let on = hasReturned && !state.has(Game.doorOpenFlag)                  // the note goes with the door when it opens
@@ -470,6 +485,7 @@ final class Game {
         else if !journal.isOpen && input.pageFlip != 0 && hovered?.id == "lens_ring" { lensPortal.turn(input.pageFlip) }       // the arrow keys turn the ring while it is under the crosshair
         journal.markShown()
         syncDoorNote()
+        syncLanternChain()
         syncInterior()
         syncSeals()
         checkPortalStep()

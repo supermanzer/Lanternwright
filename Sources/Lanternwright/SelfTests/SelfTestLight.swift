@@ -15,7 +15,7 @@ extension SelfTestRunner {
         let glowing = drawn.filter { $0.lightOnly || $0.uniforms.emissive.w >= 3 }.map(\.name)
         check(glowing.isEmpty, "light: no light-only item and no blazing emitter is in the shadow draw list (offenders: \(glowing.prefix(5)))")
         let silent = Set((lit.items + home.items).filter { !$0.castsShadow }.map(\.name))
-        let mustBe = ["gw_column_altar", "gw_column", "gw_column_chimes", "gw_altar_glow", "gw_beam_0", "beam_tide", "beam_wind", "beam_stone", "lantern_cores", "lens_core", "lens_ring", "gw_return_core", "gw_source"]
+        let mustBe = ["gw_column_altar", "gw_column", "gw_column_chimes", "gw_altar_glow", "gw_beam_0", "beam_tide", "beam_wind", "beam_stone", "\(LanternChain.coreName)0", "lens_core", "lens_ring", "gw_return_core", "gw_source"]
         check(mustBe.allSatisfy { silent.contains($0) }, "light: the beams, columns of light, altar glow, lantern cores, lens and rings are among the \(silent.count) non-casting items (missing: \(mustBe.filter { !silent.contains($0) }))")
         // The solid things around them still cast: the altar's dais and the pillars, the lighthouse, the stones, the dock.
         let casters = Set((lit.items + home.items).filter { $0.castsShadow }.map(\.name))

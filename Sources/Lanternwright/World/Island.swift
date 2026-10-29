@@ -158,7 +158,8 @@ enum Island {
     /// from any lantern you can see the next one, and they pass by every resonance stone in order.
     static func addLanterns(_ scene: Scene, device: MTLDevice) {
         let (bodyProto, coreProto) = Props.stoneLantern()
-        var body = MeshBuilder(), core = MeshBuilder()
+        var body = MeshBuilder()
+        var cores: [float4x4] = []                // one light core per lantern, in route order: each is its own item so the return can light them one after another (`LanternChain`)
         var side: Float = 1
         let pts = Layout.route.map { SIMD2($0.x, $0.z) }
         var carried: Float = 9           // start the first lantern 9 m along so none sits on the dock pad
@@ -179,7 +180,7 @@ enum Island {
                     let up = Placement.upright(terrain: scene.terrain, x: c.x, z: c.y, radius: 0.36, yaw: yaw)
                     let m = up.transform
                     body.append(bodyProto, transform: m)
-                    core.append(coreProto, transform: m)
+                    cores.append(m)
                     // The lantern's base is a 0.55 m square stone block: the footing is that same block carried straight down (no flare, no apron).
                     var foot = MeshBuilder()
                     let drop = up.depth + 0.3
@@ -194,8 +195,12 @@ enum Island {
             carried = s - len
         }
         scene.add("lanterns", mesh: body.build(device: device, label: "lanterns"))
-        scene.add("lantern_cores", mesh: core.build(device: device, label: "lantern_cores"),
-                  uniforms: ObjectUniforms(model: matrix_identity_float4x4, tint: SIMD4(1, 1, 1, 1), emissive: SIMD4(1.0, 0.62, 0.25, 8)))
+        for (k, m) in cores.enumerated() {
+            var core = MeshBuilder()
+            core.append(coreProto, transform: m)
+            scene.add("\(LanternChain.coreName)\(k)", mesh: core.build(device: device, label: "lantern core"),
+                      uniforms: ObjectUniforms(model: matrix_identity_float4x4, tint: SIMD4(1, 1, 1, 1), emissive: SIMD4(1.0, 0.62, 0.25, LanternChain.baseGlow)))
+        }
     }
 
     // MARK: Rocks

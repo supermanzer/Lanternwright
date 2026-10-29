@@ -380,3 +380,25 @@ extension SelfTestRunner {
         check(total(2) < total(5) && total(5) < total(15) && abs(total(15) - total(40)) < 1e-4, "windowshafts: more light as the sun rises, then a plateau above about 7 degrees (\(total(2)), \(total(5)), \(total(15)), \(total(40)))")
     }
 }
+
+extension SelfTestRunner {
+    /// S03.4 lantern chain: each lantern's light core is its own item in route order; the flare is a pure function of the time since the return: nothing before it, one lantern after another `step` apart, all back to the base glow afterwards.
+    func runLanternChain() {
+        guard name == "all" || name == "lanternchain" else { return }
+        guard let device = MTLCreateSystemDefaultDevice() else { check(false, "lanternchain: no Metal device"); return }
+        let sc = Scene.makeWorld(device: device)
+        let cores = sc.items.filter { $0.name.hasPrefix(LanternChain.coreName) }
+        let names = Set(cores.map(\.name))
+        check(cores.count >= 10 && (0..<cores.count).allSatisfy { names.contains("\(LanternChain.coreName)\($0)") }, "lanternchain: \(cores.count) lantern cores, numbered without gaps")
+        check(cores.count == sc.placed.filter { $0.kind == "lantern" }.count, "lanternchain: one core per placed lantern")
+        check(cores.allSatisfy { $0.uniforms.emissive.w == LanternChain.baseGlow && !$0.castsShadow }, "lanternchain: every core starts at the base glow and casts no shadow")
+        check(LanternChain.glow(index: 0, time: -1) == LanternChain.baseGlow && LanternChain.glow(index: 5, time: 0.5) == LanternChain.baseGlow, "lanternchain: nothing before the return, and lantern 5 waits for its turn")
+        let peak = (0..<20).map { LanternChain.glow(index: 3, time: 3 * LanternChain.step + Float($0) * 0.08) }.max()!
+        check(peak > LanternChain.baseGlow + 0.9 * LanternChain.flareGlow && peak <= LanternChain.baseGlow + LanternChain.flareGlow + 1e-4, "lanternchain: a lantern's flare peaks at \(peak)")
+        var order = true
+        for k in 0..<8 { if LanternChain.glow(index: k, time: Float(k) * LanternChain.step + 0.25) < LanternChain.glow(index: k + 1, time: Float(k) * LanternChain.step + 0.25) { order = false } }
+        check(order, "lanternchain: the lanterns flare in route order")
+        let end = LanternChain.total(count: cores.count)
+        check((0..<cores.count).allSatisfy { LanternChain.glow(index: $0, time: end + 0.01) == LanternChain.baseGlow }, "lanternchain: every lantern is back to the base glow after \(end) s")
+    }
+}
