@@ -50,8 +50,29 @@ extension SelfTestRunner {
         check(lastLoud < 0.30, "the whole rattle has decayed (-40 dB) within 300 ms of the knock (\(String(format: "%.0f", lastLoud * 1000)) ms)")
         let whole = Foley.doorLocked(strength: 1, sampleRate: sr)
         let wholeSp = A.spectrum(whole)
-        let prom = A.tonalProminence([knock1, rat[2], whole])
+        let prom = A.tonalProminence([knock1, rat[2]])
         check(prom < 4.0, "the wood-on-stone part has no tonal ringing: no spectral line stands out (prominence \(String(format: "%.2f", prom)); a bell is 10+)")
+        // F05 A1 (#63): the iron ring's clank is metal, not a beep: noise through inharmonic resonances, no line standing 6 dB (a factor 4) over its neighbours, its energy in 1-4.2 kHz with a low "tock" under it,
+        // each hit gone quickly, 3 to 5 hits, and the event never has a pure tone (a bin ratio over 4) at any strength.
+        let clankTimes: [Int] = [3, 4, 5]
+        let clanks = clankTimes.map { Foley.ironClank(hits: $0, strength: 1, sampleRate: sr) }
+        let clankSp = A.spectrum(clanks[1])
+        let clankPeak = clanks[1].map { abs($0) }.max() ?? 0, clankTail = clanks[1][Int(0.36 * sr)...].map { abs($0) }.max() ?? 1
+        let clankHi = A.band(clankSp, 1000, 4400) / max(A.band(clankSp, 40, 9000), 1e-12)
+        // "No tone above 6 dB over its neighbours", judged in one-third-octave bands (a pitch is a band that stands out; a 40 Hz bin of a short noise burst varies by chance): every band from 300 Hz to 6 kHz of the
+        // whole event, at three strengths, is within 6 dB of the louder of the two bands beside it.
+        func bandRise(_ x: [Float]) -> Float {
+            let sp = A.spectrum(x)
+            var e: [Float] = [], fc: Float = 300
+            while fc <= 6000 { e.append(A.band(sp, fc / pow(2, 1.0 / 6), fc * pow(2, 1.0 / 6))); fc *= pow(2, 1.0 / 3) }
+            var worst: Float = 0
+            for i in 1..<(e.count - 1) { worst = max(worst, e[i] / max(max(e[i - 1], e[i + 1]), 1e-20)) }
+            return 10 * log10(worst)
+        }
+        let rise = [0.2, 0.6, 1.0].map { bandRise(Foley.doorLocked(strength: $0, sampleRate: sr)) } + [bandRise(clanks[1])]
+        check(rise.allSatisfy { $0 < 6 }, "the door event has no tone: no one-third-octave band from 300 Hz to 6 kHz stands more than 6 dB over its neighbours (worst \(rise.map { String(format: "%.1f", $0) }) dB at strengths 0.2, 0.6, 1 and for the clank alone)")
+        check(clankHi > 0.45 && clankPeak > 0.02 && clankPeak < 0.9 && clankTail < 0.05 * clankPeak, "the clank is a metal band: \(Int(clankHi * 100)) % of its power in 1-4.4 kHz, audible (peak \(String(format: "%.3f", clankPeak))) and gone by 0.36 s (tail \(String(format: "%.4f", clankTail)))")
+        check(clanks.allSatisfy { $0.allSatisfy { $0.isFinite } } && Foley.ironClank(hits: 4, strength: 1, sampleRate: sr) == clanks[1], "the clank is finite and reproducible (a fixed seed)")
         let rmsHard = Self.rms(Foley.doorLocked(strength: 1, sampleRate: sr)), rmsSoft = Self.rms(Foley.doorLocked(strength: 0.2, sampleRate: sr))
         check(rmsHard > 1.6 * rmsSoft && wholeSp.allSatisfy { $0.isFinite }, "a harder, longer attempt is louder (rms \(String(format: "%.4f", rmsHard)) against \(String(format: "%.4f", rmsSoft)) for a first light try) and everything is finite")
         _ = knock3
@@ -175,8 +196,8 @@ extension SelfTestRunner {
             var l = [Float](repeating: 0, count: 64), r = [Float](repeating: 0, count: 64)
             l.withUnsafeMutableBufferPointer { lp in r.withUnsafeMutableBufferPointer { rp in s.render(frames: 64, left: lp.baseAddress!, right: rp.baseAddress!) } }
             let delays = s.chimeDelaysForTest
-            check(s.foleyCountForTest == 1 && delays.count == 4 && delays.allSatisfy { $0 >= Foley.jangleDelay - 0.01 } && Foley.jangleDelay >= 0.1 && Foley.jangleDelay <= 0.2,
-                  "through the synth: one wood-on-stone one-shot plays at once and the four-tap pull-ring jangle waits \(String(format: "%.2f", Foley.jangleDelay)) s (delays \(delays.map { String(format: "%.2f", $0) }))")
+            check(s.foleyCountForTest == 1 && delays.isEmpty && Foley.jangleDelay >= 0.1 && Foley.jangleDelay <= 0.2,
+                  "through the synth: the whole event (knock, rattle and the iron ring's clank after \(String(format: "%.2f", Foley.jangleDelay)) s) is ONE toneless one-shot and no tonal chime voice plays with it (chime voices \(delays.count))")
         }
     }
 }

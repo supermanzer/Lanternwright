@@ -239,12 +239,8 @@ final class AmbienceSynth {
             }
         case .doorLocked:
             // F03 A2 (#44): the door shifts and hits the stone reveal (a dull thunk and a short transient), the planks and ironwork rattle loose (2-4 quick damped impacts),
-            // and THEN the pull ring jangles, a moment later. How hard the attempt was (`doorStrength`) scales all of it. The wood-on-stone part is noise, not a tone.
+            // and THEN the iron pull ring clanks, a moment later (F05 A1: all of it is `Foley.doorLocked`, noise-built and toneless). How hard the attempt was (`doorStrength`) scales all of it.
             playFoley(Foley.doorLocked(strength: doorStrength, sampleRate: sampleRate), gain: 1, pan: 0)
-            let jd = Foley.jangleDelay
-            for (i, hz) in [Float(1850), 2400, 1650, 2750].enumerated() {                                                                                                    // the latch: four small bright taps
-                chimes.append(ChimeVoice(delay: jd + Float(i) * 0.055 + 0.015 * Float(i % 2), f0: hz, gain: 0.07 * (0.6 + 0.4 * doorStrength), partials: [Partial(ratio: 1, gain: 1, decay: 0.035), Partial(ratio: 3.1, gain: 0.4, decay: 0.02)], pan: 0))
-            }
         case .answer:
             for (i, f) in ToneTable.answerHz.enumerated() {
                 chimes.append(bell(f, gain: i == ToneTable.answerHz.count - 1 ? 0.24 : 0.2, decayScale: i == ToneTable.answerHz.count - 1 ? 2.0 : 1.4, delay: ToneTable.answerDelays[i], pan: 0.1 * Float(i % 2 == 0 ? 1 : -1)))

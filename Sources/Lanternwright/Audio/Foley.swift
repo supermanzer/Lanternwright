@@ -78,15 +78,51 @@ enum Foley {
         return (out, times)
     }
 
-    /// The whole wood-on-stone event: the knock, then the rattle. How many rattles follow depends on how hard the attempt was.
-    static func doorLocked(strength: Float, sampleRate sr: Float) -> [Float] {
-        let knock = doorKnock(strength: strength, sampleRate: sr)
-        let rattle = doorRattle(count: 2 + Int(min(max(strength, 0), 0.999) * 3), strength: strength, sampleRate: sr)
-        var out = rattle
-        for i in 0..<min(knock.count, out.count) { out[i] += knock[i] }
+    /// F05 A1 (#63: the pull-ring jangle was four short pure tones, 1.6 to 2.8 kHz: "a computer alert"): the iron ring and its plate clank. A struck iron fitting is not a pitch: each of
+    /// `hits` (3...5, spaced 55 to 95 ms, each softer and shorter than the last) is a noise burst through nine resonances at INHARMONIC, per-hit random frequencies between 1 and 4.2 kHz
+    /// (Q 5, so they are smeared, never a sine) over a short broadband tick and a low iron-on-wood "tock" (300 to 700 Hz), decaying in 25 to 70 ms. The hits never repeat a frequency, so the
+    /// long-time spectrum is a smooth band of 1 to 4 kHz, not a few lines. Starts at 0 s; `Foley.jangleDelay` is where `doorLocked` places it.
+    static func ironClank(hits: Int, strength: Float, sampleRate sr: Float, seed: UInt32 = 0xD00D) -> [Float] {
+        var n = FoleyNoise(seed: seed)
+        let count = max(3, min(hits, 5))
+        let len = Int(0.42 * sr)
+        var out = [Float](repeating: 0, count: len)
+        let s = 0.35 + 0.65 * strength
+        var at: Float = 0
+        for k in 0..<count {
+            let fall = 1 - 0.17 * Float(k)
+            let tau = (0.058 - 0.008 * Float(k)) * (0.8 + 0.4 * n.unit())
+            var res = (0..<9).map { _ in Biquad.bandpass(1000 + 3200 * n.unit(), q: 5, sampleRate: sr) }
+            var tick = Biquad.bandpass(3400 + 1500 * n.unit(), q: 0.6, sampleRate: sr)
+            var tock = Biquad.bandpass(300 + 400 * n.unit(), q: 0.9, sampleRate: sr)
+            var wash = Biquad.bandpass(2300, q: 0.45, sampleRate: sr)                                          // the ring's broadband scrape: fills the gaps between the resonances
+            let start = Int(at * sr), dur = Int(0.26 * sr)
+            for j in 0..<dur where start + j < len {
+                let t = Float(j) / sr
+                let x = n.next()
+                var ring: Float = 0
+                for i in res.indices { ring += res[i].process(x) }
+                let v = ring * 0.95 * exp(-t / tau) + tick.process(x) * 1.4 * exp(-t / 0.0035) + tock.process(x) * 1.2 * exp(-t / 0.012) + wash.process(x) * 1.6 * exp(-t / 0.03)
+                out[start + j] += v * fall * s * min(1, t / 0.0004) * 0.14
+            }
+            at += 0.055 + 0.04 * n.unit()
+        }
         return out
     }
 
-    /// Seconds after the knock that the existing pull-ring jangle starts (A2: 'then the existing pull-ring jangle, slightly delayed').
+    /// The whole wood-on-stone-and-iron event: the knock, then the rattle, then the iron ring's clank (`jangleDelay` after the knock). How many rattles and clanks follow depends on how hard the attempt was.
+    static func doorLocked(strength: Float, sampleRate sr: Float) -> [Float] {
+        let knock = doorKnock(strength: strength, sampleRate: sr)
+        let rattle = doorRattle(count: 2 + Int(min(max(strength, 0), 0.999) * 3), strength: strength, sampleRate: sr)
+        let clank = ironClank(hits: 3 + Int(min(max(strength, 0), 0.999) * 3), strength: strength, sampleRate: sr)
+        let off = Int(jangleDelay * sr)
+        var out = [Float](repeating: 0, count: max(rattle.count, off + clank.count))
+        for i in 0..<rattle.count { out[i] += rattle[i] }
+        for i in 0..<min(knock.count, out.count) { out[i] += knock[i] }
+        for i in 0..<clank.count { out[off + i] += clank[i] }
+        return out
+    }
+
+    /// Seconds after the knock that the iron ring's clank starts (A2: the pull ring answers a moment after the door meets the stone).
     static let jangleDelay: Float = 0.13
 }
