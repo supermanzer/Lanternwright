@@ -91,12 +91,15 @@ Format: `### Q<n> (date, who): the question` then *Default taken*, *Where it liv
 *What changes if the answer differs:* the position is `along` / `side` in `pageBase(9)`; joining the contradiction is another `Evidence` entry (and a `judge` rule for "any three of four").
 *Status:* open.
 
+### Q16 (2026-10-29, builder B, S03.9 follow-up): how is the contradiction made fair and not brute-forceable?
+*Default taken:* a fourth piece of evidence (page 9, Hers: "I would break it again.") and any three found-and-set pieces must all agree; a wrong group clears the pages and the Notebook takes nothing for 30 s, saying only that the pages disagree.
+*Where it lives:* `Contradictions.all` (the evidence), `Contradictions.groupSize` (3), `Contradictions.retrySeconds` (30), `Game.setClaim`.
+*What changes if the answer differs:* change the constants (a longer wait; groupSize 4 to require all) or the sides in the data; the tests follow the constants.
+*Status:* open.
+
 ## Answered
 - 2026-10-28 S03 Oren's exit location: both exits at the original lighthouse; Oren's is a lens portal in the lens room, the dock arch is not an exit.
 - 2026-10-28 Page gate: 3 pages of each sibling.
 - 2026-10-28 Sealing: visible dimming only.
 - 2026-10-28 Page revisions: apply R1-R3 (page 3 stays as restored, page 8 unchanged).
 - 2026-10-28 Third ending: approach approved. Conifers: needle look kept. Corridors: kept.
-
-### Q16 (2026-10-29, builder B, S03.9 follow-up): how is the contradiction made fair and not brute-forceable?
-**Default taken:** a fourth piece of evidence (page 9, Hers: "I would break it again.") and any three found-and-set pieces must all agree; a wrong group clears the pages and the Notebook takes nothing for 30 s, saying only that the pages disagree. **Lives in:** `Contradictions.all` (the evidence), `Contradictions.groupSize` (3) and `Contradictions.retrySeconds` (30), `Game.setClaim`. **If the answer differs:** change the constants (a longer wait, groupSize 4 to require all) or the sides in the data; the tests follow the constants.
