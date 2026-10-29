@@ -38,7 +38,7 @@ extension Renderer {
     func ensureTargets(width: Int, height: Int) {
         if let t = targets, t.width == width, t.height == height { return }
         targets = RenderTargets(device: device, width: width, height: height)
-        taaHistoryValid = false
+        taaHistoryValid = false; velocityHistoryValid = false
     }
 
     func updateFrame(camera: Camera, width: Int, height: Int) {
@@ -47,13 +47,17 @@ extension Renderer {
         taaCurrentViewProj = unjittered
         var viewProj = unjittered
         frame.misc.x = 0
+        // A camera cut (a world change, a teleport, a field-of-view jump) invalidates every temporal history, TAA's and the velocity pass's (G10.2.1): it would be reprojected from
+        // somewhere that is not this place. Detected whether or not the TAA is on.
+        var cameraCut = false
+        if let last = taaLastCameraPos, simd_length(camera.position - last) > 12 || abs(camera.fovY - taaLastFov) > 0.3 { cameraCut = true }
+        taaLastCameraPos = camera.position; taaLastFov = camera.fovY
+        if taaLastWorld != world { cameraCut = true; taaLastWorld = world }
+        if cameraCut { velocityHistoryValid = false }
         if taaEnabled {
-            // A camera cut (a world change, a teleport, a field-of-view jump) invalidates the history: it would be reprojected from somewhere that is not this place.
-            if let last = taaLastCameraPos, simd_length(camera.position - last) > 12 || abs(camera.fovY - taaLastFov) > 0.3 { taaHistoryValid = false }
-            taaLastCameraPos = camera.position; taaLastFov = camera.fovY
+            if cameraCut { taaHistoryValid = false }
             // Sub-pixel jitter: Halton (2, 3), 8 samples, offsets in (-0.5, 0.5) pixels, applied to the projection so every pass of the frame agrees on it.
             taaJitter = Renderer.jitterOffset(frame: taaFrameIndex)
-            if taaLastWorld != world { taaHistoryValid = false; taaLastWorld = world }
             var proj = camera.proj(aspect: aspect)
             proj.columns.2.x -= 2 * taaJitter.x / Float(width)
             proj.columns.2.y += 2 * taaJitter.y / Float(height)

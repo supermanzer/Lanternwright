@@ -121,6 +121,18 @@ extension SelfTestRunner {
         var signs = Set<Bool>()
         for x in stride(from: w / 4, to: 3 * w / 4, by: 16) { signs.insert(moved[((h / 2) * w + x) * 2] > 0) }
         check(signs.count == 1, "velocity: the horizontal motion has one sign across the middle of the frame")
+        // The sign: yaw is measured so that +yaw turns toward +x (east); the picture then moves toward -x, so a pixel was last frame at larger x: vx = prev - cur > 0.
+        check(moved[c * 2] > 0, "velocity: a +yaw turn gives a positive horizontal vector (the pixel was further right last frame): \(String(format: "%.2f", moved[c * 2]))")
+        // A camera cut (a teleport over 12 m) must not produce a frame of bogus vectors: the history is dropped and the vectors are zero.
+        var teleported = turned; teleported.position += SIMD3(40, 0, 0)
+        let cut = frame(teleported)
+        let cutMax = cut.map { abs($0) }.sorted()
+        check(cutMax[cutMax.count * 99 / 100] < 0.2, "velocity: after a 40 m teleport the vectors are zero, not hundreds of pixels (99 % under \(String(format: "%.3f", cutMax[cutMax.count * 99 / 100])) px, largest \(String(format: "%.2f", cutMax.last ?? 0)))")
+        // Switching the pass off and on again drops the old history too.
+        renderer.velocityEnabled = false; _ = frame(teleported); renderer.velocityEnabled = true
+        var far = teleported; far.yaw += 0.3
+        let reOn = frame(far).map { abs($0) }.sorted()
+        check(reOn[reOn.count * 99 / 100] < 0.1, "velocity: switched off and on again, the first frame has zero motion (99 % under \(String(format: "%.3f", reOn[reOn.count * 99 / 100])) px)")
         renderer.velocityEnabled = false
     }
 }
