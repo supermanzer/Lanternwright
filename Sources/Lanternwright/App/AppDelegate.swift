@@ -74,7 +74,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, MTKViewDelegate {
         overlay.autoresizingMask = [.width, .height]
         overlay.onFlip = { [weak self] d in self?.game.journal.flip(d) }
         overlay.onTab = { [weak self] t in self?.game.journal.select(t) }
-        overlay.onClaim = { [weak self] id, page in self?.game.cycleClaim(id, page: page) }
+        overlay.onClaim = { [weak self] id, page, side in self?.game.setClaim(id, page: page, to: side) }
         overlay.onNotebookTone = { [weak self] i in self?.game.playNotebookTone(i) }
         overlay.onClose = { [weak self] in self?.game.journal.isOpen = false }
         overlay.settings = settings
@@ -284,7 +284,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, MTKViewDelegate {
             let v = game.verdict(c.id)
             return OverlayView.ClaimCard(id: c.id, hers: c.hers, his: c.his,
                 rows: c.evidence.map { OverlayView.ClaimRow(page: $0.page, excerpt: $0.excerpt, found: found.contains($0.page), side: game.claim(c.id, page: $0.page)?.title) },
-                status: v == .settled ? "Settled." : (v == .notYet ? "These three do not agree yet." : nil))
+                status: v == .settled ? "Settled." : (v == .notYet ? "These pages disagree. Read them again." : nil))
         })
         set(&overlay.notebookSeen, StoneID.allCases.map { game.state.has(Notebook.seenFlag($0)) })
         set(&overlay.notebookStruck, StoneID.allCases.map { game.state.has(Notebook.struckFlag($0)) })

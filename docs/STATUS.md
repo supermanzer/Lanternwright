@@ -32,7 +32,7 @@
 4. **Re-brief both panes** (they kept their worktrees; their context is old): point them at this file and their resume notes.
 
 ## Open decisions for the user (builders must not decide these)
-- (S03's three questions were answered by the user on 2026-10-28: both exits at the lighthouse, the gate 3 + 3, sealing is dimming only; see `docs/plans/S03-phase1-fork.md`, USER DECISIONS.) **Open and the user's to judge:** S03's consequence that pages 4, 5 and 8 are now required for the gate (the contradiction's evidence; cheap alternatives in `docs/TASKS-B.md` S03.9), the contradiction's sides (an interpretation), "touch the lens" as Ilse's start (Q12), the page 4 half-line placed after the full stop, page 9's place on the dock (Q15). Everything else builder B defaulted is a Q in `docs/OPEN-QUESTIONS.md`.
+- (S03's three questions were answered by the user on 2026-10-28: both exits at the lighthouse, the gate 3 + 3, sealing is dimming only; see `docs/plans/S03-phase1-fork.md`, USER DECISIONS.) **Open and the user's to judge:** the contradiction's evidence (four pages, any three settle it; Q16), the contradiction's sides (an interpretation), "touch the lens" as Ilse's start (Q12), the page 4 half-line placed after the full stop, page 9's place on the dock (Q15). Everything else builder B defaulted is a Q in `docs/OPEN-QUESTIONS.md`.
 - Page revisions R1 to R3 were APPLIED in S03.10 (page 5's first sentence, page 4's half-line, new page 9; pages 3 and 8 unchanged; `docs/plans/S03-page-revisions-applied.md`); R4 and any further wording stay the user's (they have changed their mind about wording before).
 - (none of the earlier items remain open; see Decided below)
 

@@ -116,8 +116,8 @@ extension SelfTestRunner {
         collectGW(8)
         check(g.journal.collectedPages.map(\.number) == Array(1...9), "bot: every one of the nine pages was found by walking the normal route (\(g.journal.collectedPages.map(\.number)))")
         check(g.gate.missing == [.contradiction] && g.gate.ilsePages == 5 && g.gate.orenPages == 4, "bot: the normal route leaves the gate asking only for a contradiction: altar solved, 5 Ilse pages and 4 Oren pages (it asks for 3 of each) (\(g.gate.missing))")
-        // The Notebook's contradiction, settled through the real API from what the walk found: page 4 supports His, page 5 Hers, page 8 His (each press cycles unset -> Hers -> His).
-        for (page, presses) in [(4, 2), (5, 1), (8, 2)] { for _ in 0..<presses { g.cycleClaim("who-left", page: page) } }
+        // The Notebook's contradiction, settled through the real API from what the walk found: page 4 supports His, page 5 Hers, page 8 His (any three of the four pieces settle it).
+        for (page, side) in [(4, Claim.his), (5, .hers), (8, .his)] { g.setClaim("who-left", page: page, to: side) }
         check(g.isSettled("who-left") && g.gate.ready, "bot: and settling the contradiction from the pages it found makes the gate ready")
 
         // --- Home: back to the arrival ring and through it.
