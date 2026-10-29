@@ -91,6 +91,12 @@ final class Renderer {
     var taaLastFov: Float = 0
     let taaResolvePipeline: MTLRenderPipelineState
     let taaSharpenPipeline: MTLRenderPipelineState
+    let velocityPipeline: MTLRenderPipelineState
+    /// G10.2.1: write the motion vector buffer (needed by MetalFX; off otherwise: no pass, no cost). `velocityPrevViewProj` is last frame's unjittered view-projection.
+    var velocityEnabled = false
+    var velocityPrevViewProj = matrix_identity_float4x4
+    var velocityHistoryValid = false
+    var velocityTexture: MTLTexture? { targets?.velocity }
     /// The sub-pixel jitter of frame `i`: Halton (2, 3) over 8 samples, offsets in (-0.5, 0.5) pixels.
     static func jitterOffset(frame i: Int) -> SIMD2<Float> {
         func halton(_ i: Int, _ b: Int) -> Float { var f: Float = 1, r: Float = 0, n = i; while n > 0 { f /= Float(b); r += f * Float(n % b); n /= b }; return r }
@@ -99,7 +105,7 @@ final class Renderer {
     }
     var taaLastWorld: WorldKind?
     /// Forget the history (a camera cut: travel between worlds, a teleport, a resize). The next frame is rendered without temporal blending.
-    func resetTAA() { taaHistoryValid = false }
+    func resetTAA() { taaHistoryValid = false; velocityHistoryValid = false }
     /// G10.1.1: the textures that follow the output size (see RenderTargets); nil until the first frame. The old names below read from it.
     var targets: RenderTargets?
     var depthTexture: MTLTexture? { targets?.depth }
@@ -357,6 +363,7 @@ final class Renderer {
         aoApplyPipeline = monoPipeline("ssao apply", "ssao_apply_fragment", format: Renderer.hdrFormat)
         taaResolvePipeline = monoPipeline("taa resolve", "taa_resolve_fragment", format: Renderer.hdrFormat)
         taaSharpenPipeline = monoPipeline("taa sharpen", "taa_sharpen_fragment", format: Renderer.hdrFormat)
+        velocityPipeline = monoPipeline("velocity", "velocity_fragment", format: .rg16Float)
         godRaysPipeline = postPipeline("god rays", "godrays_fragment")
         bloomPrefilterPipeline = postPipeline("bloom prefilter", "bloom_prefilter_fragment")
         bloomDownPipeline = postPipeline("bloom down", "bloom_down_fragment")
@@ -391,7 +398,7 @@ final class Renderer {
     func blitEncoder(_ cb: MTLCommandBuffer) -> MTLBlitCommandEncoder? { passTimer?.blitEncoder(cb) ?? cb.makeBlitCommandEncoder() }
 
     /// The passes of a frame, in order (G10.1.2). Each one reads what the earlier ones wrote; see the pass files for what.
-    lazy var passes: [RenderPass] = [ShadowPass(self), OpaquePass(self), WaterPass(self), AOPass(self), TAAPass(self), BeamsPass(self), GodRaysPass(self), BloomPass(self), CompositePass(self)]
+    lazy var passes: [RenderPass] = [ShadowPass(self), OpaquePass(self), WaterPass(self), VelocityPass(self), AOPass(self), TAAPass(self), BeamsPass(self), GodRaysPass(self), BloomPass(self), CompositePass(self)]
 
     /// Encode a full frame that ends by writing `target` (format `outputFormat`).
     func encode(commandBuffer: MTLCommandBuffer, target: MTLTexture, camera: Camera) {

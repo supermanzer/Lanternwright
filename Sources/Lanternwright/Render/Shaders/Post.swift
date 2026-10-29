@@ -243,7 +243,7 @@ fragment float4 composite_fragment(FullscreenOut in [[stage_in]],
     float g = fract(sin(dot(in.position.xy + frame.cameraPos.w, float2(12.9898, 78.233))) * 43758.5453);
     c *= 1.0 + (g - 0.5) * 0.03;
     // G10.2.3 output dither: the drawable is 8 bits per channel and encodes sRGB, and a slow gradient (a dusk or night sky) then shows as bands: runs of identical values up to 275 rows long.
-    // Triangular-PDF noise of +-1 level (two interleaved-gradient noises, different per channel, moved every frame so the temporal resolve and the eye average it) is added in the
+    // Triangular-PDF noise of +-1 level (two interleaved-gradient noises, different per channel, moved every frame: the composite runs after the temporal resolve, so it is the eye and the display that average it) is added in the
     // ENCODED domain, where the levels are, and decoded back for the hardware's own encode. Constant in screen space, animated per frame: no visible grain at 100 %.
     float2 dp = in.position.xy + float2(frame.misc.x * 5.588, frame.misc.x * 3.141) + frame.cameraPos.w * float2(13.7, 7.3);
     float3 nA = float3(ign(dp), ign(dp + float2(37.2, 11.7)), ign(dp + float2(71.9, 29.3)));

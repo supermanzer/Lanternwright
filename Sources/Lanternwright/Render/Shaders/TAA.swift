@@ -16,6 +16,23 @@ struct TaaUniforms {
     float4 tuning;           // x = weight of the new frame when still, y = at speed, z = colour box width (sigma multiples)
 };
 
+// G10.2.1: the motion vector buffer. Camera motion only for now (the world is static: each pixel's depth is turned into a world point with the UNJITTERED inverse view-projection and
+// projected with the previous frame's UNJITTERED matrix, exactly as the temporal resolve does), in PIXELS from the current pixel to where it was last frame: the convention of
+// MetalFX's temporal scaler. Vertex-animated geometry (grass, boughs) still reports the camera's vector; the opaque pass writing true vectors is the follow-up.
+fragment float4 velocity_fragment(FullscreenOut in [[stage_in]],
+                                  depth2d<float> depthTex [[texture(0)]],
+                                  constant TaaUniforms& u [[buffer(0)]]) {
+    uint2 p = uint2(in.position.xy);
+    float2 uv = (float2(p) + 0.5) * u.screen.zw;
+    float2 ndc = float2(uv.x * 2.0 - 1.0, 1.0 - uv.y * 2.0);
+    float4 wp = u.invViewProj * float4(ndc, depthTex.read(p), 1.0);
+    wp /= wp.w;
+    float4 pc = u.prevViewProj * wp;
+    float2 pndc = pc.xy / pc.w;
+    float2 prevUV = float2(pndc.x * 0.5 + 0.5, 0.5 - pndc.y * 0.5);
+    return float4((prevUV - uv) * u.screen.xy, 0.0, 1.0);
+}
+
 inline float3 taa_comp(float3 c) { return c / (1.0 + max(c.r, max(c.g, c.b))); }
 inline float3 taa_uncomp(float3 c) { float m = min(max(c.r, max(c.g, c.b)), 0.9995); return c / (1.0 - m); }
 inline float3 taa_ycocg(float3 c) { return float3(0.25 * c.r + 0.5 * c.g + 0.25 * c.b, 0.5 * c.r - 0.5 * c.b, -0.25 * c.r + 0.5 * c.g - 0.25 * c.b); }

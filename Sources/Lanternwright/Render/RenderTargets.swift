@@ -18,6 +18,8 @@ struct RenderTargets {
     let ao: MTLTexture, aoBlurred: MTLTexture          // half size
     let bloom: [MTLTexture]
     let depth: MTLTexture
+    /// G10.2.1: motion vectors in pixels (RG16F), written by `VelocityPass` when the renderer's `velocityEnabled` is set (MetalFX, the selftest); otherwise never touched.
+    let velocity: MTLTexture
     /// 64 x 36 mean log luminance for eye adaptation, read back on the CPU a frame late (a fixed size, made on first use).
     var luma: MTLTexture?
 
@@ -41,6 +43,7 @@ struct RenderTargets {
         aoBlurred = make(.r16Float, "ao blurred", width / 2, height / 2)
         bloom = (0..<Renderer.bloomLevels).map { i in make(Renderer.hdrFormat, "bloom\(i)", max(1, width >> (i + 1)), max(1, height >> (i + 1))) }
         depth = make(Renderer.depthFormat, "depth", width, height)
+        velocity = make(.rg16Float, "velocity", width, height)
     }
 
     /// The resolved frame becomes next frame's history.
