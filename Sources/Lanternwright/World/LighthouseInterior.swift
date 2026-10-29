@@ -266,6 +266,12 @@ struct LighthouseInterior {
         ring.box(size: SIMD3(0.16, 0.07, 0.07), surface: brass, transform: translation(SIMD3(ringMajor + 0.02, lensFloorY + ringHeight, 0)))
         scene.add(ringName, mesh: ring.build(device: device, label: "lighthouse lens ring"), uniforms: ObjectUniforms(model: place * rotationY(-LensPortalProps.initialRingAngle)), hidden: !shownForTools)
         LensPortalProps.build(into: scene, device: device)
+        // Tools: `LW_PATH=ilse|oren` shows the sealed exit as the game would (the plates dimmed after Oren's route, the receiver and its lamps after Ilse's), for frames.
+        if let route = ProcessInfo.processInfo.environment["LW_PATH"] {
+            let dim = SIMD4<Float>(0.35, 0.35, 0.35, 1)
+            if route == "oren" { scene.update("tone_plates") { $0.uniforms.tint = dim } }
+            if route == "ilse" { scene.update(LensPortalProps.receiverName) { $0.uniforms.tint = dim }; for n in LensPortalProps.lampNames { scene.update(n) { $0.uniforms.emissive = SIMD4(0, 0, 0, 0) } } }
+        }
         if shownForTools { scene.update("lh_door_leaf") { $0.uniforms.model = Lighthouse.doorLeafModel(open: Game.doorSwing) } }        // tools: the door open too
     }
 }
