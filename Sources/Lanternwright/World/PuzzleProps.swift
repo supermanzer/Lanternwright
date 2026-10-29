@@ -32,6 +32,20 @@ enum PuzzleProps {
         return CausewayPlan(start: start, dir: dir, length: length, yStart: 1.2, yEnd: yEnd)
     }
 
+    /// F05 Q1 (#68: "parts of the quay float in the air"): the causeway's slabs follow a straight ramp while the ground under them does not, so a slab could stand over a dip with air beneath it.
+    /// How far below a slab's underside (the footing course, 0.4 m under its centre) the ground is, at its lowest under the 3.1 x 3.7 m footprint (0 where it rests on the ground); each slab
+    /// gets a stone footing of that depth, 25 cm into the ground (hidden underground while the slab is down).
+    static func slabFootingDrop(_ plan: CausewayPlan, _ k: Int, terrain: Terrain) -> Float {
+        let c = plan.center(k), under = plan.top(k) - 0.3 - 0.4
+        let across = SIMD2(plan.dir.y, -plan.dir.x)
+        var lowest = Float.infinity
+        for i in -2...2 { for j in -2...2 {
+            let p = c + across * (Float(i) * 0.75) + plan.dir * (Float(j) * 0.9)
+            lowest = min(lowest, terrain.sampleHeight(x: p.x, z: p.y))
+        } }
+        return min(max(under - (lowest - 0.25), 0), 8)
+    }
+
     static func slabModel(_ plan: CausewayPlan, _ k: Int, rise: Float) -> float4x4 {
         let c = plan.center(k)
         let y = plan.top(k) - 0.3 - (1 - rise) * slabSubmergedBy
@@ -130,6 +144,11 @@ enum PuzzleProps {
                 let a = n.unit(Int32(k * 5 + c), 330) * 2 * .pi, rr = 1.45 + 0.4 * n.unit(Int32(k * 5 + c), 331)
                 b.chamferBox(size: SIMD3(0.28, 0.14, 0.22) * (0.6 + 0.8 * n.unit(Int32(k * 5 + c), 332)), chamfer: 0.03, surface: surf,
                              transform: translation(SIMD3(cos(a) * rr, 0.25, sin(a) * rr * 1.1)) * rotationY(a) * rotationZ(0.3 * (n.unit(Int32(k * 5 + c), 333) - 0.5)))
+            }
+            let drop = slabFootingDrop(plan, k, terrain: scene.terrain)
+            if drop > 0.02 {                                                                 // F05 Q1: the footing under the slab, down into the ground
+                b.chamferBox(size: SIMD3(2.8, drop + 0.05, 3.4), chamfer: 0.05, surface: Surface(color: SIMD3(0.24, 0.225, 0.20) * tone, roughness: 0.9, material: .slab),
+                             transform: translation(SIMD3(0, -0.4 - drop / 2 + 0.025, 0)))
             }
             scene.add("causeway_\(k)", mesh: b.build(device: device, label: "slab"),
                       uniforms: ObjectUniforms(model: slabModel(plan, k, rise: 0)), hidden: true)   // revealed when the rumble starts

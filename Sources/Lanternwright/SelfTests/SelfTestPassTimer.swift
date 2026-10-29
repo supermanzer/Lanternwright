@@ -519,3 +519,28 @@ extension SelfTestRunner {
         check(Double(bad) < 0.8 * Double(badOld) && Double(bad) < 0.02 * Double(tested), "dryinsidewet: few dry points have water both below and above them along the beach's slope (\(bad) of \(tested); the earlier 6 m rule: \(badOld))")
     }
 }
+
+extension SelfTestRunner {
+    /// F05 Q1 (#68): no causeway slab floats: with its footing, the underside of every slab or its footing reaches the lowest ground under the footprint (no air gap), and the footing is never absurdly deep.
+    func runCausewayGrounded() {
+        guard name == "all" || name == "causewaygrounded" else { return }
+        guard let device = MTLCreateSystemDefaultDevice() else { check(false, "causewaygrounded: no Metal device"); return }
+        let sc = Scene.makeWorld(device: device)
+        guard let terrain = sc.terrain else { check(false, "causewaygrounded: no terrain"); return }
+        let plan = PuzzleProps.causewayPlan(terrain: terrain)
+        var worstGap: Float = -9, footed = 0, deepest: Float = 0
+        for k in 0..<PuzzleProps.slabCount {
+            let drop = PuzzleProps.slabFootingDrop(plan, k, terrain: terrain)
+            let bottom = plan.top(k) - 0.7 - drop
+            let c = plan.center(k), across = SIMD2(plan.dir.y, -plan.dir.x)
+            for i in -2...2 { for j in -2...2 {
+                let p = c + across * (Float(i) * 0.75) + plan.dir * (Float(j) * 0.9)
+                worstGap = max(worstGap, bottom - terrain.sampleHeight(x: p.x, z: p.y))                   // > 0: air under the lowest part of the stone
+            } }
+            if drop > 0.02 { footed += 1 }
+            deepest = max(deepest, drop)
+        }
+        check(worstGap <= 0.0001, "causewaygrounded: every slab or its footing reaches the ground under its whole footprint (worst air gap \(worstGap) m; \(footed) of \(PuzzleProps.slabCount) slabs needed a footing, the deepest \(deepest) m)")
+        check(deepest < 8, "causewaygrounded: no footing is absurdly deep (\(deepest) m)")
+    }
+}
