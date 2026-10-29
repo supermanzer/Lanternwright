@@ -59,6 +59,9 @@ Format: `### Q<n> (date, who): the question` then *Default taken*, *Where it liv
 *What changes if the answer differs:* a real hold (the mouse button down for a time) is one more state in `strike`; plates appearing only after the return is one flag in `Game.buildInteractables`; the timings are `TonePlatePuzzle.Timing`.
 *Status:* open.
 
+### Q10 (2026-10-29, builder A): how bright is the lighthouse interior near its lamps?
+*Default taken:* `LighthouseInterior.lampPower` = 0.85 with the sky ambient cut to 0.14: warm and dim overall, the stair readable, the wall right by a lamp still fairly bright tan (the reviewer called it "acceptable, but only just"). *Where it lives:* `static let lampPower` in `World/LighthouseInterior.swift` (the falloff and the ambient floor are in `LitFragment.swift`, interior block). *What changes if the answer differs:* 0.6-0.7 makes it dimmer near the lamps; the window light shafts (still owed) will add light back from the openings. *Status:* open.
+
 ## Answered
 - 2026-10-28 S03 Oren's exit location: both exits at the original lighthouse; Oren's is a lens portal in the lens room, the dock arch is not an exit.
 - 2026-10-28 Page gate: 3 pages of each sibling.
