@@ -1,5 +1,8 @@
+import Foundation
 // Full-screen post passes. T1.11: ACES filmic tonemap + vignette + grain.
 enum PostShaders {
+    /// The output dither's amplitude in 8-bit levels (G10.2.3): 1 in the game; `LW_DITHER=0` switches it off for measurements (shimmer attribution cannot tell dither grain from crawl).
+    static let ditherLevels: Float = ProcessInfo.processInfo.environment["LW_DITHER"].flatMap { Float($0) } ?? 1
     static let source = #"""
 // Stephen Hill's fit of the ACES RRT+ODT. It compresses the huge HDR range with a soft shoulder, and desaturates
 // very bright colours toward white the way film does (a bright orange sun becomes a warm white, not a flat orange).
@@ -249,7 +252,7 @@ fragment float4 composite_fragment(FullscreenOut in [[stage_in]],
     float3 nA = float3(ign(dp), ign(dp + float2(37.2, 11.7)), ign(dp + float2(71.9, 29.3)));
     float3 nB = float3(ign(dp + float2(101.3, 53.1)), ign(dp + float2(17.1, 89.4)), ign(dp + float2(61.7, 7.9)));
     float3 enc = select(1.055 * pow(max(c, 1e-6), 1.0 / 2.4) - 0.055, c * 12.92, c <= 0.0031308);
-    enc = saturate(enc + (nA + nB - 1.0) * (1.0 / 255.0));
+    enc = saturate(enc + (nA + nB - 1.0) * (\#(PostShaders.ditherLevels) / 255.0));
     c = select(pow((enc + 0.055) / 1.055, 2.4), enc / 12.92, enc <= 0.04045);
     return float4(c, 1.0);   // linear; the sRGB drawable encodes it
 }
