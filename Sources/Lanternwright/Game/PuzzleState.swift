@@ -16,6 +16,9 @@ enum GameEvent: Equatable {
     case drone(Int, Bool)
     case droneSour       // a wrong strike: the drone detunes and fades
     case droneBloom      // the puzzle is solved: the full chord blooms
+    /// The lamp's answer motif (S03.4, builder A plays it): once on the return to Varrow after the altar, and again each time the player comes within `Game.answerPhraseRadius` of the lighthouse door after
+    /// `Game.answerPhraseQuiet` seconds away. Never once the door is open or a route is begun.
+    case answerPhrase
 }
 
 /// The world's memory: named flags (a "blackboard"). Puzzles read and write these, and rendering reads them,

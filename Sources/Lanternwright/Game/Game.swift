@@ -286,6 +286,25 @@ final class Game {
         for name in [LighthouseInterior.wallName, LighthouseInterior.stairName, LighthouseInterior.fittingsName, LighthouseInterior.windowPanesName, LighthouseInterior.ringName, LensPortalProps.receiverName, LensPortalProps.beamName] + LensPortalProps.lampNames { sc.update(name) { $0.hidden = !open && !LighthouseInterior.shownForTools } }
     }
 
+    // MARK: The answer phrase (S03.4: builder A plays it)
+
+    /// Within this distance of the lighthouse door the phrase sounds, if the player has been away from it for `answerPhraseQuiet` seconds (or has not been near it since the return).
+    static let answerPhraseRadius: Float = 40, answerPhraseQuiet: Float = 60
+    /// The game time the player was last within the radius (-infinity: not since the return).
+    private var lastNearDoor: Float = -.infinity
+    /// The lamp is waiting: the altar is solved, and the player has neither opened the door nor begun a route.
+    var answerPhraseOpen: Bool { state.has("gw_end") && !state.has(Game.doorOpenFlag) && chosenPath == nil }
+
+    /// Each frame: coming within the radius of the door after a quiet minute (or for the first time since the return) sounds the phrase once; staying near does not repeat it.
+    private func updateAnswerPhrase() {
+        guard world == .varrow, !isTraveling, answerPhraseOpen else { return }
+        let door = Layout.Navigation.signalDoorPoint
+        let d = simd_length(SIMD2(player.position.x - door.x, player.position.z - door.z))
+        guard d <= Game.answerPhraseRadius else { return }
+        if time - lastNearDoor > Game.answerPhraseQuiet { pending.append(.answerPhrase) }
+        lastNearDoor = time
+    }
+
     // MARK: The return (S03.4)
 
     /// The player has solved the Glass Wood's altar and is back on Varrow: the lighthouse is where to go. The beam turns into a signal (builder A draws it), and the note appears on the door.
@@ -385,7 +404,10 @@ final class Game {
         player.position.y = scene.groundHeight(x: pose.position.x, z: pose.position.z)
         hovered = nil
         pending.append(.worldChanged(kind))
-        if kind == .varrow && state.has("gw_end") { showBanner("The lamp still burns. You carry two accounts now.") }
+        if kind == .varrow && state.has("gw_end") {
+            showBanner("The lamp still burns. You carry two accounts now.")
+            if answerPhraseOpen { pending.append(.answerPhrase) }                  // the return itself
+        }
     }
 
     /// Where the player is and what they have done, attached to every piece of feedback.
@@ -489,6 +511,7 @@ final class Game {
         syncInterior()
         syncSeals()
         checkPortalStep()
+        updateAnswerPhrase()
 
         player.applyLook(input.look * LookCloser.lookScale(zoom: zoomAmount), dt: dt, nav: journal.isOpen || isTraveling ? nil : Layout.Navigation.active(for: world), assistScale: LookCloser.lookScale(zoom: zoomAmount))     // slower aim when zoomed, so it stays controllable
         accumulator += dt

@@ -93,5 +93,35 @@ extension SelfTestRunner {
         if name == "return" { print("return: from the lens islet to the door: the corridors give \(Int(length)) m (\(route.count) nodes), the bot walks it in \(Int(seconds)) s, arrived \(arrived)") }
         check(!route.isEmpty && length > 250 && length < 520, "return: a route along the corridors exists from the lens-islet arrival to the lighthouse door: \(Int(length)) m over \(route.count) centre-line nodes")
         check(arrived && seconds < 170, "return: the player walks it with the real controller: \(Int(seconds)) s (arrived \(arrived))")
+
+        // The answer phrase (S03.4, builder A plays it): once on the return, again within 40 m of the door after 60 s away; never before the altar, in the Glass Wood, or once the door is open.
+        func phrases(_ g: Game) -> Int { g.drainEvents().filter { $0 == .answerPhrase }.count }
+        let doorPt = Layout.Navigation.signalDoorPoint
+        func at(_ g: Game, _ d: Float) { g.player = Player(position: SIMD3(doorPt.x, 0, doorPt.z + d), yaw: 0); g.player.position.y = g.scene.groundHeight(x: doorPt.x, z: doorPt.z + d) }
+        let ph = twoWorlds(); step(ph); _ = ph.drainEvents()
+        ph.state.set("gw_end"); ph.travel(to: .glassWood); _ = ph.drainEvents()
+        ph.travel(to: .varrow)
+        check(phrases(ph) == 1, "phrase: the return to Varrow after the altar sounds it once")
+        at(ph, 120); step(ph, 4)
+        check(phrases(ph) == 0, "phrase: far from the door it is quiet")
+        at(ph, 39); step(ph, 2)
+        check(phrases(ph) == 1, "phrase: coming within 40 m of the door (the first time since the return) sounds it")
+        step(ph, 20)
+        check(phrases(ph) == 0, "phrase: staying near does not repeat it")
+        at(ph, 60); ph.simulate(seconds: 20); step(ph, 2); at(ph, 30); step(ph, 2)
+        check(phrases(ph) == 0, "phrase: away for 20 s only, it does not sound again")
+        at(ph, 60); ph.simulate(seconds: 65); step(ph, 2); at(ph, 30); step(ph, 2)
+        check(phrases(ph) == 1, "phrase: away for over a minute, coming near sounds it again")
+        let nope = twoWorlds(); step(nope); _ = nope.drainEvents()
+        at(nope, 20); step(nope, 4)
+        check(phrases(nope) == 0, "phrase: before the altar it never sounds, near the door or not")
+        nope.travel(to: .glassWood); nope.state.set("gw_end"); _ = nope.drainEvents(); step(nope, 4)
+        check(phrases(nope) == 0, "phrase: in the Glass Wood it does not sound")
+        let shutDoor = twoWorlds(); shutDoor.state.set("gw_end"); shutDoor.state.set(Game.doorOpenFlag); step(shutDoor); _ = shutDoor.drainEvents()
+        at(shutDoor, 20); step(shutDoor, 4); shutDoor.travel(to: .glassWood); shutDoor.travel(to: .varrow)
+        check(phrases(shutDoor) == 0, "phrase: once the door is open the lamp has been answered: it does not sound, on the return or near the door")
+        let routed = twoWorlds(); routed.state.set("gw_end"); routed.state.set(Game.pathIlseFlag); step(routed); _ = routed.drainEvents()
+        at(routed, 20); step(routed, 4)
+        check(phrases(routed) == 0, "phrase: nor once a route is begun")
     }
 }
