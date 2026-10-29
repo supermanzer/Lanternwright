@@ -62,6 +62,9 @@ inline float ign(float2 pixel) { return fract(52.9829189 * fract(dot(pixel, floa
 //   thin_coverage(worldWidth, footprint, minPixels): .width = the width to DRAW (never below footprint * minPixels), .coverage = worldWidth / .width, 0...1.
 // Use: in the vertex stage push the two edges of the thin shape apart to `.width`; pass `.coverage` to the fragment; there either fade alpha/brightness by it (blended
 // things) or discard stochastically when ign(pixel + frame jitter) > coverage (opaque things in a pipeline that already discards; the temporal resolve averages it).
+// Example (a blade or rope of half-width hw at world position P, pushed sideways by `side` = -1 or +1 along its own right vector):
+//   ThinCover tc = thin_coverage(2.0 * hw, pixel_world_size(P, frame), 1.0);   P += right * side * 0.5 * tc.width;   // widen about the centre line, do not ADD the footprint
+// The footprint is metres per RENDER pixel (the height of the frame being drawn), so it stays right if the frame is ever rendered below the drawable's size.
 struct ThinCover { float width; float coverage; };
 inline float pixel_world_size(float3 worldPos, constant FrameUniforms& frame) {
     float viewDepth = frame.viewProj[0][3] * worldPos.x + frame.viewProj[1][3] * worldPos.y + frame.viewProj[2][3] * worldPos.z + frame.viewProj[3][3];
