@@ -85,7 +85,7 @@ Format: `### Q<n> (date, who): the question` then *Default taken*, *Where it liv
 *What changes if the answer differs:* first-only is one extra saved flag (`lantern_chain_seen`) tested in `syncLanternChain`.
 *Status:* open.
 
-### Q14 (2026-10-29, builder B, S03.10): where does page 9 lie, and does it join the contradiction?
+### Q15 (2026-10-29, builder B, S03.10): where does page 9 lie, and does it join the contradiction?
 *Default taken:* page 9 (Ilse, R2) lies on the dock's boards at the seaward end, on the left-hand side, about 4.5 m before the end of the strip (2.6 m from the spawn), one small sheet like page 1's but 27 m from it (user note #53: nothing near a page reads as a second sheet); it is visible from the first frame and easy to overlook, as the user asked; it counts as an Ilse page for the gate (Ilse 5, Oren 4). It is NOT evidence in the contradiction yet (that stays pages 4, 5, 8); a fourth evidence item with any three settling it would remove the "pages 4, 5 and 8 are required" consequence (see the S03.9 note). The page 4 half-line follows the full stop (the appendix put it after a comma that is not there).
 *Where it lives:* `PuzzleProps.pageBase` (`case 9`), `DroppedPages.spec` (`case 9`), `StoryPages` (the text, `varrowIDs`).
 *What changes if the answer differs:* the position is `along` / `side` in `pageBase(9)`; joining the contradiction is another `Evidence` entry (and a `judge` rule for "any three of four").
