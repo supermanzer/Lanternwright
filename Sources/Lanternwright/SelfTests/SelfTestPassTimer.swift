@@ -437,6 +437,9 @@ extension SelfTestRunner {
             if !(here > 4 * off) { ok = false }
         }
         check(ok, "answerphrase: each of the four notes sounds at its pitch when it is due")
+        check(ToneTable.answerHz == [440.00, 587.33, 440.00, 293.66] && ToneTable.answerDelays == [0, 0.55, 1.1, 1.9], "answerphrase: the motif is A4 D5 A4 D4 at 0, 0.55, 1.1 and 1.9 s")
+        // The repeated A4 is a new strike, not the first one still ringing: its 440 Hz power just after 1.1 s beats the power just before it.
+        check(power(440, from: 1.1, to: 1.16) > 1.3 * power(440, from: 1.04, to: 1.1), "answerphrase: the second A4 is struck anew at 1.1 s")
         let tail = l[(Int(sr) * 5)...].map { abs($0) }.max() ?? 1
         check(tail < (l.map { abs($0) }.max() ?? 1) * 0.5, "answerphrase: it rings out and does not drone (tail \(tail))")
     }
