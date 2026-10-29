@@ -11,7 +11,16 @@
 | `g10-s1` | G10 stream 1: the frame is a list of passes, `RenderTargets`, per-pass uniforms, Lit shader split. 27 frames byte-identical (`scripts/stream1-check.sh`). |
 | `g10-g1` | G10.G.1 (builder B): grass compute culling and indirect draw; grass cost about 0.5 ms to about zero, frames byte-identical. |
 | `f04-done` | F04: notes #52-#59 that were bugs: the shore waterline decided per pixel (#52), decoy loose sheets removed (#53-55), page 3 wording restored (#56), light sources cast no shadow (#57). Plan: `docs/plans/F04-fourth-playtest.md`. |
+| `g10-s2` / `g10-s3` / `g10-s4` | G10 streams 2-4 (builder A): bark band-limit, `thin_coverage`, output dither (`LW_DITHER=0` to measure without it), terrain-shader skips, margin cue, MetalFX as an option (default scale stays 1.0), the rest measured with no action. Outcome and tables at the top of `docs/plans/G10-graphics-audit.md`. `g10-done` is NOT tagged: G10.4.2, G10.G.2, G10.G.3 are open. |
+| `s03-a-items` | Builder A's S03 items: beam signal pattern, lighthouse door leaf, doorway cut in the shaft, interior light model and footstep surface, window light shafts, lens-portal halo, interior window panes, trail lantern chain. |
 | `s03-done` | S03 (builder B): journal tabs by author, the gate (3 + 3 pages, altar, a contradiction), the return (a note nailed to the lighthouse door), the lighthouse interior (a stair, a workshop, the lens room), the tone-plate door, Oren's lens portal, the fork with the other exit sealed by dimming, the Notebook's first contradiction, page revisions R1 to R3 and page 9. Plan: `docs/plans/S03-phase1-fork.md`; user-facing notes in `docs/INSPECT.md` ("From builder B"). The beam signal, lantern chain and chime are builder A's. |
+
+## Builder A, 2026-10-29 (where my side stands)
+- Everything of mine is on `main` (code last changed at the lantern chain/portal/windows merge, tag `s03-a-items`); no unmerged branches that matter (stale `a/*` branches on origin are left alone by the user's rule). Bundle rebuilt after that merge.
+- Open for A: **the answer-phrase audio** (play the ToneTable answer motif) as soon as builder B emits `GameEvent.answerPhrase` (once on the return, again within 40 m of the door after 60 s away); not on `main` yet. Watch `origin/main` for it.
+- Open question logged for the user: Q14 (does the lantern chain flare on every return or only the first). Q-numbers before it are B's and the lamp-brightness question.
+- Known: dock edge crawl +7 % since F04 W1 is the deliberate crisp waterline (bisected, see TASKS.md); the TAA hash flake and the passtimer GPU-sum check are intermittent.
+- Not mine and open: G10.G.2 / G10.G.3 (B's grass), G10.4.2 (headroom spend, only if the user asks for more distant grass or a larger near cascade).
 
 ## Not merged (on pushed branches)
 - **`a/g10-stream2`** (builder A): the G10.2.2 pre-check, bark investigation tools (`--no-foliage`, `SHIMMER_HEAT`, `SHIMMER_STEP`, `SHIMMER_SCENES`), `PropAudit.materialName` fix, gate script printing alternate hashes. Needs a rebase onto main (expect a conflict on the selftest registration line). `a/g10-resume` is A's current worktree branch (docs only).
