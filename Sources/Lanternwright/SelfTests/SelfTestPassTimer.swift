@@ -257,3 +257,19 @@ extension SelfTestRunner {
         check(Lighthouse.doorLeafModel(open: 0) == translation(Layout.lighthouse), "doorleaf: angle 0 is exactly the closed model")
     }
 }
+
+extension SelfTestRunner {
+    /// S03.5b: the interior light model flags exactly the inside of the tower (wall, stair, fittings), not the lens ring or the exterior, and the lamps are inside the tower.
+    func runInteriorLight() {
+        guard name == "all" || name == "interiorlight" else { return }
+        guard let device = MTLCreateSystemDefaultDevice() else { check(false, "interiorlight: no Metal device"); return }
+        let sc = Scene.makeWorld(device: device)
+        let flagged = Set(sc.items.filter { $0.uniforms.lod.z > 0.5 }.map(\.name))
+        check(flagged == [LighthouseInterior.wallName, LighthouseInterior.stairName, LighthouseInterior.fittingsName], "interiorlight: only the interior wall, stair and fittings are flagged inside (\(flagged.sorted()))")
+        let g = LighthouseInterior.lampGround, l = LighthouseInterior.lampLens
+        check(simd_length(SIMD2(g.x - Layout.lighthouse.x, g.z - Layout.lighthouse.z)) < 0.01 && g.y > Layout.lighthouse.y + LighthouseInterior.floorY && g.y < Layout.lighthouse.y + LighthouseInterior.floorY + 4 && l.y > Layout.lighthouse.y + LighthouseInterior.lensFloorY && l.y < Layout.lighthouse.y + LighthouseInterior.lensFloorY + 3,
+              "interiorlight: the two lamps hang on the tower's axis, one over each room's floor (ground y \(g.y), lens y \(l.y))")
+        let msl = ShaderLibrary.sources.joined(separator: "\n")
+        check(msl.contains("if (obj.lod.z > 0.5)") && msl.contains("ambient *= 0.10;"), "interiorlight: the lit shader cuts the sky's ambient and adds the lamps only for flagged items")
+    }
+}

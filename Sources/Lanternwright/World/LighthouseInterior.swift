@@ -155,6 +155,11 @@ struct LighthouseInterior {
 
     // MARK: Meshes (hidden until the door opens: see Game.syncInterior)
 
+    /// S03.5b: the two warm lamps (world positions, on the tower's axis: one over the ground room's floor, one over the lens room's floor) and their strength; the lit shader reads them
+    /// for items flagged as interior (`ObjectUniforms.lod.z`).
+    static var lampGround: SIMD3<Float> { Layout.lighthouse + SIMD3(0, floorY + 2.4, 0) }
+    static var lampLens: SIMD3<Float> { Layout.lighthouse + SIMD3(0, lensFloorY + 1.7, 0) }
+    static let lampPower: Float = 1.6
     static let wallName = "lh_interior_wall", stairName = "lh_interior_stair"
     /// Debug: `LW_LIGHTHOUSE_OPEN=1` draws the inside from the start, so a frame tool can show it without opening the door (the game keeps it hidden until `door_open`).
     static let shownForTools = ProcessInfo.processInfo.environment["LW_LIGHTHOUSE_OPEN"] == "1"
@@ -184,7 +189,7 @@ struct LighthouseInterior {
             shell.ringBlock(centre: .zero, a0: -a1, a1: -a0, r0: 0.01, r1: innerR(lensFloorY), z0: lensFloorY - 0.25, z1: lensFloorY, surface: woodDark,
                             transform: place * rotationX(-.pi / 2))
         }
-        scene.add(wallName, mesh: shell.build(device: device, label: "lighthouse interior wall"), uniforms: ObjectUniforms(model: matrix_identity_float4x4), hidden: !shownForTools)
+        scene.add(wallName, mesh: shell.build(device: device, label: "lighthouse interior wall"), uniforms: ObjectUniforms(model: matrix_identity_float4x4, lod: SIMD4(0, 0, 1, 0)), hidden: !shownForTools)
 
         // The stair: the treads (annular sectors, 16 cm thick, their tops on the ramp at the middle of each) and the rail along their inner edge.
         var stair = MeshBuilder()
@@ -197,7 +202,7 @@ struct LighthouseInterior {
             stair.ringBlock(centre: .zero, a0: -p1, a1: -p0, r0: stairInner(top), r1: outer, z0: top - treadThickness, z1: top, surface: i % 2 == 0 ? wood : woodDark,
                             transform: place * rotationX(-.pi / 2))
         }
-        scene.add(stairName, mesh: stair.build(device: device, label: "lighthouse interior stair"), uniforms: ObjectUniforms(model: matrix_identity_float4x4), hidden: !shownForTools)
+        scene.add(stairName, mesh: stair.build(device: device, label: "lighthouse interior stair"), uniforms: ObjectUniforms(model: matrix_identity_float4x4, lod: SIMD4(0, 0, 1, 0)), hidden: !shownForTools)
 
         // The fittings: the lens's pedestal and collar, the handrail with its posts along the stair's inner edge, and Ilse's workshop (a bench, a stool, three rule-plates, a tuning fork on its
         // hook, charts pinned to the wall). Plain boxes and tubes: nothing glows, nothing is a marker.
@@ -246,7 +251,7 @@ struct LighthouseInterior {
         for (k, da) in ([0.38, 0.52] as [Float]).enumerated() {
             fit.box(size: SIMD3(0.3, 0.4, 0.006), surface: paper, transform: onWall(aw + da, 1.5 + 0.06 * Float(k), depth: 0.02) * rotationZ(0.05 * (k == 0 ? 1 : -1)))
         }
-        scene.add(fittingsName, mesh: fit.build(device: device, label: "lighthouse interior fittings"), uniforms: ObjectUniforms(model: matrix_identity_float4x4), hidden: !shownForTools)
+        scene.add(fittingsName, mesh: fit.build(device: device, label: "lighthouse interior fittings"), uniforms: ObjectUniforms(model: matrix_identity_float4x4, lod: SIMD4(0, 0, 1, 0)), hidden: !shownForTools)
 
         // The lens ring: its own item, brass, with a tick every 15 degrees, centred on the tower's axis at `ringHeight` above the lens room's floor (S03.7 turns it about that axis).
         var ring = MeshBuilder()

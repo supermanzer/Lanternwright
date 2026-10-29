@@ -106,6 +106,21 @@ fragment LitFragOut lit_fragment(LitOut in [[stage_in]],
     float3 groundAlb = glassWorld ? float3(0.22, 0.24, 0.34) : float3(0.36, 0.28, 0.18);
     float3 bounce = groundAlb * frame.sunColor.rgb * frame.sunColor.w * max(L.y, 0.10) / M_PI_F * 1.6;
     ambient += albedo * (1.0 - metal) * bounce * saturate(0.5 - 0.5 * n.y) * matAO;
+    // S03.5b interior light model: inside the tower (items flagged `lod.z`) the sky's ambient and the ground bounce reach only through the doorway and the windows, so they are cut to a
+    // tenth; the sun still lights the inside through the shadow map (the tower's wall occludes it, the open door does not). Two warm lamps, one in the ground room and one in the lens
+    // room, light it instead: a soft point light with an inverse-square-ish falloff, no shadow (light casts none, F04 L1).
+    if (obj.lod.z > 0.5) {
+        ambient *= 0.10;
+        const float3 lampPos[2] = { float3(\#(LighthouseInterior.lampGround.x), \#(LighthouseInterior.lampGround.y), \#(LighthouseInterior.lampGround.z)),
+                                    float3(\#(LighthouseInterior.lampLens.x), \#(LighthouseInterior.lampLens.y), \#(LighthouseInterior.lampLens.z)) };
+        for (int li = 0; li < 2; li++) {
+            float3 toLamp = lampPos[li] - in.worldPos;
+            float d2 = dot(toLamp, toLamp);
+            float3 Ll = toLamp * rsqrt(max(d2, 1e-4));
+            float atten = 1.0 / (1.0 + d2 * 0.12);
+            ambient += albedo * (1.0 - metal) * float3(1.0, 0.62, 0.30) * \#(LighthouseInterior.lampPower) * atten * saturate(dot(n, Ll) * 0.8 + 0.2) * matAO;
+        }
+    }
 
     float3 emissive = (mid == 14 || mid == 20) ? glyphGlow : (mid == 16 ? float3(0.0) : obj.emissive.rgb * obj.emissive.w * (mid == 15 ? 0.35 : 1.0));   // paper: the hover pulse is a hint, not a lamp
     float3 col = diffuse + specular + ambient + emissive;
