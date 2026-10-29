@@ -409,7 +409,7 @@ final class Game {
     func fixedStep(input: InputState) {
         if player.step(dt: Game.tick, input: isTraveling ? InputState() : input, scene: scene, nav: Layout.Navigation.active(for: world), interior: world == .varrow && interiorApplied ? interior : nil) { footfalls += 1; lastFootWasRun = player.lastStepWasRun }
         animator.update(Game.tick)
-        lensPortal.step(Game.tick)
+        if !isTraveling { lensPortal.step(Game.tick) }                           // not while the world is changing under the player
         time += Game.tick
         let target = atmosphereTargets
         mistScale += (target.mist - mistScale) * min(1, Game.tick / 12)        // about 12 s to thin

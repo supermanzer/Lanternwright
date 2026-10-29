@@ -36,7 +36,7 @@ enum LensPortalProps {
 
         // The receiver: a brass plate with an eye in it, on an iron post that stands on the floor against the glass.
         var rec = MeshBuilder()
-        let top = LighthouseInterior.lensFloorY + 1.55
+        let top = ringY                                              // the plate is at the ring's height, so the beam preview ends ON it
         let f = onGlass(receiverAngle, 1.92, 0)
         rec.cylinder(radiusTop: 0.02, radiusBottom: 0.02, height: top - LighthouseInterior.lensFloorY, segments: 8, smooth: true, surface: iron, transform: f * translation(SIMD3(0, LighthouseInterior.lensFloorY, 0)))
         rec.box(size: SIMD3(0.24, 0.24, 0.035), surface: brass, transform: f * translation(SIMD3(0, top, 0.02)))
