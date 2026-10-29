@@ -143,7 +143,6 @@ enum Screenshot {
         case "page-close": return Viewpoints.pageClose(scene: renderer.scene)
         case "rock-close": return Viewpoints.rockClose(scene: renderer.scene)
         case "lantern-close": return Viewpoints.lanternClose(scene: renderer.scene)
-        case "fallen-close": if let c = Viewpoints.fallenClose(terrain: terrain) { return c }
         case "pillar-close", "pillar-far": return Viewpoints.pillarClose(terrain: terrain, far: name == "pillar-far")
         default: break
         }

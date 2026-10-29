@@ -278,23 +278,24 @@ enum Island {
                 let r1 = noise.unit(Int32(count), 11), r2 = noise.unit(Int32(count), 29), r3 = noise.unit(Int32(count), 47), r4 = noise.unit(Int32(count), 83)
                 let y = terrain.sampleHeight(x: p.x, z: p.y)
                 let height = treeHeight(count)
-                let dead = r4 < 0.04, fallen = r4 > 0.985
+                if r4 > 0.985 { continue }                                  // F05 R1 (#62): no fallen trees (a log lying on one stub does not hold its own weight); the site stays empty
+                let dead = r4 < 0.04
                 let pine = y > 24 || r3 > 0.55
                 let variantIndex = Int(noise.unit(Int32(count), 5) * Float(Trees.variantCount)) % Trees.variantCount
                 let h = height / Trees.nominalHeight
                 let width = h * (0.85 + 0.3 * noise.unit(Int32(count), 13))
                 let lean = (1 + 2 * noise.unit(Int32(count), 71)) * .pi / 180
                 let la = noise.unit(Int32(count), 73) * 2 * .pi
-                let tilt = fallen ? SIMD2<Float>(0, .pi / 2 - 0.05) : SIMD2(lean * cos(la), lean * sin(la))
+                let tilt = SIMD2<Float>(lean * cos(la), lean * sin(la))
                 let shade = SIMD3(repeating: 0.8 + 0.4 * noise.unit(Int32(count), 61)) * SIMD3<Float>(1, 1 + 0.15 * (r2 - 0.5), 1 - 0.1 * (r1 - 0.5))
                 // The pivot sits at the highest ground under the trunk (the trunk is sunk 10 cm there) and the trunk mesh itself runs on down below the lowest ground under it (F02 G1: no collar).
                 let sm = Placement.samples(terrain: terrain, x: p.x, z: p.y, radius: 0.55 * width)
-                let at = fallen ? SIMD3(p.x, y + 0.25, p.y) : SIMD3(p.x, sm.high - 0.1, p.y)
+                let at = SIMD3(p.x, sm.high - 0.1, p.y)
                 let yaw = r3 * 6.28
                 let stagger = 3 + (noise.unit(Int32(count), 97) * 2 - 1)                // position.w = 3 + stagger in -1...1
                 let i = Int(floor(p.x / treeCell)), j = Int(floor(p.y / treeCell))
                 for lod in 0..<3 {
-                    let mesh: MeshBuilder = (dead || fallen) ? Trees.snagVariant(variantIndex, lod: min(lod, 1), buried: !fallen).tinted(SIMD3(repeating: 1))
+                    let mesh: MeshBuilder = dead ? Trees.snagVariant(variantIndex, lod: min(lod, 1), buried: true).tinted(SIMD3(repeating: 1))
                         : Trees.variant(pine ? .pine : .cypress, variantIndex, lod: lod).tinted(shade)
                     let m = translation(at) * rotationY(yaw) * rotationX(tilt.x) * rotationZ(tilt.y) * scaling(SIMD3(width, h, width))
                     let key = "trees_L\(lod)_\(i)_\(j)"
@@ -302,17 +303,17 @@ enum Island {
                     let start = cell.vertices.count
                     cell.append(mesh, transform: m)
                     // The same stagger on every level of this tree (see tree_lod_level), and the sway weight q (height above the ground over the tree's height, in 7 steps)
-                    // packed on top of it: position.w = 3 + stagger + 4 * round(7 q). Fallen and dead trunks do not sway. Decoded by vertex_stagger/vertex_sway (WindShaders).
-                    let swayTree = !(fallen || dead)
+                    // packed on top of it: position.w = 3 + stagger + 4 * round(7 q). Dead trunks do not sway. Decoded by vertex_stagger/vertex_sway (WindShaders).
+                    let swayTree = !dead
                     cell.adjust(from: start) { v in
                         let q = swayTree ? min(max((v.position.y - at.y) / max(height, 1), 0), 1) : 0
                         v.position.w = stagger + 4 * (q * 7).rounded()
                     }
-                    if lod == 0 && !fallen { placed.append(Placement.record(kind: "trunk", mesh: mesh, transform: m)) }
+                    if lod == 0 { placed.append(Placement.record(kind: "trunk", mesh: mesh, transform: m)) }
                     cells[lod][key] = cell
                 }
                 // F02 T66.13: the needle-level foliage of a live conifer, in the same cell, packed with the same stagger and sway weight.
-                if !(dead || fallen) {
+                if !dead {
                     let nkey = "needles_\(i)_\(j)"
                     var cell = needleCells[nkey] ?? MeshBuilder()
                     let start = cell.vertices.count
@@ -324,9 +325,9 @@ enum Island {
                     }
                     needleCells[nkey] = cell
                 }
-                if !fallen { colliders.append((SIMD2(p.x, p.y), y, height)) }
+                colliders.append((SIMD2(p.x, p.y), y, height))
                 // Fallen cones and twigs on the ground around the trunk, each placed on the terrain under it (they used to be baked into the tree and floated).
-                if !fallen {
+                do {
                     let litterKey = "litter_\(i)_\(j)"
                     for k in 0..<13 {
                         let cone = k < 7

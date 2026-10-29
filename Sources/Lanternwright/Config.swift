@@ -284,16 +284,6 @@ enum Viewpoints {
         return Camera(position: eye, yaw: atan2(v.x, -v.z), pitch: asin(v.y / simd_length(v)))
     }
 
-    /// `fallen-close`: 4 m from the first fallen log (a conifer lying on its side), looking at its root end (F02 G1 follow-up: no buried stub may stick out of it).
-    static func fallenClose(terrain t: Terrain) -> Camera? {
-        let sites = Island.treeSites(terrain: t).prefix(420)
-        guard let (_, p) = sites.enumerated().first(where: { Island.noise.unit(Int32($0.offset), 83) > 0.985 }) else { return nil }
-        let g = t.sampleHeight(x: p.x, z: p.y)
-        let cam = SIMD3(p.x + 3.0, g + 1.4, p.y + 3.0), target = SIMD3(p.x, g + 0.3, p.y)
-        let d = target - cam
-        return Camera(position: cam, yaw: atan2(d.x, -d.z), pitch: asin(d.y / simd_length(d)))
-    }
-
     /// The Glass Wood's pool (F02 G3, note #29): `gw-pool-user` is the user's own spot and view (4.7, -3.4, looking down at the waterline), `gw-pool` stands on the bank
     /// 4 m from the water looking across it, `gw-pool-shelf` stands in the shallows looking along the shore, `gw-pool-far` is the view from the path to the pool.
     static func poolView(terrain t: Terrain, name: String) -> Camera? {
