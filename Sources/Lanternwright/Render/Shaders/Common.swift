@@ -55,6 +55,26 @@ vertex FullscreenOut fullscreen_vertex(uint vid [[vertex_id]]) {
 // even grain, not clumps. Used for the dithered LOD cross-fades.
 inline float ign(float2 pixel) { return fract(52.9829189 * fract(dot(pixel, float2(0.06711056, 0.00583715)))); }
 
+// ---- The minimum-footprint rule for thin things (G10.2.2; shared with the grass rewrite G10.G.2). Anything narrower than a pixel (a blade, a twig, a rope, a rail) is sampled by
+// the rasteriser at random, so it flickers between "a speck" and "nothing" as the camera moves. Draw it at least `minPixels` wide (usually 1) and scale its coverage by
+// the true width over the drawn width, so it becomes a faint, stable tint of the same average energy instead of a flickering speck.
+//   pixel_world_size(worldPos, frame): metres covered by one pixel at that point (from the view depth, the projection's scale and the render height).
+//   thin_coverage(worldWidth, footprint, minPixels): .width = the width to DRAW (never below footprint * minPixels), .coverage = worldWidth / .width, 0...1.
+// Use: in the vertex stage push the two edges of the thin shape apart to `.width`; pass `.coverage` to the fragment; there either fade alpha/brightness by it (blended
+// things) or discard stochastically when ign(pixel + frame jitter) > coverage (opaque things in a pipeline that already discards; the temporal resolve averages it).
+struct ThinCover { float width; float coverage; };
+inline float pixel_world_size(float3 worldPos, constant FrameUniforms& frame) {
+    float viewDepth = frame.viewProj[0][3] * worldPos.x + frame.viewProj[1][3] * worldPos.y + frame.viewProj[2][3] * worldPos.z + frame.viewProj[3][3];
+    float scaleY = length(float3(frame.viewProj[0][1], frame.viewProj[1][1], frame.viewProj[2][1]));       // the projection's 1 / tan(fovY / 2)
+    return 2.0 * max(viewDepth, 0.0) / max(scaleY * frame.screen.y, 1e-4);
+}
+inline ThinCover thin_coverage(float worldWidth, float footprint, float minPixels) {
+    ThinCover c;
+    c.width = max(worldWidth, footprint * minPixels);
+    c.coverage = worldWidth / max(c.width, 1e-6);
+    return c;
+}
+
 // Tree LOD level as a continuous number 0...2 from the horizontal distance to the eye (R09). Level 0 -> 1 around 45 m and 1 -> 2 around 130 m,
 // each over a band of 15 % of the distance (+-7.5 %), shifted per tree by `stagger` (-1...1, x 10 m) so a stand never changes all at once.
 // The fragment keeps its LOD only if floor(level + noise) equals its own index, so neighbouring levels dissolve into each other exactly
