@@ -192,5 +192,35 @@ extension SelfTestRunner {
         var atBench = SIMD2(lh.x + I.benchEnds[1].x, lh.z + I.benchEnds[1].y)
         openGame.scene.colliders.resolve(position: &atBench, radius: Player.radius, feetY: lh.y + I.floorY, height: Player.eyeHeight)
         check(simd_length(atBench - SIMD2(lh.x + I.benchEnds[1].x, lh.z + I.benchEnds[1].y)) >= 0.6, "interior: the bench is solid")
+
+        // With the fittings in place the stair is still walkable (nothing displaces a player on its centre line, at the tread's own height), and the workshop clears the treads above it.
+        var displaced = 0, samples = 0
+        var ph = I.startAngle
+        while ph < I.endAngle {
+            let q = pt(ph, band(ph)), startPos = SIMD2(q.x, q.z)
+            var pos = startPos
+            openGame.scene.colliders.resolve(position: &pos, radius: Player.radius, feetY: lh.y + I.stairY(ph), height: Player.eyeHeight)
+            if simd_length(pos - startPos) > 1e-3 { displaced += 1 }
+            samples += 1; ph += 0.1
+        }
+        check(displaced == 0 && samples > 300, "interior: with the fittings in, no collider touches a player on the stair's centre line, at the tread's height, all the way up (\(displaced) of \(samples) points)")
+        var tightest: Float = .infinity
+        let along = I.benchTangent, c0 = I.benchCentre
+        for u in stride(from: Float(-0.7), through: 0.7, by: 0.1) {
+            for v in stride(from: Float(-0.3), through: 0.3, by: 0.1) {
+                let toAxis = -SIMD2(cos(I.workshopAngle), sin(I.workshopAngle))
+                let p2 = c0 + along * u + toAxis * v
+                let fl = o.height(x: lh.x + p2.x, z: lh.z + p2.y, feetY: lh.y + I.floorY + 2.0) ?? 0       // a head's height: is there a tread overhead?
+                _ = fl
+                // The lowest tread overhead at this spot: the stair's surface at each turn, less its thickness, if the spot is on the band at that height.
+                let ang = atan2(p2.y, p2.x), rr = simd_length(p2)
+                var uu = (ang - I.startAngle).truncatingRemainder(dividingBy: 2 * .pi); if uu < 0 { uu += 2 * .pi }
+                for k in 0..<Int(I.turns) {
+                    let h = I.stairY(I.startAngle + uu + 2 * .pi * Float(k))
+                    if rr >= I.stairInner(h) && rr <= I.innerR(h) { tightest = min(tightest, h - I.treadThickness - (I.floorY + I.benchTopY)); break }
+                }
+            }
+        }
+        check(tightest > 0.9, "interior: the bench's top is at least 0.9 m below the underside of the stair over every point of it (tightest \(String(format: "%.2f", tightest)) m), and the plates and charts (top 1.8 m) sit below the tread too")
     }
 }

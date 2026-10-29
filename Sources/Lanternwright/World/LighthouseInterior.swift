@@ -141,9 +141,15 @@ struct LighthouseInterior {
     // MARK: Fittings
 
     static let fittingsName = "lh_interior_fittings", ringName = "lh_lens_ring"
-    /// The workshop bench: against the north wall of the ground room, 1.4 m long, its two ends as colliders (tower frame, x/z).
-    static let benchCentre = SIMD2<Float>(0, -2.15)
-    static var benchEnds: [SIMD2<Float>] { [benchCentre + SIMD2(-0.45, 0), benchCentre + SIMD2(0.45, 0)] }
+    /// The workshop: on the south-east side of the ground room (angle `workshopAngle`, `atan2(dz, dx)`), where the stair's first turn is 2.3 m or more above the floor (it is only 1 m up at the
+    /// north wall, which is why nothing stands there): the bench runs along the wall at `benchRadius`, 1.4 m long, its two ends are colliders (tower frame, x/z).
+    static let workshopAngle: Float = 0.85
+    static let benchRadius: Float = 2.45
+    static var benchCentre: SIMD2<Float> { SIMD2(cos(workshopAngle), sin(workshopAngle)) * benchRadius }
+    /// The direction along the wall at the workshop (the bench's long axis).
+    static var benchTangent: SIMD2<Float> { SIMD2(-sin(workshopAngle), cos(workshopAngle)) }
+    static var benchEnds: [SIMD2<Float>] { [benchCentre - benchTangent * 0.45, benchCentre + benchTangent * 0.45] }
+    static let benchTopY: Float = 0.91                       // above the room's floor
     /// The lens ring's height above the lens room's floor and its radii (it turns in S03.7: its own item `ringName`, about the tower's axis).
     static let ringHeight: Float = 1.05, ringMajor: Float = 0.74, ringMinor: Float = 0.06
 
@@ -204,32 +210,41 @@ struct LighthouseInterior {
         fit.cylinder(radiusTop: 0.5, radiusBottom: 0.55, height: 0.35, segments: 24, smooth: true, surface: stone, transform: place * translation(SIMD3(0, lensFloorY, 0)))
         // The handrail: a tube along the inner edge a metre above the treads, and a post at every third tread.
         var railPoints: [SIMD3<Float>] = [], railRadii: [Float] = []
-        for i in 0...total {
+        for i in openTreads...total {
             let phi = startAngle + Float(i) * dphi
             let h = stairY(phi), e = stairInner(h) - 0.05
             railPoints.append(SIMD3(cos(phi) * e, h + 0.95, sin(phi) * e)); railRadii.append(0.025)
-            if i % 3 == 0 && i >= openTreads {
+            if i % 3 == 0 {
                 fit.cylinder(radiusTop: 0.015, radiusBottom: 0.015, height: 0.95, segments: 6, smooth: true, surface: iron, transform: place * translation(SIMD3(cos(phi) * e, h, sin(phi) * e)))
             }
         }
         fit.tube(points: railPoints, radii: railRadii, sides: 6, caps: true, surface: iron, transform: place)
-        // The workshop: the bench against the north wall (a plank top on two trestles), a stool, three engraved plates on the wall behind it, the tuning fork on a hook, two charts.
+        // The workshop (on the south-east wall, clear of the low treads): the bench along the wall (a plank top on two trestles), a stool facing the room, three engraved rule-plates and a charts
+        // on the wall above it, the tuning fork on its hook. Everything stays below the tread overhead (2.3 m up at its lowest here).
         let bc = benchCentre
-        fit.box(size: SIMD3(1.4, 0.06, 0.6), surface: wood, transform: place * translation(SIMD3(bc.x, floorY + 0.88, bc.y)))
-        for sx: Float in [-0.55, 0.55] { fit.box(size: SIMD3(0.08, 0.86, 0.5), surface: woodDark, transform: place * translation(SIMD3(bc.x + sx, floorY + 0.43, bc.y))) }
-        fit.cylinder(radiusTop: 0.2, radiusBottom: 0.22, height: 0.5, segments: 12, smooth: true, surface: woodDark, transform: place * translation(SIMD3(bc.x + 0.3, floorY, bc.y + 0.95)))
-        let wallN = SIMD2<Float>(0, -(innerR(floorY + 2.0) - 0.04))                 // the north wall at working height
-        for (k, sx) in ([-0.55, 0.0, 0.55] as [Float]).enumerated() {
-            fit.box(size: SIMD3(0.4, 0.5, 0.03), surface: k == 1 ? stone : woodDark, transform: place * translation(SIMD3(sx, floorY + 1.75, wallN.y + 0.015)))      // rule-plates
-            fit.box(size: SIMD3(0.26, 0.016, 0.01), surface: iron, transform: place * translation(SIMD3(sx, floorY + 1.80, wallN.y + 0.035)))                       // an engraved line
+        let aw = workshopAngle
+        let benchFrame = place * translation(SIMD3(bc.x, 0, bc.y)) * rotationY(-(aw + .pi / 2))        // local x along the wall, local z toward the room's axis
+        fit.box(size: SIMD3(1.4, 0.06, 0.6), surface: wood, transform: benchFrame * translation(SIMD3(0, floorY + benchTopY - 0.03, 0)))
+        for sx: Float in [-0.55, 0.55] { fit.box(size: SIMD3(0.08, benchTopY - 0.06, 0.5), surface: woodDark, transform: benchFrame * translation(SIMD3(sx, floorY + (benchTopY - 0.06) / 2, 0))) }
+        fit.cylinder(radiusTop: 0.2, radiusBottom: 0.22, height: 0.5, segments: 12, smooth: true, surface: woodDark, transform: benchFrame * translation(SIMD3(0.3, floorY, 0.95)))
+        // On the wall: a frame at angle `a` and height y, its z axis toward the axis, standing off the wall by half its thickness.
+        func onWall(_ a: Float, _ y: Float, depth: Float = 0.03) -> float4x4 {
+            let r = innerR(floorY + y) - depth / 2
+            return place * translation(SIMD3(cos(a) * r, floorY + y, sin(a) * r)) * rotationY(atan2(-cos(a), -sin(a)))
         }
-        fit.cylinder(radiusTop: 0.012, radiusBottom: 0.012, height: 0.12, segments: 6, smooth: true, surface: iron, transform: place * translation(SIMD3(1.15, floorY + 1.95, wallN.y + 0.06)) * rotationX(.pi / 2))   // the hook
-        let fork = place * translation(SIMD3(1.15, floorY + 1.55, wallN.y + 0.07))
-        fit.box(size: SIMD3(0.012, 0.3, 0.012), surface: iron, transform: fork * translation(SIMD3(0, 0.15, 0)))
-        for sx: Float in [-0.025, 0.025] { fit.box(size: SIMD3(0.01, 0.2, 0.01), surface: iron, transform: fork * translation(SIMD3(sx, 0.4, 0))) }
-        fit.box(size: SIMD3(0.06, 0.012, 0.01), surface: iron, transform: fork * translation(SIMD3(0, 0.31, 0)))
-        for (k, sx) in ([-1.45, -1.0] as [Float]).enumerated() {
-            fit.box(size: SIMD3(0.36, 0.46, 0.006), surface: paper, transform: place * translation(SIMD3(sx, floorY + 1.55 + 0.05 * Float(k), wallN.y + 0.2)) * rotationY(0.18))
+        for (k, da) in ([-0.2, 0.0, 0.2] as [Float]).enumerated() {
+            let f = onWall(aw + da, 1.55)
+            fit.box(size: SIMD3(0.36, 0.5, 0.03), surface: k == 1 ? stone : woodDark, transform: f)                                  // a rule-plate
+            fit.box(size: SIMD3(0.24, 0.016, 0.01), surface: iron, transform: f * translation(SIMD3(0, 0.07, 0.02)))                   // an engraved line
+        }
+        let hook = onWall(aw - 0.45, 1.95, depth: 0.04)
+        fit.cylinder(radiusTop: 0.012, radiusBottom: 0.012, height: 0.1, segments: 6, smooth: true, surface: iron, transform: hook * rotationX(.pi / 2))
+        let fork = onWall(aw - 0.45, 1.62, depth: 0.04)
+        fit.box(size: SIMD3(0.012, 0.3, 0.012), surface: iron, transform: fork * translation(SIMD3(0, 0.0, 0.01)))
+        for sx: Float in [-0.025, 0.025] { fit.box(size: SIMD3(0.01, 0.2, 0.01), surface: iron, transform: fork * translation(SIMD3(sx, 0.24, 0.01))) }
+        fit.box(size: SIMD3(0.06, 0.012, 0.01), surface: iron, transform: fork * translation(SIMD3(0, 0.15, 0.01)))
+        for (k, da) in ([0.38, 0.52] as [Float]).enumerated() {
+            fit.box(size: SIMD3(0.3, 0.4, 0.006), surface: paper, transform: onWall(aw + da, 1.5 + 0.06 * Float(k), depth: 0.02) * rotationZ(0.05 * (k == 0 ? 1 : -1)))
         }
         scene.add(fittingsName, mesh: fit.build(device: device, label: "lighthouse interior fittings"), uniforms: ObjectUniforms(model: matrix_identity_float4x4), hidden: !shownForTools)
 
