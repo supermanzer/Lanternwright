@@ -1,4 +1,5 @@
 import Metal
+import MetalFX
 import simd
 import Foundation
 
@@ -35,10 +36,23 @@ extension Renderer {
         return SIMD3(sin(az) * cos(el), sin(el), -cos(az) * cos(el))
     }
 
+    /// `width` and `height` are the OUTPUT size (the drawable). With MetalFX active the scene's textures are made at `renderScale` of it.
     func ensureTargets(width: Int, height: Int) {
-        if let t = targets, t.width == width, t.height == height { return }
-        targets = RenderTargets(device: device, width: width, height: height)
-        taaHistoryValid = false; velocityHistoryValid = false
+        let active = metalFXActive
+        let rw = active ? max(64, Int((Float(width) * renderScale).rounded())) : width
+        let rh = active ? max(36, Int((Float(height) * renderScale).rounded())) : height
+        if let t = targets, t.width == width, t.height == height, t.renderWidth == rw, t.renderHeight == rh, (t.upscaled != nil) == active { return }
+        var usage: MTLTextureUsage?
+        temporalScaler = nil
+        if active {
+            let d = MTLFXTemporalScalerDescriptor()
+            d.inputWidth = rw; d.inputHeight = rh; d.outputWidth = width; d.outputHeight = height
+            d.colorTextureFormat = Renderer.hdrFormat; d.depthTextureFormat = Renderer.depthFormat
+            d.motionTextureFormat = .rg16Float; d.outputTextureFormat = Renderer.hdrFormat
+            if let scaler = d.makeTemporalScaler(device: device) { temporalScaler = scaler; usage = scaler.outputTextureUsage }
+        }
+        targets = RenderTargets(device: device, width: width, height: height, renderWidth: rw, renderHeight: rh, upscaleUsage: temporalScaler == nil ? nil : usage)
+        taaHistoryValid = false; velocityHistoryValid = false; scalerHistoryValid = false
     }
 
     func updateFrame(camera: Camera, width: Int, height: Int) {
@@ -53,8 +67,8 @@ extension Renderer {
         if let last = taaLastCameraPos, simd_length(camera.position - last) > 12 || abs(camera.fovY - taaLastFov) > 0.3 { cameraCut = true }
         taaLastCameraPos = camera.position; taaLastFov = camera.fovY
         if taaLastWorld != world { cameraCut = true; taaLastWorld = world }
-        if cameraCut { velocityHistoryValid = false }
-        if taaEnabled {
+        if cameraCut { velocityHistoryValid = false; scalerHistoryValid = false }
+        if taaEnabled || metalFXActive {
             if cameraCut { taaHistoryValid = false }
             // Sub-pixel jitter: Halton (2, 3), 8 samples, offsets in (-0.5, 0.5) pixels, applied to the projection so every pass of the frame agrees on it.
             taaJitter = Renderer.jitterOffset(frame: taaFrameIndex)
@@ -188,7 +202,7 @@ extension Renderer {
     }
 
     func encodeBloom(_ cb: MTLCommandBuffer) {
-        guard let hdr = hdrTexture, bloomChain.count == Renderer.bloomLevels else { return }
+        guard let hdr = finalHDRTexture, bloomChain.count == Renderer.bloomLevels else { return }
         postPass(cb, "bloom prefilter", bloomPrefilterPipeline, source: hdr, target: bloomChain[0], load: .dontCare)
         for i in 1..<Renderer.bloomLevels {
             postPass(cb, "bloom down \(i)", bloomDownPipeline, source: bloomChain[i - 1], target: bloomChain[i], load: .dontCare)

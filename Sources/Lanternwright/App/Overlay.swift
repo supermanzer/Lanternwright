@@ -366,12 +366,16 @@ final class OverlayView: NSView {
         taa.state = settings.taa ? .on : .off
         taa.frame = NSRect(x: c.minX + 36, y: c.minY + 444, width: 330, height: 22)
         taa.attributedTitle = NSAttributedString(string: "Smooth fine detail (anti-aliasing)", attributes: [.foregroundColor: NSColor.white.withAlphaComponent(0.85), .font: NSFont.systemFont(ofSize: 14)])
+        let mfx = NSButton(checkboxWithTitle: "Sharper upscaling (MetalFX), when resolution is below 100 %", target: self, action: #selector(menuMetalFX))
+        mfx.state = settings.metalFX ? .on : .off
+        mfx.frame = NSRect(x: c.minX + 36, y: c.minY + 466, width: c.width - 72, height: 20)
+        mfx.attributedTitle = NSAttributedString(string: "Sharper upscaling (MetalFX), when resolution is below 100 %", attributes: [.foregroundColor: NSColor.white.withAlphaComponent(0.85), .font: NSFont.systemFont(ofSize: 14)])
         let controls = NSButton(title: "Controls…", target: self, action: #selector(menuControls))
-        controls.frame = NSRect(x: c.minX + 36, y: c.minY + 482, width: c.width - 72, height: 32); controls.bezelStyle = .rounded
+        controls.frame = NSRect(x: c.minX + 36, y: c.minY + 494, width: c.width - 72, height: 30); controls.bezelStyle = .rounded
         let quit = NSButton(title: "Quit", target: self, action: #selector(menuQuit))
         quit.frame = NSRect(x: c.maxX - 36 - 110, y: c.maxY - 62, width: 110, height: 32); quit.bezelStyle = .rounded
         menuViews = [resume, label("Look speed", y: c.minY + 152), sens, label("Camera calm", y: c.minY + 192), calm,
-                     label("Walking pace", y: c.minY + 232), pace, label("Volume", y: c.minY + 272), vol, label("Render resolution", y: c.minY + 312), scale, label("Guidance", y: c.minY + 352), guide, invert, slip, taa, controls, newGame, quit]
+                     label("Walking pace", y: c.minY + 232), pace, label("Volume", y: c.minY + 272), vol, label("Render resolution", y: c.minY + 312), scale, label("Guidance", y: c.minY + 352), guide, invert, slip, taa, mfx, controls, newGame, quit]
         for v in menuViews { v.appearance = NSAppearance(named: .darkAqua); addSubview(v) }
     }
 
@@ -385,6 +389,7 @@ final class OverlayView: NSView {
     @objc private func menuPace(_ s: NSSlider) { settings.pace = Float(s.doubleValue); onSettingsChanged?(settings) }
     @objc private func menuCalm(_ s: NSSlider) { settings.calmCamera = Float(s.doubleValue); onSettingsChanged?(settings) }
     @objc private func menuVolume(_ s: NSSlider) { settings.volume = Float(s.doubleValue); onSettingsChanged?(settings) }
+    @objc private func menuMetalFX(_ b: NSButton) { settings.metalFX = b.state == .on; onSettingsChanged?(settings) }
     @objc private func menuScale(_ s: NSSlider) { settings.renderScale = Float(s.doubleValue); onSettingsChanged?(settings) }
     @objc private func menuInvert(_ b: NSButton) { settings.invertY = b.state == .on; onSettingsChanged?(settings) }
     @objc private func menuNewGame(_ b: NSButton) {

@@ -4,7 +4,12 @@ import Metal
 /// when the size changes. (The fixed-size textures, the shadow cascades, the sky LUT and the irradiance map, belong to their passes and stay where they are made.)
 /// Sizes: full output size unless noted; `rays` and the two AO textures are half size; bloom level i is size >> (i + 1).
 struct RenderTargets {
+    /// The OUTPUT size (the drawable); `renderWidth` and `renderHeight` are the size the scene is drawn at (G10.4.1: smaller than the output when MetalFX upscales; equal otherwise).
     let width: Int, height: Int
+    let renderWidth: Int, renderHeight: Int
+    /// G10.4.1: the upscaler's full-size output (nil when the scene is drawn at the output size). Bloom, god rays and the composite read `finalHDR`.
+    let upscaled: MTLTexture?
+    var finalHDR: MTLTexture { upscaled ?? hdr }
     /// The scene's HDR colour: opaque, sky, water, glass, AO and TAA all write it; bloom and the composite read it.
     let hdr: MTLTexture
     /// Temporal anti-aliasing: last frame's resolved image, and where this frame's is written. They swap every frame (`swapTAA`).
@@ -23,27 +28,32 @@ struct RenderTargets {
     /// 64 x 36 mean log luminance for eye adaptation, read back on the CPU a frame late (a fixed size, made on first use).
     var luma: MTLTexture?
 
-    init(device: MTLDevice, width: Int, height: Int) {
-        func make(_ format: MTLPixelFormat, _ label: String, _ w: Int, _ h: Int) -> MTLTexture {
+    init(device: MTLDevice, width: Int, height: Int, renderWidth rw: Int? = nil, renderHeight rh: Int? = nil, upscaleUsage: MTLTextureUsage? = nil) {
+        func make(_ format: MTLPixelFormat, _ label: String, _ w: Int, _ h: Int, usage: MTLTextureUsage = [.renderTarget, .shaderRead]) -> MTLTexture {
             let d = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: format, width: w, height: h, mipmapped: false)
-            d.usage = [.renderTarget, .shaderRead]
+            d.usage = usage
             d.storageMode = .private
             let t = device.makeTexture(descriptor: d)!
             t.label = label
             return t
         }
+        let renderW = rw ?? width, renderH = rh ?? height
         self.width = width; self.height = height
-        hdr = make(Renderer.hdrFormat, "hdr", width, height)
-        taaHistory = make(Renderer.hdrFormat, "taa history", width, height)
-        taaResolved = make(Renderer.hdrFormat, "taa resolved", width, height)
-        sceneCopy = make(Renderer.hdrFormat, "sceneCopy", width, height)
-        distance = make(Renderer.distanceFormat, "distance", width, height)
+        renderWidth = renderW; renderHeight = renderH
+        let scaled = upscaleUsage != nil
+        hdr = make(Renderer.hdrFormat, "hdr", renderW, renderH)
+        upscaled = upscaleUsage.map { make(Renderer.hdrFormat, "hdr upscaled", width, height, usage: $0.union([.renderTarget, .shaderRead])) }
+        // The native temporal anti-aliasing works at the output size and is not used when MetalFX upscales: its history is then a token texture.
+        taaHistory = make(Renderer.hdrFormat, "taa history", scaled ? 1 : width, scaled ? 1 : height)
+        taaResolved = make(Renderer.hdrFormat, "taa resolved", scaled ? 1 : width, scaled ? 1 : height)
+        sceneCopy = make(Renderer.hdrFormat, "sceneCopy", renderW, renderH)
+        distance = make(Renderer.distanceFormat, "distance", renderW, renderH)
         rays = make(Renderer.hdrFormat, "rays", width / 2, height / 2)
-        ao = make(.r16Float, "ao", width / 2, height / 2)
-        aoBlurred = make(.r16Float, "ao blurred", width / 2, height / 2)
+        ao = make(.r16Float, "ao", renderW / 2, renderH / 2)
+        aoBlurred = make(.r16Float, "ao blurred", renderW / 2, renderH / 2)
         bloom = (0..<Renderer.bloomLevels).map { i in make(Renderer.hdrFormat, "bloom\(i)", max(1, width >> (i + 1)), max(1, height >> (i + 1))) }
-        depth = make(Renderer.depthFormat, "depth", width, height)
-        velocity = make(.rg16Float, "velocity", width, height)
+        depth = make(Renderer.depthFormat, "depth", renderW, renderH)
+        velocity = make(.rg16Float, "velocity", renderW, renderH)
     }
 
     /// The resolved frame becomes next frame's history.

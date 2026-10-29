@@ -11,7 +11,7 @@ final class TAAPass: RenderPass {
         let commandBuffer = c.commandBuffer
         let target = c.target
         // 1c''. Temporal anti-aliasing: resolve the jittered frame against the history, then sharpen into the scene HDR that bloom and the composite read.
-        if r.taaEnabled, let hdr = r.hdrTexture, let hist = r.targets?.taaHistory, let res = r.targets?.taaResolved, let depth = r.depthTexture {
+        if r.taaEnabled, !r.metalFXActive, let hdr = r.hdrTexture, let hist = r.targets?.taaHistory, let res = r.targets?.taaResolved, let depth = r.depthTexture {
             var tu = TaaUniforms(prevViewProj: r.taaPrevViewProj, invViewProj: r.taaCurrentViewProj.inverse,
                                  params: SIMD4(r.taaJitter.x, r.taaJitter.y, r.taaHistoryValid ? 1 : 0, r.taaSharpness),
                                  screen: SIMD4(Float(hdr.width), Float(hdr.height), 1 / Float(hdr.width), 1 / Float(hdr.height)), tuning: r.taaTuning)

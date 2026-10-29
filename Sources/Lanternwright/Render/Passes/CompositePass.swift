@@ -23,7 +23,7 @@ final class CompositePass: RenderPass {
                 enc.setFragmentTexture(r.distanceTexture, index: 0)
             } else {
                 enc.setRenderPipelineState(r.compositePipeline)
-                enc.setFragmentTexture(r.hdrTexture, index: 0)
+                enc.setFragmentTexture(r.finalHDRTexture, index: 0)
                 enc.setFragmentTexture(r.bloomChain.first, index: 1)
                 enc.setFragmentTexture(r.raysTexture, index: 2)
             }

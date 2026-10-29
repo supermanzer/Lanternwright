@@ -26,7 +26,7 @@ final class BeamsPass: RenderPass {
                 enc.label = "beams"
                 // The resolved image lives in unjittered space, so the beams are drawn with the unjittered camera too.
                 var beamFrame = frame
-                if r.taaEnabled { beamFrame.viewProj = r.taaCurrentViewProj; beamFrame.invViewProj = r.taaCurrentViewProj.inverse }
+                if r.taaEnabled && !r.metalFXActive { beamFrame.viewProj = r.taaCurrentViewProj; beamFrame.invViewProj = r.taaCurrentViewProj.inverse }
             do {
                 enc.setRenderPipelineState(r.beamPipeline)
                 enc.setDepthStencilState(r.waterDepthState)

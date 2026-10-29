@@ -1,4 +1,5 @@
 import Metal
+import MetalFX
 import simd
 
 /// Owns GPU state and encodes one frame into any color target, whether the window drawable
@@ -77,6 +78,8 @@ final class Renderer {
     let startTime = Date()
 
     var hdrTexture: MTLTexture? { targets?.hdr }
+    /// What the post passes read: the upscaler's output when MetalFX is on, the scene's HDR otherwise.
+    var finalHDRTexture: MTLTexture? { targets?.finalHDR }
     // Temporal anti-aliasing (F02 R1, see Shaders/TAA.swift). Off in headless screenshots unless `--taa`, so existing baselines stay comparable.
     var taaEnabled = false
     var taaSharpness: Float = 0.8
@@ -94,6 +97,15 @@ final class Renderer {
     let velocityPipeline: MTLRenderPipelineState
     /// G10.2.1: write the motion vector buffer (needed by MetalFX; off otherwise: no pass, no cost). `velocityPrevViewProj` is last frame's unjittered view-projection.
     var velocityEnabled = false
+    /// G10.4.1: the fraction of the output size the scene is drawn at. 1 = native (the temporal anti-aliasing resolves at the output size); below 1 the scene is drawn smaller and
+    /// MetalFX's temporal scaler upscales it to the output (it replaces the native resolve, uses the motion vectors and the jitter), when the device supports it.
+    var renderScale: Float = 1
+    nonisolated(unsafe) static var metalFXSupported: Bool = { MTLCreateSystemDefaultDevice().map { MTLFXTemporalScalerDescriptor.supportsDevice($0) } ?? false }()
+    var metalFXActive: Bool { renderScale < 0.999 && Renderer.metalFXSupported }
+    var temporalScaler: MTLFXTemporalScaler?
+    var scalerHistoryValid = false
+    /// The velocity pass runs when asked to (selftests, tools) and whenever MetalFX needs the vectors.
+    var velocityNeeded: Bool { velocityEnabled || metalFXActive }
     var velocityPrevViewProj = matrix_identity_float4x4
     var velocityHistoryValid = false
     var velocityTexture: MTLTexture? { targets?.velocity }
@@ -384,6 +396,7 @@ final class Renderer {
         sds.isDepthWriteEnabled = false
         skyDepthState = device.makeDepthStencilState(descriptor: sds)!
         taaEnabled = options.taa
+        renderScale = options.renderScale
         let env = ProcessInfo.processInfo.environment
         if let a = env["TAA_ALPHA"] { let v = a.split(separator: " ").compactMap { Float($0) }; if v.count == 2 { taaTuning.x = v[0]; taaTuning.y = v[1] } }
         if let g = env["TAA_GAMMA"], let v = Float(g) { taaTuning.z = v }
@@ -398,7 +411,7 @@ final class Renderer {
     func blitEncoder(_ cb: MTLCommandBuffer) -> MTLBlitCommandEncoder? { passTimer?.blitEncoder(cb) ?? cb.makeBlitCommandEncoder() }
 
     /// The passes of a frame, in order (G10.1.2). Each one reads what the earlier ones wrote; see the pass files for what.
-    lazy var passes: [RenderPass] = [ShadowPass(self), OpaquePass(self), WaterPass(self), VelocityPass(self), AOPass(self), TAAPass(self), BeamsPass(self), GodRaysPass(self), BloomPass(self), CompositePass(self)]
+    lazy var passes: [RenderPass] = [ShadowPass(self), OpaquePass(self), WaterPass(self), VelocityPass(self), AOPass(self), TAAPass(self), BeamsPass(self), MetalFXPass(self), GodRaysPass(self), BloomPass(self), CompositePass(self)]
 
     /// Encode a full frame that ends by writing `target` (format `outputFormat`).
     func encode(commandBuffer: MTLCommandBuffer, target: MTLTexture, camera: Camera) {
@@ -406,7 +419,7 @@ final class Renderer {
         defer { passTimer?.end() }
         scene.applyLOD(eye: camera.position)
         ensureTargets(width: target.width, height: target.height)
-        updateFrame(camera: camera, width: target.width, height: target.height)
+        updateFrame(camera: camera, width: targets?.renderWidth ?? target.width, height: targets?.renderHeight ?? target.height)
         updateSkyLUT(commandBuffer: commandBuffer)
         let context = FrameContext(commandBuffer: commandBuffer, target: target, camera: camera, frame: frame)
         for pass in passes { pass.encode(context) }

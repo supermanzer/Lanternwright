@@ -9,7 +9,7 @@ final class VelocityPass: RenderPass {
     let name = "velocity"
 
     func encode(_ c: FrameContext) {
-        guard r.velocityEnabled, let velocity = r.velocityTexture, let depth = r.depthTexture else { r.velocityHistoryValid = false; return }          // off: the last matrix would be stale when it is switched on again
+        guard r.velocityNeeded, let velocity = r.velocityTexture, let depth = r.depthTexture else { r.velocityHistoryValid = false; return }          // off: the last matrix would be stale when it is switched on again
         // This frame's unjittered view-projection (updateFrame sets it) and the last one; a camera cut or world change makes the old one meaningless.
         let current = r.taaCurrentViewProj
         let previous = r.velocityHistoryValid ? r.velocityPrevViewProj : current

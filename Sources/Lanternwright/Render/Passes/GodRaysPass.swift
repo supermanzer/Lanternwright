@@ -11,7 +11,7 @@ final class GodRaysPass: RenderPass {
         let commandBuffer = c.commandBuffer
         var frame = c.frame
         // 1d. God rays (half resolution), then the bloom chain.
-        if let rays = r.raysTexture, let hdr = r.hdrTexture, let dist = r.distanceTexture {
+        if let rays = r.raysTexture, let hdr = r.finalHDRTexture, let dist = r.distanceTexture {
             let rp = MTLRenderPassDescriptor()
             rp.colorAttachments[0].texture = rays
             rp.colorAttachments[0].loadAction = .dontCare

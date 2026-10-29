@@ -47,7 +47,7 @@ extension SelfTestRunner {
         guard name == "all" || name == "framegraph" else { return }
         guard let device = MTLCreateSystemDefaultDevice() else { check(false, "framegraph: no Metal device"); return }
         let renderer = Renderer(device: device, options: LaunchOptions.parse(["lanternwright"]))
-        check(renderer.passes.map(\.name) == ["shadow", "opaque", "water", "velocity", "ao", "taa", "beams", "god rays", "bloom", "composite"],
+        check(renderer.passes.map(\.name) == ["shadow", "opaque", "water", "velocity", "ao", "taa", "beams", "metalfx", "god rays", "bloom", "composite"],
               "framegraph: the passes in order: \(renderer.passes.map(\.name).joined(separator: ", "))")
         let dir = "Sources/Lanternwright/Render/Passes"
         let files = (try? FileManager.default.contentsOfDirectory(atPath: dir))?.filter { $0.hasSuffix("Pass.swift") && $0 != "RenderPass.swift" } ?? []
@@ -56,7 +56,7 @@ extension SelfTestRunner {
             let text = (try? String(contentsOfFile: dir + "/" + f, encoding: .utf8)) ?? ""
             if text.contains("r.frame") { offenders.append(f) }
         }
-        check(files.count == 10 && offenders.isEmpty, "framegraph: no pass touches the renderer's frame uniforms (\(files.count) pass files, offenders: \(offenders))")
+        check(files.count == 11 && offenders.isEmpty, "framegraph: no pass touches the renderer's frame uniforms (\(files.count) pass files, offenders: \(offenders))")
         let enc = (try? String(contentsOfFile: "Sources/Lanternwright/Render/Renderer.swift", encoding: .utf8)) ?? ""
         let body = enc.components(separatedBy: "    func encode(commandBuffer: MTLCommandBuffer, target: MTLTexture, camera: Camera) {").last?.components(separatedBy: "\n    }\n").first ?? ""
         check(!body.isEmpty && body.split(separator: "\n").count < 60, "framegraph: Renderer.encode is under 60 lines (\(body.split(separator: "\n").count))")
@@ -134,5 +134,32 @@ extension SelfTestRunner {
         let reOn = frame(far).map { abs($0) }.sorted()
         check(reOn[reOn.count * 99 / 100] < 0.1, "velocity: switched off and on again, the first frame has zero motion (99 % under \(String(format: "%.3f", reOn[reOn.count * 99 / 100])) px)")
         renderer.velocityEnabled = false
+    }
+}
+
+extension SelfTestRunner {
+    /// G10.4.1: MetalFX upscaling at a render scale below 1 draws the scene smaller, outputs the full size, and looks like the native frame (same overall brightness, no NaNs).
+    func runUpscale() {
+        guard name == "all" || name == "upscale" else { return }
+        guard Renderer.metalFXSupported, let device = MTLCreateSystemDefaultDevice() else { check(true, "upscale: MetalFX is not supported on this device: skipped"); return }
+        let w = 800, h = 450
+        let desc = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: Renderer.outputFormat, width: w, height: h, mipmapped: false)
+        desc.usage = [.renderTarget, .shaderRead]; desc.storageMode = .shared
+        guard let tex = device.makeTexture(descriptor: desc) else { check(false, "upscale: no target"); return }
+        func mean(_ renderer: Renderer, frames: Int) -> (Float, Bool) {
+            renderer.fixedTime = 12; renderer.autoExposure = false
+            for _ in 0..<frames { guard let cb = renderer.queue.makeCommandBuffer() else { return (0, false) }; renderer.encode(commandBuffer: cb, target: tex, camera: Viewpoints.named("dock") ?? Camera(position: SIMD3(0, 3, 0), yaw: 0, pitch: 0)); cb.commit(); cb.waitUntilCompleted() }
+            let y = Shimmer.luma(tex)
+            return (y.reduce(0, +) / Float(y.count), y.allSatisfy { $0.isFinite })
+        }
+        let native = Renderer(device: device, options: LaunchOptions.parse(["lanternwright", "--taa"]))
+        let (m0, ok0) = mean(native, frames: 10)
+        let scaled = Renderer(device: device, options: LaunchOptions.parse(["lanternwright", "--render-scale", "0.75"]))
+        let (m1, ok1) = mean(scaled, frames: 10)
+        let t = scaled.targets
+        check(ok0 && ok1 && t?.renderWidth == 600 && t?.renderHeight == 338 && t?.width == w && t?.upscaled?.width == w && t?.hdr.width == 600,
+              "upscale: at 0.75 the scene is \(t?.renderWidth ?? 0) x \(t?.renderHeight ?? 0), the upscaled image \(t?.upscaled?.width ?? 0) x \(t?.upscaled?.height ?? 0), every output value finite")
+        check(abs(m1 - m0) < 0.08 * m0, "upscale: the upscaled frame has the native frame's overall brightness (mean luma \(String(format: "%.1f", m1)) against \(String(format: "%.1f", m0)))")
+        check(scaled.passes.map(\.name).contains("metalfx") && Renderer.metalFXSupported, "upscale: the MetalFX pass is in the frame graph")
     }
 }

@@ -10,6 +10,6 @@ final class BloomPass: RenderPass {
     func encode(_ c: FrameContext) {
         let commandBuffer = c.commandBuffer
         r.encodeBloom(commandBuffer)
-        if r.autoExposure, let hdr = r.hdrTexture { r.encodeLuma(commandBuffer, hdr: hdr) }
+        if r.autoExposure, let hdr = r.finalHDRTexture { r.encodeLuma(commandBuffer, hdr: hdr) }
     }
 }

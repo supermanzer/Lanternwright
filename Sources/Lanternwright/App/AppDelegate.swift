@@ -155,7 +155,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, MTKViewDelegate {
         view.input.invertY = s.invertY
         Player.slipEnabled = s.slipOnSteep
         renderer.taaEnabled = s.taa
-        view.renderScale = CGFloat(s.renderScale)
+        // Render resolution below 1: MetalFX upscales a smaller scene to the full drawable when asked for (and supported); otherwise the smaller drawable is stretched as before.
+        let upscale = s.metalFX && s.renderScale < 0.999 && Renderer.metalFXSupported
+        renderer.renderScale = upscale ? s.renderScale : 1
+        view.renderScale = upscale ? 1 : CGFloat(s.renderScale)
         audio?.synth.master = s.volume
     }
 
