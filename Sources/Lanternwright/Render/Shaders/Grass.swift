@@ -15,6 +15,17 @@ inline float2 hash22(float2 p) {
     return fract((p3.xx + p3.yz) * p3.zy);
 }
 
+// G10.G.2: the field melts away in CHUNKS, not blade by blade. A blade used to be dropped when a per-blade hash fell below a distance-dependent keep fraction, so
+// as the camera moved each far blade vanished at its own moment and the far field twinkled. Now no blade is dropped by distance: the height of every blade in an
+// 8 x 8 cell chunk is scaled by one factor taken from the distance of the chunk's CENTRE (a world-snapped point, so the factor is continuous in the camera position),
+// reaching zero at the draw radius. Blades that are still thin by then are widened to one pixel and dimmed by their coverage (thin_coverage, G10.2.2).
+constant int kGrassChunk = 8;
+constant float kGrassFadeStart = 0.45;
+inline float grass_chunk_fade(int2 gcell, float2 eyeXZ, float cell, float radius) {
+    float2 centre = (floor(float2(gcell) / float(kGrassChunk)) + 0.5) * (float(kGrassChunk) * cell);
+    return 1.0 - smoothstep(kGrassFadeStart * radius, radius, length(centre - eyeXZ));
+}
+
 // Bilinear sample of the terrain texture (x = height, y = path weight, z = landmark-pad mask), using read() so no float32
 // filtering is needed.
 float4 terrain_sample(texture2d<float> tex, float2 xz) {
@@ -49,7 +60,8 @@ vertex LitOut grass_vertex(uint vid [[vertex_id]], uint instance [[instance_id]]
     float2 xz = (float2(gcell) + rnd) * cell;
     float dist = length(xz - frame.cameraPos.xz);
     float radius = gp.field.z;
-    if (dist > radius) return o;
+    float fade = grass_chunk_fade(gcell, frame.cameraPos.xz, cell, radius);          // one value for the whole chunk (G10.G.2)
+    if (fade < 0.002) return o;
 
     float4 ts = terrain_sample(terrainTex, xz);
     float y = ts.x;
@@ -70,15 +82,14 @@ vertex LitOut grass_vertex(uint vid [[vertex_id]], uint instance [[instance_id]]
     float gb2 = vnoiseV(float3(xz.x, 1.0, xz.y) * 0.5 + 1.7), gb8 = vnoiseV(float3(xz.x, 1.0, xz.y) * 0.125 + 4.1), gb30 = vnoiseV(float3(xz.x, 1.0, xz.y) * 0.033 + 9.3);   // the same bands as the ground (Lit.swift)
     density *= mix(0.55, 1.0, smoothstep(0.25, 0.5, gb30)) * mix(0.7, 1.0, smoothstep(0.2, 0.45, gb8));
     density *= mix(glassW ? 0.04 : 0.45, 1.0, glassW ? smoothstep(0.36, 0.56, clump) : smoothstep(0.28, 0.50, clump)) * (0.78 + 0.22 * tuft) * (1.0 - 0.9 * ts.w);     // thinner under conifers (needle litter)
-    // Thin the field with distance so far blades (sub-pixel) are not drawn at all.
-    float keep = density * (1.0 - smoothstep(0.3 * radius, radius, dist));          // thins to ZERO at the edge (dithered by the per-blade threshold below): no ring where blades stop
+    // No per-blade thinning by distance (it twinkled): the chunk fade below shrinks the blades to nothing instead.
     if (density < 0.22) return o;                                              // no lone blades on the fringe where the field fades out
-    if (hash22(float2(gcell) + 17.0).x > keep) return o;
+    if (hash22(float2(gcell) + 17.0).x > density) return o;
 
     // Blade shape: height, width, lean, facing.
     float hr = h11(rnd.x * 91.7 + rnd.y * 13.1);
     bool seedHead = h11(rnd.x * 53.3 + rnd.y * 7.7) > 0.955;                  // a few taller stems with a pale tip: meadow, not carpet
-    float height = (0.22 + 0.34 * hr) * (0.62 + 0.75 * clump) * (0.85 + 0.3 * tuft) * (0.55 + 0.45 * gb8 + 0.35 * gb2) * (seedHead ? 1.9 : 1.0) * (glassW ? mix(0.6, 1.1, smoothstep(0.3, 0.6, clump)) * (1.0 + 1.1 * tall) : 1.0) * (1.0 - smoothstep(0.7 * radius, radius, dist)) * smoothstep(0.5, 2.2, dist);   // blades right under the eye shrink away (a stray blade at the lens looked like a stake)
+    float height = (0.22 + 0.34 * hr) * (0.62 + 0.75 * clump) * (0.85 + 0.3 * tuft) * (0.55 + 0.45 * gb8 + 0.35 * gb2) * (seedHead ? 1.9 : 1.0) * (glassW ? mix(0.6, 1.1, smoothstep(0.3, 0.6, clump)) * (1.0 + 1.1 * tall) : 1.0) * fade * smoothstep(0.5, 2.2, dist);   // blades right under the eye shrink away (a stray blade at the lens looked like a stake)
     float width = (0.016 + 0.008 * rnd.y) * (1.0 - 0.35 * smoothstep(0.6 * radius, radius, dist));                                        // thin blades: a meadow, not triangles
     float yaw = rnd.x * 6.2831853;
     float2 facing = float2(cos(yaw), sin(yaw));
@@ -96,7 +107,9 @@ vertex LitOut grass_vertex(uint vid [[vertex_id]], uint instance [[instance_id]]
     float wave = sin(dot(xz, float2(0.35, 0.21)) + time * 1.1) * 0.6 + sin(dot(xz, float2(-0.8, 0.5)) + time * 1.9 + hr * 6.0) * 0.4;          // slower: a breeze, not a flutter (F03 A1)
     float bend = (0.22 + 0.16 * hr) + WIND_GRASS_SWAY * wave * (0.45 + 0.9 * wind_strength(float3(xz.x, y, xz.y), time));                              // each blade arcs over a little
     float3 wp = float3(xz.x, y, xz.y);
-    wp.xz += side * sideSign * width * taper;
+    // Coverage rule (G10.2.2): a blade narrower than a pixel is drawn one pixel wide and dimmed by the share of the pixel it really covers, a faint stable tint instead of a flickering speck.
+    ThinCover tc = thin_coverage(2.0 * width, pixel_world_size(wp, frame), 1.0);
+    wp.xz += side * sideSign * 0.5 * tc.width * taper;
     wp.xz += facing * (bend * height * t * t);
     float ws = wind_strength(float3(xz.x, y, xz.y), time);                  // THIS blade's wind: a gust is a band travelling across the meadow at 9 m/s (Wind.swift)
     wp.xz += WIND_DIR * (ws * WIND_GRASS_LEAN * height * t * t);                       // the blades lean along the wind, much more in a gust
@@ -122,6 +135,7 @@ vertex LitOut grass_vertex(uint vid [[vertex_id]], uint instance [[instance_id]]
     o.worldPos = wp;
     o.position = frame.viewProj * float4(wp, 1.0);
     o.normal = normalize(float3(facing.x * 0.35, 1.0, facing.y * 0.35));      // soft, mostly upward: blades are thin
+    col = mix(col * 0.45, col, tc.coverage);                                    // the rest of the pixel is the dark ground under the meadow
     o.color = float4(col, 0.9);
     o.material = 3.0;                                                          // foliage shading: wrap light + translucency
     return o;

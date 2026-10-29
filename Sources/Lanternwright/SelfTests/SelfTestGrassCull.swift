@@ -48,6 +48,45 @@ extension SelfTestRunner {
         let n = renderer.grassField.cellsPerSide, total = n * n
         if name == "grasscull" { for (l, k) in kept { print("grass cull: \(l): \(k) of \(total) cells kept (\(String(format: "%.1f", 100 * Float(k) / Float(total))) %)") } }
         check(kept.allSatisfy { $0.1 >= 0 && $0.1 < total }, "grass cull: the pass keeps fewer than all \(total) cells in every view (most: \(kept.map(\.1).max() ?? 0))")
+        // G10.G.2: the far field does not twinkle. Walk the camera 0.028 m a frame (the shimmer tool's pace) and compare, frame to frame, which far cells the pass keeps. A cell that is
+        // kept in one frame and not the next is a blade that popped in or out: the old per-blade distance thinning made 102 in the 60 steps below, the chunk fade makes none (a blade that is
+        // beyond reach has no height, it is not dropped). The region is a fixed patch of world, 0.55 to 0.85 of the draw radius ahead of the first camera, well inside the view.
+        do {
+            renderer.world = .varrow
+            renderer.fixedTime = 12
+            let n = renderer.grassField.cellsPerSide, cell = LookDefaults.grassCell, radius = LookDefaults.grassRadius
+            let start = SIMD3<Float>(30, 36.0, 60), steps = 60, stride: Float = 0.028
+            let cells = renderer.device.makeBuffer(length: n * n * 4, options: .storageModeShared)!, base = renderer.device.makeBuffer(length: 8, options: .storageModeShared)!
+            func keptSet(_ z: Float) -> Set<Int64> {
+                let cam = Camera(position: SIMD3(start.x, start.y, z), yaw: 0, pitch: -0.25)
+                _ = shot(renderer, cam, culled: true)
+                let count = renderer.grassField.survivorCount(queue: renderer.queue)
+                guard count > 0, let cb = renderer.queue.makeCommandBuffer(), let blit = cb.makeBlitCommandEncoder() else { return [] }
+                blit.copy(from: renderer.grassField.cells, sourceOffset: 0, to: cells, destinationOffset: 0, size: count * 4)
+                blit.copy(from: renderer.grassField.gridBase, sourceOffset: 0, to: base, destinationOffset: 0, size: 8)
+                blit.endEncoding(); cb.commit(); cb.waitUntilCompleted()
+                let b = base.contents().bindMemory(to: Int32.self, capacity: 2), ids = cells.contents().bindMemory(to: UInt32.self, capacity: count)
+                var out = Set<Int64>()
+                for k in 0..<count {
+                    let ix = Int(ids[k]) % n, iz = Int(ids[k]) / n
+                    let gx = Int(b[0]) + ix, gz = Int(b[1]) + iz
+                    let dx = (Float(gx) + 0.5) * cell - start.x, dz = (Float(gz) + 0.5) * cell - start.z          // from the first camera (cell centres: the blade is within a cell of it)
+                    let d = (dx * dx + dz * dz).squareRoot()
+                    if d >= 0.55 * radius && d <= 0.85 * radius && -dz > 0.94 * d { out.insert(Int64(gx) << 32 | Int64(UInt32(bitPattern: Int32(gz)))) }      // 20 degrees either side of north
+                }
+                return out
+            }
+            var previous = keptSet(start.z), flips = 0, seen = previous.count
+            for k in 1...steps {
+                let now = keptSet(start.z - Float(k) * stride)
+                flips += previous.symmetricDifference(now).count
+                seen += now.count
+                previous = now
+            }
+            check(seen > 0, "grass fade: the far patch holds blades to compare (\(seen / (steps + 1)) kept cells a frame)")
+            if name == "grasscull" { print("grass fade: \(flips) cells popped in or out of the far patch over \(steps) steps of \(stride) m (\(seen / (steps + 1)) kept a frame)") }
+            check(flips == 0, "grass fade: no far cell pops in or out as the camera walks (\(flips) did in \(steps) steps; the per-blade thinning it replaced popped 102 in the same walk)")
+        }
         let looking = kept.filter { $0.0.hasPrefix("varrow yaw") }.map(\.1)
         check((looking.max() ?? total) < total * 6 / 10, "grass cull: with the view turned any way round the meadow, at most 60 % of the cells survive (\(looking.max() ?? 0) of \(total))")
     }

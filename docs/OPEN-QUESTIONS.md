@@ -97,6 +97,12 @@ Format: `### Q<n> (date, who): the question` then *Default taken*, *Where it liv
 *What changes if the answer differs:* change the constants (a longer wait; groupSize 4 to require all) or the sides in the data; the tests follow the constants. The wait is not saved: quitting and relaunching skips it (a 10 to 20 s cost against 30 s; accepted, persisting it is a `StoryState` field if wanted).
 *Status:* open.
 
+### Q17 (2026-10-29, builder B, G10.G.2): the plan's "grass flicker drops by 50 %" cannot be met by a far-field fade: is a different measure acceptable?
+*Default taken:* G.2 is accepted on what it can show: far-field pops 102 -> 0 over a 60-step walk (selftest), no ring at the field's edge, cost-neutral, and crystal edge crawl -1.4 %. The 50 % figure assumed the far field twinkles most; `--shimmer-layers` plus the heat map (`SHIMMER_HEAT`) say the grass crawl sits in the near field (blades within about 10 m), which a fade cannot reach. The likeliest levers are TAA's handling of thin foreground blades and velocity for the wind-animated blades (A's G10.2.1 animated-vertex velocity), not G.2.
+*Where it lives:* `grass_chunk_fade`, `kGrassFadeStart` (0.45), `kGrassChunk` (8) in `Render/Shaders/Grass.swift`; the shared use in `Render/GrassField.swift`.
+*What changes if the answer differs:* a near-field measure needs its own task (blade LOD by distance in the near field, or grass velocity); the fade constants only move where the far field melts (a later start fades earlier and cheapens the draw).
+*Status:* open.
+
 ## Answered
 - 2026-10-28 S03 Oren's exit location: both exits at the original lighthouse; Oren's is a lens portal in the lens room, the dock arch is not an exit.
 - 2026-10-28 Page gate: 3 pages of each sibling.

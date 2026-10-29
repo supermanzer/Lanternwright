@@ -8,6 +8,9 @@ import Foundation
 /// nothing (no density, thinned away by distance) or lie outside the view. A compute pass now asks that question once per cell, and the draw is an indirect one over
 /// only the cells that might be seen.
 ///
+/// G10.G.2: distance no longer thins the field blade by blade. The pass and the vertex shader share `grass_chunk_fade` (Shaders/Grass.swift): one factor per 8 x 8 cell chunk from the
+/// distance of the chunk's centre, which scales the blades' height to nothing at the draw radius, so a cell is kept or dropped by density alone and never by how far the eye is.
+///
 /// The pass only ever REJECTS, and only when it is sure: every threshold carries a margin, and the frustum test keeps anything within `frustumMargin` metres of the
 /// view (a blade is up to about 5 m tall and leans up to about 7 m in a gust). The vertex shader still runs its own tests on every cell it is given and is the final
 /// arbiter, so a culled cell is always one the old path would have drawn nothing for, and the frame is byte-identical (checked by `scripts/grass-frames.sh`,
@@ -127,11 +130,11 @@ kernel void grass_cull(uint row [[threadgroup_position_in_grid]], uint ix [[thre
         float2 rnd = hash22(float2(gcell));
         float2 xz = (float2(gcell) + rnd) * cell;
         float dist = length(xz - frame.cameraPos.xz);
-        float distFade = 1.0 - smoothstep(0.3 * radius, radius, dist);           // the vertex shader's `keep` is density * this, and density <= 1
+        float fade = grass_chunk_fade(gcell, frame.cameraPos.xz, cell, radius);   // G10.G.2: the same chunk factor as the vertex shader; it drops a whole chunk at fade < 0.002
         float h = hash22(float2(gcell) + 17.0).x;
         // Cheapest tests first, each only rejecting with a margin (the vertex shader rejects at density < 0.22 and at hash > keep, and every factor after the first
         // few is at most 1, so the partial products below are upper bounds of the density it will compute).
-        if (dist <= radius + 0.05 && h <= distFade + 0.002) {
+        if (fade >= 0.002 - 0.0005) {
             float4 ts = terrain_sample(terrainTex, xz);
             float y = ts.x;
             // Within reach of the view? The planes of the view-projection, each taken from its rows; a root further than `margin` outside one is out. The margin
@@ -162,8 +165,7 @@ kernel void grass_cull(uint row [[threadgroup_position_in_grid]], uint ix [[thre
                     float gb8 = vnoiseV(float3(xz.x, 1.0, xz.y) * 0.125 + 4.1), gb30 = vnoiseV(float3(xz.x, 1.0, xz.y) * 0.033 + 9.3);
                     density *= mix(0.55, 1.0, smoothstep(0.25, 0.5, gb30)) * mix(0.7, 1.0, smoothstep(0.2, 0.45, gb8));
                     density *= mix(glassW ? 0.04 : 0.45, 1.0, glassW ? smoothstep(0.36, 0.56, clump) : smoothstep(0.28, 0.50, clump)) * (0.78 + 0.22 * tuft) * (1.0 - 0.9 * ts.w);
-                    float keep = density * distFade;
-                    keepCell = density >= 0.22 - 0.002 && h <= keep + 0.002;
+                    keepCell = density >= 0.22 - 0.002 && h <= density + 0.002;
                 }
             }
         }
