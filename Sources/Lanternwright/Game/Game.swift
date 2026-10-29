@@ -331,6 +331,27 @@ final class Game {
         if finished { chainStart = nil }
     }
 
+    // MARK: The way back (F05 S3)
+
+    /// The Glass Wood's return ring is steadily lit; once the altar is solved it brightens and breathes, and the lamp's line is said once, at that moment (not when a save loads with the altar solved).
+    static let returnRingGlow: (ring: Float, core: Float) = (6.0, 11.0)
+    private var altarSeen: Bool?
+    /// The return ring's emissive strength now (the scene's own base glow until the altar is solved).
+    func returnGlow(ring: Bool) -> Float {
+        let base: Float = ring ? 2.2 : 5.0
+        guard state.has("gw_end") else { return base }
+        let target = ring ? Game.returnRingGlow.ring : Game.returnRingGlow.core
+        return target * (0.85 + 0.15 * sin(time * 1.6))
+    }
+    private func syncReturnCue() {
+        let now = state.has("gw_end")
+        defer { altarSeen = now }
+        if altarSeen == false && now && world == .glassWood { showBanner(Story.lampWaitingLine) }
+        guard world == .glassWood, let sc = scenes[.glassWood] else { return }
+        sc.update("gw_return_ring") { $0.uniforms.emissive.w = returnGlow(ring: true) }
+        sc.update("gw_return_core") { $0.uniforms.emissive.w = returnGlow(ring: false) }
+    }
+
     /// Show the note on the door (and let it be read) exactly while the player has returned; hide it again in the Glass Wood.
     private func syncDoorNote() {
         let on = hasReturned && !state.has(Game.doorOpenFlag)                  // the note goes with the door when it opens
@@ -516,6 +537,7 @@ final class Game {
         journal.markShown()
         syncDoorNote()
         syncLanternChain()
+        syncReturnCue()
         syncInterior()
         syncSeals()
         checkPortalStep()

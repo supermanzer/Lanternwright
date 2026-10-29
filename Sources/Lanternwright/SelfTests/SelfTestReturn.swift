@@ -27,6 +27,17 @@ extension SelfTestRunner {
         check(!g.hasReturned && !g.lighthouseSignal && noteHidden(g) == true, "return: in the Glass Wood there is no signal and the note is hidden again")
         g.travel(to: .varrow); step(g)
         check(g.hasReturned && noteHidden(g) == false && noteEnabled(g) == true, "return: back on Varrow it is there again")
+        // F05 S3 (#65): the way back is told without a prompt: the lamp's line when the altar is solved, and the return ring brightens.
+        func glow(_ g: Game, _ name: String) -> Float? { g.scenes[.glassWood]?.items.first { $0.name == name }?.uniforms.emissive.w }
+        let tell = twoWorlds(); tell.travel(to: .glassWood); step(tell); tell.simulate(seconds: 6)
+        check(tell.banner == nil && glow(tell, "gw_return_ring") == 2.2 && glow(tell, "gw_return_core") == 5.0, "return: before the altar the Glass Wood's return ring is at its base glow and nothing is said")
+        tell.state.set("gw_end"); step(tell)
+        check(tell.banner == Story.lampWaitingLine, "return: the moment the altar is solved the lamp's line is said (\(tell.banner ?? "nothing"))")
+        check((glow(tell, "gw_return_ring") ?? 0) > 3.5 && (glow(tell, "gw_return_core") ?? 0) > 6.5, "return: and the return ring and its core are brighter from then on")
+        let t1 = glow(tell, "gw_return_core"); for _ in 0..<8 { step(tell) }
+        check(glow(tell, "gw_return_core") != t1 && (glow(tell, "gw_return_core") ?? 0) > 6.5, "return: and they breathe rather than sit still, never dimming back toward the base")
+        let loaded = twoWorlds(); loaded.state.set("gw_end"); loaded.travel(to: .glassWood); step(loaded)
+        check(loaded.banner == nil && (glow(loaded, "gw_return_core") ?? 0) > 6.5, "return: arriving in the Glass Wood with the altar already solved (a loaded save) says nothing again, but the ring is lit")
         let early = twoWorlds(); early.travel(to: .glassWood); early.state.set("gw_ilse_heard"); early.state.set("gw_oren_heard"); step(early)
         early.travel(to: .varrow); step(early)
         check(!early.hasReturned && noteHidden(early) == true, "return: hearing the accounts is not enough: the altar's own flag (gw_end) is what counts")

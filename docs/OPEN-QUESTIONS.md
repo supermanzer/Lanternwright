@@ -116,6 +116,12 @@ Format: `### Q<n> (date, who): the question` then *Default taken*, *Where it liv
 *What changes if the answer differs:* a penalty is a `retryAt` check in `setClaim` (see git history, S03.9 follow-up); a different heading is one string.
 *Status:* open.
 
+### Q20 (2026-10-29, builder B, F05 S3): how is the player told, without a prompt, that going back is necessary?
+*Default taken:* the cheap pair: when the Glass Wood's altar is solved (the moment it happens, not when a save loads with it solved) the quiet line "The lamp is waiting." is said once, and from then on the return ring and its core are brighter and breathe (base glow 2.2 / 5.0 becomes 6 / 11 with a slow 15 % pulse). Not chosen: a Notebook line (players do not open the Notebook), the lighthouse beam in the Glass Wood sky (A's renderer; a later option if the cue proves too quiet).
+*Where it lives:* `Story.lampWaitingLine`, `Game.returnRingGlow`, `Game.syncReturnCue` / `returnGlow`.
+*What changes if the answer differs:* the line is one string; the glow is one tuple; the beam in the sky is an ask for A.
+*Status:* open.
+
 ## Answered
 - 2026-10-28 S03 Oren's exit location: both exits at the original lighthouse; Oren's is a lens portal in the lens room, the dock arch is not an exit.
 - 2026-10-28 Page gate: 3 pages of each sibling.
