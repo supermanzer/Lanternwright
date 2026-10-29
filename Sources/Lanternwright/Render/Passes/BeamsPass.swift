@@ -49,26 +49,14 @@ final class BeamsPass: RenderPass {
             }
                 // S03.5b: the windows' light shafts inside the open tower (no shadow: light casts none). Each window on the sun's side lets a soft warm shaft fall along the sun's direction.
                 if r.interiorOpen {
-                    let sunToward = simd_normalize(SIMD3(frame.sunDir.x, frame.sunDir.y, frame.sunDir.z))
-                    if sunToward.y > 0.0 {
-                        let travel = -sunToward
-                        let horiz = SIMD2(travel.x, travel.z)
-                        for (i, wy) in Lighthouse.windowYs.enumerated() {
-                            let a = Lighthouse.windowAngle(i)
-                            let inward = SIMD2(-cos(a), -sin(a))
-                            let facing = simd_length(horiz) > 1e-4 ? simd_dot(simd_normalize(horiz), inward) : 0
-                            guard facing > 0.2 else { continue }
-                            let ri = LighthouseInterior.innerR(wy)
-                            let origin = Layout.lighthouse + SIMD3(cos(a) * ri, wy, sin(a) * ri)
-                            let level = facing * min(1, sunToward.y * 6 + 0.25)
-                            var su = ObjectUniforms()
-                            su.model = float4x4(columns: (SIMD4(0.42, 0, 0, 0), SIMD4(7.5, 0, 0, 0), SIMD4(travel.x, travel.y, travel.z, 0), SIMD4(origin.x, origin.y, origin.z, 1)))
-                            su.tint = SIMD4(0, 0, 1, 0)
-                            su.emissive = SIMD4(frame.sunColor.x * 3.0 * level, frame.sunColor.y * 3.0 * level, frame.sunColor.z * 3.0 * level, 2)
-                            enc.setVertexBytes(&su, length: MemoryLayout<ObjectUniforms>.stride, index: 2)
-                            enc.setFragmentBytes(&su, length: MemoryLayout<ObjectUniforms>.stride, index: 2)
-                            enc.drawIndexedPrimitives(type: .triangle, indexCount: r.beamMesh.indexCount, indexType: .uint32, indexBuffer: r.beamMesh.indexBuffer, indexBufferOffset: 0)
-                        }
+                    for shaft in Lighthouse.windowShafts(sunToward: simd_normalize(SIMD3(frame.sunDir.x, frame.sunDir.y, frame.sunDir.z))) {
+                        var su = ObjectUniforms()
+                        su.model = float4x4(columns: (SIMD4(0.42, 0, 0, 0), SIMD4(7.5, 0, 0, 0), SIMD4(shaft.travel.x, shaft.travel.y, shaft.travel.z, 0), SIMD4(shaft.origin.x, shaft.origin.y, shaft.origin.z, 1)))
+                        su.tint = SIMD4(0, 0, 1, 0)
+                        su.emissive = SIMD4(frame.sunColor.x * 3.0 * shaft.level, frame.sunColor.y * 3.0 * shaft.level, frame.sunColor.z * 3.0 * shaft.level, 2)
+                        enc.setVertexBytes(&su, length: MemoryLayout<ObjectUniforms>.stride, index: 2)
+                        enc.setFragmentBytes(&su, length: MemoryLayout<ObjectUniforms>.stride, index: 2)
+                        enc.drawIndexedPrimitives(type: .triangle, indexCount: r.beamMesh.indexCount, indexType: .uint32, indexBuffer: r.beamMesh.indexBuffer, indexBufferOffset: 0)
                     }
                 }
                 enc.endEncoding()

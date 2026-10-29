@@ -348,3 +348,35 @@ extension SelfTestRunner {
               "doorway: through the door a ray runs on to the far wall at \(String(format: "%.1f", through ?? -1)) m; 1.6 m beside it the wall stops it at \(String(format: "%.1f", beside ?? -1)) m (the shaft's radius here is \(String(format: "%.2f", rd)))")
     }
 }
+
+extension SelfTestRunner {
+    /// S03.5b: the window light shafts: none with the sun down or overhead; with the sun up a window lets light in exactly when it faces the sun; origins on the inner wall; the level is bounded and grows with elevation.
+    func runWindowShafts() {
+        guard name == "all" || name == "windowshafts" else { return }
+        func dir(_ elev: Float, _ az: Float) -> SIMD3<Float> { Renderer.sunDirection(elevationDeg: elev, azimuthDeg: az) }
+        check(Lighthouse.windowShafts(sunToward: dir(-2, 100)).isEmpty, "windowshafts: none with the sun below the horizon")
+        check(Lighthouse.windowShafts(sunToward: SIMD3(0, 1, 0)).isEmpty, "windowshafts: an overhead sun gives none and divides by nothing")
+        var mismatches = 0, originErr: Float = 0, travelErr: Float = 0, maxLevel: Float = 0, any = false
+        for az in stride(from: Float(0), to: 360, by: 15) {
+            let s = dir(30, az), h = simd_normalize(SIMD2(-s.x, -s.z))
+            let got = Lighthouse.windowShafts(sunToward: s)
+            for (i, wy) in Lighthouse.windowYs.enumerated() {
+                let a = Lighthouse.windowAngle(i)
+                let facing = simd_dot(h, SIMD2(-cos(a), -sin(a)))
+                if (facing > 0.2) != got.contains(where: { abs($0.origin.y - (Layout.lighthouse.y + wy)) < 1e-4 }) { mismatches += 1 }
+            }
+            for g in got {
+                any = true
+                let rel = g.origin - Layout.lighthouse
+                originErr = max(originErr, abs(simd_length(SIMD2(rel.x, rel.z)) - LighthouseInterior.innerR(rel.y)))
+                travelErr = max(travelErr, simd_length(g.travel + s))
+                maxLevel = max(maxLevel, g.level)
+            }
+        }
+        check(any && mismatches == 0, "windowshafts: a window lets light in exactly when it faces the sun (\(mismatches) mismatches over 24 azimuths)")
+        check(originErr < 1e-4, "windowshafts: every shaft starts on the inner wall (error \(originErr) m)")
+        check(travelErr < 1e-5 && maxLevel <= 1, "windowshafts: the light travels away from the sun and the level stays within 0...1 (max \(maxLevel))")
+        func total(_ e: Float) -> Float { Lighthouse.windowShafts(sunToward: dir(e, 150)).reduce(0) { $0 + $1.level } }
+        check(total(2) < total(5) && total(5) < total(15) && abs(total(15) - total(40)) < 1e-4, "windowshafts: more light as the sun rises, then a plateau above about 7 degrees (\(total(2)), \(total(5)), \(total(15)), \(total(40)))")
+    }
+}

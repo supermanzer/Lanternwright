@@ -35,6 +35,24 @@ enum Lighthouse {
     /// The five windows' heights (local y) and angles (atan2(z, x), 0 = east, pi/2 = south): the stone frames outside, and the light shafts inside (S03.5b).
     static let windowYs: [Float] = [6.2, 10.4, 14.6, 18.2, 21.8]
     static func windowAngle(_ i: Int) -> Float { .pi / 2 + Float(i) * 1.9 + 0.5 }
+    /// S03.5b: the shafts of sunlight the windows let into the open tower for a sun at `sunToward` (unit vector toward the sun): origin at the window's inner face, the direction the light travels
+    /// (the opposite of `sunToward`) and a 0...1 level. A window lets light in when it faces the sun (the horizontal travel direction runs inward through it); none when the sun is down or overhead.
+    static func windowShafts(sunToward: SIMD3<Float>) -> [(origin: SIMD3<Float>, travel: SIMD3<Float>, level: Float)] {
+        guard sunToward.y > 0 else { return [] }
+        let travel = -sunToward
+        let horiz = SIMD2(travel.x, travel.z)
+        guard simd_length(horiz) > 1e-4 else { return [] }
+        let h = simd_normalize(horiz)
+        var out: [(origin: SIMD3<Float>, travel: SIMD3<Float>, level: Float)] = []
+        for (i, wy) in windowYs.enumerated() {
+            let a = windowAngle(i)
+            let facing = simd_dot(h, SIMD2(-cos(a), -sin(a)))
+            guard facing > 0.2 else { continue }
+            let ri = LighthouseInterior.innerR(wy)
+            out.append((Layout.lighthouse + SIMD3(cos(a) * ri, wy, sin(a) * ri), travel, facing * min(1, sunToward.y * 6 + 0.25)))
+        }
+        return out
+    }
 
     static func build(into scene: Scene, device: MTLDevice) {
         let granite = Surface(color: SIMD3(0.47, 0.44, 0.41), roughness: 0.9, material: .masonry)
