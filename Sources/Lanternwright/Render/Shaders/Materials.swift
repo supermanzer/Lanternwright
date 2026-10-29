@@ -448,6 +448,7 @@ inline float3 bark_cells(float3 x) {                      // F1, F2 and the near
     }
     return float3(sqrt(d1), sqrt(d2), id);
 }
+constant float EDGE_K = 1.0;
 inline MatOut mat_bark(float3 P, float3 N, float3 base, float fpix) {
     MatOut o;
     float wFur = featVis(0.12, fpix), wCrack = featVis(0.05, fpix);
@@ -455,21 +456,24 @@ inline MatOut mat_bark(float3 P, float3 N, float3 base, float fpix) {
     float3 c1 = bark_cells(float3(wq.x * 7.0, wq.y * 1.1, wq.z * 7.0));
     float3 c2 = bark_cells(float3(wq.x * 15.0, wq.y * 3.6, wq.z * 15.0) + 11.0);
     float crev = c1.y - c1.x;                               // 0 along a furrow, rising into the plate
-    float plate = mix(0.8, smoothstep(0.0, 0.22, crev), wFur);
-    float scaly = mix(0.85, smoothstep(0.0, 0.12, c2.y - c2.x), wCrack);
+    // G10.2.0: a furrow is a sharp edge (crev rises 0 -> 0.22 of a cell over 3 cm), and a sharp edge crawls under a moving camera even where the bark is well resolved. The
+    // edges are widened by the pixel footprint in cell units (f1, f2): unchanged at 0.5 m (a few percent), a little softer at 3 m, and a gradual shading band far off.
+    float f1 = fpix * 7.0, f2 = fpix * 15.0;
+    float plate = mix(0.8, smoothstep(0.0, 0.22 + EDGE_K * f1, crev), wFur);
+    float scaly = mix(0.85, smoothstep(0.0, 0.12 + EDGE_K * f2, c2.y - c2.x), wCrack);
     float relief = plate * mix(0.9, 1.0, scaly);
     float lum = dot(base, float3(0.3333));
     float3 warm = mix(base, float3(1.10, 0.97, 0.84) * lum, 0.5);                           // warm grey-brown: the saturated tan was not pine
     float3 plateCol = warm * (0.74 + 0.34 * c1.z) * (0.86 + 0.28 * scaly) * (0.9 + 0.2 * vnoise3(P * 9.0));
     float3 albedo = mix(base * 0.20, plateCol, relief);
-    albedo *= 1.0 + 0.10 * smoothstep(0.05, 0.18, crev) * (1.0 - smoothstep(0.18, 0.4, crev));   // a faint pale rim where a plate turns toward the light
+    albedo *= 1.0 + 0.10 * smoothstep(0.05, 0.18 + EDGE_K * f1, crev) * (1.0 - smoothstep(0.18 + EDGE_K * f1, 0.4 + EDGE_K * f1, crev));   // a faint pale rim where a plate turns toward the light
     float moss = smoothstep(0.45, 0.7, fbm3(P * 2.2 + 8.0)) * smoothstep(-0.1, -0.5, N.z) * plate;
     albedo = mix(albedo, float3(0.10, 0.19, 0.05) * (0.8 + 0.4 * vnoise3(P * 20.0)), moss * 0.55);
     o.albedo = albedo;
     o.rough = clamp(0.96 - 0.08 * moss, 0.7, 1.0);
     o.metal = 0.0;
     o.N = bump_normal(P, N, 0.032 * relief * wFur + 0.012 * moss, 1.0);
-    o.ao = mix(0.5, 1.0, smoothstep(0.0, 0.16, crev) * mix(0.8, 1.0, scaly));
+    o.ao = mix(0.5, 1.0, smoothstep(0.0, 0.16 + EDGE_K * f1, crev) * mix(0.8, 1.0, scaly));
     return o;
 }
 
