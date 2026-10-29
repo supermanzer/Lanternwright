@@ -15,6 +15,8 @@ final class LensPortalPuzzle: WorldPuzzle {
     private let emit: (GameEvent) -> Void
     private let gate: () -> GateState
     private let say: (String) -> Void
+    /// True once Ilse's route has begun: Oren's exit is sealed for good (S03.8): the ring no longer turns, nothing opens, the lamps are dark.
+    private let sealed: () -> Bool
 
     /// The ring's pointer, as `atan2(dz, dx)` in the tower's frame, in (-pi, pi].
     private(set) var ringAngle: Float = P.initialRingAngle
@@ -22,8 +24,8 @@ final class LensPortalPuzzle: WorldPuzzle {
     private(set) var held: Float = 0
     private var cued = false
 
-    init(scene: Scene, state: PuzzleState, emit: @escaping (GameEvent) -> Void, gate: @escaping () -> GateState, say: @escaping (String) -> Void) {
-        self.scene = scene; self.state = state; self.emit = emit; self.gate = gate; self.say = say
+    init(scene: Scene, state: PuzzleState, emit: @escaping (GameEvent) -> Void, gate: @escaping () -> GateState, say: @escaping (String) -> Void, sealed: @escaping () -> Bool = { false }) {
+        self.scene = scene; self.state = state; self.emit = emit; self.gate = gate; self.say = say; self.sealed = sealed
     }
 
     var isOpen: Bool { state.has(Game.portalOpenFlag) }
@@ -49,7 +51,7 @@ final class LensPortalPuzzle: WorldPuzzle {
 
     /// Turn the ring `steps` twelfths of a turn (positive: clockwise seen from above). It does not turn once the portal is open.
     func turn(_ steps: Int) {
-        guard !isOpen, steps != 0 else { return }
+        guard !isOpen, !sealed(), steps != 0 else { return }
         var a = ringAngle + Float(steps) * P.ringStep
         while a > .pi { a -= 2 * .pi }
         while a <= -.pi { a += 2 * .pi }
@@ -63,7 +65,7 @@ final class LensPortalPuzzle: WorldPuzzle {
 
     /// One fixed tick: the beam resting on the receiver counts up; at `holdSeconds` the portal opens if the gate is ready, otherwise the gate's line is said once.
     func step(_ dt: Float) {
-        guard !isOpen else { return }
+        guard !isOpen, !sealed() else { return }
         guard aligned else { held = 0; cued = false; return }
         held += dt
         guard held >= P.holdSeconds else { return }
@@ -84,7 +86,8 @@ final class LensPortalPuzzle: WorldPuzzle {
         scene.update(LighthouseInterior.ringName) { $0.uniforms.model = place * rotationY(-self.ringAngle) }
         scene.update(P.beamName) { $0.uniforms.model = place * rotationY(-self.ringAngle) }
         let g = gate()
-        let lit = [g.altarSolved, g.ilsePages >= GateState.pagesNeeded, g.orenPages >= GateState.pagesNeeded]
+        let off = sealed()
+        let lit = [g.altarSolved && !off, g.ilsePages >= GateState.pagesNeeded && !off, g.orenPages >= GateState.pagesNeeded && !off]
         for (k, name) in P.lampNames.enumerated() { scene.update(name) { $0.uniforms.emissive = lit[k] ? SIMD4(1.0, 0.72, 0.28, 2.5) : SIMD4(0, 0, 0, 0) } }
         let open = isOpen
         scene.update(P.portalName) { $0.hidden = !open }

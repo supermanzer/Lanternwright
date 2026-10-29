@@ -21,6 +21,8 @@ final class Game {
     private(set) var tonePlates: TonePlatePuzzle!
     /// S03.7: the lens ring and Oren's portal in the lens room.
     private(set) var lensPortal: LensPortalPuzzle!
+    /// S03.8: the route whose entry the next arrival in the Glass Wood is (set by `beginRoute`, used once by `travel`).
+    var pendingEntry: PageAuthor?
     private var worldInteractables: [WorldKind: [Interactable]] = [:]
     var interactables: [Interactable] { worldInteractables[world] ?? [] }
     private(set) var hovered: Interactable?
@@ -61,8 +63,10 @@ final class Game {
                                    setEnabled: { [weak self] id, on in self?.setInteractable(id, enabled: on) })
         }
         tonePlates = TonePlatePuzzle(state: state, animator: animator, emit: { [weak self] in self?.pending.append($0) },
-                                     gateReady: { [weak self] in self?.gate.ready ?? false }, gateCue: { [weak self] in self?.gate.cue }, say: { [weak self] in self?.showBanner($0) })
-        lensPortal = LensPortalPuzzle(scene: scenes[.varrow]!, state: state, emit: { [weak self] in self?.pending.append($0) }, gate: { [weak self] in self?.gate ?? GateState.evaluate(altarSolved: false, pages: [], resolved: []) }, say: { [weak self] in self?.showBanner($0) })
+                                     gateReady: { [weak self] in self?.gate.ready ?? false }, gateCue: { [weak self] in self?.gate.cue }, say: { [weak self] in self?.showBanner($0) },
+                                     sealed: { [weak self] in self?.platesSealed ?? false })
+        lensPortal = LensPortalPuzzle(scene: scenes[.varrow]!, state: state, emit: { [weak self] in self?.pending.append($0) }, gate: { [weak self] in self?.gate ?? GateState.evaluate(altarSolved: false, pages: [], resolved: []) }, say: { [weak self] in self?.showBanner($0) },
+                                     sealed: { [weak self] in self?.portalSealed ?? false })
         puzzles = [puzzle] + [tonePlates as WorldPuzzle, lensPortal as WorldPuzzle] + (glass.map { [$0] } ?? [])
         buildInteractables()
     }
@@ -171,6 +175,10 @@ final class Game {
         // S03.7: the lens ring in the lens room (enabled while the lighthouse is open: `syncInterior`).
         let ringC = Layout.lighthouse + SIMD3(0, LensPortalProps.ringY, 0), rr = LighthouseInterior.ringOuter + 0.15
         list.append(Interactable(id: "lens_ring", min: ringC - SIMD3(rr, 0.3, rr), max: ringC + SIMD3(rr, 0.3, rr), prompt: "Turn the ring", reach: 3.4, enabled: false))
+        // S03.8: the lens above the ring: touching it begins Ilse's route (enabled while the lighthouse is open).
+        let lc = Landmarks.lensPosition
+        // The box covers the sphere's upper part only (from 0.55 m below its centre): a ray from a player's eye to the RING below it must not pass through it (a ray picks the nearest box).
+        list.append(Interactable(id: Game.lampLensName, min: lc - SIMD3(0.7, 0.55, 0.7), max: lc + SIMD3(0.7, 0.8, 0.7), prompt: "Touch the lens", reach: 3.4, enabled: false))
         let l = PuzzleProps.lensRestPosition
         list.append(Interactable(id: "lens", min: l - SIMD3(1.3, 1.3, 1.3), max: l + SIMD3(1.3, 1.3, 1.3), prompt: "Touch the lens", reach: 5))
         worldInteractables[.varrow] = list
@@ -219,6 +227,8 @@ final class Game {
             collectPage(n)
         } else if id == DoorNote.itemName {
             readNote(id)
+        } else if id == Game.lampLensName {
+            touchLampLens()
         } else if id == "lh_door" {
             // The harder and longer the player tries (repeated attempts within about 4 s), the harder the door knocks and the longer it rattles (F03 A2).
             doorTries = (time - lastDoorTry < 4.0) ? doorTries + 1 : 0
@@ -261,6 +271,7 @@ final class Game {
         else { animator.tween(duration: Game.doorSwingSeconds, ease: .inOutCubic) { [weak self] t in self?.setDoorAngle(from + (to - from) * t) } }
         setInteractable("lh_door", enabled: !open)                             // an open door is not tried
         setInteractable("lens_ring", enabled: open)
+        setInteractable(Game.lampLensName, enabled: open)
         let o = interior.origin
         func isTowerCore(_ c: CylinderCollider) -> Bool { c.center == o && abs(c.radius - Lighthouse.colliderRadius) < 1e-4 }
         let ring = interior.wallColliders()                                                    // exactly what was added (deterministic), so closing removes exactly that
@@ -352,7 +363,8 @@ final class Game {
         let pose: (position: SIMD3<Float>, yaw: Float)
         switch kind {
         case .varrow: pose = (Layout.isletCenter + SIMD3(0, 0, 5), 0)          // beside the lens, facing it
-        case .glassWood: pose = (GlassLayout.arrival, 0)
+        case .glassWood:
+            if let e = pendingEntry { pose = Game.routeEntry(e); pendingEntry = nil } else { pose = (GlassLayout.arrival, 0) }
         }
         player = Player(position: pose.position, yaw: pose.yaw)
         player.position.y = scene.groundHeight(x: pose.position.x, z: pose.position.z)
@@ -459,6 +471,8 @@ final class Game {
         journal.markShown()
         syncDoorNote()
         syncInterior()
+        syncSeals()
+        checkPortalStep()
 
         player.applyLook(input.look * LookCloser.lookScale(zoom: zoomAmount), dt: dt, nav: journal.isOpen || isTraveling ? nil : Layout.Navigation.active(for: world), assistScale: LookCloser.lookScale(zoom: zoomAmount))     // slower aim when zoomed, so it stays controllable
         accumulator += dt

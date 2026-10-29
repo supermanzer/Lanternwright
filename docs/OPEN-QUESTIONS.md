@@ -68,6 +68,12 @@ Format: `### Q<n> (date, who): the question` then *Default taken*, *Where it liv
 *What changes if the answer differs:* the step, tolerance, hold time and the receiver's and ring's angles are `static let`s in `LensPortalProps`; a mouse-drag turn would be one more input in `Game.advance`; the receiver on another window is `receiverAngle`.
 *Status:* open.
 
+### Q12 (2026-10-29, builder B, S03.8): how does a route begin, and what does sealing look like?
+*Default taken:* **Ilse's** route begins by touching the LENS above the ring in the lens room (S02 2.2 says "touching the lens ring", but the ring is Oren's turning mechanism, so the lens itself is touched: prompt "Touch the lens"); **Oren's** begins by walking up to the glass in the open doorway (within 0.32 rad of its axis and 1.68 m or more from the tower's axis: a player turning the ring, who stands about 1.3 to 1.5 m out, is not in it). Both need the gate ready; with it not ready the lens says the gate's quiet line and nothing begins. Beginning one sets `path_ilse` / `path_oren` (saved; `Game.chosenPath` is also the route's "mood flag" for A's later levers: no separate flag) and seals the OTHER exit: Oren's sealed = the ring no longer turns, nothing opens, the receiver is dimmed and its lamps dark; Ilse's sealed = the plates only ring and are dimmed (a door already open stays open). Dimming only: no text, no warning. The player fades to the Glass Wood as the placeholder destination: at its arrival pad for Ilse ("the lamp end"), at the altar end for Oren ("the open end", 7 m south of the altar). An undecided save with both flags is treated as undecided (S03.1).
+*Where it lives:* `Game/Fork.swift` (`beginRoute`, `touchLampLens`, `checkPortalStep`, `portalZone`, `routeEntry`, `syncSeals`), the `sealed` closures of `TonePlatePuzzle` and `LensPortalPuzzle`.
+*What changes if the answer differs:* Ilse beginning at the ring instead is one interactable id; the doorway zone is `Game.portalZone`; the entries are `Game.routeEntry`; a warning line would be one `showBanner` in `beginRoute`.
+*Status:* open.
+
 ## Answered
 - 2026-10-28 S03 Oren's exit location: both exits at the original lighthouse; Oren's is a lens portal in the lens room, the dock arch is not an exit.
 - 2026-10-28 Page gate: 3 pages of each sibling.

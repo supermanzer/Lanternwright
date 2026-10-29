@@ -25,12 +25,14 @@ final class TonePlatePuzzle: WorldPuzzle {
     private let gateReady: () -> Bool
     private let gateCue: () -> String?
     private let say: (String) -> Void
+    /// True once Oren's route has begun: Ilse's exit is sealed for good and the plates only ring (S03.8).
+    private let sealed: () -> Bool
 
     private(set) var sequence: [Int] = []
     private var busy = false
 
-    init(state: PuzzleState, animator: Animator, emit: @escaping (GameEvent) -> Void, gateReady: @escaping () -> Bool, gateCue: @escaping () -> String?, say: @escaping (String) -> Void) {
-        self.state = state; self.animator = animator; self.emit = emit; self.gateReady = gateReady; self.gateCue = gateCue; self.say = say
+    init(state: PuzzleState, animator: Animator, emit: @escaping (GameEvent) -> Void, gateReady: @escaping () -> Bool, gateCue: @escaping () -> String?, say: @escaping (String) -> Void, sealed: @escaping () -> Bool = { false }) {
+        self.state = state; self.animator = animator; self.emit = emit; self.gateReady = gateReady; self.gateCue = gateCue; self.say = say; self.sealed = sealed
     }
 
     var isOpen: Bool { state.has(Game.doorOpenFlag) }
@@ -46,7 +48,7 @@ final class TonePlatePuzzle: WorldPuzzle {
 
     func strike(_ k: Int) {
         emit(.chime(chime(k)))
-        guard !isOpen, !busy else { return }                              // after the door is open, or while the chord blooms, the plates just ring
+        guard !isOpen, !busy, !sealed() else { return }                  // after the door is open, once the exit is sealed, or while the chord blooms, the plates just ring
         if k == TonePlatePuzzle.order[sequence.count] {
             sequence.append(k)
             emit(.drone(k, true))
