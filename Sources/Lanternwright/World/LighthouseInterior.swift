@@ -140,6 +140,7 @@ struct LighthouseInterior {
 
     // MARK: Fittings
 
+    static let windowPanesName = "lh_window_panes"
     static let fittingsName = "lh_interior_fittings", ringName = "lh_lens_ring"
     /// The workshop: on the south-east side of the ground room (angle `workshopAngle`, `atan2(dz, dx)`), where the stair's first turn is 2.3 m or more above the floor (it is only 1 m up at the
     /// north wall, which is why nothing stands there): the bench runs along the wall at `benchRadius`, 1.4 m long, its two ends are colliders (tower frame, x/z).
@@ -253,6 +254,23 @@ struct LighthouseInterior {
         for (k, da) in ([0.38, 0.52] as [Float]).enumerated() {
             fit.box(size: SIMD3(0.3, 0.4, 0.006), surface: paper, transform: onWall(aw + da, 1.5 + 0.06 * Float(k), depth: 0.02) * rotationZ(0.05 * (k == 0 ? 1 : -1)))
         }
+        // The five windows seen from inside (the shaft's mesh has no hole there: the daylight patch is drawn on the wall): a pane of sky-lit glass the size of the outside pane
+        // (0.66 x 1.08 m) with iron bars, in a stone surround standing proud of the wall (a splayed reveal needs a hole in the shell; this is the cheap equivalent).
+        var panes = MeshBuilder()
+        let sky = Surface(color: SIMD3(0.70, 0.82, 1.0), roughness: 0.2, material: .emissiveGlass)
+        for i in 0..<Lighthouse.windowYs.count {
+            let wy = Lighthouse.windowYs[i], a = Lighthouse.windowAngle(i), r = innerR(wy)
+            let f = place * translation(SIMD3(cos(a) * r, wy, sin(a) * r)) * rotationY(atan2(-cos(a), -sin(a)))      // local z toward the axis
+            panes.box(size: SIMD3(0.66, 1.08, 0.012), surface: sky, transform: f * translation(SIMD3(0, 0, 0.012)))
+            for sx: Float in [-0.17, 0.17] { fit.box(size: SIMD3(0.025, 1.08, 0.02), surface: iron, transform: f * translation(SIMD3(sx, 0, 0.028))) }
+            fit.box(size: SIMD3(0.66, 0.025, 0.02), surface: iron, transform: f * translation(SIMD3(0, 0.1, 0.028)))
+            for sx: Float in [-0.4, 0.4] { fit.bevelBox(size: SIMD3(0.14, 1.26, 0.12), bevel: 0.02, surface: stone, transform: f * translation(SIMD3(sx, 0, 0.05))) }
+            fit.bevelBox(size: SIMD3(1.02, 0.14, 0.12), bevel: 0.02, surface: stone, transform: f * translation(SIMD3(0, 0.62, 0.05)))
+            fit.bevelBox(size: SIMD3(1.1, 0.12, 0.2), bevel: 0.02, surface: stone, transform: f * translation(SIMD3(0, -0.6, 0.09)))        // the sill, deeper
+        }
+        var pu = ObjectUniforms(model: matrix_identity_float4x4)
+        pu.emissive = SIMD4(0.62, 0.78, 1.0, 1.7)
+        scene.add(windowPanesName, mesh: panes.build(device: device, label: "lighthouse window panes"), uniforms: pu, hidden: !shownForTools)
         scene.add(fittingsName, mesh: fit.build(device: device, label: "lighthouse interior fittings"), uniforms: ObjectUniforms(model: matrix_identity_float4x4, lod: SIMD4(0, 0, 1, 0)), hidden: !shownForTools)
 
         // The lens ring: its own item, brass, with a tick every 15 degrees, centred on the tower's axis at `ringHeight` above the lens room's floor (S03.7 turns it about that axis).

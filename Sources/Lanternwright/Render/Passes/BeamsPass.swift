@@ -13,7 +13,10 @@ final class BeamsPass: RenderPass {
         var frame = c.frame
         // 1c-3. The lit lighthouse's beams and the glow at the lens, added as light AFTER the temporal resolve (F02 R1): they sweep round with no motion vectors, so
         // temporal filtering would dim their leading edge and trail them; they are soft and additive, so they have nothing to anti-alias anyway.
-        if r.world == .varrow && (r.beamIntensity > 0.001 || r.interiorOpen), let hdr = r.hdrTexture {
+        // S03.7: the lens portal's halo is drawn while its doorway is (the item is shown only once the beam has rested on the receiver, or for tools).
+        let portalItem = r.world == .varrow ? r.scene.items.first(where: { $0.name == LensPortalProps.portalName }) : nil
+        let portalOn = portalItem.map { !$0.hidden } ?? false
+        if r.world == .varrow && (r.beamIntensity > 0.001 || r.interiorOpen || portalOn), let hdr = r.hdrTexture {
             let signal: BeamSignal.Pose? = r.beamSignal ? BeamSignal.pose(clock: r.clock) : nil
             let beamHeading = signal?.heading ?? (0.6 + r.clock * Renderer.beamRate)
             let beamLevel = r.beamIntensity * (signal?.intensity ?? 1)
@@ -58,6 +61,22 @@ final class BeamsPass: RenderPass {
                         enc.setFragmentBytes(&su, length: MemoryLayout<ObjectUniforms>.stride, index: 2)
                         enc.drawIndexedPrimitives(type: .triangle, indexCount: r.beamMesh.indexCount, indexType: .uint32, indexBuffer: r.beamMesh.indexBuffer, indexBufferOffset: 0)
                     }
+                }
+                if portalOn {
+                    enc.setRenderPipelineState(r.beamPipeline)
+                    enc.setDepthStencilState(r.waterDepthState)
+                    enc.setCullMode(.none)
+                    enc.setVertexBuffer(r.beamMesh.vertexBuffer, offset: 0, index: 0)
+                    enc.setVertexBytes(&beamFrame, length: MemoryLayout<FrameUniforms>.stride, index: 1)
+                    enc.setFragmentBytes(&beamFrame, length: MemoryLayout<FrameUniforms>.stride, index: 1)
+                    enc.setFragmentTexture(r.distanceTexture, index: 3)
+                    var pu = ObjectUniforms()
+                    pu.model = LensPortalProps.haloModel()
+                    pu.tint = SIMD4(0, 0, 1, 0)
+                    pu.emissive = SIMD4(0, 0, 0, 3)
+                    enc.setVertexBytes(&pu, length: MemoryLayout<ObjectUniforms>.stride, index: 2)
+                    enc.setFragmentBytes(&pu, length: MemoryLayout<ObjectUniforms>.stride, index: 2)
+                    enc.drawIndexedPrimitives(type: .triangle, indexCount: r.beamMesh.indexCount, indexType: .uint32, indexBuffer: r.beamMesh.indexBuffer, indexBufferOffset: 0)
                 }
                 enc.endEncoding()
             }

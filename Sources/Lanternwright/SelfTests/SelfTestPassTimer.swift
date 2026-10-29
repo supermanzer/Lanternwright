@@ -377,6 +377,11 @@ extension SelfTestRunner {
         check(originErr < 1e-4, "windowshafts: every shaft starts on the inner wall (error \(originErr) m)")
         check(travelErr < 1e-5 && maxLevel <= 1, "windowshafts: the light travels away from the sun and the level stays within 0...1 (max \(maxLevel))")
         func total(_ e: Float) -> Float { Lighthouse.windowShafts(sunToward: dir(e, 150)).reduce(0) { $0 + $1.level } }
+        if let device = MTLCreateSystemDefaultDevice() {
+            let sc = Scene.makeWorld(device: device)
+            let panes = sc.items.first { $0.name == LighthouseInterior.windowPanesName }
+            check(panes != nil && panes!.hidden == (LighthouseInterior.shownForTools == false) && panes!.mesh.indexCount == 5 * 36, "windowshafts: the interior has five window panes, drawn only while the door is open (\(panes?.mesh.indexCount ?? -1) indices)")
+        }
         check(total(2) < total(5) && total(5) < total(15) && abs(total(15) - total(40)) < 1e-4, "windowshafts: more light as the sun rises, then a plateau above about 7 degrees (\(total(2)), \(total(5)), \(total(15)), \(total(40)))")
     }
 }

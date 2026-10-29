@@ -13,6 +13,8 @@ struct BeamOut {
     float mode;
 };
 
+constant float PORTAL_HALF_WIDTH = 1.7, PORTAL_HEIGHT = 3.4;          // the halo quad: the doorway's own size is in the fragment (`LensPortalProps`)
+
 // obj.emissive.xyz = lens position, obj.emissive.w = mode (0 beam, 1 glow); obj.tint.x = direction sign (+1 / -1), tint.y = heading, tint.z = intensity.
 vertex BeamOut beam_vertex(uint vid [[vertex_id]],
                            device const Vertex* verts [[buffer(0)]],
@@ -29,6 +31,12 @@ vertex BeamOut beam_vertex(uint vid [[vertex_id]],
         float3 p = lens + (right * side + up * (2.0 * s - 1.0)) * size;
         o.worldPos = p; o.position = frame.viewProj * float4(p, 1.0);
         o.uv = float2(side, 2.0 * s - 1.0); o.dist = 0.0; o.mode = 1.0;
+        return o;
+    }
+    if (obj.emissive.w > 2.5) {                                          // S03.7 the lens portal's halo: a quad standing just in front of the doorway: origin = model column 3 (the floor under its centre), right = column 0, up = column 1
+        float3 p3 = obj.model.columns[3].xyz + obj.model.columns[0].xyz * side + obj.model.columns[1].xyz * s;
+        o.worldPos = p3; o.position = frame.viewProj * float4(p3, 1.0);
+        o.uv = float2(side, s); o.dist = 0.0; o.mode = 3.0;
         return o;
     }
     if (obj.emissive.w > 1.5) {                                          // S03.5b: a window's light shaft inside the tower: origin = model column 3, direction = column 2, width = column 0 x, length = column 1 x
@@ -72,6 +80,21 @@ fragment float4 beam_fragment(BeamOut in [[stage_in]],
         float star = exp(-abs(in.uv.x) * 9.0) * exp(-in.uv.y * in.uv.y * 90.0) * 0.8 + exp(-abs(in.uv.y) * 9.0) * exp(-in.uv.x * in.uv.x * 90.0) * 0.5;      // a faint cross of rays
         float3 c = float3(3.4, 2.6, 1.3) * (core * 2.2 + halo + star * 0.6) * on * (0.92 + 0.08 * sin(t * 3.1));
         return float4(c * smoothstep(1.0, 0.7, r) * hide, 1.0);
+    }
+    if (in.mode > 2.5) {                                                 // the portal's halo: light turned into a doorway. Outside the arch (a 1.1 m wide, 2.1 m tall door with a round head) the light falls off, streaked upward and drifting; a warm rim hugs the edge.
+        float px = in.uv.x * PORTAL_HALF_WIDTH, py = in.uv.y * PORTAL_HEIGHT;
+        float dist = py > 1.55 ? length(float2(px, py - 1.55)) - 0.55 : max(abs(px) - 0.55, -py);
+        if (dist < 0.0) {                                                // inside the doorway: light drifting up through it in soft rays, deeper blue toward the middle, bright and warm at the edge
+            float depth = saturate(-dist / 0.55);
+            float rays = 0.5 + 0.5 * sin(px * 13.0 + sin(py * 2.6 - t * 1.1) * 1.9 + t * 0.35);
+            float3 core = mix(float3(0.80, 0.92, 1.0), float3(0.36, 0.58, 1.0), depth) * (0.55 + 0.9 * rays) + float3(1.0, 0.8, 0.5) * exp(-depth * 9.0) * 1.1;
+            return float4(core * obj.tint.z * 1.15 * smoothstep(-0.02, 0.04, sceneD - myD), 1.0);
+        }
+        float streak = 0.72 + 0.28 * sin(py * 6.5 - t * 1.7 + px * 4.0) * sin(px * 9.0 + t * 0.6);
+        float halo = exp(-dist * 3.4) * 0.9 * streak;
+        float rim = exp(-dist * 16.0) * 1.6;
+        float3 c = (float3(0.62, 0.80, 1.0) * halo + float3(1.0, 0.82, 0.52) * rim) * obj.tint.z * (0.94 + 0.06 * sin(t * 2.3));
+        return float4(c * smoothstep(-0.02, 0.04, sceneD - myD), 1.0);
     }
     if (in.mode > 1.5) {                                                 // the window shaft: warm sun, brightest at the window, fading along its length and across; no shadow (light casts none)
         float along2 = smoothstep(0.0, 0.06, in.uv.x) * (1.0 - in.uv.x) * (1.0 - in.uv.x);

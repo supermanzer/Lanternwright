@@ -19,6 +19,7 @@ enum LensPortalProps {
     /// Where the beam is drawn: at the ring's height; the receiver's centre and the glass it stands against.
     static let beamRadius: (inner: Float, outer: Float) = (0.92, 2.0)
 
+    static let portalHeight: Float = 2.1
     static let receiverName = "lh_receiver", beamName = "lh_ring_beam", portalName = "lh_portal"
     static let lampNames = ["lh_gate_lamp_0", "lh_gate_lamp_1", "lh_gate_lamp_2"]
 
@@ -26,6 +27,14 @@ enum LensPortalProps {
     /// A frame at angle `a`, radius `r`, height `y` above the tower's foot, whose local z points at the tower's axis (a thing standing on the glass facing in).
     static func onGlass(_ a: Float, _ r: Float, _ y: Float) -> float4x4 {
         translation(Layout.lighthouse + SIMD3(cos(a) * r, y, sin(a) * r)) * rotationY(atan2(-cos(a), -sin(a)))
+    }
+
+    /// The halo quad's frame (see the beam shader's mode 3): its floor-centre origin a hand in front of the doorway's face, right = half its width (1.7 m), up = its height (3.4 m).
+    static func haloModel() -> float4x4 {
+        let f = onGlass(LighthouseInterior.portalAngle, 2.02, LighthouseInterior.lensFloorY)
+        let x = SIMD3(f.columns.0.x, f.columns.0.y, f.columns.0.z), z = SIMD3(f.columns.2.x, f.columns.2.y, f.columns.2.z)
+        let o = SIMD3(f.columns.3.x, f.columns.3.y, f.columns.3.z) + z * 0.05
+        return float4x4(columns: (SIMD4(x * 1.7, 0), SIMD4(0, 3.4, 0, 0), SIMD4(z, 0), SIMD4(o, 1)))
     }
 
     static func build(into scene: Scene, device: MTLDevice) {
@@ -58,11 +67,14 @@ enum LensPortalProps {
         bu.emissive = SIMD4(1.0, 0.9, 0.6, 1.2)
         scene.add(beamName, mesh: beam.build(device: device, label: "ring beam"), uniforms: bu, hidden: !tools)
 
-        // The portal: a doorway of turned light in the north window, glass-white, as wide as the doorway (`portalWidth`) and as tall as a door.
+        // The portal: a doorway of turned light in the north window: a door with a round head (`portalWidth` wide, `portalHeight` tall), glass-white. Its halo (BeamsPass, mode 3 of the beam shader) wraps it.
         var portal = MeshBuilder()
-        portal.box(size: SIMD3(LighthouseInterior.portalWidth, 2.1, 0.03), surface: Surface(color: SIMD3(0.92, 0.96, 1.0), roughness: 0.2, material: .emissiveGlass), transform: matrix_identity_float4x4)
-        var pu = ObjectUniforms(model: onGlass(LighthouseInterior.portalAngle, 2.02, LighthouseInterior.lensFloorY + 1.05))
-        pu.emissive = SIMD4(0.9, 0.95, 1.0, 3.0)
+        let headR = LighthouseInterior.portalWidth / 2, straight = portalHeight - headR
+        portal.box(size: SIMD3(LighthouseInterior.portalWidth, straight, 0.03), surface: Surface(color: SIMD3(0.92, 0.96, 1.0), roughness: 0.2, material: .emissiveGlass), transform: translation(SIMD3(0, straight / 2 - portalHeight / 2, 0)))
+        portal.cylinder(radiusTop: headR, radiusBottom: headR, height: 0.03, segments: 28, smooth: true, surface: Surface(color: SIMD3(0.92, 0.96, 1.0), roughness: 0.2, material: .emissiveGlass),
+                        transform: translation(SIMD3(0, straight - portalHeight / 2, 0)) * rotationX(.pi / 2) * translation(SIMD3(0, -0.015, 0)))
+        var pu = ObjectUniforms(model: onGlass(LighthouseInterior.portalAngle, 2.02, LighthouseInterior.lensFloorY + portalHeight / 2))
+        pu.emissive = SIMD4(0.2, 0.3, 0.45, 1.0)          // dim: the doorway's light is the halo pass's (BeamsPass), this is the slab it is drawn over
         scene.add(portalName, mesh: portal.build(device: device, label: "lens portal"), uniforms: pu, hidden: !tools)
     }
 }
