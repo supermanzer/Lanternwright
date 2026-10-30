@@ -125,5 +125,65 @@ extension SelfTestRunner {
         check(bot.walk(to: GlassLayout.returnLens, within: 3.4, timeout: 60) && bot.click("gw_return"), "bot: clicks the return ring")
         bot.wait(Game.fadeOutSeconds + Game.holdSeconds + Game.fadeInSeconds + 0.5)
         check(g.world == .varrow && g.state.has("gw_end"), "bot: back on Varrow with the story done")
+
+        // --- F06 B2: the end, from the same fresh game: the lighthouse door, the note, the plates, the stair, the lens room, and BOTH exits (the second from the same moment, restored from a save).
+        typealias I = LighthouseInterior
+        let lh = Layout.lighthouse
+        func pt(_ a: Float, _ r: Float) -> (x: Float, z: Float) { (lh.x + cos(a) * r, lh.z + sin(a) * r) }
+        func band(_ phi: Float) -> Float { let h = I.stairY(phi); return (I.stairInner(h) + I.innerR(h)) / 2 }
+        func twoWorlds() -> Game { Game(scenes: [.varrow: Scene.makeWorld(device: device), .glassWood: GlassWood.build(device: device)]) }
+        check(g.lighthouseSignal && g.interactables.first { $0.id == DoorNote.itemName }?.enabled == true, "bot: back on Varrow the lighthouse beam is a signal and the note on the door can be read")
+        let tw0 = bot.elapsed
+        // The trail brings the player to the lighthouse's plaza; the door faces south, so go round the tower by its west side.
+        var toDoor = bot.walk(to: SIMD3(lh.x - 11, lh.y, lh.z), within: 3.0, timeout: 240)
+        toDoor = toDoor && bot.walk(to: SIMD3(lh.x - 10, lh.y, lh.z + 9), within: 1.5, timeout: 60, straight: true)
+        toDoor = toDoor && bot.walk(to: Layout.Navigation.signalDoorPoint, within: 2.0, timeout: 60, straight: true)
+        check(toDoor, "bot: walks the trail from the return ring to the lighthouse door (\(Int(bot.elapsed - tw0)) s, ended at \(bot.feet), door point \(Layout.Navigation.signalDoorPoint))")
+        check(bot.click(DoorNote.itemName) && g.reading == Story.doorNote && !g.journal.isOpen, "bot: clicks the note on the door: its words come up on a card, not the Notebook")
+        var dismiss = InputState(); dismiss.click = true; bot.tick(dismiss)
+        check(g.reading == nil, "bot: a click puts the card away")
+        check(bot.click("lh_door") && !g.state.has(Game.doorOpenFlag), "bot: the door itself is locked (a banner says so)")
+        var plates = true
+        for k in [0, 1, 2] {
+            let c = bot.interactable(TonePlates.names[k]).map { ($0.min + $0.max) * 0.5 } ?? lh
+            // A player stands in front of a plate, looking at it square on: 1.6 m straight out from the tower's wall (from the side the plates in the row hide each other).
+            let out = simd_normalize(SIMD2(c.x - lh.x, c.z - lh.z)), stand = SIMD3(c.x + out.x * 1.6, 0, c.z + out.y * 1.6)
+            let w = bot.walk(to: stand, within: 0.3, timeout: 30, straight: true), cl = bot.click(TonePlates.names[k]); bot.wait(0.6)
+            plates = plates && w && cl
+        }
+        bot.wait(TonePlatePuzzle.Timing.answerDelay + TonePlatePuzzle.Timing.openDelay + 1.5)
+        check(plates && g.state.has(Game.doorOpenFlag), "bot: strikes the plates tide, wind, stone by real clicks: the lamp answers and the door opens, with no contradiction settled")
+        var climbed = bot.walk(to: SIMD3(lh.x, 0, lh.z + 5), within: 0.5, straight: true) && bot.walk(to: SIMD3(lh.x, 0, lh.z + 3.0), within: 0.5, straight: true) && bot.walk(to: SIMD3(lh.x - 0.9, 0, lh.z + 2.3), within: 0.5, straight: true)
+        var phi = I.startAngle
+        while climbed && phi < I.endAngle + 0.5 { let q = pt(phi, band(min(phi, I.endAngle))); climbed = bot.walk(to: SIMD3(q.x, 0, q.z), within: 0.55, straight: true); phi += 0.3 }
+        let top = pt(I.endAngle + 1.2, 1.2)
+        climbed = climbed && bot.walk(to: SIMD3(top.x, 0, top.z), within: 0.5, straight: true)
+        check(climbed && abs(bot.feet.y - (lh.y + I.lensFloorY)) < 0.1, "bot: walks in through the open door and up the stair to the lens room")
+        check(g.gate.ready && g.chosenPath == nil, "bot: in the lens room the gate is ready and no route is chosen yet")
+        let atLens = g.makeSave()
+        // Exit one (Ilse): touch the lens.
+        check(bot.click(Game.lampLensName) && g.chosenPath == .ilse && g.isTraveling, "bot: touches the lens above the ring: Ilse's route begins")
+        bot.wait(Game.fadeOutSeconds + Game.holdSeconds + Game.fadeInSeconds + 0.5)
+        check(g.world == .glassWood && g.portalSealed && !g.platesSealed, "bot: it arrives in the Glass Wood and Oren's exit is sealed")
+        // Exit two (Oren): the same moment, loaded from the save, by the ring and the doorway.
+        let o = twoWorlds(); o.restore(atLens)
+        let obot = PlaythroughBot(o)
+        obot.wait(0.5)
+        var ringed = obot.walk(to: SIMD3(lh.x - 0.2, 0, lh.z - 1.45), within: 0.3, timeout: 30, straight: true)      // to the ring, as a player would
+        for _ in 0..<3 { ringed = ringed && obot.click("lens_ring"); obot.wait(0.3) }
+        obot.wait(LensPortalProps.holdSeconds + 0.6)
+        check(ringed && o.state.has(Game.portalOpenFlag) && o.chosenPath == nil, "bot: from the save, three touches turn the ring onto the receiver and the portal opens")
+        let doorway = (lh.x + cos(I.portalAngle) * 1.72, lh.z + sin(I.portalAngle) * 1.72)
+        check(obot.walk(to: SIMD3(doorway.0, 0, doorway.1), within: 0.25, straight: true), "bot: walks into the doorway")
+        // Walking up to the glass: keep walking north until the glass stops the feet (about 1.75 m from the axis), which is inside the doorway's zone.
+        for _ in 0..<90 where o.chosenPath == nil { var fwd = InputState(); fwd.move = SIMD2(0, 1); o.player.yaw = 0; obot.tick(fwd) }
+        obot.wait(Game.fadeOutSeconds + Game.holdSeconds + Game.fadeInSeconds + 0.8)
+        check(o.chosenPath == .oren && o.world == .glassWood && o.platesSealed && !o.portalSealed, "bot: Oren's route begins in the Glass Wood and Ilse's exit is sealed (\(String(describing: o.chosenPath)) \(o.world) plates \(o.platesSealed) portal \(o.portalSealed))")
+        // The seals hold across a save and a load, in both worlds' end states.
+        for (label, game, route) in [("Ilse", g, PageAuthor.ilse), ("Oren", o, PageAuthor.oren)] {
+            let again = twoWorlds(); again.restore(game.makeSave()); again.travel(to: .varrow); again.simulate(seconds: Game.fadeOutSeconds + Game.holdSeconds + Game.fadeInSeconds + 1)
+            let sealedHolds = route == .ilse ? (again.portalSealed && !again.platesSealed) : (again.platesSealed && !again.portalSealed)
+            check(again.chosenPath == route && sealedHolds && !again.beginRoute(route == .ilse ? .oren : .ilse), "bot: after a save and a load \(label)'s route is kept and the other exit is still sealed")
+        }
     }
 }

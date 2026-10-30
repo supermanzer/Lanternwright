@@ -271,7 +271,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, MTKViewDelegate {
         func set<T: Equatable>(_ current: inout T, _ new: T) { if current != new { current = new; dirty = true } }
         set(&overlay.captured, view.isCaptured)
         let wantMenu = !titleActive && !view.isCaptured && !journal.isOpen && !overlay.feedbackOpen && !overlay.introOpen && game.whiteout < 0.5
-        if wantMenu && !overlay.menuOpen { overlay.showMenu() }
+        if wantMenu && !overlay.menuOpen { overlay.showMenu(); game.putAwayReading() }          // F06 B1: a note card does not wait behind the pause menu
         if !wantMenu && overlay.menuOpen { overlay.hideMenu() }
         set(&overlay.prompt, game.hovered?.prompt)
         set(&overlay.promptDone, game.hoveredFinished)
