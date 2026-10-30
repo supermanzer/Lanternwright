@@ -547,6 +547,9 @@ extension SelfTestRunner {
             deepest = max(deepest, drop)
         }
         check(worstGap <= 0.0001, "causewaygrounded: every slab or its footing reaches the ground under its whole footprint (worst air gap \(worstGap) m; \(footed) of \(PuzzleProps.slabCount) slabs needed a footing, the deepest \(deepest) m)")
+        let slabs = sc.items.filter { $0.name.hasPrefix("causeway_") }
+        let footedMeshes = slabs.filter { $0.mesh.indexCount > (slabs.map { $0.mesh.indexCount }.min() ?? 0) }.count
+        check(slabs.count == PuzzleProps.slabCount && footedMeshes >= footed, "causewaygrounded: the footing meshes are really built (\(footedMeshes) slab meshes carry more geometry than the plainest, \(footed) slabs need a footing)")
         check(deepest < 8, "causewaygrounded: no footing is absurdly deep (\(deepest) m)")
     }
 }
@@ -583,6 +586,17 @@ extension SelfTestRunner {
             while fc <= 6000 { e.append(FootstepAnalysis.band(f, fc / pow(2, 1.0 / 6), fc * pow(2, 1.0 / 6))); fc *= pow(2, 1.0 / 3) }
             for q in 1..<(e.count - 1) { worst = max(worst, e[q] / max(max(e[q - 1], e[q + 1]), 1e-20)) }
         }
+        // Negative control: an 880 Hz tone of amplitude 0.005 laid over the first half second would push the worst band over the limit (checked at 11.8 dB), so the check does bite on the ring.
+        var toned = ringSig
+        for i in 0..<Int(0.5 * sr) { toned[i] += 0.005 * sin(2 * .pi * 880 * Float(i) / sr) }
+        var worstToned: Float = 0
+        for (k, a0) in stride(from: 0, to: toned.count - frame, by: hop).enumerated() where energies[k] > floor {
+            let f = FootstepAnalysis.spectrum(Array(toned[a0..<a0 + frame]))
+            var e: [Float] = [], fc: Float = 300
+            while fc <= 6000 { e.append(FootstepAnalysis.band(f, fc / pow(2, 1.0 / 6), fc * pow(2, 1.0 / 6))); fc *= pow(2, 1.0 / 3) }
+            for q in 1..<(e.count - 1) { worstToned = max(worstToned, e[q] / max(max(e[q - 1], e[q + 1]), 1e-20)) }
+        }
+        check(10 * log10(max(worstToned, 1e-9)) > 10, "doorlevel: and the ring's tone check bites: an 880 Hz tone of 0.005 gives \(String(format: "%.1f", 10 * log10(max(worstToned, 1e-9)))) dB")
         let tailStart = Int(0.8 * sr), tail = ringSig[tailStart...].map { abs($0) }.max() ?? 1
         check(10 * log10(max(worst, 1e-9)) < 10 && low > 0.55 && tail < 0.01 * ring, "doorlevel: the ring's turn has no tone (worst band \(String(format: "%.1f", 10 * log10(max(worst, 1e-9)))) dB over its neighbours, limit 10), \(Int(low * 100)) % of its power under 1.5 kHz, and is over by 0.8 s")
         // The game says it: a turn emits the chime, a touch on the ring too.
