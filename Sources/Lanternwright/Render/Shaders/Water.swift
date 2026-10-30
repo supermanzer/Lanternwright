@@ -93,13 +93,6 @@ inline float ripple_height(float2 p, float t, float2 fade) {
     return h;
 }
 
-// F05 W2: the mean ground height on a ring of 8 points of radius `r` round `p` (`Shore.effectiveGround` mirrors it).
-inline float water_ring_mean(texture2d<float> tex, float2 p, float r) {
-    float d = r * 0.70710678;
-    return 0.125 * (terrain_sample(tex, p + float2(r, 0.0)).x + terrain_sample(tex, p - float2(r, 0.0)).x + terrain_sample(tex, p + float2(0.0, r)).x + terrain_sample(tex, p - float2(0.0, r)).x
-                  + terrain_sample(tex, p + float2(d, d)).x + terrain_sample(tex, p - float2(d, d)).x + terrain_sample(tex, p + float2(d, -d)).x + terrain_sample(tex, p - float2(d, -d)).x);
-}
-
 fragment float4 water_fragment(WaterOut in [[stage_in]],
                                constant FrameUniforms& frame [[buffer(1)]],
                                texture2d<float> skyLUT [[texture(1)]],
@@ -122,11 +115,13 @@ fragment float4 water_fragment(WaterOut in [[stage_in]],
             // had a 12 s later one: a dry tongue stood inside the flooded beach.)
             float2 gg = float2(terrain_sample(terrainTex, P.xz + float2(SHORE_SLOPE_BASE, 0.0)).x - terrain_sample(terrainTex, P.xz - float2(SHORE_SLOPE_BASE, 0.0)).x,
                                terrain_sample(terrainTex, P.xz + float2(0.0, SHORE_SLOPE_BASE)).x - terrain_sample(terrainTex, P.xz - float2(0.0, SHORE_SLOPE_BASE)).x) / (2.0 * SHORE_SLOPE_BASE);
-            // The ground the swash is compared with is the beach's, not a ridge's (`Shore.effectiveGround`): a sandbar or berm is judged against the ground smoothed over a ring of 8 points 12 m round it
-            // and counts as at most 4 cm above it, so the front covers it when it covers the beach around it and it never stands dry inside a flooded beach (the water mesh lies 35 cm above the
-            // ground here and is drawn over it).
-            float tc = water_ring_mean(terrainTex, P.xz, SHORE_RIDGE_RADIUS);
-            float tEff = min(groundH, tc + SHORE_RIDGE_CLEAR);
+            // F06 W2: coverage is decided against the SMOOTHED beach (`Shore.coverGround`): the mean of this point and a ring of 8 points 10 m round it. The shelf by the dock is almost flat at sea level with +-10 cm
+            // undulations, and comparing the front with each bump made dry islands and wet pockets come and go; now the waterline is one contour and the bumps lie under the thin water drawn over them.
+            float cr = SHORE_COVER_RADIUS, cd = cr * 0.70710678;
+            float tEff = (groundH + terrain_sample(terrainTex, P.xz + float2(cr, 0.0)).x + terrain_sample(terrainTex, P.xz - float2(cr, 0.0)).x
+                        + terrain_sample(terrainTex, P.xz + float2(0.0, cr)).x + terrain_sample(terrainTex, P.xz - float2(0.0, cr)).x
+                        + terrain_sample(terrainTex, P.xz + float2(cd, cd)).x + terrain_sample(terrainTex, P.xz - float2(cd, cd)).x
+                        + terrain_sample(terrainTex, P.xz + float2(cd, -cd)).x + terrain_sample(terrainTex, P.xz - float2(cd, -cd)).x) / 9.0;
             filmY = shore_sheet(in.seaY, tEff, shore_swash_edge(P.xz, t, length(gg)));
             filmDepth = filmY - tEff;
         } else { filmDepth = filmY - groundH; }

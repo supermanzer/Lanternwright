@@ -19,10 +19,15 @@ enum Shore {
     /// The swash cycle (s), the run-up of the biggest group (m above the sea) and the depth under which the swash takes the sheet over from the waves.
     /// F05 W2: the half-width (m) over which the beach's slope is measured for the swash's delay: one front, not a phase per pixel.
     static let slopeBase: Float = 24
-    /// F05 W2: a ridge (a sandbar or berm) is judged against the ground smoothed over a ring of 8 points `ridgeRadius` m round it, and counts as at most `ridgeClear` above that: the front covers it when
-    /// it covers the beach around it, so no dry tongue stands inside a flooded beach. The shader and `effectiveGround` use the same numbers.
-    static let ridgeRadius: Float = 12, ridgeClear: Float = 0.04
-    static func effectiveGround(raw: Float, ring: [Float]) -> Float { min(raw, ring.reduce(0, +) / Float(max(ring.count, 1)) + ridgeClear) }
+    /// F06 W2: the swash's coverage is decided against the SMOOTHED beach, not each bump (the shelf by the dock is almost flat at sea level, with +-10 cm undulations, so a per-point comparison made dry islands and wet
+    /// pockets appear and vanish as the front moved: #60). The ground used is the mean of the point and a ring of 8 points `coverRadius` m round it; bumps stay visible under the thin water drawn over them (the water
+    /// mesh lies 35 cm above the ground here). The shader and `coverGround` use the same numbers.
+    static let coverRadius: Float = 10
+    static func coverGround(raw: Float, ring: [Float]) -> Float { (raw + ring.reduce(0, +)) / Float(1 + ring.count) }
+    /// F06 W2: the beach's slope delays the swash, but only a fifth as much as it delays a wave in open water: the full delay (5 to 20 s) put neighbouring stretches of one beach up to half a cycle out of
+    /// phase, so a dry patch stood next to a flooded one (#60). The swash is one front along a beach: `swashMean` s plus a fifth of the slope's deviation from it.
+    static let swashMean: Float = 6, swashDelayShare: Float = 0.2
+    static func swashDelay(slope s: Float) -> Float { swashMean + swashDelayShare * (delay(depth: 0, slope: s) - swashMean) }
     static let swashPeriod: Float = 7.3, swashMax: Float = 0.55, swashDepth: Float = 0.7
 
     /// Seconds a crest takes longer than deep-water travel to reach depth `h` (m) up a beach of slope `s`: the integral of (1/sqrt(g h) - 1/c0) along the way, for a
@@ -69,7 +74,7 @@ enum Shore {
     /// (the waterline retreats `drawDown` m down the beach, exposing sand), at the swash cycle (fast up, slow down) delayed by the beach's own shallow-water delay.
     static let drawDown: Float = 0.22, filmThickness: Float = 0.05
     static func swashEdge(x: Float, z: Float, time t: Float, slope s: Float) -> Float {
-        let tt = t - delay(depth: 0, slope: s)
+        let tt = t - swashDelay(slope: s)
         let u = tt / swashPeriod - floor(tt / swashPeriod)
         let run = swashMax * (0.4 + 0.6 * group(x: x, z: z, time: t))
         let r = runup(phase: u)
@@ -93,7 +98,7 @@ enum Shore {
     static var mslSource: String {
         """
         constant float SHORE_DEEP = \(deepDepth), SHORE_SLOPE_FLOOR = \(slopeFloor), SHORE_MAX_DELAY = \(maxDelay);
-        constant float SHORE_SLOPE_BASE = \(slopeBase), SHORE_RIDGE_RADIUS = \(ridgeRadius), SHORE_RIDGE_CLEAR = \(ridgeClear);
+        constant float SHORE_SLOPE_BASE = \(slopeBase), SHORE_COVER_RADIUS = \(coverRadius);
         constant float SHORE_SWASH_PERIOD = \(swashPeriod), SHORE_SWASH_MAX = \(swashMax), SHORE_SWASH_DEPTH = \(swashDepth);
         inline float shore_delay(float h, float s) {
             float hh = clamp(h, 0.0, SHORE_DEEP);
@@ -111,8 +116,9 @@ enum Shore {
             float a = 0.5 + 0.5 * sin(p.x * 0.021 - p.y * 0.014 + 0.05 * t + 1.3);
             return 0.3 + 0.7 * a * (0.65 + 0.35 * sin(p.x * 0.007 + p.y * 0.011 + 0.031 * t));
         }
+        inline float shore_swash_delay(float s) { return \(swashMean) + \(swashDelayShare) * (shore_delay(0.0, s) - \(swashMean)); }
         inline float shore_swash_edge(float2 p, float t, float s) {
-            float tt = t - shore_delay(0.0, s);
+            float tt = t - shore_swash_delay(s);
             float u = fract(tt / SHORE_SWASH_PERIOD);
             float run = SHORE_SWASH_MAX * (0.4 + 0.6 * shore_group(p, t));
             return -\(drawDown) + (run + \(drawDown)) * shore_runup(u);

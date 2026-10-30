@@ -464,13 +464,13 @@ extension SelfTestRunner {
                 guard h > -0.5 && h < 0.6 else { continue }                                             // the waterline band
                 n += 1
                 for (dx, dz) in [(Float(2), Float(0)), (0, 2)] {
-                    let d = { (b: Float) in abs(Shore.delay(depth: 0, slope: slope(xi, zi, b)) - Shore.delay(depth: 0, slope: slope(xi + dx, zi + dz, b))) }
+                    let d = { (b: Float) in abs(Shore.swashDelay(slope: slope(xi, zi, b)) - Shore.swashDelay(slope: slope(xi + dx, zi + dz, b))) }
                     worstNew = max(worstNew, d(Shore.slopeBase)); worstOld = max(worstOld, d(2))
                 }
             }
         }
         check(n > 200, "swashcoherence: \(n) waterline-band points sampled")
-        check(worstNew < 3, "swashcoherence: neighbouring waterline points differ by at most \(worstNew) s of swash delay with the beach-scale slope (the pixel-scale slope gave \(worstOld) s)")
+        check(worstNew < 1.0, "swashcoherence: neighbouring waterline points differ by at most \(worstNew) s of swash delay with the beach-scale slope (the pixel-scale slope gave \(worstOld) s)")
     }
 }
 
@@ -491,8 +491,14 @@ extension SelfTestRunner {
             let raw = h(x, z)
             guard raw > -1.2 else { return true }
             let b = old ? Float(16) : Shore.slopeBase
-            let slope = (((h(x + b, z) - h(x - b, z)) / (2 * b)) * ((h(x + b, z) - h(x - b, z)) / (2 * b)) + ((h(x, z + b) - h(x, z - b)) / (2 * b)) * ((h(x, z + b) - h(x, z - b)) / (2 * b))).squareRoot()
-            let tEff = Shore.effectiveGround(raw: raw, ring: ring(x, z, old ? 6 : Shore.ridgeRadius, eight: !old))
+            let gx = (h(x + b, z) - h(x - b, z)) / (2 * b), gz = (h(x, z + b) - h(x, z - b)) / (2 * b)
+            let slope = (gx * gx + gz * gz).squareRoot()
+            let tEff: Float
+            if old {
+                tEff = min(raw, ring(x, z, 6, eight: false).reduce(0, +) / 4 + 0.04)                          // the first rule (6 m, 4 points, flatten ridges)
+            } else {
+                tEff = Shore.coverGround(raw: raw, ring: ring(x, z, Shore.coverRadius, eight: true))
+            }
             return Shore.sheetHeight(seaY: 0, ground: tEff, swashEdge: Shore.swashEdge(x: x, z: z, time: t, slope: slope)) - tEff > 0.01
         }
         var bad = 0, badOld = 0, tested = 0
@@ -515,8 +521,8 @@ extension SelfTestRunner {
             }
         }
         check(tested > 3000, "dryinsidewet: \(tested) waterline-band samples over 30 clocks")
-        // Not zero: a real hump or bar a few dm high in a shallow lagoon stays dry (Shore.ridgeClear flattens only what rises less than 4 cm over its 12 m surroundings). The count must stay well under the earlier rule's and under 2 % of the band.
-        check(Double(bad) < 0.8 * Double(badOld) && Double(bad) < 0.02 * Double(tested), "dryinsidewet: few dry points have water both below and above them along the beach's slope (\(bad) of \(tested); the earlier 6 m rule: \(badOld))")
+        // Smoothed coverage and one phase along the beach leave almost none: under half the first rule's count (6 m / 4 points, flatten ridges, at the same damped delay) and under 0.5 % of the band.
+        check(Double(bad) < 0.5 * Double(badOld) && Double(bad) < 0.005 * Double(tested), "dryinsidewet: almost no dry point has water both below and above it along the beach's slope (\(bad) of \(tested); the first rule at the same delay: \(badOld))")
     }
 }
 
