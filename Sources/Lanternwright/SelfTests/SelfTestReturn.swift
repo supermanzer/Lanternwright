@@ -32,7 +32,9 @@ extension SelfTestRunner {
         let tell = twoWorlds(); tell.travel(to: .glassWood); step(tell); tell.simulate(seconds: 6)
         check(tell.banner == nil && glow(tell, "gw_return_ring") == 2.2 && glow(tell, "gw_return_core") == 5.0, "return: before the altar the Glass Wood's return ring is at its base glow and nothing is said")
         tell.state.set("gw_end"); step(tell)
-        check(tell.banner == Story.lampWaitingLine, "return: the moment the altar is solved the lamp's line is said (\(tell.banner ?? "nothing"))")
+        check(tell.banner == nil, "return: the line does not replace the account the player has just read (no banner at the moment of the altar's end)")
+        tell.simulate(seconds: Game.lampLineDelay + 0.5); step(tell)
+        check(tell.banner == Story.lampWaitingLine, "return: once the accounts and the end line have been read the lamp's line is said (\(tell.banner ?? "nothing"))")
         check((glow(tell, "gw_return_ring") ?? 0) > 3.5 && (glow(tell, "gw_return_core") ?? 0) > 6.5, "return: and the return ring and its core are brighter from then on")
         let t1 = glow(tell, "gw_return_core"); for _ in 0..<8 { step(tell) }
         check(glow(tell, "gw_return_core") != t1 && (glow(tell, "gw_return_core") ?? 0) > 6.5, "return: and they breathe rather than sit still, never dimming back toward the base")

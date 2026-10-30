@@ -117,7 +117,7 @@ Format: `### Q<n> (date, who): the question` then *Default taken*, *Where it liv
 *Status:* open.
 
 ### Q20 (2026-10-29, builder B, F05 S3): how is the player told, without a prompt, that going back is necessary?
-*Default taken:* the cheap pair: when the Glass Wood's altar is solved (the moment it happens, not when a save loads with it solved) the quiet line "The lamp is waiting." is said once, and from then on the return ring and its core are brighter and breathe (base glow 2.2 / 5.0 becomes 6 / 11 with a slow 15 % pulse). Not chosen: a Notebook line (players do not open the Notebook), the lighthouse beam in the Glass Wood sky (A's renderer; a later option if the cue proves too quiet).
+*Default taken:* the cheap pair: when the Glass Wood's altar is solved (the moment it happens, not when a save loads with it solved) the quiet line "The lamp is waiting." is said once, 17 s after the altar is solved (`Game.lampLineDelay`: found in F06 B2 that said at once it replaced the second account's banner a frame later, so the player never read it), and from the moment of solving the return ring and its core are brighter and breathe (base glow 2.2 / 5.0 becomes 6 / 11 with a slow 15 % pulse). Not chosen: a Notebook line (players do not open the Notebook), the lighthouse beam in the Glass Wood sky (A's renderer; a later option if the cue proves too quiet).
 *Where it lives:* `Story.lampWaitingLine`, `Game.returnRingGlow`, `Game.syncReturnCue` / `returnGlow`.
 *What changes if the answer differs:* the line is one string; the glow is one tuple; the beam in the sky is an ask for A.
 *Status:* open.
@@ -126,6 +126,12 @@ Format: `### Q<n> (date, who): the question` then *Default taken*, *Where it liv
 *Default taken:* a quiet row above the page dots shows one square per page, grouped under the world's name ("Varrow" five squares, "Glass Wood" four), filled once the page is in the journal and hollow until then. Labelled by world ONLY (the user's instruction, which is narrower than the plan's "world and the author's side"): no author, no place, no marker. Page 5 stays where it is (one object at the arrival pad, overlookable by design, F03 P1): the slots now say a page is missing in the Glass Wood, which was the player's question, so moving it was not needed.
 *Where it lives:* `PageSlotGroup` / `JournalState.pageSlots` (`Game/Journal.swift`), `OverlayView.drawSlots`; the worlds are `StoryPages.varrowIDs` / `glassIDs`.
 *What changes if the answer differs:* adding the author is one more label; moving page 5 is `GlassPuzzleProps` (A's file) and the nav audit.
+*Status:* open.
+
+### Q22 (2026-10-29, builder B, F06 B2): two steps of the player path stay unclear (the plates, and the lens room's choice)
+*Default taken:* none changed, the gaps are written down in `docs/plans/S03-player-path.md` ("Gaps for the reviewer") for the reviewer and the user to judge. (1) Nothing says the three plates beside the door open it; the note only says "Bring what you have heard". (2) Nothing says the ring and the lens in the lens room are the two exits, or that the arrow keys turn the ring. Cheap fixes if wanted: the locked-door banner could change once the altar is solved and the note read; the ring's prompt could read "Turn the ring (arrow keys too)"; the plates could pulse once when first approached. Each adds a cue the design has so far avoided.
+*Where it lives:* `Game.swift` (the "lh_door" banner, the `lens_ring` prompt), `TonePlates`.
+*What changes if the answer differs:* a line of text each; no logic.
 *Status:* open.
 
 ## Answered

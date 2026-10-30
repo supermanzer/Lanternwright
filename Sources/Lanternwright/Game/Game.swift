@@ -335,6 +335,8 @@ final class Game {
 
     /// The Glass Wood's return ring is steadily lit; once the altar is solved it brightens and breathes, and the lamp's line is said once, at that moment (not when a save loads with the altar solved).
     static let returnRingGlow: (ring: Float, core: Float) = (6.0, 11.0)
+    /// Seconds after the altar is solved before the lamp's line is said: after the second account and the end-of-world line (GlassWoodLogic.touchAltar) have been read.
+    static let lampLineDelay: Float = 17
     private var altarSeen: Bool?
     /// The return ring's emissive strength now (the scene's own base glow until the altar is solved).
     func returnGlow(ring: Bool) -> Float {
@@ -346,7 +348,12 @@ final class Game {
     private func syncReturnCue() {
         let now = state.has("gw_end")
         defer { altarSeen = now }
-        if altarSeen == false && now && world == .glassWood { showBanner(Story.lampWaitingLine) }
+        if altarSeen == false && now && world == .glassWood {
+            // Not at once: the second account (a banner) and the end-of-world line (7 s later, about 9 s long) are still being read, and a newer banner replaces an older one.
+            animator.after(Game.lampLineDelay) { [weak self] in
+                if let self, self.world == .glassWood, self.state.has("gw_end") { self.showBanner(Story.lampWaitingLine) }
+            }
+        }
         guard world == .glassWood, let sc = scenes[.glassWood] else { return }
         sc.update("gw_return_ring") { $0.uniforms.emissive.w = returnGlow(ring: true) }
         sc.update("gw_return_core") { $0.uniforms.emissive.w = returnGlow(ring: false) }
