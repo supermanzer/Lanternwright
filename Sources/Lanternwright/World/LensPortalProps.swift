@@ -22,6 +22,8 @@ enum LensPortalProps {
     static let portalHeight: Float = 2.1
     static let receiverName = "lh_receiver", beamName = "lh_ring_beam", portalName = "lh_portal"
     static let lampNames = ["lh_gate_lamp_0", "lh_gate_lamp_1", "lh_gate_lamp_2"]
+    /// F06 B3 (Q24): the two exits take a light each while the gate is ready: a ring of warm beads round the lens (Ilse's exit) and a cool lit rim on the receiver's plate (Oren's exit). Hidden otherwise.
+    static let lensBeadsName = "lh_exit_lens_beads", receiverRimName = "lh_exit_receiver_rim"
 
     static var ringY: Float { LighthouseInterior.lensFloorY + LighthouseInterior.ringHeight }
     /// A frame at angle `a`, radius `r`, height `y` above the tower's foot, whose local z points at the tower's axis (a thing standing on the glass facing in).
@@ -58,6 +60,22 @@ enum LensPortalProps {
             lamp.sphere(radius: 0.03, segments: 10, surface: lampSurface, transform: f * translation(SIMD3((Float(k) - 1) * 0.08, top + 0.19, 0.03)))
             scene.add(name, mesh: lamp.build(device: device, label: "gate lamp"), uniforms: ObjectUniforms(model: matrix_identity_float4x4), hidden: !tools)
         }
+
+        // The exits' lights (F06 B3): hidden until `Game.syncExitLights` shows them. Warm beads in a ring round the lens; a cool rim round the receiver's plate.
+        var beads = MeshBuilder()
+        let beadSurface = Surface(color: SIMD3(1.0, 0.8, 0.45), roughness: 0.4, material: .paleMetal)
+        for k in 0..<18 {
+            let a = Float(k) / 18 * 2 * .pi
+            beads.sphere(radius: 0.035, segments: 8, surface: beadSurface, transform: translation(SIMD3(cos(a) * 1.05, Landmarks.lensPosition.y - Layout.lighthouse.y - 0.1, sin(a) * 1.05)))
+        }
+        scene.add(lensBeadsName, mesh: beads.build(device: device, label: "lens beads"), uniforms: ObjectUniforms(model: translation(Layout.lighthouse)), hidden: !tools)
+        var rim = MeshBuilder()
+        let rimSurface = Surface(color: SIMD3(0.6, 0.8, 1.0), roughness: 0.4, material: .paleMetal)
+        for s: Float in [-1, 1] {
+            rim.box(size: SIMD3(0.34, 0.022, 0.02), surface: rimSurface, transform: f * translation(SIMD3(0, top + s * 0.16, 0.05)))
+            rim.box(size: SIMD3(0.022, 0.34, 0.02), surface: rimSurface, transform: f * translation(SIMD3(s * 0.16, top, 0.05)))
+        }
+        scene.add(receiverRimName, mesh: rim.build(device: device, label: "receiver rim"), uniforms: ObjectUniforms(model: matrix_identity_float4x4), hidden: !tools)
 
         // The beam preview: a thin pale ribbon from the ring outward along its pointer (turned with the ring: the model is a rotation about the axis).
         var beam = MeshBuilder()

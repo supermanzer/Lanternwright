@@ -140,6 +140,12 @@ Format: `### Q<n> (date, who): the question` then *Default taken*, *Where it liv
 *What changes if the answer differs:* each is a string or a constant; the ring's side rule is one comparison in `ringClickSteps`.
 *Status:* open.
 
+### Q24 (2026-10-29, builder B, F06 B3): the two exits take a light each, no text
+*Default taken:* while the lighthouse is open, the gate is ready and no route is chosen, 18 warm beads ring the lens (Ilse's exit) and a cool lit rim frames the receiver's plate (Oren's exit), both breathing slowly (emissive about 1.65 to 2.2); off otherwise. Not tied to the answer phrase's sound: that phrase plays outside near the door (A's audio), not in the lens room. The three gate lamps were not moved (the rim sits on the plate they stand over). Not looked at in a frame: the geometry is small and the selftest checks state and colours, not the picture.
+*Where it lives:* `LensPortalProps.lensBeadsName` / `receiverRimName` (built in `LensPortalProps.build`), `Game.exitLightsOn` / `syncExitLights`.
+*What changes if the answer differs:* colours and strength are one `SIMD4` each in `syncExitLights`; a bigger rim or the lamps moved is in `LensPortalProps.build`.
+*Status:* open.
+
 ## Answered
 - 2026-10-28 S03 Oren's exit location: both exits at the original lighthouse; Oren's is a lens portal in the lens room, the dock arch is not an exit.
 - 2026-10-28 Page gate: 3 pages of each sibling.

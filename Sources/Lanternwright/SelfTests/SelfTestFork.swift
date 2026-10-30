@@ -82,6 +82,17 @@ extension SelfTestRunner {
         check(!q.state.has(Game.doorOpenFlag) && q.tonePlates.sequence.isEmpty && tint(q, "tone_plates") < 0.5, "fork: after Oren's route the plates only ring: the door stays shut and the plates are dimmed")
         check(!q.beginRoute(.ilse) && q.chosenPath == .oren, "fork: and Ilse's route cannot be begun")
 
+        // F06 B3 (Q24): the two exits are lit while the gate is ready, each its own colour, and only then.
+        func lit(_ g: Game, _ name: String) -> (hidden: Bool, e: SIMD4<Float>)? { g.scene.items.first { $0.name == name }.map { ($0.hidden, $0.uniforms.emissive) } }
+        let lg = lensGame(); step(lg, 3)
+        let beads = lit(lg, P.lensBeadsName), rim = lit(lg, P.receiverRimName)
+        check(lg.exitLightsOn && beads?.hidden == false && rim?.hidden == false && (beads?.e.w ?? 0) > 1 && (rim?.e.w ?? 0) > 1, "fork: with the lighthouse open and the gate ready the lens beads and the receiver's rim are lit")
+        check((beads?.e.x ?? 0) > (beads?.e.z ?? 1) * 2 && (rim?.e.z ?? 0) > (rim?.e.x ?? 1) * 1.5, "fork: the lens is warm (red over blue) and the receiver is cool (blue over red): two distinct lights")
+        let nr = lensGame(ready: false); step(nr, 3)
+        check(!nr.exitLightsOn && lit(nr, P.lensBeadsName)?.hidden == true && lit(nr, P.receiverRimName)?.hidden == true, "fork: with the gate not ready neither exit is lit")
+        let shutDoor = twoWorlds(); for n in [1, 2, 3, 5, 6, 7] { shutDoor.restorePage(n) }; shutDoor.state.set("gw_end"); step(shutDoor, 3)
+        check(!shutDoor.exitLightsOn && lit(shutDoor, P.lensBeadsName)?.hidden == true, "fork: with the door shut nothing inside is lit")
+        check(!a.exitLightsOn && lit(a, P.lensBeadsName)?.hidden == true && lit(a, P.receiverRimName)?.hidden == true, "fork: once a route is chosen the exits are no longer lit")
         // The gate rules the fork: with it not ready neither route begins.
         let n = lensGame(ready: false)
         n.state.set("gw_end"); n.restorePage(1)

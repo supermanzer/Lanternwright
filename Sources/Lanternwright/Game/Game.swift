@@ -363,6 +363,18 @@ final class Game {
         sc.update("gw_return_core") { $0.uniforms.emissive.w = returnGlow(ring: false) }
     }
 
+    // MARK: The exits' lights (F06 B3, Q24)
+
+    /// While the lighthouse is open, the gate is ready and no route is chosen, the two exits are lit, each its own colour: warm beads round the lens (Ilse's), a cool rim round the receiver's
+    /// plate (Oren's). Quiet, slowly breathing, no text. Off otherwise (and the sealed exit is dark anyway once a route is chosen).
+    var exitLightsOn: Bool { interiorApplied && world == .varrow && gate.ready && chosenPath == nil }
+    private func syncExitLights() {
+        guard let sc = scenes[.varrow] else { return }
+        let on = exitLightsOn, breath = 0.75 + 0.25 * sin(time * 1.2)
+        sc.update(LensPortalProps.lensBeadsName) { $0.hidden = !on; $0.uniforms.emissive = SIMD4(1.0, 0.72, 0.3, on ? 2.2 * breath : 0) }
+        sc.update(LensPortalProps.receiverRimName) { $0.hidden = !on; $0.uniforms.emissive = SIMD4(0.45, 0.7, 1.0, on ? 2.2 * breath : 0) }
+    }
+
     // MARK: The plates' glint and the ring's two ways (F06 B2b, Q22)
 
     /// A click on the ring turns it the way the prompt's arrows point, the same as the arrow keys: the left half is the Left arrow's way (-1, counter-clockwise seen from above), the right half the Right
@@ -573,6 +585,7 @@ final class Game {
         syncLanternChain()
         syncReturnCue()
         syncPlateGlint()
+        syncExitLights()
         syncInterior()
         syncSeals()
         checkPortalStep()
