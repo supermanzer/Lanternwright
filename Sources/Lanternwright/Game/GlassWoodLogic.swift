@@ -215,15 +215,17 @@ final class GlassWoodLogic: WorldPuzzle {
         emit(.chime(.lens))
         if which == 0 {
             state.set("gw_ilse_heard")
-            showBanner("Ilse: \"He took the lens and went through before the lamp was lit. I have kept it burning for him since.\"")
+            showBanner(Story.ilseAccount)
         } else {
             state.set("gw_oren_heard")
-            showBanner("Oren: \"She would not follow, so I went ahead, and I have waited here since.\"")
+            showBanner(Story.orenAccount)
         }
         if state.has("gw_ilse_heard") && state.has("gw_oren_heard") && !state.has("gw_end") {
             state.set("gw_end")
-            animator.after(7.0) { [weak self] in
-                self?.showBanner("Two accounts, one light. You will have to choose whose you carry.   (end of the second world)")
+            // After the second account has been on screen for its whole time (a newer banner replaces an older one, and Ilse's runs 9 s), not at a fixed 7 s that cut it off.
+            let shown = which == 0 ? Story.ilseAccount : Story.orenAccount
+            animator.after(Game.bannerSeconds(shown) + 0.4) { [weak self] in
+                self?.showBanner(Story.endOfWorldLine)
             }
         }
     }

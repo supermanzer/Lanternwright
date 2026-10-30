@@ -79,10 +79,12 @@ final class Game {
         banner = text
         bannerSerial += 1
         let serial = bannerSerial
-        animator.after(3.5 + Float(text.count) * 0.055) { [weak self] in
+        animator.after(Game.bannerSeconds(text)) { [weak self] in
             if self?.bannerSerial == serial { self?.banner = nil }
         }
     }
+    /// How long a banner stays: a base time plus a little per character.
+    static func bannerSeconds(_ text: String) -> Float { 3.5 + Float(text.count) * 0.055 }
 
     /// Pages that are standing in their world right now (1-4 on Varrow, 5 at the Glass Wood's arrival, 6-8 once their puzzle has revealed them).
     private(set) var shownPages: Set<Int> = [1, 2, 3, 4, 5, 9]
@@ -177,7 +179,7 @@ final class Game {
                                  prompt: "Read the note", reach: 3.4, enabled: false))
         // S03.7: the lens ring in the lens room (enabled while the lighthouse is open: `syncInterior`).
         let ringC = Layout.lighthouse + SIMD3(0, LensPortalProps.ringY, 0), rr = LighthouseInterior.ringOuter + 0.15
-        list.append(Interactable(id: "lens_ring", min: ringC - SIMD3(rr, 0.3, rr), max: ringC + SIMD3(rr, 0.3, rr), prompt: "Turn the ring", reach: 3.4, enabled: false))
+        list.append(Interactable(id: "lens_ring", min: ringC - SIMD3(rr, 0.3, rr), max: ringC + SIMD3(rr, 0.3, rr), prompt: "Turn the ring  \u{2039} \u{203A}", reach: 3.4, enabled: false))
         // S03.8: the lens above the ring: touching it begins Ilse's route (enabled while the lighthouse is open).
         let lc = Landmarks.lensPosition
         // The box covers the sphere's upper part only (from 0.55 m below its centre): a ray from a player's eye to the RING below it must not pass through it (a ray picks the nearest box).
@@ -230,6 +232,8 @@ final class Game {
             collectPage(n)
         } else if id == DoorNote.itemName {
             readNote(id)
+        } else if id == "lens_ring" {
+            lensPortal.turn(ringClickSteps())
         } else if id == Game.lampLensName {
             touchLampLens()
         } else if id == "lh_door" {
@@ -238,7 +242,8 @@ final class Game {
             lastDoorTry = time
             pending.append(.doorTry(min(1, 0.45 + 0.2 * Float(doorTries))))
             pending.append(.chime(.doorLocked))
-            showBanner("Locked. The keeper took the key with her.")
+            // F06 B2b (Q22): once the player has come back with the altar solved, the same door says, quietly, that the stones beside it are the way (no marker).
+            showBanner(hasReturned ? Story.doorLockedReturned : "Locked. The keeper took the key with her.")
         } else if id == "lens" {
             touchLens()
         } else if id == "gw_return" {
@@ -336,7 +341,7 @@ final class Game {
     /// The Glass Wood's return ring is steadily lit; once the altar is solved it brightens and breathes, and the lamp's line is said once, at that moment (not when a save loads with the altar solved).
     static let returnRingGlow: (ring: Float, core: Float) = (6.0, 11.0)
     /// Seconds after the altar is solved before the lamp's line is said: after the second account and the end-of-world line (GlassWoodLogic.touchAltar) have been read.
-    static let lampLineDelay: Float = 17
+    static let lampLineDelay: Float = 18
     private var altarSeen: Bool?
     /// The return ring's emissive strength now (the scene's own base glow until the altar is solved).
     func returnGlow(ring: Bool) -> Float {
@@ -357,6 +362,29 @@ final class Game {
         guard world == .glassWood, let sc = scenes[.glassWood] else { return }
         sc.update("gw_return_ring") { $0.uniforms.emissive.w = returnGlow(ring: true) }
         sc.update("gw_return_core") { $0.uniforms.emissive.w = returnGlow(ring: false) }
+    }
+
+    // MARK: The plates' glint and the ring's two ways (F06 B2b, Q22)
+
+    /// A click on the ring turns it toward the side the crosshair is on: the left half pushes the near rim to the left (clockwise seen from above, +1), the right half to the right (-1); at the
+    /// centre it is +1, as it always was. The prompt's small arrows say so, and the arrow keys still turn it either way.
+    func ringClickSteps() -> Int {
+        guard let it = interactables.first(where: { $0.id == "lens_ring" }) else { return 1 }
+        let c = (it.min + it.max) * 0.5, cam = camera
+        let right = simd_normalize(simd_cross(cam.forward, SIMD3<Float>(0, 1, 0)))
+        let p = cam.position + cam.forward * simd_dot(c - cam.position, cam.forward)          // where the crosshair's ray passes the ring's depth
+        return simd_dot(p - c, right) > 0.1 ? -1 : 1
+    }
+    /// The plates beside the door glint, faintly and slowly, while they would be answered: the altar solved, the player back on Varrow, the gate ready and the door shut.
+    static let plateGlintPeak: Float = 0.05
+    var plateGlint: Float {
+        guard hasReturned, gate.ready, !state.has(Game.doorOpenFlag), !platesSealed else { return 0 }
+        return Game.plateGlintPeak * (0.55 + 0.45 * sin(time * 1.3))
+    }
+    private func syncPlateGlint() {
+        guard let sc = scenes[.varrow] else { return }
+        let w = plateGlint
+        sc.update("tone_plates") { $0.uniforms.emissive = SIMD4<Float>(1.0, 0.82, 0.5, w) }
     }
 
     /// Show the note on the door (and let it be read) exactly while the player has returned; hide it again in the Glass Wood.
@@ -545,6 +573,7 @@ final class Game {
         syncDoorNote()
         syncLanternChain()
         syncReturnCue()
+        syncPlateGlint()
         syncInterior()
         syncSeals()
         checkPortalStep()

@@ -62,6 +62,35 @@ extension SelfTestRunner {
         // The same state with the gate asking for a contradiction again (the constant turned back on) is NOT ready: the test above would then fail, so the waiver is what lets this player in.
         check(!GateState.evaluate(altarSolved: true, pages: [1, 2, 3, 4, 6, 7, 8, 9], resolved: [], waived: false).ready, "plates: only the waiver lets that save in (with the constant off it is not ready)")
 
+        // F06 B2b (Q22): the plates glint, faintly, only while they would be answered; the locked door says the stones are listening once back; a click on the ring turns it toward the side aimed at.
+        func glint(_ g: Game) -> Float? { g.scene.items.first { $0.name == "tone_plates" }?.uniforms.emissive.w }
+        let gl = twoWorlds(); step(gl)
+        check(glint(gl) == 0, "plates: in a new game they do not glint")
+        for n in [1, 2, 3, 5, 6, 7] { gl.restorePage(n) }
+        step(gl)
+        check(glint(gl) == 0, "plates: with the pages but no altar they do not glint")
+        gl.state.set("gw_end"); for _ in 0..<40 { step(gl) }
+        check((glint(gl) ?? 0) > 0 && (glint(gl) ?? 9) <= Game.plateGlintPeak, "plates: with the altar solved and the gate ready they glint, within the peak (\(glint(gl) ?? -1))")
+        let thin = twoWorlds(); thin.restorePage(1); thin.state.set("gw_end"); for _ in 0..<40 { step(thin) }
+        check(glint(thin) == 0, "plates: with the altar solved but the gate not ready they do not glint (too little read)")
+        gl.simulate(seconds: 0.2); strike(gl, [0, 1, 2]); gl.simulate(seconds: 6); step(gl)
+        check(gl.state.has(Game.doorOpenFlag) && glint(gl) == 0, "plates: once the door is open the glint is gone")
+        let lk = twoWorlds(); lk.state.set("gw_end"); step(lk)
+        lk.activate("lh_door"); check(lk.banner == Story.doorLockedReturned, "plates: back with the altar solved the locked door says the stones beside it are listening (\(lk.banner ?? "-"))")
+        let nl = twoWorlds(); nl.activate("lh_door"); check(nl.banner == "Locked. The keeper took the key with her.", "plates: before the altar the door's line is the keeper's")
+        // The ring: the crosshair on the left half turns it one way, the right half the other, the centre as before.
+        let rg = twoWorlds(); for n in [1, 2, 3, 5, 6, 7] { rg.restorePage(n) }; rg.state.set("gw_end"); rg.state.set(Game.doorOpenFlag); step(rg)
+        let ring = rg.interactables.first { $0.id == "lens_ring" }!, rc = (ring.min + ring.max) * 0.5
+        func aimed(_ dx: Float) -> Int {
+            rg.player = Player(position: SIMD3(rc.x, LighthouseInterior.lensFloorY + Layout.lighthouse.y, rc.z + 1.45), yaw: 0)       // south of the ring, looking north
+            let target = rc + SIMD3(dx, 0, 0), d = target - rg.camera.position
+            rg.player.yaw = atan2(d.x, -d.z); rg.player.pitch = asin(d.y / simd_length(d))
+            return rg.ringClickSteps()
+        }
+        check(aimed(0) == 1 && aimed(-0.4) == 1 && aimed(0.4) == -1, "plates: a click on the ring's centre or left half turns it clockwise, on its right half the other way")
+        let before = rg.lensPortal.ringAngle; rg.activate("lens_ring")
+        check(abs(rg.lensPortal.ringAngle - before) > 0.1 && rg.interactables.first { $0.id == "lens_ring" }?.prompt.contains("\u{2039}") == true, "plates: a click turns the ring a step, and its prompt carries the small arrows")
+
         // A wrong strike resets softly, and the set can then be done.
         let w = readyGame()
         strike(w, [1])

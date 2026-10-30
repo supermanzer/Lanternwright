@@ -142,7 +142,7 @@ extension SelfTestRunner {
         check(bot.click(DoorNote.itemName) && g.reading == Story.doorNote && !g.journal.isOpen, "bot: clicks the note on the door: its words come up on a card, not the Notebook")
         var dismiss = InputState(); dismiss.click = true; bot.tick(dismiss)
         check(g.reading == nil, "bot: a click puts the card away")
-        check(bot.click("lh_door") && !g.state.has(Game.doorOpenFlag) && g.banner == "Locked. The keeper took the key with her.", "bot: the door itself is locked and a banner says so")
+        check(bot.click("lh_door") && !g.state.has(Game.doorOpenFlag) && g.banner == Story.doorLockedReturned, "bot: the door itself is locked, and back with the altar solved its line says the stones beside it are listening")
         var plates = true
         for k in [0, 1, 2] {
             let c = bot.interactable(TonePlates.names[k]).map { ($0.min + $0.max) * 0.5 } ?? lh
