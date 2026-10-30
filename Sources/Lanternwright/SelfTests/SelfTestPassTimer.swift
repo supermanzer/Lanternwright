@@ -544,3 +544,45 @@ extension SelfTestRunner {
         check(deepest < 8, "causewaygrounded: no footing is absurdly deep (\(deepest) m)")
     }
 }
+
+extension SelfTestRunner {
+    /// F06 A1 loudness: through the real synth (master 1), the door event's peak is about 1.0-1.3 times a run footstep's on the same stone (the user: "~2x a footstep" was too much); the lens ring's turn is
+    /// in the same range, softer than the door.
+    func runDoorLevel() {
+        guard name == "all" || name == "doorlevel" else { return }
+        let sr: Float = 44100
+        func render(_ setup: (AmbienceSynth) -> Void, seconds: Float = 2) -> [Float] {
+            let s = AmbienceSynth(sampleRate: sr)
+            s.windGain = 0; s.surfGain = 0; s.master = 1
+            setup(s)
+            var l = [Float](repeating: 0, count: Int(sr * seconds)), r = l
+            l.withUnsafeMutableBufferPointer { lp in r.withUnsafeMutableBufferPointer { rp in s.render(frames: lp.count, left: lp.baseAddress!, right: rp.baseAddress!) } }
+            return l
+        }
+        func peak(_ x: [Float]) -> Float { x.map { abs($0) }.max() ?? 0 }
+        let runs = [SurfaceKind.stone, .wood, .grass].map { k in peak(render { $0.stepSurface = k; $0.stepRun = true; $0.stepCounter += 1 }) }
+        let door = [Float(0.3), 0.6, 1.0].map { st in peak(render { $0.doorStrength = st; $0.play(.doorLocked) }) }
+        let ringSig = render({ $0.play(.ringTurn) }, seconds: 1)
+        check(door[2] > 0.6 * runs[0] && door[2] < 1.3 * runs[0] && door[0] > 0.3 * runs[0], "doorlevel: through the synth the door at full strength is \(String(format: "%.2f", door[2] / runs[0])) times a run step on stone (0.3 / 0.6 / 1 strength: \(door.map { String(format: "%.2f", $0 / runs[0]) })), within 0.6-1.3 at its hardest")
+        let ring = peak(ringSig)
+        check(ring > 0.35 * runs[0] && ring < 1.0 * runs[0] && ring < door[2], "doorlevel: the lens ring's turn is \(String(format: "%.2f", ring / runs[0])) of a run step on stone: audible, softer than the door")
+        // The ring is a grind, not a pitch: no one-third-octave band stands out (per 46 ms frame, limit 10 dB), its power is mostly low (80-1500 Hz), and it is over (-40 dB) in under 0.8 s.
+        let sp = FootstepAnalysis.spectrum(ringSig)
+        let low = FootstepAnalysis.band(sp, 80, 1500) / max(FootstepAnalysis.band(sp, 40, 9000), 1e-12)
+        var worst: Float = 0
+        let frame = 2048, hop = 512, energies = stride(from: 0, to: ringSig.count - frame, by: hop).map { a in ringSig[a..<a + frame].reduce(0) { $0 + $1 * $1 } }, floor = 0.03 * (energies.max() ?? 0)
+        for (k, a) in stride(from: 0, to: ringSig.count - frame, by: hop).enumerated() where energies[k] > floor {
+            let f = FootstepAnalysis.spectrum(Array(ringSig[a..<a + frame]))
+            var e: [Float] = [], fc: Float = 300
+            while fc <= 6000 { e.append(FootstepAnalysis.band(f, fc / pow(2, 1.0 / 6), fc * pow(2, 1.0 / 6))); fc *= pow(2, 1.0 / 3) }
+            for q in 1..<(e.count - 1) { worst = max(worst, e[q] / max(max(e[q - 1], e[q + 1]), 1e-20)) }
+        }
+        let tailStart = Int(0.8 * sr), tail = ringSig[tailStart...].map { abs($0) }.max() ?? 1
+        check(10 * log10(max(worst, 1e-9)) < 10 && low > 0.55 && tail < 0.01 * ring, "doorlevel: the ring's turn has no tone (worst band \(String(format: "%.1f", 10 * log10(max(worst, 1e-9)))) dB over its neighbours, limit 10), \(Int(low * 100)) % of its power under 1.5 kHz, and is over by 0.8 s")
+        // The game says it: a turn emits the chime, a touch on the ring too.
+        let g = Game(scenes: [.varrow: Scene.makeWorld(device: device), .glassWood: GlassWood.build(device: device)])
+        g.state.set(Game.doorOpenFlag); g.advance(now: 9000, input: InputState()); _ = g.drainEvents()
+        g.lensPortal.turn(1)
+        check(g.drainEvents().contains(.chime(.ringTurn)), "doorlevel: turning the ring emits the ringTurn chime")
+    }
+}

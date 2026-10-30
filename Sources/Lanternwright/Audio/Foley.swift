@@ -110,6 +110,36 @@ enum Foley {
         return out
     }
 
+    /// F06 A4: the lens ring turning one twelfth (stone-on-brass). About 0.6 s: a LOW grind (noise through a 250-1400 Hz band, roughened by a 20-45 Hz random amplitude wobble so it scrapes, not hums) over a brass
+    /// body's dull rumble (noise below 180 Hz), swelling in 90 ms and easing off, and at the end the detent: a soft click (a short 1.5-3.5 kHz transient) with a small low thunk as the ring seats. All noise,
+    /// no sustained partial. Starts at 0 s.
+    static func ringTurn(sampleRate sr: Float, seed: UInt32 = 0xB1A5) -> [Float] {
+        var n = FoleyNoise(seed: seed)
+        let len = Int(0.78 * sr)
+        var out = [Float](repeating: 0, count: len)
+        var grind = Biquad.bandpass(620, q: 0.55, sampleRate: sr), grindLow = Biquad.bandpass(330, q: 0.8, sampleRate: sr), grindHigh = Biquad.bandpass(1250, q: 0.7, sampleRate: sr)
+        var rumbleA = Biquad.lowpass(170, sampleRate: sr), rumbleB = Biquad.lowpass(170, sampleRate: sr)
+        var click = Biquad.bandpass(2300, q: 0.6, sampleRate: sr), thunk = Biquad.lowpass(210, sampleRate: sr), thunk2 = Biquad.lowpass(210, sampleRate: sr)
+        var wob: Float = 0.5, wobTarget: Float = 0.5, wobLeft = 0
+        let grindEnd: Float = 0.52, clickAt: Float = 0.56
+        for i in 0..<len {
+            let t = Float(i) / sr
+            if wobLeft <= 0 { wobTarget = 0.35 + 0.65 * n.unit(); wobLeft = Int(sr / (20 + 25 * n.unit())) }
+            wobLeft -= 1; wob += (wobTarget - wob) * 0.004 * 44100 / sr * 6
+            let env = min(1, t / 0.09) * (t < grindEnd ? 1 - 0.45 * (t / grindEnd) : exp(-(t - grindEnd) / 0.03))
+            let x = n.next()
+            let g = (grind.process(x) * 0.9 + grindLow.process(x) * 0.8 + grindHigh.process(x) * 0.45) * wob
+            let body = rumbleB.process(rumbleA.process(n.next())) * 5.5
+            var v = (g * 0.75 + body * 0.55) * env
+            if t >= clickAt {
+                let u = t - clickAt
+                v += click.process(n.next()) * 2.0 * exp(-u / 0.0026) + thunk2.process(thunk.process(n.next())) * 7.0 * exp(-u / 0.022)
+            }
+            out[i] = v * 0.22
+        }
+        return out
+    }
+
     /// The whole wood-on-stone-and-iron event: the knock, then the rattle, then the iron ring's clank (`jangleDelay` after the knock). How many rattles and clanks follow depends on how hard the attempt was.
     static func doorLocked(strength: Float, sampleRate sr: Float) -> [Float] {
         let knock = doorKnock(strength: strength, sampleRate: sr)

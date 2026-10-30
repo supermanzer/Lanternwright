@@ -21,6 +21,7 @@ enum ChimeKind: Int, Equatable {
     case glassAmbient    // a quiet random shimmer, as if the wind brushed the crystal trees
     case doorLocked      // the lighthouse door: a latch rattles and the weight of the door thumps against its bolt
     case answer          // S03.4: the lamp's answer motif (`ToneTable.answerHz`), when the player returns to Varrow and again near the lighthouse door
+    case ringTurn        // F06 A4: the lens ring turns one step in the lens room: a stone-on-brass grind and a detent (`Foley.ringTurn`)
     case buoy            // the bell buoy; loudness and pan come from `buoyGain` / `buoyPan` at the moment it rings
 }
 
@@ -245,6 +246,7 @@ final class AmbienceSynth {
             for (i, f) in ToneTable.answerHz.enumerated() {
                 chimes.append(bell(f, gain: i == ToneTable.answerHz.count - 1 ? 0.24 : 0.2, decayScale: i == ToneTable.answerHz.count - 1 ? 2.0 : 1.4, delay: ToneTable.answerDelays[i], pan: 0.1 * Float(i % 2 == 0 ? 1 : -1)))
             }
+        case .ringTurn: playFoley(Foley.ringTurn(sampleRate: sampleRate), gain: 1, pan: 0)
         case .rumble: rumbleLeft = 5.5
         case .buoy: if buoyGain > 0.004 { chimes.append(bell(ToneTable.buoyHz, gain: 0.5 * buoyGain, decayScale: 1.6, pan: buoyPan)) }
         }

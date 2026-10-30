@@ -58,6 +58,7 @@ final class LensPortalPuzzle: WorldPuzzle {
         ringAngle = a
         held = 0; cued = false
         apply()
+        emit(.chime(.ringTurn))                                                    // F06 A4: the stone-on-brass grind and its detent
     }
 
     /// For tools and tests: put the ring at an exact angle.
