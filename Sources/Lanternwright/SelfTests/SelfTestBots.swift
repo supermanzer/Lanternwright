@@ -142,7 +142,7 @@ extension SelfTestRunner {
         check(bot.click(DoorNote.itemName) && g.reading == Story.doorNote && !g.journal.isOpen, "bot: clicks the note on the door: its words come up on a card, not the Notebook")
         var dismiss = InputState(); dismiss.click = true; bot.tick(dismiss)
         check(g.reading == nil, "bot: a click puts the card away")
-        check(bot.click("lh_door") && !g.state.has(Game.doorOpenFlag), "bot: the door itself is locked (a banner says so)")
+        check(bot.click("lh_door") && !g.state.has(Game.doorOpenFlag) && g.banner == "Locked. The keeper took the key with her.", "bot: the door itself is locked and a banner says so")
         var plates = true
         for k in [0, 1, 2] {
             let c = bot.interactable(TonePlates.names[k]).map { ($0.min + $0.max) * 0.5 } ?? lh
@@ -152,7 +152,7 @@ extension SelfTestRunner {
             plates = plates && w && cl
         }
         bot.wait(TonePlatePuzzle.Timing.answerDelay + TonePlatePuzzle.Timing.openDelay + 1.5)
-        check(plates && g.state.has(Game.doorOpenFlag), "bot: strikes the plates tide, wind, stone by real clicks: the lamp answers and the door opens, with no contradiction settled")
+        check(plates && g.state.has(Game.doorOpenFlag), "bot: strikes the plates tide, wind, stone by real clicks: the lamp answers and the door opens (no contradiction was ever set: it does not gate)")
         var climbed = bot.walk(to: SIMD3(lh.x, 0, lh.z + 5), within: 0.5, straight: true) && bot.walk(to: SIMD3(lh.x, 0, lh.z + 3.0), within: 0.5, straight: true) && bot.walk(to: SIMD3(lh.x - 0.9, 0, lh.z + 2.3), within: 0.5, straight: true)
         var phi = I.startAngle
         while climbed && phi < I.endAngle + 0.5 { let q = pt(phi, band(min(phi, I.endAngle))); climbed = bot.walk(to: SIMD3(q.x, 0, q.z), within: 0.55, straight: true); phi += 0.3 }
@@ -173,9 +173,9 @@ extension SelfTestRunner {
         for _ in 0..<3 { ringed = ringed && obot.click("lens_ring"); obot.wait(0.3) }
         obot.wait(LensPortalProps.holdSeconds + 0.6)
         check(ringed && o.state.has(Game.portalOpenFlag) && o.chosenPath == nil, "bot: from the save, three touches turn the ring onto the receiver and the portal opens")
-        let doorway = (lh.x + cos(I.portalAngle) * 1.72, lh.z + sin(I.portalAngle) * 1.72)
-        check(obot.walk(to: SIMD3(doorway.0, 0, doorway.1), within: 0.25, straight: true), "bot: walks into the doorway")
-        // Walking up to the glass: keep walking north until the glass stops the feet (about 1.75 m from the axis), which is inside the doorway's zone.
+        let doorway = (lh.x + cos(I.portalAngle) * 1.4, lh.z + sin(I.portalAngle) * 1.4)
+        check(obot.walk(to: SIMD3(doorway.0, 0, doorway.1), within: 0.2, straight: true) && o.chosenPath == nil, "bot: walks up to the open doorway, 1.4 m from the axis, and has not stepped through yet")
+        // Then on to the glass: keep walking north until the route begins (the zone starts 1.68 m from the axis, the glass stops the feet at about 1.75 m).
         for _ in 0..<90 where o.chosenPath == nil { var fwd = InputState(); fwd.move = SIMD2(0, 1); o.player.yaw = 0; obot.tick(fwd) }
         obot.wait(Game.fadeOutSeconds + Game.holdSeconds + Game.fadeInSeconds + 0.8)
         check(o.chosenPath == .oren && o.world == .glassWood && o.platesSealed && !o.portalSealed, "bot: Oren's route begins in the Glass Wood and Ilse's exit is sealed (\(String(describing: o.chosenPath)) \(o.world) plates \(o.platesSealed) portal \(o.portalSealed))")
@@ -183,6 +183,7 @@ extension SelfTestRunner {
         for (label, game, route) in [("Ilse", g, PageAuthor.ilse), ("Oren", o, PageAuthor.oren)] {
             let again = twoWorlds(); again.restore(game.makeSave()); again.travel(to: .varrow); again.simulate(seconds: Game.fadeOutSeconds + Game.holdSeconds + Game.fadeInSeconds + 1)
             let sealedHolds = route == .ilse ? (again.portalSealed && !again.platesSealed) : (again.platesSealed && !again.portalSealed)
+            if route == .ilse { let a0 = again.lensPortal.ringAngle; again.lensPortal.turn(2); check(again.lensPortal.ringAngle == a0 && !again.state.has(Game.portalOpenFlag), "bot: and after the load Ilse's sealed ring does not turn") }
             check(again.chosenPath == route && sealedHolds && !again.beginRoute(route == .ilse ? .oren : .ilse), "bot: after a save and a load \(label)'s route is kept and the other exit is still sealed")
         }
     }
