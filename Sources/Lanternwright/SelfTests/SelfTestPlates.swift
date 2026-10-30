@@ -73,6 +73,8 @@ extension SelfTestRunner {
         check((glint(gl) ?? 0) > 0 && (glint(gl) ?? 9) <= Game.plateGlintPeak, "plates: with the altar solved and the gate ready they glint, within the peak (\(glint(gl) ?? -1))")
         let thin = twoWorlds(); thin.restorePage(1); thin.state.set("gw_end"); for _ in 0..<40 { step(thin) }
         check(glint(thin) == 0, "plates: with the altar solved but the gate not ready they do not glint (too little read)")
+        let sealed = twoWorlds(); for n in [1, 2, 3, 5, 6, 7] { sealed.restorePage(n) }; sealed.state.set("gw_end"); sealed.state.set(Game.pathOrenFlag); for _ in 0..<40 { step(sealed) }
+        check(glint(sealed) == 0, "plates: after Oren's route (the plates sealed) they do not glint")
         gl.simulate(seconds: 0.2); strike(gl, [0, 1, 2]); gl.simulate(seconds: 6); step(gl)
         check(gl.state.has(Game.doorOpenFlag) && glint(gl) == 0, "plates: once the door is open the glint is gone")
         let lk = twoWorlds(); lk.state.set("gw_end"); step(lk)
@@ -81,15 +83,24 @@ extension SelfTestRunner {
         // The ring: the crosshair on the left half turns it one way, the right half the other, the centre as before.
         let rg = twoWorlds(); for n in [1, 2, 3, 5, 6, 7] { rg.restorePage(n) }; rg.state.set("gw_end"); rg.state.set(Game.doorOpenFlag); step(rg)
         let ring = rg.interactables.first { $0.id == "lens_ring" }!, rc = (ring.min + ring.max) * 0.5
+        // A player stands where the lens room's ring is reached (north of it, facing south), and the crosshair is aimed `dx` metres to the right of the ring's centre as THEY see it.
         func aimed(_ dx: Float) -> Int {
-            rg.player = Player(position: SIMD3(rc.x, LighthouseInterior.lensFloorY + Layout.lighthouse.y, rc.z + 1.45), yaw: 0)       // south of the ring, looking north
-            let target = rc + SIMD3(dx, 0, 0), d = target - rg.camera.position
+            rg.player = Player(position: SIMD3(Layout.lighthouse.x - 0.2, Layout.lighthouse.y + LighthouseInterior.lensFloorY, Layout.lighthouse.z - 1.45), yaw: .pi)
+            var d = rc - rg.camera.position
+            rg.player.yaw = atan2(d.x, -d.z); rg.player.pitch = asin(d.y / simd_length(d))
+            let right = simd_normalize(simd_cross(rg.camera.forward, SIMD3<Float>(0, 1, 0)))
+            d = rc + right * dx - rg.camera.position
             rg.player.yaw = atan2(d.x, -d.z); rg.player.pitch = asin(d.y / simd_length(d))
             return rg.ringClickSteps()
         }
-        check(aimed(0) == 1 && aimed(-0.4) == 1 && aimed(0.4) == -1, "plates: a click on the ring's centre or left half turns it clockwise, on its right half the other way")
-        let before = rg.lensPortal.ringAngle; rg.activate("lens_ring")
-        check(abs(rg.lensPortal.ringAngle - before) > 0.1 && rg.interactables.first { $0.id == "lens_ring" }?.prompt.contains("\u{2039}") == true, "plates: a click turns the ring a step, and its prompt carries the small arrows")
+        check(aimed(0) == 1 && aimed(-0.4) == -1 && aimed(0.4) == 1, "plates: a click on the ring's left half turns it the Left arrow's way (-1), on its right half and its centre the Right arrow's way (+1)")
+        // The direction the ring REALLY turns (signed angle change), for a left-aimed click, a right-aimed click and each arrow key (the key works while the ring is under the crosshair).
+        func signedTurn(_ act: () -> Void) -> Float { let b = rg.lensPortal.ringAngle; act(); var d = rg.lensPortal.ringAngle - b; if d > .pi { d -= 2 * .pi }; if d < -.pi { d += 2 * .pi }; return d }
+        func clickAt(_ dx: Float) -> Float { _ = aimed(dx); return signedTurn { rg.activate("lens_ring") } }
+        func keyAt(_ flip: Int) -> Float { _ = aimed(0); step(rg); return signedTurn { var i = InputState(); i.pageFlip = flip; rg.advance(now: { clock += 0.05; return clock }(), input: i) } }
+        let leftClick = clickAt(-0.4), rightClick = clickAt(0.4), leftKey = keyAt(-1), rightKey = keyAt(1)
+        check(leftClick < -0.1 && rightClick > 0.1 && leftKey < -0.1 && rightKey > 0.1, "plates: the ring really turns the same way for the left half and the Left arrow (\(leftClick), \(leftKey)), and for the right half and the Right arrow (\(rightClick), \(rightKey))")
+        check(rg.interactables.first { $0.id == "lens_ring" }?.prompt.contains("\u{2039}") == true, "plates: and the ring's prompt carries the small arrows")
 
         // A wrong strike resets softly, and the set can then be done.
         let w = readyGame()

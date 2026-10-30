@@ -226,14 +226,13 @@ final class Game {
     }
 
     func activate(_ id: String) {
+        if id == "lens_ring" { lensPortal.turn(ringClickSteps()); return }              // before the puzzle's own handler, which would always turn it one way
         if let owner = puzzles.first(where: { $0.handles(id) }) {
             owner.activate(id)
         } else if id.hasPrefix("page_"), let n = Int(id.dropFirst(5)) {
             collectPage(n)
         } else if id == DoorNote.itemName {
             readNote(id)
-        } else if id == "lens_ring" {
-            lensPortal.turn(ringClickSteps())
         } else if id == Game.lampLensName {
             touchLampLens()
         } else if id == "lh_door" {
@@ -354,7 +353,7 @@ final class Game {
         let now = state.has("gw_end")
         defer { altarSeen = now }
         if altarSeen == false && now && world == .glassWood {
-            // Not at once: the second account (a banner) and the end-of-world line (7 s later, about 9 s long) are still being read, and a newer banner replaces an older one.
+            // Not at once: the second account (a banner) and the end-of-world line (after the second account's full banner time + 0.4 s, about 7 s long) are still being read, and a newer banner replaces an older one.
             animator.after(Game.lampLineDelay) { [weak self] in
                 if let self, self.world == .glassWood, self.state.has("gw_end") { self.showBanner(Story.lampWaitingLine) }
             }
@@ -366,14 +365,14 @@ final class Game {
 
     // MARK: The plates' glint and the ring's two ways (F06 B2b, Q22)
 
-    /// A click on the ring turns it toward the side the crosshair is on: the left half pushes the near rim to the left (clockwise seen from above, +1), the right half to the right (-1); at the
-    /// centre it is +1, as it always was. The prompt's small arrows say so, and the arrow keys still turn it either way.
+    /// A click on the ring turns it the way the prompt's arrows point, the same as the arrow keys: the left half is the Left arrow's way (-1, counter-clockwise seen from above), the right half the Right
+    /// arrow's (+1, clockwise); the centre is +1, as a click always was (the bot clicks the centre).
     func ringClickSteps() -> Int {
         guard let it = interactables.first(where: { $0.id == "lens_ring" }) else { return 1 }
         let c = (it.min + it.max) * 0.5, cam = camera
         let right = simd_normalize(simd_cross(cam.forward, SIMD3<Float>(0, 1, 0)))
         let p = cam.position + cam.forward * simd_dot(c - cam.position, cam.forward)          // where the crosshair's ray passes the ring's depth
-        return simd_dot(p - c, right) > 0.1 ? -1 : 1
+        return simd_dot(p - c, right) < -0.1 ? -1 : 1
     }
     /// The plates beside the door glint, faintly and slowly, while they would be answered: the altar solved, the player back on Varrow, the gate ready and the door shut.
     static let plateGlintPeak: Float = 0.05

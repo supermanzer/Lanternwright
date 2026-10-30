@@ -40,7 +40,7 @@ enum TonePlates {
                 m.box(size: SIMD3(0.2, 0.2, 0.012), surface: iron, transform: face)
             }
         }
-        // Debug: LW_PLATE_GLINT=1 draws the glint the plates have while they would be answered (the game itself drives it: `Game.plateGlint`), so a frame tool can show it.
+        // Debug: LW_PLATE_GLINT=1 sets the glint's starting strength, for frame tools that do not run the game (once the game runs it drives the glint itself: `Game.plateGlint`).
         let glint: Float = ProcessInfo.processInfo.environment["LW_PLATE_GLINT"] == "1" ? Game.plateGlintPeak * 0.8 : 0
         scene.add("tone_plates", mesh: m.build(device: device, label: "tone plates"), uniforms: ObjectUniforms(model: matrix_identity_float4x4, emissive: SIMD4<Float>(1.0, 0.82, 0.5, glint)))
     }
