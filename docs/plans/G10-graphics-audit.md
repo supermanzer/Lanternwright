@@ -110,3 +110,41 @@ Pixel-identical frames for stream 1 (byte compare), the ranked shimmer table bef
 - A velocity buffer adds a render target and bandwidth on a tile-based GPU: keep it RG16F and write it only from the opaque pass; measure the cost (expected 0.1 to 0.3 ms).
 - MetalFX temporal needs macOS 13+; this machine runs 27, but check `supportsDevice`.
 - The refactor is the riskiest stream for hidden regressions: the byte-identical rule exists for that reason. If frames differ, find out why before going on.
+
+## G10 grass follow-up (tag `g10-g3`; builder B, 2026-10-30): the near-field edge crawl, measured lever by lever
+
+NOT the plan's dropped item "G10.G.3 corridor-bounded chunks"; this is the follow-up to the G10.G.2 shortfall (Q17: the grass edge crawl is near field, within about 10 m, which a far-field fade cannot reach). Tools: `--shimmer-layers --size WxH` with `SHIMMER_SCENES=crystal,grove` and `SHIMMER_HEAT`, the grass share of the edge crawl times the scene's edge crawl as the number ("grass edge" below), TAA on, the same 60-frame walk for every row; frames in `shots/g3/`. Baselines (shipped look): crystal grass edge 6.45 (960x540), 23.70 (1600x900), 56.82 (2560x1440); grove 0.80, 1.31, 1.48.
+
+**Why the near field cannot be anti-aliased away.** At 1 to 3 m one 0.028 m walking step moves a blade edge by many pixels; the edge metric (no depth, best of a 3x3 match against the last frame) counts that real parallax as crawl. What can be changed is how many such edges there are.
+
+**Levers tried (1600x900, crystal / grove, grass-edge change):**
+| Lever | Result | Verdict |
+|---|---|---|
+| Per-row coverage floor: every row at least one pixel wide, dimmed by what it covers (the tip stays a point) | -0.4 % / -0.1 % | no move: reverted |
+| Root-width floor of 1.5 px instead of 1.0 (the earlier 2 px also broke bit-identical walks, F06 note in Q17) | -0.9 % / 0.0 % | no move: reverted |
+| Grass velocity | not applicable: the velocity buffer exists only for MetalFX (off by default); native TAA reprojects from depth | not tried |
+| **Near-field blade-count LOD**, level 1: within 14 m blades thin to 70 % and widen 25 % | -6.9 % / -14.7 % (total edge crawl -3.5 % / +0.8 %) | kept as an option |
+| **Level 2**: 50 % and 40 % | -22.9 % / -22.3 % (total -14.2 % / +1.1 %) | kept as an option |
+
+Level 1 and 2 across the sizes (total edge crawl, then the grass part):
+
+| size | scene | level | total edge crawl | grass edge |
+|---|---|---|---|---|
+| 960x540 | crystal | 1 | 18.52 -> 17.92 (-3.3 %) | 6.45 -> 5.91 (-8.3 %) |
+| 960x540 | grove | 1 | 39.77 -> 39.92 (+0.4 %) | 0.80 -> 0.76 (-4.6 %) |
+| 960x540 | crystal | 2 | 18.52 -> 17.21 (-7.1 %) | 6.45 -> 5.09 (-21.0 %) |
+| 960x540 | grove | 2 | 39.77 -> 40.05 (+0.7 %) | 0.80 -> 0.68 (-14.4 %) |
+| 1600x900 | crystal | 1 | 39.84 -> 38.45 (-3.5 %) | 23.70 -> 22.07 (-6.9 %) |
+| 1600x900 | grove | 1 | 100.58 -> 101.34 (+0.8 %) | 1.31 -> 1.11 (-14.7 %) |
+| 1600x900 | crystal | 2 | 39.84 -> 34.17 (-14.2 %) | 23.70 -> 18.28 (-22.9 %) |
+| 1600x900 | grove | 2 | 100.58 -> 101.65 (+1.1 %) | 1.31 -> 1.02 (-22.3 %) |
+| 2560x1440 | crystal | 1 | 82.35 -> 78.04 (-5.2 %) | 56.82 -> 52.13 (-8.3 %) |
+| 2560x1440 | grove | 1 | 211.18 -> 212.16 (+0.5 %) | 1.48 -> 1.49 (+0.5 %) |
+| 2560x1440 | crystal | 2 | 82.35 -> 70.86 (-14.0 %) | 56.82 -> 45.85 (-19.3 %) |
+| 2560x1440 | grove | 2 | 211.18 -> 212.65 (+0.7 %) | 1.48 -> 1.28 (-13.7 %) |
+
+Cost: identical (`--bench`, ground-grass-5m 6.3 ms, gw-court 3.6 ms at every level). The selftest checks that the culling pass and the vertex shader agree to the byte at each level and that fewer cells are kept near the eye.
+
+**Decision.** Default stays 0 (the shipped look, every frame hash unchanged). Levels 1 and 2 are `LW_GRASS_LOD=1|2` for tools and an option for the user (Q30): they buy a 7 to 23 % lower grass edge crawl by thinning the near meadow and widening its blades, which is the opposite of the finer grass detail the user has asked for (notes #3 and #4). The plan's "50 %" target is not reachable by any lever in the grass files.
+
+**The grass and sand boundary (user note #3, 2026-10-24, "grass, sand interfaces show clear pixel rendering").** Reproduced at its recorded position (143.4, 3.1, 169.3, yaw -0.65, pitch -1.24; `shots/g3/sand-base-*.png`): the boundary today is a ragged, soft edge made of fine blades over sand, with no visible pixel blocks at 1600x900 or 2560x1440. It is built by the terrain shader's density mask and the blades' colours, not by the grass geometry, so none of the levers touch it and none helps it; no change is proposed.

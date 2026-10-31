@@ -1,8 +1,17 @@
+import Foundation
 // Instanced grass (cells culled by GrassField's compute pass, G10.G.1). Nothing is stored per blade: each instance's position, height, colour and sway come from a hash of its
 // world-space grid cell, so the field is stable (blades don't swim as you walk) and costs no memory. The vertex stage
 // reads terrain height from a texture, so blades sit on the ground; the fragment stage is the ordinary lit shader.
 enum GrassShaders {
-    static let source = #"""
+    /// G10.G.3: near-field blade-count LOD, default 0 (the shipped look). 1 = within 14 m blades thin to 70 % and widen 25 %; 2 = 50 % and 40 %. Measured in docs/plans/G10-graphics-audit.md: it is the
+    /// only lever that moved the near-field edge crawl, and it costs density the user has asked for more of, so it is an option for the user (Q30), not the default. `LW_GRASS_LOD=1|2` selects it for tools.
+    nonisolated(unsafe) static var nearLOD: Int = Int(ProcessInfo.processInfo.environment["LW_GRASS_LOD"] ?? "") ?? 0
+    static var source: String { sourceText.replacingOccurrences(of: "__KLOD__", with: String(nearLOD)) }
+    static let sourceText = #"""
+constant int kLOD = __KLOD__;
+inline float grass_near(float dist) { return 1.0 - smoothstep(6.0, 14.0, dist); }
+inline float grass_keep_scale(float dist) { return kLOD == 2 ? mix(1.0, 0.5, grass_near(dist)) : (kLOD == 1 ? mix(1.0, 0.7, grass_near(dist)) : 1.0); }
+inline float grass_width_scale(float dist) { return kLOD == 2 ? mix(1.0, 1.4, grass_near(dist)) : (kLOD == 1 ? mix(1.0, 1.25, grass_near(dist)) : 1.0); }
 struct GrassParams {
     float4 field;      // x = cell size (m), y = cells per side, z = draw radius (m), w = unused
     float4 wind;       // xy = wind direction on the ground (unit), z = strength 0...1 at the camera (see Wind.swift)
@@ -84,13 +93,13 @@ vertex LitOut grass_vertex(uint vid [[vertex_id]], uint instance [[instance_id]]
     density *= mix(glassW ? 0.04 : 0.45, 1.0, glassW ? smoothstep(0.36, 0.56, clump) : smoothstep(0.28, 0.50, clump)) * (0.78 + 0.22 * tuft) * (1.0 - 0.9 * ts.w);     // thinner under conifers (needle litter)
     // No per-blade thinning by distance (it twinkled): the chunk fade below shrinks the blades to nothing instead.
     if (density < 0.22) return o;                                              // no lone blades on the fringe where the field fades out
-    if (hash22(float2(gcell) + 17.0).x > density) return o;
+    if (hash22(float2(gcell) + 17.0).x > density * grass_keep_scale(dist)) return o;
 
     // Blade shape: height, width, lean, facing.
     float hr = h11(rnd.x * 91.7 + rnd.y * 13.1);
     bool seedHead = h11(rnd.x * 53.3 + rnd.y * 7.7) > 0.955;                  // a few taller stems with a pale tip: meadow, not carpet
     float height = (0.22 + 0.34 * hr) * (0.62 + 0.75 * clump) * (0.85 + 0.3 * tuft) * (0.55 + 0.45 * gb8 + 0.35 * gb2) * (seedHead ? 1.9 : 1.0) * (glassW ? mix(0.6, 1.1, smoothstep(0.3, 0.6, clump)) * (1.0 + 1.1 * tall) : 1.0) * fade * smoothstep(0.5, 2.2, dist);   // blades right under the eye shrink away (a stray blade at the lens looked like a stake)
-    float width = (0.016 + 0.008 * rnd.y) * (1.0 - 0.35 * smoothstep(0.6 * radius, radius, dist));                                        // thin blades: a meadow, not triangles
+    float width = (0.016 + 0.008 * rnd.y) * (1.0 - 0.35 * smoothstep(0.6 * radius, radius, dist)) * grass_width_scale(dist);                                        // thin blades: a meadow, not triangles
     float yaw = rnd.x * 6.2831853;
     float2 facing = float2(cos(yaw), sin(yaw));
     float2 side = float2(-facing.y, facing.x);

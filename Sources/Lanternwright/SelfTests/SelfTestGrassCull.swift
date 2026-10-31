@@ -87,6 +87,23 @@ extension SelfTestRunner {
             if name == "grasscull" { print("grass fade: \(flips) cells popped in or out of the far patch over \(steps) steps of \(stride) m (\(seen / (steps + 1)) kept a frame)") }
             check(flips == 0, "grass fade: no far cell pops in or out as the camera walks (\(flips) did in \(steps) steps; the per-blade thinning it replaced popped 102 in the same walk)")
         }
+        // G10.G.3: the near-field blade LOD (off by default): at each level the culling pass and the vertex shader still agree to the byte, and fewer blades are kept near the eye.
+        do {
+            let was = GrassShaders.nearLOD
+            defer { GrassShaders.nearLOD = was }
+            var perLevel: [Int] = []
+            for level in [0, 1, 2] {
+                GrassShaders.nearLOD = level
+                let lr = Renderer(device: device, options: LaunchOptions.parse(["lanternwright"])); lr.autoExposure = false
+                lr.world = .varrow; lr.fixedTime = 12
+                let cam = Camera(position: SIMD3(30, 34.4, 60), yaw: 2.2, pitch: -0.3)                    // eye near the ground: most of the kept cells are within 14 m
+                _ = shot(lr, cam, culled: true)
+                let all = shot(lr, cam, culled: false), culled = shot(lr, cam, culled: true)
+                check(!all.isEmpty && all == culled, "grass LOD \(level): the frame is byte-identical with and without the culling pass")
+                perLevel.append(lr.grassField.survivorCount(queue: lr.queue))
+            }
+            check(perLevel.count == 3 && perLevel[1] < perLevel[0] && perLevel[2] < perLevel[1], "grass LOD: level 1 keeps fewer cells than 0 and level 2 fewer than 1 with the eye at the ground (\(perLevel))")
+        }
         let looking = kept.filter { $0.0.hasPrefix("varrow yaw") }.map(\.1)
         check((looking.max() ?? total) < total * 6 / 10, "grass cull: with the view turned any way round the meadow, at most 60 % of the cells survive (\(looking.max() ?? 0) of \(total))")
     }

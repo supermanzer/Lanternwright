@@ -164,7 +164,8 @@ kernel void grass_cull(uint row [[threadgroup_position_in_grid]], uint ix [[thre
                     float gb8 = vnoiseV(float3(xz.x, 1.0, xz.y) * 0.125 + 4.1), gb30 = vnoiseV(float3(xz.x, 1.0, xz.y) * 0.033 + 9.3);
                     density *= mix(0.55, 1.0, smoothstep(0.25, 0.5, gb30)) * mix(0.7, 1.0, smoothstep(0.2, 0.45, gb8));
                     density *= mix(glassW ? 0.04 : 0.45, 1.0, glassW ? smoothstep(0.36, 0.56, clump) : smoothstep(0.28, 0.50, clump)) * (0.78 + 0.22 * tuft) * (1.0 - 0.9 * ts.w);
-                    keepCell = density >= 0.22 - 0.002 && h <= density + 0.002;
+                    float dist = length(xz - frame.cameraPos.xz);
+                    keepCell = density >= 0.22 - 0.002 && h <= density * grass_keep_scale(dist) + 0.002;
                 }
             }
         }

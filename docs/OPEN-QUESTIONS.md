@@ -176,6 +176,12 @@ Format: `### Q<n> (date, who): the question` then *Default taken*, *Where it liv
 *What changes if the answer differs:* the figures' places and postures are data; the unlock rule (own side first) is `tableauSideAvailable`.
 *Status:* open.
 
+### Q30 (2026-10-30, builder B, G10 grass follow-up `g10-g3`): thin the near meadow for less near-field edge crawl?
+*Default taken:* no: the shipped look stays. Measured levers (docs/plans/G10-graphics-audit.md, "G10 grass follow-up"): per-row coverage floor and a 1.5 px root floor do nothing; the only lever that moves the near-field grass edge crawl is a near-field blade-count LOD (within 14 m fewer, wider blades): level 1 (70 % / +25 % width) -7 to -8 % of the grass edge crawl on the crystal view (total -3 to -5 %), level 2 (50 % / +40 %) about -20 to -23 % (total -7 to -14 %), cost identical. It thins the meadow the user has asked to be finer (notes #3, #4), so it is off by default (`LW_GRASS_LOD`, `GrassShaders.nearLOD`) and left for the user to try.
+*Where it lives:* `Render/Shaders/Grass.swift` (`grass_keep_scale`, `grass_width_scale`, `nearLOD`), the matching test in `GrassField.swift`'s cull.
+*What changes if the answer differs:* adopting a level is changing the default of `nearLOD`; the plan's "50 %" is not reachable with grass-file levers.
+*Status:* open.
+
 ## Answered
 - 2026-10-28 S03 Oren's exit location: both exits at the original lighthouse; Oren's is a lens portal in the lens room, the dock arch is not an exit.
 - 2026-10-28 Page gate: 3 pages of each sibling.
