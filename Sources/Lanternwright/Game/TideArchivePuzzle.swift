@@ -33,6 +33,8 @@ final class TideArchivePuzzle: WorldPuzzle {
     private let animator: Animator
     private let emit: (GameEvent) -> Void
     private let level: () -> Float
+    /// A's authored strength of each outgoing beam (`ArchiveProps` builds them at 5; a test pins the two together); the aimed or opened beam is 1.6 times it.
+    static let beamStrength: Float = 5
     private let scene: () -> Scene?
     private let solved: () -> Bool
     private(set) var ringAngle: Float = TideArchivePuzzle.initialRing
@@ -175,7 +177,7 @@ final class TideArchivePuzzle: WorldPuzzle {
             sc.update(name) { $0.uniforms.emissive = open ? SIMD4(0.55, 0.85, 1.0, 1.4) : SIMD4(0, 0, 0, 0) }                  // the stand-in's gate glows
             sc.update(ArchiveProps.gateName(k)) { $0.uniforms.model = ArchiveProps.sluiceGateModel(k, open: open ? 1 : 0) }      // A's gate lifts and its wheel has turned twice
             sc.update(ArchiveProps.wheelName(k)) { $0.uniforms.model = ArchiveProps.sluiceWheelModel(k, turns: open ? 2 : 0) }
-            sc.update(ArchiveProps.beamOutName(k)) { $0.uniforms.emissive.w = open || aimedSluice == k ? 1.6 : 1.0 }             // the dispersed beam of the sluice the ring rests on, or has opened, brightens
+            sc.update(ArchiveProps.beamOutName(k)) { $0.uniforms.emissive.w = TideArchivePuzzle.beamStrength * (open || aimedSluice == k ? 1.6 : 1.0) }          // the dispersed beam of the sluice the ring rests on, or has opened, brightens from A's own strength
         }
         for side in [PageAuthor.ilse, .oren] { sc.update(ShadowTableaux.archive.lanternItems[side]!) { $0.uniforms.emissive = self.tableauShown == side ? SIMD4(1.0, 0.72, 0.3, 2.2) : SIMD4(0, 0, 0, 0) } }
         if let d = drain { sc.update("ti_gallery_water") { $0.uniforms.model = translation(SIMD3(0, -3.5 * d, 0)) } }

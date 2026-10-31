@@ -36,7 +36,7 @@ enum TideSpots {
     static func quayReturn(_ side: PageAuthor) -> SIMD3<Float> { (side == .oren ? ArchiveLayout.openEnd : ArchiveLayout.lampEnd) + SIMD3(side == .oren ? 3.5 : -3.5, 1.6, -3) }
     static let returnIDs = ["ta_return_ilse", "ta_return_oren"]
 
-    /// Where the sound of water is measured from: the nearest of the sluice rooms and the gallery that hold the tide, as a distance from `p`.
+    /// The floor underfoot: brass grating inside a sluice room, wet slate elsewhere.
     static func floor(at p: SIMD3<Float>) -> Game.ArchiveFloor {
         ArchiveLayout.sluiceSites.contains { simd_length(SIMD2(p.x, p.z) - $0) < ArchiveLayout.sluiceFlat } ? .grating : .slate
     }

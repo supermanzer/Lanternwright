@@ -21,6 +21,8 @@ extension SelfTestRunner {
             return g
         }
         func flat(_ p: SIMD3<Float>) -> SIMD2<Float> { SIMD2(p.x, p.z) }
+        let freshBeam = archive.items.first { $0.name == ArchiveProps.beamOutName(0) }?.uniforms.emissive.w
+        check(freshBeam == TideArchivePuzzle.beamStrength, "tide wire: the puzzle's beam strength is the one A builds the beams with (\(freshBeam ?? -1))")
         let ig = routeGame(.ilse), og = routeGame(.oren)
         check(ig.world == .tideArchive && og.world == .tideArchive && ig.routeWorld == .tideArchive, "tide wire: with the Archive built, both routes lead to it")
         check(simd_length(flat(ig.player.position) - flat(ArchiveLayout.lampEnd)) < 1 && simd_length(flat(og.player.position) - flat(ArchiveLayout.openEnd)) < 1, "tide wire: Ilse arrives at the lamp end, Oren at the open end")
@@ -70,6 +72,13 @@ extension SelfTestRunner {
         }
         og.simulate(seconds: TideArchivePuzzle.Timing.drainDelay + 0.5)
         check(og.routeSolved && puzzle.opened == 3, "tide wire: Oren, by the ring turned onto each mark in the prism chamber, drains the gallery")
+        let bg = routeGame(.oren), bp = bg.tideArchive!
+        func beamW(_ k: Int) -> Float { archive.items.first { $0.name == ArchiveProps.beamOutName(k) }?.uniforms.emissive.w ?? 0 }
+        bg.simulate(seconds: 0.2)
+        let idle = beamW(0)
+        check(idle > 0, "tide wire: an outgoing beam keeps A's own strength at rest (\(idle))")
+        bp.turn(Int(((TideArchivePuzzle.beamTargets[0] - bp.ringAngle) / TideArchivePuzzle.ringStep).rounded()))
+        check(beamW(0) > idle && abs(beamW(1) - idle) < 1e-4, "tide wire: the beam the ring rests on brightens above A's strength and the others do not (\(beamW(0)) vs \(beamW(1)))")
         // A save in the Archive restores there.
         let loaded = world3(); loaded.restore(og.makeSave()); loaded.simulate(seconds: 0.3)
         check(loaded.routeSolved && loaded.tideArchive?.opened == 3, "tide wire: a solved Archive loads solved")
