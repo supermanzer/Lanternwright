@@ -83,7 +83,7 @@ struct LaunchOptions {
       --debug <name>               Debug view: depth, shadow, albedo, ambient, cascade, ao, noao
       --dump-audio <path.wav>      Render 24 s of the soundscape to a WAV (play with afplay) and exit
       --world <name>               World to render: varrow, glass (views named gw-* imply glass)
-      --state <name>               World state: solved, mirrors, chimes, both, mirrorswrong, tide, tidewind
+      --state <name>               World state: solved, mirrors, chimes, both, mirrorswrong, tide, tidewind, fork, forkoren (the lens room at the fork, F08.1)
       --dump-overlay <base>        Render crosshair/journal/end/intro overlays to <base>-*.png and exit
       --dump-shaders <path>        Write the whole Metal source (what the game compiles at launch) to <path> and exit, with no device or window (scripts/validate-shaders.sh)
       --approach <target|all> <out>  Continuous-detail measurement: walk toward a target, write a contact sheet and luma/high-frequency numbers

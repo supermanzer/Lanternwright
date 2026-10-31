@@ -23,12 +23,19 @@ struct LighthouseInterior {
     static var endAngle: Float { startAngle + 2 * .pi * turns }
     /// The stair hugs the wall as a band `stairWidth` wide round an open well; the well is never narrower than `wellMin` (at the top the shaft is only 2 m across). A low rail along the
     /// band's inner edge keeps the player out of the well and from walking under the low treads.
-    static let stairWidth: Float = 1.3
+    /// F08.2 (Q36): 1.6 m wide (was 1.3), where the shaft allows (the band narrows by itself where `innerR - stairWidth` would leave less than `wellMin`: near the top).
+    static let stairWidth: Float = 1.6
     static let wellMin: Float = 0.8
     static func stairInner(_ y: Float) -> Float { max(innerR(y) - stairWidth, wellMin) }
     /// Treads at the foot without a rail: the way onto the stair from the room.
     static let openTreads = 3
-    static let wallThickness: Float = 0.8
+    /// The wall's thickness: 0.8 m from about the top of the shaft down to the old rooms, thinning to `wallThicknessFoot` at the foot (F08.2, Q36): the ground room is about 10 % wider (inner radius 3.75 m
+    /// against 3.4) and the stair, which hugs the wall, has the room. The lens room's floor is unchanged (its radius is `minInner`, reached before the wall thins).
+    static let wallThickness: Float = 0.8, wallThicknessFoot: Float = 0.45
+    static func thickness(_ y: Float) -> Float {
+        let t = min(max((y - Lighthouse.baseY) / (Lighthouse.topY - Lighthouse.baseY) / 0.85, 0), 1)          // 0 at the foot, 1 from 85 % of the shaft up
+        return wallThicknessFoot + (wallThickness - wallThicknessFoot) * t * t * (3 - 2 * t)
+    }
     /// The inside radius under the lantern: the lantern room's glass is 2.1 m round, so the lens room is too.
     static let minInner: Float = 2.1
     // The lens room (S03.7 builds in it; the space is reserved here and measured by SelfTestInterior): the lens stands in the middle of the floor with its ring round it (`ringOuter`), and the
@@ -55,7 +62,7 @@ struct LighthouseInterior {
     static let reach: Float = 0.5
 
     /// The inside radius of the shaft at height y (the outside radius less the wall, never less than `minInner`): the wall is thick at the foot and thin under the lantern.
-    static func innerR(_ y: Float) -> Float { max(Lighthouse.wallR(y) - wallThickness, minInner) }
+    static func innerR(_ y: Float) -> Float { max(Lighthouse.wallR(y) - thickness(y), minInner) }
     /// Rise of the stair per radian of angle.
     static var rate: Float { (lensFloorY - floorY) / (2 * .pi * turns) }
     static func stairY(_ phi: Float) -> Float { floorY + (phi - startAngle) * rate }

@@ -252,6 +252,9 @@ final class Game {
         // The box covers the sphere's upper part only (from 0.55 m below its centre): a ray from a player's eye to the RING below it must not pass through it (a ray picks the nearest box).
         list.append(Interactable(id: Game.lampLensName, min: lc - SIMD3(0.7, 0.55, 0.7), max: lc + SIMD3(0.7, 0.8, 0.7), prompt: "Touch the lens", reach: 3.4, enabled: false))
         let l = PuzzleProps.lensRestPosition
+        // F08.1 (Q35): the open doorway of light in the lens room's north window names whose way it is; stepping into it is what begins Oren's route (`checkPortalStep`), the click does nothing.
+        let pc = Layout.lighthouse + SIMD3(cos(LighthouseInterior.portalAngle) * 2.0, LighthouseInterior.lensFloorY + 1.1, sin(LighthouseInterior.portalAngle) * 2.0)
+        list.append(Interactable(id: Game.portalStepName, min: pc - SIMD3(0.6, 1.0, 0.3), max: pc + SIMD3(0.6, 0.9, 0.3), prompt: "Step into the light", reach: 3.4, enabled: false))
         list.append(Interactable(id: "lens", min: l - SIMD3(1.3, 1.3, 1.3), max: l + SIMD3(1.3, 1.3, 1.3), prompt: "Touch the lens", reach: 5))
         worldInteractables[.varrow] = list
 
@@ -279,6 +282,19 @@ final class Game {
 
     /// True when what the crosshair is on has already done its job (a solved stone, a heard account...): it still responds, but the
     /// crosshair looks quieter, so the player can tell the unfinished from the finished at a glance. No sound, no text.
+    /// F08.1 (Q35): the prompt as shown. At the fork (the gate ready, no route chosen: `exitLightsOn`) each exit names the sibling whose way it is; before that and after, the plain words, so no text
+    /// appears once the choice is made and nothing is named on a lens that does not yet begin a route.
+    static let portalStepName = "lh_portal_step"
+    var hoverPrompt: String? {
+        guard let h = hovered else { return nil }
+        guard exitLightsOn else { return h.id == Game.portalStepName ? nil : h.prompt }
+        switch h.id {
+        case Game.lampLensName: return "Ilse\u{2019}s way: touch the lens"
+        case "lens_ring": return "Oren\u{2019}s way: turn the ring  \u{2039} \u{203A}"
+        case Game.portalStepName: return "Oren\u{2019}s way: step into the light"
+        default: return h.prompt
+        }
+    }
     var hoveredFinished: Bool {
         guard let id = hovered?.id else { return false }
         if id.hasPrefix("stone_") { return state.has("solved") }
@@ -731,6 +747,7 @@ final class Game {
         syncReturnCue()
         syncPlateGlint()
         syncExitLights()
+        setInteractable(Game.portalStepName, enabled: exitLightsOn && lensPortal.isOpen)
         syncNextLens()
         syncTideInteractables()
         syncGuides()

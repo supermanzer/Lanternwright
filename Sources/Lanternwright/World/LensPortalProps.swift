@@ -66,9 +66,12 @@ enum LensPortalProps {
         // The exits' lights (F06 B3): hidden until `Game.syncExitLights` shows them. Warm beads in a ring round the lens; a cool rim round the receiver's plate.
         var beads = MeshBuilder()
         let beadSurface = Surface(color: SIMD3(1.0, 0.8, 0.45), roughness: 0.4, material: .paleMetal)
-        for k in 0..<18 {
-            let a = Float(k) / 18 * 2 * .pi
-            beads.sphere(radius: 0.035, segments: 8, surface: beadSurface, transform: translation(SIMD3(cos(a) * 1.05, Landmarks.lensPosition.y - Layout.lighthouse.y - 0.1, sin(a) * 1.05)))
+        // F08.1: on the lens's own underside, where a player in the lens room looks up at it (the first ring, 1.05 m out beside the lens, was lost against its bulk in the frames): fourteen beads in a ring 0.5 m from its axis,
+        // just clear of the sphere (radius 0.85, its centre `lensPosition`).
+        let beadR: Float = 0.5, beadY = Landmarks.lensPosition.y - Layout.lighthouse.y - (0.85 * 0.85 - beadR * beadR).squareRoot() - 0.04
+        for k in 0..<14 {
+            let a = Float(k) / 14 * 2 * .pi
+            beads.sphere(radius: 0.05, segments: 8, surface: beadSurface, transform: translation(SIMD3(cos(a) * beadR, beadY, sin(a) * beadR)))
         }
         scene.add(lensBeadsName, mesh: beads.build(device: device, label: "lens beads"), uniforms: ObjectUniforms(model: translation(Layout.lighthouse)), hidden: !tools)
         var rim = MeshBuilder()

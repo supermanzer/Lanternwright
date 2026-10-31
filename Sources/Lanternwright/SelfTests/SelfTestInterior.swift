@@ -17,8 +17,14 @@ extension SelfTestRunner {
         let perTurn = (I.lensFloorY - I.floorY) / I.turns
         check(perTurn > 3.9 && perTurn < 4.05 && I.rate > 0.62 && I.rate < 0.65, "interior: each turn rises about 4 m (headroom for a 1.7 m eye under the next turn), \(perTurn) m")
 
+        // F08.2 (Q36): the ground room is about 10 % wider than the old 3.4 m, the stair 1.6 m wide where the shaft allows, and the lens room unchanged (its floor and rail).
+        check(I.innerR(I.floorY) > 3.7 && I.innerR(I.floorY) < 3.8, "interior: the ground room's inner radius is about 3.75 m (was 3.4), \(I.innerR(I.floorY))")
+        let midY = I.floorY + 0.4 * (I.lensFloorY - I.floorY)
+        check(abs(I.innerR(midY) - I.stairInner(midY) - 1.6) < 1e-3, "interior: the stair is 1.6 m wide through the lower and middle of the shaft (\(I.innerR(midY) - I.stairInner(midY)) m at 40 % up)")
+        check(abs(I.innerR(I.lensFloorY) - I.minInner) < 1e-3 && abs(I.innerR(I.lensFloorY - 1) - (Lighthouse.wallR(I.lensFloorY - 1) - I.wallThickness)) < 0.3, "interior: the lens room's inner radius is still \(I.minInner) m (its floor is not widened) and the wall is back to 0.8 m thick near the top")
+        check((0...20).allSatisfy { let y = I.floorY + Float($0) / 20 * (I.lensFloorY - I.floorY); return I.innerR(y) <= (0...$0).map { _ in I.innerR(I.floorY) }.last! + 1e-4 && I.innerR(y + 0.01) <= I.innerR(y) + 1e-3 }, "interior: the shaft never widens going up")
         // The floor under the feet.
-        check(o.height(x: lh.x + 5, z: lh.z, feetY: lh.y + 0.9) == nil && o.height(x: lh.x, z: lh.z + 3.6, feetY: lh.y + 0.9) == nil, "interior: outside the inner wall the scene's own ground applies (no floor from the interior)")
+        check(o.height(x: lh.x + 5, z: lh.z, feetY: lh.y + 0.9) == nil && o.height(x: lh.x, z: lh.z + 3.95, feetY: lh.y + 0.9) == nil, "interior: outside the inner wall the scene's own ground applies (no floor from the interior)")
         check(abs((o.height(x: lh.x, z: lh.z, feetY: lh.y + 0.9) ?? -9) - (lh.y + 0.9)) < 1e-3, "interior: in the middle of the ground room the floor is the plinth's top")
         var worst: Float = 0, prev = lh.y + I.floorY, monotone = true
         var phi = I.startAngle

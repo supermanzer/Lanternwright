@@ -36,6 +36,14 @@ enum Screenshot {
         case "mirrorswrong": g.glass?.setArrangement(mirrors: MirrorCourt.solutionMirrors, panes: [1, 2, 0])
         case "tide": g.puzzle.strike(.tide)
         case "tidewind": g.puzzle.strike(.tide); g.simulate(seconds: 0.7); g.puzzle.strike(.wind)
+        case "fork", "forkoren":            // F08.1: the lens room at the fork (the altar solved, the gate ready, the door open); forkoren: the ring turned onto the receiver and the doorway of light open
+            for n in [1, 2, 3, 5, 6, 7] { g.restorePage(n) }
+            g.state.set("gw_end"); g.story.contradictionsResolved = ["who-left"]; g.state.set(Game.doorOpenFlag)
+            var t = 100.0
+            func frames(_ n: Int) { for _ in 0..<n { t += 0.05; g.advance(now: t, input: InputState()) } }
+            frames(4)
+            if name == "forkoren" { for _ in 0..<3 { g.lensPortal.turn(1); g.simulate(seconds: 0.3) }; g.simulate(seconds: LensPortalProps.holdSeconds + 0.6) }
+            frames(4)
         default: FileHandle.standardError.write(Data("unknown --state \(name)\n".utf8))
         }
         g.simulate(seconds: 1.5)
