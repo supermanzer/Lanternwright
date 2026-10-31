@@ -212,6 +212,26 @@ Format: `### Q<n> (date, who): the question` then *Default taken*, *Where it liv
 *What changes if the answer differs:* set the default back with one character; saves made before S04.9 load fine (the puzzle's flags are new and absent).
 *Status:* open.
 
+### Q35 (2026-10-31, builder B, F08.1: the fork says whose route a click begins; answers Q11 and Q24)
+*User:* "this works but it is not clear which sibling's choice you are making" (Q11); "this could be more clear" (Q24).
+*Default taken:* attribute each exit to its sibling by what the player already knows of them, with no dialog and no banner (Q12 stands: the first touch is still the commit, the prompt is the warning). (1) **Hover prompts name the sibling while the fork is open** (the gate ready and no route chosen: `Game.exitLightsOn`): the lens says "Ilse's way: touch the lens", the ring "Oren's way: turn the ring  ‹ ›", and the open doorway of light (a new interactable `lh_portal_step`, enabled only while the portal is open at the fork) "Oren's way: step into the light"; before the gate is ready and after a route is chosen the plain words show ("Touch the lens", "Turn the ring"), so a sibling is named only while the choice is open (`Game.hoverPrompt`, `SelfTestForkPrompts`). (2) **Each exit carries its sibling's motif**: Ilse's is the warm lamp-tone of her lamp (and the lamp of her pages): the ring of beads, now on the lens's own underside where a player looks up at it (frames showed the old ring, beside the lens, was lost against its bulk); Oren's is the cool glass-and-tide blue-white: the frame round the receiver and the doorway of light. The Notebook has no per-sibling ink (its tabs are plain), so the motifs are the world's own: her lamp, his glass. (3) The `--state fork` / `forkoren` screenshot states put the lens room at the fork for frames.
+*Where it lives:* `Game.hoverPrompt`, `Game.portalStepName`, `LensPortalProps` (beads), `Render/Screenshot.swift` (states), `AppDelegate` (prompt), `SelfTestForkPrompts.swift`.
+*What changes if the answer differs:* the strings are in `Game.hoverPrompt`; the colours in `Game.syncExitLights`.
+*Status:* open.
+
+### Q36 (2026-10-31, builder B, F08.2: the lighthouse interior is less cramped; answers Q8)
+*User:* "a little cramped but it works".
+*Default taken:* the stair is 1.6 m wide (was 1.3) wherever the shaft allows (it narrows by itself near the top where the well would be squeezed: `stairInner` keeps the well at 0.8 m); the wall is thinned from 0.8 m to 0.45 m at the foot, blending back to 0.8 m by 85 % of the shaft, so the ground room's inner radius is 3.75 m (was 3.4, +10 %) and the lens room is unchanged (its radius is the 2.1 m of the lantern glass, the rail and the hatch as before). The lamps are not moved (`lampGround`, `lampLens`); the interior-light selftests pass and the frames are as bright; Q10 stays as the user accepted it.
+*Where it lives:* `LighthouseInterior.stairWidth`, `wallThicknessFoot`, `thickness(_:)`, `innerR`; `SelfTestInterior` (four new checks); the probe outside the wall moved from 3.6 to 3.95 m.
+*What changes if the answer differs:* the two constants.
+*Status:* open.
+
+### Q18 note (F08.3, 2026-10-31): page 9 findability
+*User:* could not find one Varrow page (the new page 9 at the dock's seaward end) but is glad the gate no longer locks. No code change: the gate needs only 3 + 3 pages with the contradiction waived, and findability aids were asked to be reverted (#43). If a later playtest shows the same problem, the cheapest aid is a lantern or a lighter ground patch near it.
+
+### User: keep (F08, 2026-10-31)
+Q5 keep (EDGE_K 1.0) · Q15 keep (page 9 stays on the dock and counts for the gate) · Q17 accepted (the far-field fade is enough) · Q30 keep (grass LOD ships OFF) · Q25 works (run 5.5 m/s, hint gone) · Q20 keep ("The lamp is waiting." and the brighter ring) · Q6 works (door note) · Q9 works (plates) · Q23 makes sense (quiet cues) · Q10 okay (interior brightness, lampPower 0.85) · Q27 works (rail, page wording) · Q14 every return (no change).
+
 ## Answered
 - 2026-10-28 S03 Oren's exit location: both exits at the original lighthouse; Oren's is a lens portal in the lens room, the dock arch is not an exit.
 - 2026-10-28 Page gate: 3 pages of each sibling.

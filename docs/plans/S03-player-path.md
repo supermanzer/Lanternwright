@@ -139,6 +139,10 @@ What the bots now prove, on the default build (the Archive is ON; `LW_TIDE_ARCHI
 5. **The next lens is dim with no words:** a player may not notice it.
 6. **The third ending's tools** (the other route's fork or lens) are findable by exploring; nothing points to them. By design.
 
+### Verdict update, F08.1 (2026-10-31): the fork names whose route a click begins (step 23)
+
+At the fork (the gate ready, no route chosen) the lens's hover prompt reads "Ilse's way: touch the lens", the ring "Oren's way: turn the ring ‹ ›" and the open doorway of light "Oren's way: step into the light"; the lens carries a warm ring of lamp-tone beads on its underside and the receiver a cool blue-white frame (frames `shots/f08/fork.png`, `forkoren.png`). Before the fork and after a choice no sibling is named (`SelfTestForkPrompts`). *Verdict: Hinted to Clear: a player who knows Ilse as the lamp-keeper and Oren as the glass-and-tide brother can read each exit from its words and its light; the choice is still irreversible, and the prompt is the only warning (Q12). Confirm in play.* (Q35)
+
 ## What the bot proves, and what it does not
 
 The bot proves that every step above is reachable with the real controller and real clicks, in order, from a fresh game: the dock, pages 9 and 1 to 4, the stones, the causeway, the lens, the Glass Wood's pages, mirrors, chimes, the altar, the return, the note card, the plates (standing in front of each: from the side along the row, the near plate hides the far one, so a player must face them), the open door, the stair, the lens room, Ilse's exit, and (from a save made in the lens room) Oren's exit by three ring touches and the doorway; and that after a save and a load each route is kept and the other exit is still sealed. It does NOT prove a player would do any of it unprompted: that is the "Unclear" and "Hinted" cells above.
