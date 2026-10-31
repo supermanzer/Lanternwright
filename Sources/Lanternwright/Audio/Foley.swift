@@ -32,8 +32,8 @@ struct Biquad {
 enum Foley {
     /// F07 A-door (#72: "like a snare drum, far too thin and staccato, no weight of solid wood or stone"; the third complaint about this sound): a PHYSICAL model of a heavy oak door (about 5 cm of it) shifting a
     /// centimetre against its stone jamb, with the iron ring on its plate. Built from four layers, each of the kind of thing that makes the sound:
-    ///  1. THE THUD, the door's mass meeting stone: a low modal body (70-140 Hz: four damped modes at 72, 96, 118 and 138 Hz that ring for 150-250 ms) over a low-passed noise body; attack about 8 ms to full (3-8 ms from 10 % to 90 %: not an impulse).
-    ///  2. THE WOOD KNOCK, 200-500 Hz: three damped modes at 230, 330 and 470 Hz and a band of noise, decaying in about 60 ms, 6 dB under the thud.
+    ///  1. THE THUD, the door's mass meeting stone: a low modal body (70-140 Hz: four damped modes at 72, 96, 118 and 138 Hz that ring for 150-250 ms) WITH ITS OVERTONES at 2x, 3x, 4x and 6x (a small speaker cannot play 70 Hz, but it plays 280-800 Hz: the thud must be heard in them) and a body thump around 260 Hz, over a low-passed noise body; attack about 8 ms to full (3-8 ms from 10 % to 90 %: not an impulse).
+    ///  2. THE WOOD KNOCK, 200-500 Hz: three damped modes at 230, 330, 470, 640, 780 and 900 Hz and a band of noise, decaying in about 60 ms, 6 dB under the thud.
     ///  3. THE FRICTION CREAK, planks scraping the stone: noise through 300-1500 Hz, chopped by a random stick-slip (a 25-60 Hz wobble), 60-330 ms after the thud, 16 dB under it.
     ///  4. THE IRON RING'S CLINK, 1.5-3 kHz, 18 dB under the thud, ringing about 150 ms (noise through nine resonances of Q 6 at random inharmonic frequencies: a smear, never a pitch), twice (the ring swings back).
     /// The only things above 1 kHz are the clink and the creak's top, both quiet and noise-built. `strength` 0...1 scales level (and the creak and clink a little more).
@@ -45,8 +45,10 @@ enum Foley {
         // 1. the thud
         let modes: [(f: Float, tau: Float, a: Float)] = [(72, 0.085, 1.0), (96, 0.07, 0.85), (118, 0.06, 0.6), (138, 0.05, 0.45)]
         var bodyA = Biquad.lowpass(150, sampleRate: sr), bodyB = Biquad.lowpass(150, sampleRate: sr)
+        let harmonics: [(n: Float, a: Float, decay: Float)] = [(2, 0.75, 0.8), (3, 0.6, 0.6), (4, 0.42, 0.5), (6, 0.22, 0.35)]
+        var thump = Biquad.bandpass(260, q: 0.7, sampleRate: sr)                          // the door's panel answering: a body thump around 150-400 Hz
         // 2. the knock
-        let knockModes: [(f: Float, a: Float)] = [(230, 0.5), (330, 0.4), (470, 0.25)]
+        let knockModes: [(f: Float, a: Float)] = [(230, 0.5), (330, 0.4), (470, 0.3), (640, 0.22), (780, 0.16), (900, 0.1)]
         var knockBand = Biquad.bandpass(330, q: 1.4, sampleRate: sr)
         // 3. the creak
         var creakA = Biquad.bandpass(480, q: 1.1, sampleRate: sr), creakB = Biquad.bandpass(950, q: 1.2, sampleRate: sr), creakC = Biquad.bandpass(1350, q: 1.3, sampleRate: sr)
@@ -60,7 +62,11 @@ enum Foley {
             let t = Float(i) / sr
             let attack = min(1, t / 0.008); let att = attack * attack * (3 - 2 * attack)
             var thud: Float = 0
-            for m in modes { thud += m.a * sin(2 * .pi * m.f * t) * exp(-t / m.tau) }
+            for m in modes {
+                thud += m.a * sin(2 * .pi * m.f * t) * exp(-t / m.tau)
+                for h in harmonics { thud += m.a * h.a * sin(2 * .pi * m.f * h.n * t) * exp(-t / (m.tau * h.decay)) }      // the body's own overtones: what a small speaker can reproduce of a low thud
+            }
+            thud += thump.process(n.next()) * 4.5 * exp(-t / 0.045)
             thud += bodyB.process(bodyA.process(n.next())) * 5.0 * exp(-t / 0.05)
             var knock: Float = 0
             if t >= 0.004 {
@@ -84,7 +90,7 @@ enum Foley {
                 for r in clinkHits[h].res.indices { ring += clinkHits[h].res[r].process(x) }
                 clink += ring * 0.55 * exp(-u / 0.045) * clinkHits[h].amp
             }
-            out[i] = (thud * 0.42 + knock * 0.9 * 0.42 + creak * (0.16 + 0.1 * strength) * 0.42 * 2.2 + clink * (0.125 + 0.05 * strength) * 0.42) * att * s * 0.65
+            out[i] = (thud * 0.42 + knock * 0.9 * 0.42 + creak * (0.16 + 0.1 * strength) * 0.42 * 2.2 + clink * (0.125 + 0.05 * strength) * 0.42) * att * s * 0.5
         }
         return out
     }

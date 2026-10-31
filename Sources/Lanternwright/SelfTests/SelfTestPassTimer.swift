@@ -615,7 +615,7 @@ extension SelfTestRunner {
         guard name == "all" || name == "doorheavy" else { return }
         let sr: Float = 44100
         let A = FootstepAnalysis.self
-        func midShare(_ x: [Float]) -> Float { let sp = A.spectrum(x); return A.band(sp, 200, 520) / max(A.band(sp, 40, 9000), 1e-12) }
+        func midShare(_ x: [Float]) -> Float { let sp = A.spectrum(x); return A.band(sp, 150, 900) / max(A.band(sp, 40, 9000), 1e-12) }
         func metrics(_ x: [Float]) -> (low: Float, centroid: Float, rise: Float) {
             let sp = A.spectrum(x), tot = max(A.band(sp, 40, 9000), 1e-12)
             var num: Float = 0, den: Float = 0
@@ -645,8 +645,18 @@ extension SelfTestRunner {
         for (st, m, level) in all { print(String(format: "DOORHEAVY strength %.1f: %.0f %% of the power under 500 Hz, centroid %.0f Hz, worst 1/3-octave rise above 1 kHz %.1f dB, level %.2f x a stone run step", st, m.low * 100, m.centroid, m.rise, level)) }
         check(all.allSatisfy { $0.1.low >= 0.70 } && all.allSatisfy { $0.1.centroid < 700 }, "doorheavy: the door is heavy: \(all.map { String(format: "%.0f", $0.1.low * 100) }) % of the power under 500 Hz (at least 70; the old event had 21) and centroid \(all.map { String(format: "%.0f", $0.1.centroid) }) Hz (under 700; the old one 2760)")
         let mids = [Float(0.3), 0.6, 1.0].map { midShare(Foley.doorLocked(strength: $0, sampleRate: sr)) }
-        print("DOORHEAVY 200-520 Hz share \(mids.map { String(format: "%.1f", $0 * 100) }) %")
-        check(mids.allSatisfy { $0 >= 0.05 }, "doorheavy: the part a laptop speaker can play: at least 5 % of the power in 200-520 Hz (\(mids.map { String(format: "%.1f", $0 * 100) }) %), not only the sub-100 Hz modes")
+        print("DOORHEAVY 150-900 Hz share \(mids.map { String(format: "%.1f", $0 * 100) }) %")
+        check(mids.allSatisfy { $0 >= 0.35 }, "doorheavy: the part a laptop speaker can play: at least 35 % of the power in 150-900 Hz (\(mids.map { String(format: "%.1f", $0 * 100) }) %), not only the sub-100 Hz modes")
+        // A small speaker (a laptop's) plays nothing below about 200 Hz: through a 200 Hz high-pass (two poles) the door must still be heard, at least half as loud (RMS) as a stone run step through the same filter.
+        func synthSamples(_ setup: (AmbienceSynth) -> Void) -> [Float] {
+            let s = AmbienceSynth(sampleRate: sr); s.windGain = 0; s.surfGain = 0; s.master = 1; setup(s)
+            var l = [Float](repeating: 0, count: Int(sr * 2)), r = l
+            l.withUnsafeMutableBufferPointer { lp in r.withUnsafeMutableBufferPointer { rp in s.render(frames: lp.count, left: lp.baseAddress!, right: rp.baseAddress!) } }
+            return l
+        }
+        func rmsHP(_ x: [Float]) -> Float { let y = A.onePoleHigh(A.onePoleHigh(x, 200), 200); return (y.reduce(0) { $0 + $1 * $1 } / Float(max(y.count, 1))).squareRoot() }
+        let doorHP = rmsHP(synthSamples { $0.doorStrength = 1; $0.play(.doorLocked) }), stepHP = rmsHP(synthSamples { $0.stepSurface = .stone; $0.stepRun = true; $0.stepCounter += 1 }) * (1.4 / AmbienceSynth.stepMix)
+        check(doorHP > 0.5 * stepHP, "doorheavy: on a small speaker (200 Hz high-pass) the door is still there: RMS \(String(format: "%.4f", doorHP)) against \(String(format: "%.4f", stepHP)) for a stone run step at the pre-F07 level (\(String(format: "%.1f", doorHP / max(stepHP, 1e-9))) times)")
         check(all.allSatisfy { $0.1.rise < 6 }, "doorheavy: no tone above 1 kHz stands more than 6 dB over its neighbours (one-third-octave bands; worst \(all.map { String(format: "%.1f", $0.1.rise) }) dB)")
         check(all[2].2 >= 0.8 && all[2].2 <= 1.0 && all.allSatisfy { $0.2 <= 1.0 } && all[0].2 < all[1].2 && all[1].2 < all[2].2, "doorheavy: through the synth the door at full strength is \(String(format: "%.2f", all[2].2)) of a run step on stone (0.8-1.0), softer tries are softer (\(all.map { String(format: "%.2f", $0.2) }))")
         let env = A.envelope(hard, tau: 0.001), top = env.max() ?? 1
