@@ -17,7 +17,7 @@ float3 terrain_surface(float3 P, float3 Ng, float pathW, float wet, float duff, 
 
     float dry = smoothstep(0.38, 0.62, macro + (P.y - 20.0) * 0.004);
     float3 lush = glass ? float3(0.045, 0.15, 0.18) : (arch ? float3(0.055, 0.080, 0.070) : float3(0.060, 0.165, 0.030));
-    float3 parched = glass ? float3(0.16, 0.10, 0.26) : (arch ? float3(0.20, 0.215, 0.205) : float3(0.27, 0.205, 0.070));
+    float3 parched = glass ? float3(0.16, 0.10, 0.26) : (arch ? float3(0.15, 0.165, 0.158) : float3(0.27, 0.205, 0.070));
     // Blade-scale grain (3 cm) hints at the grass from afar: as the instanced blades thin out with distance, the ground already carries their texture.
     float bladeW = featVis(0.03, fpix);
     float bladeGrain = bladeW > 0.01 ? mix(0.5, vnoise3(float3(P.x * 34.0, P.y * 6.0, P.z * 34.0)), bladeW) : 0.5;
@@ -52,7 +52,7 @@ float3 terrain_surface(float3 P, float3 Ng, float pathW, float wet, float duff, 
     float wetReach = shore_wet_reach(P.xz, clock) * (glass ? 0.25 : 1.0);
     float wetSand = 1.0 - smoothstep(0.35 * wetReach - 0.1, wetReach + 0.1, P.y);
     if (arch) wetSand = 1.0 - smoothstep(tide - 0.05, tide + 0.55, P.y);        // the Archive's stone is wet up to the tide (and a little above it: spray), pale and dry above
-    float3 sand = mix(glass ? float3(0.21, 0.24, 0.35) : (arch ? float3(0.33, 0.35, 0.34) : float3(0.56, 0.47, 0.31)), glass ? float3(0.20, 0.21, 0.32) : (arch ? float3(0.085, 0.105, 0.115) : float3(0.30, 0.235, 0.15)), wetSand) * (0.94 + 0.12 * micro) * (0.86 + 0.28 * meso) * (0.92 + 0.16 * macro);
+    float3 sand = mix(glass ? float3(0.21, 0.24, 0.35) : (arch ? float3(0.24, 0.26, 0.255) : float3(0.56, 0.47, 0.31)), glass ? float3(0.20, 0.21, 0.32) : (arch ? float3(0.085, 0.105, 0.115) : float3(0.30, 0.235, 0.15)), wetSand) * (0.94 + 0.12 * micro) * (0.86 + 0.28 * meso) * (0.92 + 0.16 * macro);
     // The grass/sand boundary (F01 W0.2, note #3): a coarse mask from a warped fractal (the old threshold on 11 cm noise is what drew the pixel pattern), and
     // at close range the boundary is decided by the layers' HEIGHTS, so sand drifts into the grass and grass tufts stand in the sand along irregular lines.
     float sandCoarse = 0.0;

@@ -227,8 +227,8 @@ enum ArchiveProps {
         if hi > lo {
             let col = beamColours[k] * 0.9
             for sx: Float in [-1, 1] {
-                b.box(size: SIMD3(0.7, hi - lo, 0.05), surface: Surface(color: col, roughness: 0.6, material: .paint), transform: translation(SIMD3(sx * (gapHalf + 0.45), (lo + hi) / 2 - floorY, 0.47)))
-                b.box(size: SIMD3(0.76, 0.05, 0.07), surface: brass, transform: translation(SIMD3(sx * (gapHalf + 0.45), hi - floorY, 0.47)))
+                b.box(size: SIMD3(0.7, hi - lo, 0.1), surface: Surface(color: beamColours[k] * 1.3, roughness: 0.5, material: .paint), transform: translation(SIMD3(sx * (gapHalf + 0.45), (lo + hi) / 2 - floorY, 0.47)))
+                b.box(size: SIMD3(0.8, 0.09, 0.14), surface: brass, transform: translation(SIMD3(sx * (gapHalf + 0.45), hi - floorY, 0.47)))
             }
         }
         scene.add(sluiceName(k), mesh: b.build(device: device, label: "sluice \(k)"), uniforms: ObjectUniforms(model: place))
@@ -336,7 +336,7 @@ enum ArchiveProps {
         for k in 0..<3 {
             let a = beamAngle(k, ring: ringAngle), lit = resting(k, ring: ringAngle)
             let dir = simd_normalize(SIMD3(cos(a), -0.02, sin(a)))
-            scene.update(beamOutName(k)) { $0.uniforms.model = translation(prismPosition) * rotation(aligningYTo: dir); $0.uniforms.emissive = SIMD4(beamColours[k], lit ? 11 : 5) }
+            scene.update(beamOutName(k)) { $0.uniforms.model = translation(prismPosition) * rotation(aligningYTo: dir); $0.uniforms.emissive = SIMD4(beamColours[k], lit ? 6 : 3) }
             scene.update(markName(k)) { $0.uniforms.emissive = lit ? SIMD4(beamColours[k], 3.5) : SIMD4(0, 0, 0, 0) }
         }
         scene.update(ringName) { $0.uniforms.model = translation(ArchiveLayout.prismChamber + SIMD3(0, 0.55, 0)) * rotationY(-ringAngle) }

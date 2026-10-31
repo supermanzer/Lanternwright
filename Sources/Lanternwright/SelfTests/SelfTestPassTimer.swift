@@ -1117,3 +1117,80 @@ extension SelfTestRunner {
         Player.galleryWater = nil
     }
 }
+
+extension SelfTestRunner {
+    /// S04.3 review: the water pass draws the gallery's water (full vs drained looks different on screen), and the lining, the flooded court and the closed sluice gate hold a walking player.
+    func runArchiveWalk() {
+        guard name == "all" || name == "archivewalk" || name == "archivestory" else { return }
+        defer { Player.galleryWater = nil; Player.sea = 0 }
+        let gg = ArchiveTerrain.gallery
+        // On screen: the gallery full of water against the same court drained (the model moved down by the drain depth) differs a lot; two full frames do not.
+        let renderer = Renderer(device: device, options: LaunchOptions.parse(["lanternwright"]))
+        renderer.world = .tideArchive; renderer.taaEnabled = false
+        let desc = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: Renderer.outputFormat, width: 400, height: 225, mipmapped: false)
+        desc.usage = [.renderTarget, .shaderRead]; desc.storageMode = .shared
+        let target = device.makeTexture(descriptor: desc)!
+        let cam = Screenshot.viewCamera("ta-gallery", renderer: renderer)
+        func frame(drain: Float) -> [Float] {
+            renderer.scene.update(ArchiveStory.waterName) { $0.uniforms.model = translation(SIMD3(0, -drain, 0)) }
+            renderer.fixedTime = 20
+            for _ in 0..<2 { let cb = renderer.queue.makeCommandBuffer()!; renderer.encode(commandBuffer: cb, target: target, camera: cam); cb.commit(); cb.waitUntilCompleted() }
+            return Shimmer.luma(target)
+        }
+        let full = frame(drain: 0), drained = frame(drain: ArchiveStory.drainDepth), full2 = frame(drain: 0)
+        func diff(_ a: [Float], _ b: [Float]) -> Float { zip(a, b).reduce(0) { $0 + abs($1.0 - $1.1) } / Float(a.count) }
+        let dDrain = diff(full, drained), dSame = diff(full, full2)
+        check(dDrain > 4 && dDrain > 5 * dSame, "archivewalk: the gallery full of water looks nothing like the drained court on screen (mean luma difference \(String(format: "%.1f", dDrain)) against \(String(format: "%.2f", dSame)) between two full frames)")
+        // On foot.
+        let sc = Scene.make(.tideArchive, device: device)
+        let game = Game(scenes: [.varrow: Scene.makeWorld(device: device), .tideArchive: sc])
+        game.travel(to: .tideArchive)
+        let bot = PlaythroughBot(game)
+        func inCourt(_ p: SIMD2<Float>) -> Bool { let d = simd_abs(p - gg.centre); return d.x < gg.half.x - 0.3 && d.y < gg.half.y - 0.3 }
+        func place(_ p: SIMD2<Float>, yaw: Float) { game.player = Player(position: SIMD3(p.x, sc.groundHeight(x: p.x, z: p.y), p.y), yaw: yaw) }
+        // The lining: from outside the north, east and south walls, walking straight at the court's centre never gets inside.
+        var breached = 0
+        for off in [SIMD2<Float>(0, -gg.half.y - 4), SIMD2(gg.half.x + 4, 0), SIMD2(0, gg.half.y + 4)] {
+            place(gg.centre + off, yaw: 0)
+            bot.walk(to: SIMD3(gg.centre.x, 0, gg.centre.y), within: 1, timeout: 25, straight: true)
+            if inCourt(SIMD2(game.player.position.x, game.player.position.z)) { breached += 1 }
+        }
+        check(breached == 0, "archivewalk: walking straight at the Great Ledger court from outside its north, east and south walls stops at the lining (\(breached) of 3 got in)")
+        // The flooded court: entering from the west opening at the route's z, the player never stands in water deeper than the wading limit.
+        game.simulate(seconds: 0.5)
+        var worst: Float = 0, entered = false
+        place(SIMD2(gg.centre.x - gg.half.x - 6, ArchiveLayout.greatLedger.z), yaw: .pi / 2)
+        for k in 0..<(30 * 60) {
+            var input = InputState(); input.move = SIMD2(0, 1)
+            game.player.yaw = .pi / 2; game.player.pitch = 0
+            let p0 = game.player.position
+            bot.tick(input)
+            let p = game.player.position, g = sc.groundHeight(x: p.x, z: p.z), g0 = sc.groundHeight(x: p0.x, z: p0.z)
+            if let w = Player.galleryWater, inCourt(SIMD2(p.x, p.z)) {
+                entered = true
+                if w.level - g > w.level - g0 + 1e-4 { worst = max(worst, w.level - g) }                       // only steps that deepened the water count (a rising tide may deepen a standing player)
+            }
+        }
+        check(entered && worst <= -Player.minGround + 0.05, "archivewalk: walking east through the west opening into the flooded court never wades deeper than \(-Player.minGround) m (deepest \(String(format: "%.2f", worst)) m)")
+        // The closed sluice gate holds a player at its gap; open (B's emissive), they pass.
+        func gateTrial(open: Bool) -> Float {
+            let s = Scene.make(.tideArchive, device: device)
+            let g = Game(scenes: [.varrow: Scene.makeWorld(device: device), .tideArchive: s]); g.travel(to: .tideArchive)
+            let c = ArchiveProps.gateCollider(0).center
+            if open { s.update(ArchiveProps.gateName(0)) { $0.uniforms.emissive.w = 1 } }
+            g.simulate(seconds: 4)
+            let b = PlaythroughBot(g)
+            let start = c + SIMD2(0, 4)                                              // yaw 0 faces -z: from the room's far side toward the gap
+            g.player = Player(position: SIMD3(start.x, s.groundHeight(x: start.x, z: start.y), start.y), yaw: 0)
+            var minD: Float = 99
+            for _ in 0..<(12 * 60) {
+                var input = InputState(); input.move = SIMD2(0, 1); g.player.yaw = 0; g.player.pitch = 0
+                b.tick(input)
+                minD = min(minD, simd_length(SIMD2(g.player.position.x, g.player.position.z) - c))
+            }
+            return minD
+        }
+        let closedD = gateTrial(open: false), openD = gateTrial(open: true)
+        check(closedD > 0.8 && openD < 0.5, "archivewalk: walking at sluice gate 0 straight on, a closed gate stops you \(String(format: "%.2f", closedD)) m from its centre, an open one lets you through (closest \(String(format: "%.2f", openD)) m)")
+    }
+}

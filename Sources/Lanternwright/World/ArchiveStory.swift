@@ -192,10 +192,16 @@ enum ArchiveStory {
         var b = MeshBuilder()
         let lining = Surface(color: SIMD3(0.34, 0.37, 0.37), roughness: 0.9, material: .masonry)
         let wallH = top - floorY + 0.5
+        // Walls are axis-aligned boxes (no rotation: the masonry mapping streaks on a box turned about Y), each with a row of collider posts so the lining holds the player out of the court.
         func wall(from a: SIMD2<Float>, to bb: SIMD2<Float>) {
             let d = bb - a, len = simd_length(d), mid = (a + bb) / 2
-            b.chamferBox(size: SIMD3(len, wallH + 3.0, 0.7), chamfer: 0.04, surface: lining, transform: translation(SIMD3(mid.x, floorY - 3.0 + (wallH + 3.0) / 2, mid.y)) * rotationY(-atan2(d.y, d.x)))
-            b.chamferBox(size: SIMD3(len + 0.4, 0.25, 1.0), chamfer: 0.03, surface: ArchiveProps.slateLight, transform: translation(SIMD3(mid.x, floorY + wallH + 0.1, mid.y)) * rotationY(-atan2(d.y, d.x)))
+            let alongX = abs(d.x) > abs(d.y)
+            let t = alongX ? SIMD3<Float>(len, wallH + 3.0, 0.7) : SIMD3<Float>(0.7, wallH + 3.0, len)
+            let cap = alongX ? SIMD3<Float>(len + 0.4, 0.25, 1.0) : SIMD3<Float>(1.0, 0.25, len + 0.4)
+            b.chamferBox(size: t, chamfer: 0.04, surface: lining, transform: translation(SIMD3(mid.x, floorY - 3.0 + (wallH + 3.0) / 2, mid.y)))
+            b.chamferBox(size: cap, chamfer: 0.03, surface: ArchiveProps.slateLight, transform: translation(SIMD3(mid.x, floorY + wallH + 0.1, mid.y)))
+            let n = Int((len / 0.8).rounded(.up))
+            for k in 0...n { let q = a + d * (Float(k) / Float(n)); scene.colliders.addCylinder(center: q, radius: 0.55, minY: floorY - 3, maxY: floorY + wallH + 2) }
         }
         // North, south and east walls whole; the west wall in two pieces with a 7 m opening where the route's ramp enters (at the route's z).
         let open: Float = 3.5, ramp = ArchiveLayout.greatLedger.z

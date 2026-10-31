@@ -142,7 +142,7 @@ struct Player {
     private func canMove(from: SIMD2<Float>, to: SIMD2<Float>, scene: Scene, ground: (Float, Float) -> Float) -> Bool {
         let g0 = ground(from.x, from.y)
         let g1 = ground(to.x, to.y)
-        if Player.tooDeepInGallery(to, ground: g1) && g1 < g0 { return false }                  // S04.3: not down into the gallery's water
+        if Player.tooDeepInGallery(to, ground: g1) && !(Player.tooDeepInGallery(from, ground: g0) && g1 > g0) { return false }                  // S04.3: not down into the gallery's water
         if g1 - Player.sea < Player.minGround && g1 < g0 { return false }       // never wade deeper (but allow retreating)
         let rise = g1 - g0
         if rise > Player.maxStep { return false }

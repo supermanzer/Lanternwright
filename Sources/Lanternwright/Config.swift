@@ -469,7 +469,7 @@ enum Viewpoints {
         case "ta-dome":     return Self.lookFrom(ArchiveLayout.upperLamp + SIMD3(30, 3.0, 24), at: ArchiveLayout.dome + SIMD3(0, 5, 0))
         case "ta-prism":    return Self.lookFrom(ArchiveProps.prismPosition + SIMD3(1.0, 0.2, 5.4), at: ArchiveProps.prismPosition + SIMD3(0.3, 0, 0))
         case "ta-tableau":  return Self.lookFrom(ArchiveLayout.tableauWall + SIMD3(0, 3.2, 12), at: ArchiveLayout.tableauWall + SIMD3(0, 1.7, 0))
-        case "ta-pages":    return Self.lookFrom(ArchiveLayout.pageSpots[1] + SIMD3(2.2, 1.6, 2.5), at: ArchiveLayout.pageSpots[1])
+        case "ta-pages":    return Self.lookFrom(ArchiveLayout.pageSpots[1] + SIMD3(0.4, 2.6, 2.2), at: ArchiveLayout.pageSpots[1])
         case "ta-map":      return Self.lookFrom(ArchiveLayout.chainMap + SIMD3(0, 1.9, 2.4), at: ArchiveLayout.chainMap + SIMD3(0, 1.05, 0))
         case "ta-chamber":  return Self.lookFrom(ArchiveLayout.prismChamber + SIMD3(0, Player.eyeHeight, 16), at: ArchiveLayout.prismChamber + SIMD3(0, 2.0, 0))
         case "gw-arrival":  return Camera(position: GlassLayout.arrival + SIMD3(0, Player.eyeHeight, 4), yaw: 0, pitch: 0.06)
