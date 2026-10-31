@@ -17,87 +17,7 @@ extension SelfTestRunner {
             let sp = A.spectrum(x), tot = max(A.band(sp, 40, 9000), 1e-12)
             return (A.band(sp, 80, 200) / tot, A.band(sp, 200, 1000) / tot, A.band(sp, 1000, 3000) / tot, tot, sp)
         }
-        // ---- A2 the locked door (#44)
-        let knock1 = Foley.doorKnock(strength: 1, sampleRate: sr), knock3 = Foley.doorKnock(strength: 0.3, sampleRate: sr)
-        let k = shares(knock1)
-        let env = A.envelope(knock1, tau: 0.002)
-        let peakK = env.max() ?? 0
-        let iPeak = env.firstIndex(of: peakK) ?? 0
-        let t40 = (iPeak..<env.count).first { env[$0] < peakK * 0.01 }.map { Float($0) / sr } ?? Float(env.count) / sr
-        let fastBand = A.onePoleHigh(A.onePoleLow(knock1, 3000), 1000)
-        let early = fastBand.prefix(Int(0.008 * sr)).map { abs($0) }.max() ?? 0, late = fastBand.dropFirst(Int(0.03 * sr)).map { abs($0) }.max() ?? 0
-        if verbose { print(String(format: "door knock: 80-200 Hz %.2f, 200-1000 Hz %.2f, 1-3 kHz %.2f of the power; -40 dB at %.1f ms; 1-3 kHz transient early %.3f late %.3f (peak %.3f)", k.low, k.mid, k.hi, t40 * 1000, early, late, peakK)) }
-        check(k.low > 0.45 && k.low > k.mid && k.low > k.hi, "the door's knock is a dull low thunk: its energy is mostly in 80-200 Hz (\(Int(k.low * 100)) % of the power; 200-1000 Hz \(Int(k.mid * 100)) %, 1-3 kHz \(Int(k.hi * 100)) %)")
-        check(early > 0.12 * peakK && early > 3 * late, "with a short bright transient in 1-3 kHz at its start (\(String(format: "%.3f", early)) in the first 8 ms against \(String(format: "%.3f", late)) after 30 ms; knock peak \(String(format: "%.3f", peakK)))")
-        check(t40 >= 0.040 && t40 <= 0.080, "the knock is over (-40 dB) in 40 to 80 ms (\(String(format: "%.0f", t40 * 1000)) ms)")
-        let rt = (2...4).map { Foley.doorRattleWithTimes(count: $0, strength: 1, sampleRate: sr) }
-        let rat = rt.map { $0.0 }
-        let counts = rt.map { $0.1.count }
-        // Each impact is audible: the envelope within 12 ms of its start rises to at least 20 % of the rattle's peak; and the spacing is a few ms to a few tens of ms.
-        var audible = true, spacingOK = true
-        for (buf, times) in rt {
-            let e = A.envelope(A.onePoleHigh(buf, 500), tau: 0.002), top = e.max() ?? 1
-            for (i, t) in times.enumerated() {
-                let i0 = Int(t * sr), i1 = min(e.count, i0 + Int(0.012 * sr))
-                if (e[i0..<i1].max() ?? 0) < 0.2 * top { audible = false }
-                if i > 0 { let g = t - times[i - 1]; if g < 0.008 || g > 0.05 { spacingOK = false } }
-            }
-        }
-        let r4 = rat[2], er = A.envelope(r4, tau: 0.004), topR = er.max() ?? 0
-        let lastLoud = (0..<er.count).last { er[$0] > topR * 0.01 }.map { Float($0) / sr } ?? 0
-        if verbose { print("door rattle: impacts \(counts) for counts 2, 3, 4 at \(rt[2].1.map { String(format: "%.0f", $0 * 1000) }) ms; -40 dB by \(String(format: "%.0f", lastLoud * 1000)) ms") }
-        check(counts == [2, 3, 4] && audible && spacingOK, "the loose rattle is 2 to 4 quick impacts, each audible, 8 to 50 ms apart (\(counts) for requests 2, 3, 4; times \(rt[2].1.map { String(format: "%.0f", $0 * 1000) }) ms)")
-        check(lastLoud < 0.30, "the whole rattle has decayed (-40 dB) within 300 ms of the knock (\(String(format: "%.0f", lastLoud * 1000)) ms)")
-        let whole = Foley.doorLocked(strength: 1, sampleRate: sr)
-        let wholeSp = A.spectrum(whole)
-        let prom = A.tonalProminence([knock1, rat[2]])
-        check(prom < 4.0, "the wood-on-stone part has no tonal ringing: no spectral line stands out (prominence \(String(format: "%.2f", prom)); a bell is 10+)")
-        // F05 A1 (#63): the iron ring's clank is metal, not a beep: noise through inharmonic resonances, no line standing 6 dB (a factor 4) over its neighbours, its energy in 1-4.2 kHz with a low "tock" under it,
-        // each hit gone quickly, 3 to 5 hits, and the event never has a pure tone (a bin ratio over 4) at any strength.
-        let clankTimes: [Int] = [3, 4, 5]
-        let clanks = clankTimes.map { Foley.ironClank(hits: $0, strength: 1, sampleRate: sr) }
-        let clankSp = A.spectrum(clanks[1])
-        let clankPeak = clanks[1].map { abs($0) }.max() ?? 0, clankTail = clanks[1][Int(0.36 * sr)...].map { abs($0) }.max() ?? 1
-        let clankHi = A.band(clankSp, 1000, 4400) / max(A.band(clankSp, 40, 9000), 1e-12)
-        // "No tone above its neighbours", judged per short frame in one-third-octave bands (a pitch is a band that stands out for a while; a 40 Hz bin of a short noise burst varies by chance, and over the whole
-        // event a 35 ms beep is diluted to a few dB): frames of 2048 samples (hop 512) whose energy is above 3 % of the loudest, every band from 300 Hz to 6 kHz within `toneLimit` dB of the louder of its two
-        // neighbours. The limit is 10 dB, not the plan's 6: noise-only frames of this length scatter by up to 7 dB; the negative controls below (the OLD four beeps, and 0.06-amplitude pure tones) are
-        // far above it, so the check does bite.
-        let toneLimit: Float = 10
-        func bandRise(_ x: [Float]) -> Float {
-            let frame = 2048, hop = 512
-            let energies = stride(from: 0, to: max(1, x.count - frame), by: hop).map { a in x[a..<min(x.count, a + frame)].reduce(0) { $0 + $1 * $1 } }
-            let floor = 0.03 * (energies.max() ?? 0)
-            var worst: Float = 0
-            for (k, a) in stride(from: 0, to: max(1, x.count - frame), by: hop).enumerated() where energies[k] > floor {
-                let sp = A.spectrum(Array(x[a..<min(x.count, a + frame)]))
-                var e: [Float] = [], fc: Float = 300
-                while fc <= 6000 { e.append(A.band(sp, fc / pow(2, 1.0 / 6), fc * pow(2, 1.0 / 6))); fc *= pow(2, 1.0 / 3) }
-                for i in 1..<(e.count - 1) { worst = max(worst, e[i] / max(max(e[i - 1], e[i + 1]), 1e-20)) }
-            }
-            return 10 * log10(worst)
-        }
-        let strengths: [Float] = [0.2, 0.6, 1.0]
-        let rise = strengths.map { bandRise(Foley.doorLocked(strength: $0, sampleRate: sr)) } + [bandRise(clanks[1])]
-        // Negative controls: the old pull-ring jangle (four damped sines, 1850, 2400, 1650, 2750 Hz, 55 ms apart) laid over the event, and single pure tones of 0.02 amplitude.
-        func withTone(_ x: [Float], _ hz: Float, amp: Float, at: Float, decay: Float) -> [Float] {
-            var y = x
-            for i in Int(at * sr)..<min(y.count, Int((at + 5 * decay) * sr)) { let t = Float(i) / sr - at; y[i] += amp * sin(2 * .pi * hz * t) * exp(-t / decay) }
-            return y
-        }
-        let base = Foley.doorLocked(strength: 0.6, sampleRate: sr)
-        var oldDesign = Foley.doorRattle(count: 3, strength: 0.6, sampleRate: sr)                              // the old event: the knock and the rattle, then four beeps where the clank now is
-        for (i, v) in Foley.doorKnock(strength: 0.6, sampleRate: sr).enumerated() { oldDesign[i] += v }
-        oldDesign += [Float](repeating: 0, count: base.count - oldDesign.count)
-        for (i, hz) in [Float(1850), 2400, 1650, 2750].enumerated() { oldDesign = withTone(oldDesign, hz, amp: 0.09, at: Foley.jangleDelay + Float(i) * 0.055, decay: 0.035) }
-        let controls = [bandRise(oldDesign), bandRise(withTone(base, 1800, amp: 0.06, at: 0.2, decay: 0.15)), bandRise(withTone(base, 3000, amp: 0.06, at: 0.2, decay: 0.15)), bandRise(withTone(base, 500, amp: 0.06, at: 0.2, decay: 0.15))]
-        check(rise.allSatisfy { $0 < toneLimit }, "the door event has no tone: in no 46 ms frame does a one-third-octave band from 300 Hz to 6 kHz stand more than \(Int(toneLimit)) dB over its neighbours (worst \(rise.map { String(format: "%.1f", $0) }) dB at strengths 0.2, 0.6, 1 and for the clank alone)")
-        check(controls.allSatisfy { $0 > toneLimit + 3 }, "and the check bites: the old four beeps (on the old event) give \(String(format: "%.0f", controls[0])) dB and 0.06-amplitude tones (a fifth of the peak) at 1.8 kHz / 3 kHz / 500 Hz give \(controls[1...].map { String(format: "%.0f", $0) }) dB")
-        check(clankHi > 0.45 && clankPeak > 0.02 && clankPeak < 0.9 && clankTail < 0.05 * clankPeak, "the clank is a metal band: \(Int(clankHi * 100)) % of its power in 1-4.4 kHz, audible (peak \(String(format: "%.3f", clankPeak))) and gone by 0.36 s (tail \(String(format: "%.4f", clankTail)))")
-        check(clanks.allSatisfy { $0.allSatisfy { $0.isFinite } } && Foley.ironClank(hits: 4, strength: 1, sampleRate: sr) == clanks[1], "the clank is finite and reproducible (a fixed seed)")
-        let rmsHard = Self.rms(Foley.doorLocked(strength: 1, sampleRate: sr)), rmsSoft = Self.rms(Foley.doorLocked(strength: 0.2, sampleRate: sr))
-        check(rmsHard > 1.6 * rmsSoft && wholeSp.allSatisfy { $0.isFinite }, "a harder, longer attempt is louder (rms \(String(format: "%.4f", rmsHard)) against \(String(format: "%.4f", rmsSoft)) for a first light try) and everything is finite")
-        _ = knock3
+        // ---- A2 the locked door: see runDoorHeavy (F07 A-door replaced the knock, rattle and clank of F03 / F05).
         // ---- A3 the slope slide (#45): gravel giving way. 44.1 kHz renders, fixed seed.
         do {
             func render(_ speed: Float, _ gravel: Float, _ seconds: Float = 5) -> [Float] { SlideSynth.render(speed: speed, gravel: gravel, seconds: seconds, sampleRate: sr) }
@@ -210,7 +130,7 @@ extension SelfTestRunner {
             check(abs(low - DeckPin.low) < 0.02 && abs(ring - DeckPin.ring) < 0.002 && abs(cen - DeckPin.centroid) < 0.05 * DeckPin.centroid && abs(dec - DeckPin.decay30) < 0.05 * DeckPin.decay30 && abs(peak - DeckPin.peak) < 0.06 * DeckPin.peak,
                   "the deck footstep is unchanged (#36 'spot on'): low share \(String(format: "%.2f", low)) (pinned \(DeckPin.low)), 1.2-3 kHz \(String(format: "%.2f", ring)) (\(DeckPin.ring)), centroid \(Int(cen)) Hz (\(Int(DeckPin.centroid))), -30 dB at \(String(format: "%.3f", dec)) s (\(DeckPin.decay30)), peak \(String(format: "%.2f", peak)) (\(DeckPin.peak))")
         }
-        // The event through the real synth: the knock and rattle play as a one-shot, the iron ring's clank is inside the same one-shot, `Foley.jangleDelay` after the knock.
+        // The event through the real synth: the whole door event is one one-shot.
         do {
             let s = AmbienceSynth(sampleRate: sr)
             s.doorStrength = 0.8
@@ -218,8 +138,7 @@ extension SelfTestRunner {
             var l = [Float](repeating: 0, count: 64), r = [Float](repeating: 0, count: 64)
             l.withUnsafeMutableBufferPointer { lp in r.withUnsafeMutableBufferPointer { rp in s.render(frames: 64, left: lp.baseAddress!, right: rp.baseAddress!) } }
             let delays = s.chimeDelaysForTest
-            check(s.foleyCountForTest == 1 && delays.isEmpty && Foley.jangleDelay >= 0.1 && Foley.jangleDelay <= 0.2,
-                  "through the synth: the whole event (knock, rattle and the iron ring's clank after \(String(format: "%.2f", Foley.jangleDelay)) s) is ONE toneless one-shot and no tonal chime voice plays with it (chime voices \(delays.count))")
+            check(s.foleyCountForTest == 1 && delays.isEmpty, "through the synth: the whole door event (thud, knock, creak and the iron ring's clink) is ONE one-shot and no tonal chime voice plays with it (chime voices \(delays.count))")
         }
     }
 }

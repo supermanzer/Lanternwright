@@ -606,3 +606,51 @@ extension SelfTestRunner {
         check(g.drainEvents().contains(.chime(.ringTurn)), "doorlevel: turning the ring emits the ringTurn chime")
     }
 }
+
+extension SelfTestRunner {
+    /// F07 A-door: metrics of the door event (energy under 500 Hz, centroid, strongest one-third-octave rise above 1 kHz, level against a stone run step through the synth).
+    func runDoorHeavy() {
+        guard name == "all" || name == "doorheavy" else { return }
+        let sr: Float = 44100
+        let A = FootstepAnalysis.self
+        func metrics(_ x: [Float]) -> (low: Float, centroid: Float, rise: Float) {
+            let sp = A.spectrum(x), tot = max(A.band(sp, 40, 9000), 1e-12)
+            var num: Float = 0, den: Float = 0
+            for (i, p) in sp.enumerated() { let f = Float(i + 1) * 40; num += f * p; den += p }
+            var e: [Float] = [], fc: Float = 1000
+            while fc <= 6000 { e.append(A.band(sp, fc / pow(2, 1.0 / 6), fc * pow(2, 1.0 / 6))); fc *= pow(2, 1.0 / 3) }
+            var worst: Float = 0
+            for i in 1..<(e.count - 1) { worst = max(worst, e[i] / max(max(e[i - 1], e[i + 1]), 1e-20)) }
+            return (A.band(sp, 40, 500) / tot, num / max(den, 1e-12), 10 * log10(max(worst, 1e-9)))
+        }
+        func synthPeak(_ setup: (AmbienceSynth) -> Void) -> Float {
+            let s = AmbienceSynth(sampleRate: sr); s.windGain = 0; s.surfGain = 0; s.master = 1; setup(s)
+            var l = [Float](repeating: 0, count: Int(sr * 2)), r = l
+            l.withUnsafeMutableBufferPointer { lp in r.withUnsafeMutableBufferPointer { rp in s.render(frames: lp.count, left: lp.baseAddress!, right: rp.baseAddress!) } }
+            return l.map { abs($0) }.max() ?? 0
+        }
+        let run = synthPeak { $0.stepSurface = .stone; $0.stepRun = true; $0.stepCounter += 1 }
+        // The user's third complaint (#72: a snare drum, thin and staccato, no weight): the OLD event (knock + rattle + iron clank, builds before F07) measured 21 % of its power under 500 Hz, a centroid of
+        // 2.76 kHz and 0.49 / 0.66 / 0.88 of a stone run step at strengths 0.3 / 0.6 / 1. The new physical model must be heavy: at least 70 % of the power under 500 Hz, a centroid under 700 Hz, no tone more than 6 dB
+        // over its neighbours in the one-third-octave bands above 1 kHz, a level of 0.8-1.0 of a stone run step at full strength (and not louder than a run step at any), an attack of 3-8 ms, and it must ring out.
+        var all: [(Float, (low: Float, centroid: Float, rise: Float), Float)] = []
+        for st: Float in [0.3, 0.6, 1.0] {
+            let x = Foley.doorLocked(strength: st, sampleRate: sr)
+            all.append((st, metrics(x), synthPeak { $0.doorStrength = st; $0.play(.doorLocked) } / run))
+        }
+        let hard = Foley.doorLocked(strength: 1, sampleRate: sr)
+        for (st, m, level) in all { print(String(format: "DOORHEAVY strength %.1f: %.0f %% of the power under 500 Hz, centroid %.0f Hz, worst 1/3-octave rise above 1 kHz %.1f dB, level %.2f x a stone run step", st, m.low * 100, m.centroid, m.rise, level)) }
+        check(all.allSatisfy { $0.1.low >= 0.70 } && all.allSatisfy { $0.1.centroid < 700 }, "doorheavy: the door is heavy: \(all.map { String(format: "%.0f", $0.1.low * 100) }) % of the power under 500 Hz (at least 70; the old event had 21) and centroid \(all.map { String(format: "%.0f", $0.1.centroid) }) Hz (under 700; the old one 2760)")
+        check(all.allSatisfy { $0.1.rise < 6 }, "doorheavy: no tone above 1 kHz stands more than 6 dB over its neighbours (one-third-octave bands; worst \(all.map { String(format: "%.1f", $0.1.rise) }) dB)")
+        check(all[2].2 >= 0.8 && all[2].2 <= 1.0 && all.allSatisfy { $0.2 <= 1.0 } && all[0].2 < all[1].2 && all[1].2 < all[2].2, "doorheavy: through the synth the door at full strength is \(String(format: "%.2f", all[2].2)) of a run step on stone (0.8-1.0), softer tries are softer (\(all.map { String(format: "%.2f", $0.2) }))")
+        let env = A.envelope(hard, tau: 0.001), top = env.max() ?? 1
+        let first = env.prefix(Int(0.02 * sr)), top20 = first.max() ?? 1                            // the rise of the first 20 ms (the modal body goes on swelling after it)
+        let iHi = first.firstIndex { $0 > 0.9 * top20 } ?? 0
+        let iStart = first.firstIndex { $0 > 0.1 * top20 } ?? 0
+        let attack = Float(iHi >= iStart ? iHi - iStart : 0) / sr
+        let lastLoud = (0..<env.count).last { env[$0] > top * 0.01 }.map { Float($0) / sr } ?? 0
+        check(attack >= 0.003 && attack <= 0.008 && lastLoud > 0.25 && lastLoud < 0.95 && !hard.contains { !$0.isFinite }, "doorheavy: a 3-8 ms attack, not an impulse (10 % to 90 % of the first 20 ms in \(String(format: "%.1f", attack * 1000)) ms), and it rings for \(String(format: "%.0f", lastLoud * 1000)) ms (-40 dB), finite")
+        let again = Foley.doorLocked(strength: 1, sampleRate: sr)
+        check(again == hard, "doorheavy: reproducible (a fixed seed)")
+    }
+}

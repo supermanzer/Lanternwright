@@ -30,82 +30,61 @@ struct Biquad {
 }
 
 enum Foley {
-    /// The locked door's wood-on-stone knock: the door shifts about a centimetre in its frame and meets the stone reveal. A dull low thunk (a 150 Hz low-passed noise body and a
-    /// short damped thump near 105 Hz, 80 to 200 Hz) and a short bright transient (1 to 3 kHz, a few ms). It is over (-40 dB) in about 60 ms and has no ringing: noise and
-    /// quickly damped thump, no sustained partial. `strength` 0...1 scales level.
-    static func doorKnock(strength: Float, sampleRate sr: Float, seed: UInt32 = 0xD00B) -> [Float] {
+    /// F07 A-door (#72: "like a snare drum, far too thin and staccato, no weight of solid wood or stone"; the third complaint about this sound): a PHYSICAL model of a heavy oak door (about 5 cm of it) shifting a
+    /// centimetre against its stone jamb, with the iron ring on its plate. Built from four layers, each of the kind of thing that makes the sound:
+    ///  1. THE THUD, the door's mass meeting stone: a low modal body (70-140 Hz: four damped modes at 72, 96, 118 and 138 Hz that ring for 150-250 ms) over a low-passed noise body; attack about 8 ms to full (3-8 ms from 10 % to 90 %: not an impulse).
+    ///  2. THE WOOD KNOCK, 200-500 Hz: three damped modes at 230, 330 and 470 Hz and a band of noise, decaying in about 60 ms, 6 dB under the thud.
+    ///  3. THE FRICTION CREAK, planks scraping the stone: noise through 300-1500 Hz, chopped by a random stick-slip (a 25-60 Hz wobble), 60-330 ms after the thud, 16 dB under it.
+    ///  4. THE IRON RING'S CLINK, 1.5-3 kHz, 18 dB under the thud, ringing about 150 ms (noise through nine resonances of Q 6 at random inharmonic frequencies: a smear, never a pitch), twice (the ring swings back).
+    /// The only things above 1 kHz are the clink and the creak's top, both quiet and noise-built. `strength` 0...1 scales level (and the creak and clink a little more).
+    static func doorLocked(strength: Float, sampleRate sr: Float, seed: UInt32 = 0xD00B) -> [Float] {
         var n = FoleyNoise(seed: seed)
-        let len = Int(0.09 * sr)
+        let len = Int(0.95 * sr)
         var out = [Float](repeating: 0, count: len)
-        var body = Biquad.lowpass(150, sampleRate: sr), body2 = Biquad.lowpass(150, sampleRate: sr)
-        var click = Biquad.bandpass(2000, q: 0.7, sampleRate: sr)
         let s = 0.35 + 0.65 * strength
+        // 1. the thud
+        let modes: [(f: Float, tau: Float, a: Float)] = [(72, 0.085, 1.0), (96, 0.07, 0.85), (118, 0.06, 0.6), (138, 0.05, 0.45)]
+        var bodyA = Biquad.lowpass(150, sampleRate: sr), bodyB = Biquad.lowpass(150, sampleRate: sr)
+        // 2. the knock
+        let knockModes: [(f: Float, a: Float)] = [(230, 0.5), (330, 0.4), (470, 0.25)]
+        var knockBand = Biquad.bandpass(330, q: 1.4, sampleRate: sr)
+        // 3. the creak
+        var creakA = Biquad.bandpass(480, q: 1.1, sampleRate: sr), creakB = Biquad.bandpass(950, q: 1.2, sampleRate: sr), creakC = Biquad.bandpass(1350, q: 1.3, sampleRate: sr)
+        var chop: Float = 0.5, chopTarget: Float = 0.5, chopLeft = 0
+        // 4. the clink: two hits of nine resonances each
+        var clinkHits: [(start: Int, res: [Biquad], amp: Float)] = []
+        for (k, at) in [Float(0.11), 0.205].enumerated() {
+            clinkHits.append((Int(at * sr), (0..<9).map { _ in Biquad.bandpass(1500 + 1500 * n.unit(), q: 6, sampleRate: sr) }, k == 0 ? 1.0 : 0.7))
+        }
         for i in 0..<len {
             let t = Float(i) / sr
-            let slow = body2.process(body.process(n.next())) * 7.0 * exp(-t / 0.0165)                // the dull body, -40 dB at 0.0165 x 4.6 = 76 ms
-            let thump = sin(2 * .pi * 105 * t) * exp(-t / 0.011) * 0.8                                  // a damped thump, gone in about 50 ms: a knock, not a note
-            let fast = click.process(n.next()) * 2.2 * exp(-t / 0.0028)                                // the stone's short bright transient
-            let attack = min(1, t / 0.0006)
-            out[i] = (slow + thump + fast) * attack * s * 0.38
-        }
-        return out
-    }
-
-    /// The loose rattle after the knock: `count` (2...4) damped impacts of planks and ironwork a few ms apart, each a short band-limited burst (about 0.5 to 2.6 kHz) that is
-    /// gone in about 10 ms, together decaying within 300 ms of the knock. No tonal ringing: the bursts are noise.
-    static func doorRattle(count: Int, strength: Float, sampleRate sr: Float, seed: UInt32 = 0xD00C) -> [Float] { doorRattleWithTimes(count: count, strength: strength, sampleRate: sr, seed: seed).0 }
-
-    /// The same, with the start time (s) of each impact (the selftests check their number, spacing and that each one is audible).
-    static func doorRattleWithTimes(count: Int, strength: Float, sampleRate sr: Float, seed: UInt32 = 0xD00C) -> ([Float], [Float]) {
-        var n = FoleyNoise(seed: seed)
-        let len = Int(0.30 * sr)
-        var out = [Float](repeating: 0, count: len)
-        var at: Float = 0.05 + 0.01 * n.unit()                                                           // the first loose impact follows the knock closely
-        let s = 0.35 + 0.65 * strength
-        var times: [Float] = []
-        for k in 0..<max(2, min(count, 4)) {
-            times.append(at)
-            let f = 700 + 1900 * n.unit(), amp = (0.55 - 0.1 * Float(k)) * (0.75 + 0.5 * n.unit()) * s
-            var bp = Biquad.bandpass(f, q: 2.2, sampleRate: sr), low = Biquad.bandpass(380 + 200 * n.unit(), q: 1.6, sampleRate: sr)
-            let start = Int(at * sr), dur = Int(0.022 * sr)
-            for j in 0..<dur where start + j < len {
-                let t = Float(j) / sr
-                let x = n.next()
-                out[start + j] += (bp.process(x) * exp(-t / 0.0048) + low.process(x) * 0.6 * exp(-t / 0.007)) * amp * min(1, t / 0.0004) * 0.4
+            let attack = min(1, t / 0.008); let att = attack * attack * (3 - 2 * attack)
+            var thud: Float = 0
+            for m in modes { thud += m.a * sin(2 * .pi * m.f * t) * exp(-t / m.tau) }
+            thud += bodyB.process(bodyA.process(n.next())) * 5.0 * exp(-t / 0.05)
+            var knock: Float = 0
+            if t >= 0.004 {
+                let u = t - 0.004
+                for m in knockModes { knock += m.a * sin(2 * .pi * m.f * u) * exp(-u / 0.016) }
+                knock += knockBand.process(n.next()) * 1.6 * exp(-u / 0.02)
             }
-            at += 0.016 + 0.026 * n.unit() - 0.003 * Float(k)                                               // each follow-up arrives a little sooner as the door settles
-        }
-        return (out, times)
-    }
-
-    /// F05 A1 (#63: the pull-ring jangle was four short pure tones, 1.6 to 2.8 kHz: "a computer alert"): the iron ring and its plate clank. A struck iron fitting is not a pitch: each of
-    /// `hits` (3...5, spaced 55 to 95 ms, each softer and shorter than the last) is a noise burst through nine resonances at INHARMONIC, per-hit random frequencies between 1 and 4.2 kHz
-    /// (Q 5, so they are smeared, never a sine) over a short broadband tick and a low iron-on-wood "tock" (300 to 700 Hz), decaying in 25 to 70 ms. The hits never repeat a frequency, so the
-    /// long-time spectrum is a smooth band of 1 to 4 kHz, not a few lines. Starts at 0 s; `Foley.jangleDelay` is where `doorLocked` places it.
-    static func ironClank(hits: Int, strength: Float, sampleRate sr: Float, seed: UInt32 = 0xD00D) -> [Float] {
-        var n = FoleyNoise(seed: seed)
-        let count = max(3, min(hits, 5))
-        let len = Int(0.42 * sr)
-        var out = [Float](repeating: 0, count: len)
-        let s = 0.35 + 0.65 * strength
-        var at: Float = 0
-        for k in 0..<count {
-            let fall = 1 - 0.17 * Float(k)
-            let tau = (0.058 - 0.008 * Float(k)) * (0.8 + 0.4 * n.unit())
-            var res = (0..<9).map { _ in Biquad.bandpass(1000 + 3200 * n.unit(), q: 5, sampleRate: sr) }
-            var tick = Biquad.bandpass(3400 + 1500 * n.unit(), q: 0.6, sampleRate: sr)
-            var tock = Biquad.bandpass(300 + 400 * n.unit(), q: 0.9, sampleRate: sr)
-            var wash = Biquad.bandpass(2300, q: 0.45, sampleRate: sr)                                          // the ring's broadband scrape: fills the gaps between the resonances
-            let start = Int(at * sr), dur = Int(0.26 * sr)
-            for j in 0..<dur where start + j < len {
-                let t = Float(j) / sr
+            var creak: Float = 0
+            if t >= 0.06 && t < 0.33 {
+                if chopLeft <= 0 { chopTarget = 0.2 + 0.8 * n.unit(); chopLeft = Int(sr / (25 + 35 * n.unit())) }
+                chopLeft -= 1; chop += (chopTarget - chop) * 0.02
+                let u = t - 0.06, env = min(1, u / 0.05) * min(1, (0.27 - u) / 0.1)
+                let x = n.next()
+                creak = (creakA.process(x) * 0.9 + creakB.process(x) * 0.7 + creakC.process(x) * 0.45) * chop * max(env, 0)
+            }
+            var clink: Float = 0
+            for h in clinkHits.indices where i >= clinkHits[h].start {
+                let u = Float(i - clinkHits[h].start) / sr
                 let x = n.next()
                 var ring: Float = 0
-                for i in res.indices { ring += res[i].process(x) }
-                let v = ring * 0.95 * exp(-t / tau) + tick.process(x) * 1.4 * exp(-t / 0.0035) + tock.process(x) * 1.2 * exp(-t / 0.012) + wash.process(x) * 1.6 * exp(-t / 0.03)
-                out[start + j] += v * fall * s * min(1, t / 0.0004) * 0.14
+                for r in clinkHits[h].res.indices { ring += clinkHits[h].res[r].process(x) }
+                clink += ring * 0.55 * exp(-u / 0.045) * clinkHits[h].amp
             }
-            at += 0.055 + 0.04 * n.unit()
+            out[i] = (thud * 0.42 + knock * 0.5 * 0.42 + creak * (0.16 + 0.1 * strength) * 0.42 * 2.2 + clink * (0.125 + 0.05 * strength) * 0.42) * att * s * 0.65
         }
         return out
     }
@@ -139,20 +118,4 @@ enum Foley {
         }
         return out
     }
-
-    /// The whole wood-on-stone-and-iron event: the knock, then the rattle, then the iron ring's clank (`jangleDelay` after the knock). How many rattles and clanks follow depends on how hard the attempt was.
-    static func doorLocked(strength: Float, sampleRate sr: Float) -> [Float] {
-        let knock = doorKnock(strength: strength, sampleRate: sr)
-        let rattle = doorRattle(count: 2 + Int(min(max(strength, 0), 0.999) * 3), strength: strength, sampleRate: sr)
-        let clank = ironClank(hits: 3 + Int(min(max(strength, 0), 0.999) * 3), strength: strength, sampleRate: sr)
-        let off = Int(jangleDelay * sr)
-        var out = [Float](repeating: 0, count: max(rattle.count, off + clank.count))
-        for i in 0..<rattle.count { out[i] += rattle[i] }
-        for i in 0..<min(knock.count, out.count) { out[i] += knock[i] }
-        for i in 0..<clank.count { out[off + i] += clank[i] }
-        return out
-    }
-
-    /// Seconds after the knock that the iron ring's clank starts (A2: the pull ring answers a moment after the door meets the stone).
-    static let jangleDelay: Float = 0.13
 }
