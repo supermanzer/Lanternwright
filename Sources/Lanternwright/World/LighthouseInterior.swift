@@ -40,6 +40,15 @@ struct LighthouseInterior {
     /// How far the stair's last stretch is cut out of the lens room's floor (it rises through the hatch): the angle over which the stair rises from head height (2 m) to the floor, so it never
     /// passes under the floor.
     static let hatch: Float = 3.2
+    /// F07 B-rail: the radius of the railing round the lens room's floor edge (the wall is at `innerR`, the player's feet stop about 1.77 m out), and the arcs it covers: the floor outside the hatch, less
+    /// the north window's doorway (`portalAngle`, 0.42 rad either side).
+    static let railRadius: Float = 2.02
+    static var railArcs: [(Float, Float)] {
+        let start = endAngle, end = endAngle - hatch + 2 * .pi                       // the floor outside the hatch, going round from where the hatch ends
+        var p = portalAngle; while p < start { p += 2 * .pi }; while p > start + 2 * .pi { p -= 2 * .pi }
+        let gap: Float = 0.42
+        return [(start, p - gap), (p + gap, end)]
+    }
     static let treadsPerTurn = 25
     static let treadThickness: Float = 0.16
     /// The surface may be this far above the feet and still be stepped onto (the same limit as the player's own: `Player.maxStep`).
@@ -227,6 +236,22 @@ struct LighthouseInterior {
             }
         }
         fit.tube(points: railPoints, radii: railRadii, sides: 6, caps: true, surface: iron, transform: place)
+        // F07 B-rail (#82): the lens room's open edges get a railing, so the place the player stops is a thing they can see. (1) Round the floor's outer edge, just inside the wall (`railRadius`): where the
+        // player's feet stop is about 1.77 m from the axis, the wall is at `innerR` (2.1 m); a rail at about 2.0 m stands in front of the eye there. It stops where the doorway of the north window is (the
+        // portal is stepped through there). (2) Along the hatch's far edge (the posts that were invisible colliders): two rails from the stair's inner rail to the wall.
+        func railRun(_ points: [SIMD3<Float>]) { fit.tube(points: points, radii: [Float](repeating: 0.022, count: points.count), sides: 6, caps: true, surface: iron, transform: place) }
+        let floorTop = lensFloorY, edgeA = endAngle - hatch
+        let rr = LighthouseInterior.railRadius
+        for (a0, a1) in LighthouseInterior.railArcs {
+            let n = max(2, Int(((a1 - a0) * rr / 0.45).rounded(.up)))
+            for h: Float in [1.0, 0.52] { railRun((0...n).map { k in let a = a0 + (a1 - a0) * Float(k) / Float(n); return SIMD3(cos(a) * rr, floorTop + h, sin(a) * rr) }) }
+            for k in 0...n { let a = a0 + (a1 - a0) * Float(k) / Float(n); fit.cylinder(radiusTop: 0.018, radiusBottom: 0.018, height: 1.0, segments: 6, smooth: true, surface: iron, transform: place * translation(SIMD3(cos(a) * rr, floorTop, sin(a) * rr))) }
+        }
+        do {
+            let r0 = stairInner(lensFloorY), r1 = innerR(lensFloorY) - 0.02
+            for h: Float in [1.0, 0.52] { railRun([SIMD3(cos(edgeA) * r0, floorTop + h, sin(edgeA) * r0), SIMD3(cos(edgeA) * r1, floorTop + h, sin(edgeA) * r1)]) }
+            var r = r0; while r <= r1 + 0.01 { fit.cylinder(radiusTop: 0.018, radiusBottom: 0.018, height: 1.0, segments: 6, smooth: true, surface: iron, transform: place * translation(SIMD3(cos(edgeA) * r, floorTop, sin(edgeA) * r))); r += 0.45 }
+        }
         // The workshop (on the south-east wall, clear of the low treads): the bench along the wall (a plank top on two trestles), a stool facing the room, three engraved rule-plates and a charts
         // on the wall above it, the tuning fork on its hook. Everything stays below the tread overhead (2.3 m up at its lowest here).
         let bc = benchCentre

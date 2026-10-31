@@ -92,6 +92,14 @@ extension SelfTestRunner {
         if name == "interior" { print("interior: door to lens room: \(String(format: "%.0f", total)) s (climb \(String(format: "%.0f", climbSeconds)) s), feet \(bot.feet), climbed \(climbed) reached \(reached)") }
         check(reached && abs(bot.feet.y - (lh.y + I.lensFloorY)) < 0.1, "interior: the player climbs the stair to the lens room with the real controller and stands on its floor (y \(bot.feet.y - lh.y) of \(I.lensFloorY))")
         check(total < 60, "interior: from 8 m outside the door to the lens room takes \(String(format: "%.0f", total)) s (accept: under 60 s at the default pace)")
+        // F07 B-rail (#82): the lens room's open edges have a railing: arcs round the floor's outer edge that leave the north window's doorway free, inside the wall, and never across the hatch.
+        let arcs = I.railArcs
+        func inArcs(_ ang: Float) -> Bool { arcs.contains { a in var x = ang; while x < a.0 { x += 2 * .pi }; while x > a.0 + 2 * .pi { x -= 2 * .pi }; return x >= a.0 && x <= a.1 } }
+        let covered = arcs.reduce(Float(0)) { $0 + ($1.1 - $1.0) }
+        check(arcs.count == 2 && covered > 2.0 && covered < 2 * .pi - I.hatch, "interior: the rail's arcs cover the floor outside the hatch (\(String(format: "%.2f", covered)) rad of \(String(format: "%.2f", 2 * .pi - I.hatch)))")
+        check(!inArcs(I.portalAngle) && !inArcs(I.portalAngle + 0.3) && !inArcs(I.portalAngle - 0.3) && inArcs(I.portalAngle + 0.6) && inArcs(I.portalAngle - 0.6), "interior: and they leave the north window's doorway free")
+        check(!inArcs(I.endAngle - I.hatch / 2) && I.railRadius < I.innerR(I.lensFloorY) && I.railRadius > 1.77 + 0.1, "interior: none stands across the hatch, and the rail is inside the wall and beyond where a player's feet stop (1.77 m)")
+        check(w.scene.items.first { $0.name == I.fittingsName } != nil, "interior: the rails are part of the fittings (drawn with the open lighthouse)")
         // And they cannot walk under the low treads (the rail stops them), nor off the stair into the well.
         let u = twoWorlds()
         u.state.set(Game.doorOpenFlag); step(u)

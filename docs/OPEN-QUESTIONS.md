@@ -146,6 +146,24 @@ Format: `### Q<n> (date, who): the question` then *Default taken*, *Where it liv
 *What changes if the answer differs:* colours and strength are one `SIMD4` each in `syncExitLights`; a bigger rim or the lamps moved is in `LensPortalProps.build`.
 *Status:* open.
 
+### Q25 (2026-10-30, builder B, F07 B-run and B-pace): the run line is gone; running is 25 % faster
+*Default taken:* the "Hold Shift to run, or press R to run automatically." banner (after 45 s of walking without running) is REMOVED, with its flag `hint_run` (old saves that carry it load fine): it was a tutorial remark with no meaning in the world, and the controls screen says the same. Not replaced by an in-world line: page 9 already carries the keepers' rule ("keepers do not run on the shingle ... keepers run when the lamp in the lighthouse is going out"). Run speed 4.4 -> 5.5 m/s (`Player.runSpeed`), walk 2.6 unchanged; the stride lengthens (`stepLength` 1.2 + 0.5 * runFactor, 1.7 m at a full run) so the run cadence is about 3.2 steps/s (it was 2.9), not 3.7; FOV boost and corridor limits unchanged (the guided-corridor, confine and bot tests pass; the nav audit has no travel times so it is unchanged).
+*Where it lives:* `Player.runSpeed`, `Player.stepLength`; `Game.ownFlags` (no `hint_run`).
+*What changes if the answer differs:* one constant each; a "keepers' rule" line where shingle is would be a banner in `Game`.
+*Status:* open.
+
+### Q26 (2026-10-30, builder B, F07 B-contra): the Notebook never says the player is wrong
+*Default taken:* every page's words can be read either way, so the data lists BOTH sides as defensible for pages 4, 5, 8 and 9 (with the reading each side rests on, in `Contradictions.all`), and any three found pieces the player sets settle it. The verdict is "Settled." or nothing: no "disagree" line, no penalty, no clearing, no wait; the Notebook records the player's own mapping (`StoryState.claims`). The heading is "Two accounts of the same night." / "Which page is whose memory?". The `.notYet` verdict is gone. A page could be given a single defensible side in the data and the rule still holds (selftested with a synthetic contradiction); none is, because the user's own word-for-word mapping was rejected once already.
+*Where it lives:* `Evidence.defensible`, `Contradictions.judge`, the card in `OverlayView.drawNotebook`.
+*What changes if the answer differs:* restricting a page is one `Set<Claim>` in the data.
+*Status:* open.
+
+### Q27 (2026-10-30, builder B, F07 B-lamp and B-rail): the lamp's place in Ilse's pages; the railing
+*Default taken:* B-lamp: page 1 "The lamp in the lighthouse has gone quiet again."; page 2 gains "The lamp in the lighthouse listens for the stones, and for nothing else."; page 4 "Oren has asked again for the lens of the lighthouse lamp." (R3's half-line intact); page 9 "keepers run when the lamp in the lighthouse is going out." Pages 3 and 8 byte-identical; before/after in `docs/plans/F07-page-edits.md`; pinned by SHA in `SelfTestStory`. B-rail: the "barrier" the player met was the lens room's invisible wall (feet stop 1.77 m from the axis, the wall at 2.1) and the hatch's invisible edge posts; both now have a visible iron railing (two rails and posts: a ring at 2.02 m round the floor's outer edge with a gap at the north window's doorway, and across the hatch's far edge). The existing wall ring and edge posts remain the colliders (the rail stands in front of them), so there is no new collider and no gap to walk through.
+*Where it lives:* `Game/StoryPages.swift`; `LighthouseInterior.railRadius` / `railArcs` and the fittings build.
+*What changes if the answer differs:* a phrase each; the rail radius and the doorway gap (0.42 rad) are constants.
+*Status:* open.
+
 ## Answered
 - 2026-10-28 S03 Oren's exit location: both exits at the original lighthouse; Oren's is a lens portal in the lens room, the dock arch is not an exit.
 - 2026-10-28 Page gate: 3 pages of each sibling.
