@@ -267,6 +267,8 @@ final class Game {
             collectPage(n)
         } else if id == DoorNote.itemName {
             readNote(id)
+        } else if id == ChainMap.interactableName {
+            readMap()
         } else if id == Game.lampLensName {
             touchLampLens()
         } else if id == "lh_door" {
@@ -407,6 +409,49 @@ final class Game {
         setInteractable(TideArchivePuzzle.findLensName, enabled: !t.hasLens)
     }
 
+    // MARK: The guides (S04.8)
+
+    private var guidePath: GuidePath?
+    private var guideRoute: PageAuthor?
+    /// The corridor the guides follow: from the route's entry to the world's other end.
+    private func routeGuidePath() -> GuidePath? {
+        guard let route = chosenPath else { return nil }
+        if guideRoute != route { guidePath = nil; guideRoute = route }
+        if guidePath == nil, let net = Layout.Navigation.active(for: routeWorld) {
+            let a = Game.routeEntry(route).position, b = Game.routeEntry(route == .ilse ? .oren : .ilse).position
+            guidePath = GuidePath(net.route(from: SIMD2(a.x, a.z), to: SIMD2(b.x, b.z)))
+        }
+        return guidePath
+    }
+    /// Oren's lantern on Ilse's route (nil on the other), and Ilse's lamps on Oren's (which are lit), as positions on the ground.
+    private(set) var guideLantern: SIMD2<Float>?
+    private(set) var guideLamps: [(position: SIMD2<Float>, lit: Bool)] = []
+    private func syncGuides() {
+        guard tideArchive != nil, let sc = scenes[routeWorld] else { return }
+        let on = world == routeWorld && chosenPath != nil && !routeSolved
+        let path = on ? routeGuidePath() : nil
+        guideLantern = nil; guideLamps = []
+        if let path, let route = chosenPath, path.length > 1 {
+            let prog = path.progress(of: SIMD2(player.position.x, player.position.z))
+            if route == .ilse { guideLantern = path.point(at: GuideLanterns.lanternDistance(playerProgress: prog, pathLength: path.length)) }
+            else { guideLamps = (0..<GuideLanterns.lampCount(pathLength: path.length)).map { k in (path.point(at: GuideLanterns.lampDistance(k)), GuideLanterns.lampLit(k, playerProgress: prog)) } }
+        }
+        let flicker = 0.85 + 0.15 * sin(time * 5.3)
+        sc.update(GuideLanterns.lanternName) { item in
+            item.hidden = self.guideLantern == nil
+            if let p = self.guideLantern { item.uniforms.model = translation(SIMD3(p.x, sc.groundHeight(x: p.x, z: p.y) + 1.5 + 0.08 * sin(self.time * 1.3), p.y)); item.uniforms.emissive.w = 2.4 * flicker }
+        }
+        for k in 0..<GuideLanterns.maxLamps {
+            sc.update(GuideLanterns.lampName(k)) { item in
+                guard k < self.guideLamps.count else { item.hidden = true; return }
+                let lamp = self.guideLamps[k]
+                item.hidden = false
+                item.uniforms.model = translation(SIMD3(lamp.position.x, sc.groundHeight(x: lamp.position.x, z: lamp.position.y), lamp.position.y))
+                item.uniforms.emissive.w = lamp.lit ? 2.4 * flicker : 0
+            }
+        }
+    }
+
     // MARK: The next lens (S04.5)
 
     /// While the lighthouse is open and the route world is solved, the next lens shows on the collar, dim.
@@ -470,7 +515,10 @@ final class Game {
         pending.append(.journalOpened)
     }
     /// Put the card away.
-    func putAwayReading() { reading = nil }
+    func putAwayReading() { reading = nil; readingMap = false }
+    /// S04.8: the chain map being read (drawn from `ChainMap` by the overlay); put away like the note.
+    private(set) var readingMap = false
+    func readMap() { reading = nil; readingMap = true; readingFrom = camera.position; pending.append(.journalOpened) }
 
     /// Mark a page as already collected (loading a save): hides it and disables it, without opening the journal.
     func restorePage(_ n: Int, read: Bool = true) {
@@ -628,7 +676,7 @@ final class Game {
         if input.feedbackPressed { pending.append(.feedbackRequested) }
         if input.journalPressed { toggleJournal() }
         if input.escapePressed && journal.isOpen { journal.isOpen = false; pending.append(.journalClosed) }
-        if reading != nil {
+        if reading != nil || readingMap {
             if input.click || input.escapePressed || input.journalPressed || simd_distance(camera.position, readingFrom) > 2.5 { if input.click { input.click = false }; putAwayReading() }
         }
         if journal.isOpen && input.tabPressed { journal.cycleTab() }
@@ -643,6 +691,7 @@ final class Game {
         syncExitLights()
         syncNextLens()
         syncTideInteractables()
+        syncGuides()
         journal.route = chosenPath ?? .ilse; journal.archiveShown = chosenPath != nil          // S04.7: the voice of pages 10-15, and the Archive's slots
         syncInterior()
         syncSeals()

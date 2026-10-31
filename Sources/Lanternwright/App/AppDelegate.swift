@@ -293,6 +293,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, MTKViewDelegate {
         set(&overlay.whiteoutCaption, game.whiteCaption)
         set(&overlay.bannerText, game.banner)
         set(&overlay.readingText, game.reading)
+        set(&overlay.readingMap, game.readingMap)
         set(&overlay.pageWaiting, game.pageWaiting)
         set(&overlay.pageSlots, journal.pageSlots)
         if overlay.pages.map(\.number) != journal.tabPages.map(\.number) { overlay.pages = journal.tabPages; dirty = true }

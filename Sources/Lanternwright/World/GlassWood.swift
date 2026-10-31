@@ -81,6 +81,7 @@ enum GlassWood {
         addLamps(scene, device: device)
         addPathTufts(scene, device: device)
         GlassPuzzleProps.populate(scene, device: device)
+        GuideLanterns.build(into: scene, device: device)           // S04.8: the route world's guides (hidden unless the Archive puzzle is switched on)
         return scene
     }
 

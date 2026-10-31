@@ -159,6 +159,42 @@ extension SelfTestRunner {
         let ol = twoWorlds(); ol.restore(oa.makeSave()); frame(ol)
         check(ol.journal.collectedPages.filter { StoryPages.archiveIDs.contains($0.number) }.count == 6 && ol.journal.collectedPages.first { $0.number == 12 }?.text == StoryPages.archivePage(12)!.oren, "archive pages: a save keeps them and they load in the same voice")
 
+        // S04.8: the guides follow the corridor. The path maths first.
+        let gp = GuidePath([SIMD2(0, 0), SIMD2(10, 0), SIMD2(10, 10), SIMD2(10, 10), SIMD2(30, 10)])
+        check(abs(gp.length - 40) < 1e-4 && gp.point(at: 0) == SIMD2(0, 0) && gp.point(at: 5) == SIMD2(5, 0) && simd_length(gp.point(at: 15) - SIMD2(10, 5)) < 1e-4 && gp.point(at: 99) == SIMD2(30, 10) && gp.point(at: -4) == SIMD2(0, 0), "guides: a path knows its length (a doubled point is dropped), the point a distance along it, and clamps at both ends")
+        check(abs(gp.progress(of: SIMD2(4, 3)) - 4) < 1e-4 && abs(gp.progress(of: SIMD2(12, 5)) - 15) < 1e-4 && abs(gp.progress(of: SIMD2(40, 10)) - 40) < 1e-4, "guides: and how far along it a point is (the nearest point on the path)")
+        check(GuideLanterns.lanternDistance(playerProgress: 0, pathLength: 100) == GuideLanterns.ahead && GuideLanterns.lanternDistance(playerProgress: 95, pathLength: 100) == 100, "guides: Oren's lantern is always `ahead` metres in front of the player and never past the end of the path")
+        check(GuideLanterns.lampCount(pathLength: 100) == 3 && GuideLanterns.lampCount(pathLength: 10) == 0 && GuideLanterns.lampCount(pathLength: 5000) == GuideLanterns.maxLamps && GuideLanterns.lampLit(0, playerProgress: 0) && !GuideLanterns.lampLit(2, playerProgress: 0) && GuideLanterns.lampLit(2, playerProgress: GuideLanterns.lampDistance(2) - GuideLanterns.litRange + 0.1) && GuideLanterns.lampLit(2, playerProgress: 500), "guides: Ilse's lamps stand every `spacing` m, the first is lit at the start, the others come on as the player draws near, and none goes out behind them")
+        // In the game: each route gets its own guide, on the world's corridor, and it goes when the world is solved.
+        let gi = routeGame(.ilse); frame(gi)
+        check(gi.guideLantern != nil && gi.guideLamps.isEmpty && gi.scene.items.first { $0.name == GuideLanterns.lanternName }?.hidden == false, "guides: on Ilse's route there is one lantern (Oren's), ahead of her, and no lamps")
+        let pathI = gi.guideLantern!, startI = SIMD2(gi.player.position.x, gi.player.position.z)
+        check(simd_length(pathI - startI) > 5 && simd_length(pathI - startI) < GuideLanterns.ahead + 3, "guides: it is a little ahead (\(String(format: "%.1f", simd_length(pathI - startI))) m)")
+        let net = Layout.Navigation.active(for: gi.routeWorld)!
+        let far = net.route(from: startI, to: SIMD2(GlassLayout.altar.x, GlassLayout.altar.z)); let mid = far[far.count / 2]
+        gi.player.position = SIMD3(mid.x, gi.scene.groundHeight(x: mid.x, z: mid.y), mid.y); frame(gi)
+        check(gi.guideLantern != nil && simd_length(gi.guideLantern! - mid) > 5 && simd_length(gi.guideLantern! - pathI) > 5, "guides: walking on moves the lantern on, still ahead (it is never reached)")
+        let go = routeGame(.oren); frame(go)
+        check(go.guideLantern == nil && !go.guideLamps.isEmpty && go.guideLamps.count <= GuideLanterns.maxLamps && go.scene.items.first { $0.name == GuideLanterns.lanternName }?.hidden == true, "guides: on Oren's route there are lamps Ilse left, and no lantern")
+        let litNow = go.guideLamps.map(\.lit)
+        let oEntry = go.guideLamps.first!.position, oEnd = go.guideLamps.last!.position
+        go.player.position = SIMD3(oEnd.x, go.scene.groundHeight(x: oEnd.x, z: oEnd.y), oEnd.y); frame(go)
+        check(litNow.filter { $0 }.count < go.guideLamps.count && go.guideLamps.allSatisfy(\.lit) && simd_length(oEntry - oEnd) > 10, "guides: the lamps come on as he draws near and every one stays lit once passed (\(litNow.filter { $0 }.count) of \(go.guideLamps.count) at the start)")
+        go.state.set(Game.routeSolvedFlag); frame(go)
+        check(go.guideLamps.isEmpty && go.guideLantern == nil && go.scene.items.first { $0.name == GuideLanterns.lampName(0) }?.hidden == true, "guides: the world solved, the guides are gone")
+        let gv = routeGame(.ilse); gv.travel(to: .varrow); frame(gv)
+        check(gv.guideLantern == nil, "guides: back on Varrow there are none")
+
+        // The chain map: read like the note, not the journal; no text but the first pin's name (drawn from data); put away like it.
+        let cm = routeGame(.ilse); frame(cm)
+        cm.activate(ChainMap.interactableName)
+        check(cm.readingMap && cm.reading == nil && !cm.journal.isOpen, "map: reading the chain map shows the map card, not the journal or a note")
+        var clickIn = InputState(); clickIn.click = true; clock += 0.05; cm.advance(now: clock, input: clickIn)
+        check(!cm.readingMap, "map: a click puts it away")
+        check(ChainMap.pins.count >= 7 && ChainMap.pins.allSatisfy { $0.x >= 0 && $0.x <= 1 && $0.y >= 0 && $0.y <= 1 } && ChainMap.firstName == "Varrow", "map: the chain has its pins, all on the card, the first named Varrow")
+        cm.activate(ChainMap.interactableName); let savedMap = twoWorlds(); savedMap.restore(cm.makeSave())
+        check(!savedMap.readingMap, "map: and it does not survive a load")
+
         // With the flag off there is no Archive puzzle at all (the build stays as it was).
         Game.tideArchiveEnabled = false
         check(twoWorlds().tideArchive == nil, "archive: behind the flag: with it off there is no puzzle and no stand-in interactables")

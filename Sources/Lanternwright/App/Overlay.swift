@@ -29,6 +29,8 @@ final class OverlayView: NSView {
     var bannerText: String?
     /// F05 S1: the text of a note being read in the world (the door note): a small sheet of paper over the game, not the journal.
     var readingText: String?
+    /// S04.8: the chain map being read: brass pins on slate (`ChainMap`), no text but the first pin's name.
+    var readingMap = false
     /// A page has appeared (or was announced) and has not been read yet: a small journal marker sits in the corner until it is collected (F02 P0).
     var pageWaiting = false
     /// Draws a stand-in scene behind the overlay (only used by the headless snapshot).
@@ -157,6 +159,7 @@ final class OverlayView: NSView {
         if journalOpen { drawJournal() }
         if feedbackOpen { drawFeedbackCard() }
         if let toast { drawToast(toast) }
+        if readingMap, !journalOpen, !feedbackOpen, !menuOpen, !titleOpen, !introOpen { drawChainMap() }
         if let readingText, !journalOpen, !feedbackOpen, !menuOpen, !titleOpen, !introOpen { drawReading(readingText) }
         if let bannerText, !journalOpen, !feedbackOpen, !menuOpen, !titleOpen, !introOpen { drawBanner(bannerText) }
         if pageWaiting, !journalOpen, !feedbackOpen, !menuOpen, !titleOpen, !introOpen, whiteout < 0.5 { drawPageMarker() }
@@ -539,6 +542,30 @@ final class OverlayView: NSView {
         ("⌘↩ send     Esc cancel" as NSString).draw(at: NSPoint(x: c.minX + 28, y: c.maxY - 34), withAttributes: hint)
     }
 
+    /// The chain: a slate card with a brass pin for each link, the first named, a thin line between them, the last an empty ring.
+    private func drawChainMap() {
+        let w = min(600, bounds.width * 0.7), h = w * 0.58
+        let r = NSRect(x: bounds.midX - w / 2, y: bounds.midY - h / 2, width: w, height: h)
+        let shadow = NSShadow(); shadow.shadowColor = NSColor.black.withAlphaComponent(0.55); shadow.shadowBlurRadius = 18; shadow.shadowOffset = NSSize(width: 0, height: -4)
+        NSGraphicsContext.saveGraphicsState(); shadow.set()
+        NSColor(calibratedRed: 0.15, green: 0.18, blue: 0.19, alpha: 1).setFill(); NSBezierPath(roundedRect: r, xRadius: 8, yRadius: 8).fill()
+        NSGraphicsContext.restoreGraphicsState()
+        NSColor(calibratedRed: 0.7, green: 0.55, blue: 0.25, alpha: 0.35).setStroke()
+        let frame = NSBezierPath(roundedRect: r.insetBy(dx: 10, dy: 10), xRadius: 5, yRadius: 5); frame.lineWidth = 1; frame.stroke()
+        let pts = ChainMap.pins.map { NSPoint(x: r.minX + 36 + CGFloat($0.x) * (r.width - 72), y: r.minY + 36 + CGFloat($0.y) * (r.height - 72)) }
+        let brass = NSColor(calibratedRed: 0.78, green: 0.62, blue: 0.28, alpha: 1)
+        brass.withAlphaComponent(0.55).setStroke()
+        let line = NSBezierPath(); line.lineWidth = 1.5
+        for (i, p) in pts.enumerated() { if i == 0 { line.move(to: p) } else { line.line(to: p) } }
+        line.stroke()
+        for (i, p) in pts.enumerated() {
+            let dot = NSRect(x: p.x - 5, y: p.y - 5, width: 10, height: 10)
+            if i == pts.count - 1 { brass.setStroke(); let ring = NSBezierPath(ovalIn: dot.insetBy(dx: -1, dy: -1)); ring.lineWidth = 1.5; ring.stroke() }
+            else { brass.setFill(); NSBezierPath(ovalIn: dot).fill() }
+        }
+        if let first = pts.first { (ChainMap.firstName as NSString).draw(at: NSPoint(x: first.x - 4, y: first.y + 10), withAttributes: [.font: serif(15), .foregroundColor: brass.withAlphaComponent(0.9)]) }
+    }
+
     /// A small sheet of paper, centred, with the note's words and a quiet line saying how to put it away.
     private func drawReading(_ text: String) {
         let width = min(460, bounds.width * 0.6)
@@ -667,6 +694,8 @@ enum OverlayDump {
         v = make(); v.showIntro(fromTitle: false); v.introFade = 1
         v.frame = NSRect(x: 0, y: 0, width: 800, height: 520)
         try v.snapshot(to: base + "-intro-small.png")
+        v = make(); v.readingMap = true
+        try v.snapshot(to: base + "-chainmap.png")
         v = make(); v.readingText = Story.doorNote
         try v.snapshot(to: base + "-reading.png")
         v = make(); v.bannerText = "Oren: \"She would not follow, so I went ahead, and I have waited here since.\""
