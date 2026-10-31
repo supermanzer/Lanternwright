@@ -297,7 +297,7 @@ final class OverlayView: NSView {
             }
         }
         if let card = claimCards.first {
-            text("Two accounts of the same night. They disagree.", serif(17), ink, NSRect(x: p.minX + 56, y: p.minY + 282, width: p.width - 112, height: 24), .left, 0)
+            text("Two accounts of the same night.", serif(17), ink, NSRect(x: p.minX + 56, y: p.minY + 282, width: p.width - 112, height: 24), .left, 0)
             text("Which page is whose memory?", serif(15), faded, NSRect(x: p.minX + 56, y: p.minY + 308, width: p.width - 112, height: 20), .left, 0)
             text("Hers: \u{201C}\(card.hers)\u{201D}", serif(15), ink, NSRect(x: p.minX + 56, y: p.minY + 346, width: p.width - 112, height: 20), .left, 0)
             text("His: \u{201C}\(card.his)\u{201D}", serif(15), ink, NSRect(x: p.minX + 56, y: p.minY + 368, width: p.width - 112, height: 20), .left, 0)
@@ -649,7 +649,7 @@ enum OverlayDump {
         v = make(); v.journalOpen = true; v.journalTab = .notebook; v.notebookSeen = [true, true, false]; v.notebookStruck = [true, false, false]
         try v.snapshot(to: base + "-notebook.png")
         v = make(); v.journalOpen = true; v.journalTab = .notebook; v.notebookSeen = [true, true, true]; v.notebookStruck = [true, true, true]; v.notebookNotes = [Story.doorNote]
-        v.claimCards = Contradictions.all.map { c in OverlayView.ClaimCard(id: c.id, hers: c.hers, his: c.his, rows: c.evidence.enumerated().map { OverlayView.ClaimRow(page: $1.page, excerpt: $1.excerpt, found: true, side: $0 == 0 ? "His" : ($0 == 1 ? "Hers" : "His")) }, status: "These pages disagree. Read them again.") }
+        v.claimCards = Contradictions.all.map { c in OverlayView.ClaimCard(id: c.id, hers: c.hers, his: c.his, rows: c.evidence.enumerated().map { OverlayView.ClaimRow(page: $1.page, excerpt: $1.excerpt, found: true, side: $0 == 0 ? "His" : ($0 == 1 ? "Hers" : "His")) }, status: nil) }
         try v.snapshot(to: base + "-notebook-note.png")
         let big = OverlayView(frame: NSRect(x: 0, y: 0, width: 2560, height: 1440)); big.debugBackdrop = backdrop      // F05 S2: judged at 2560 x 1440 as well
         big.journalOpen = true; big.journalTab = .notebook; big.notebookSeen = v.notebookSeen; big.notebookStruck = v.notebookStruck; big.notebookNotes = v.notebookNotes; big.claimCards = v.claimCards

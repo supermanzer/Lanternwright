@@ -24,17 +24,19 @@ extension SelfTestRunner {
         check(Contradictions.judge(c, assignments: [4: .his], found: all) == .incomplete && Contradictions.judge(c, assignments: [4: .his, 5: .hers], found: all) == .incomplete, "contradictions: one right answer, or two, is never confirmed or marked (incomplete)")
         check(Contradictions.judge(c, assignments: [4: .hers, 5: .hers], found: all) == .incomplete, "contradictions: nor are two wrong ones: nothing is said until three are set")
         check(Contradictions.judge(c, assignments: right, found: [4, 5]) == .incomplete, "contradictions: set but only two found: incomplete")
-        var oneWrong = right; oneWrong[5] = .his
-        let allWrong: [Int: Claim] = [4: .hers, 5: .his, 8: .hers, 9: .his]
-        check(Contradictions.judge(c, assignments: oneWrong, found: all) == .notYet && Contradictions.judge(c, assignments: allWrong, found: all) == .notYet, "contradictions: a group with one wrong, or all wrong, is just 'not yet': the same verdict, so it never says which")
-        // Brute force: every uniform or whole-set guess over the four pieces, the 16 Hers/His assignments, settles for exactly one.
-        var winners = 0
+        // F07 B-contra (#80): the sides are interpretation. Every page can be read either way, so EVERY mapping of three or more found pieces is a defensible one and settles; nothing is ever 'wrong'.
+        check(c.evidence.allSatisfy { $0.defensible == Set(Claim.allCases) } && c.evidence.allSatisfy { $0.defensible.contains($0.supports) }, "contradictions: the data lists, per page, the readings its words allow (both sides, each with its reason), and the author's own reading is among them")
+        var settledCount = 0, anythingElse = 0
         for mask in 0..<16 {
             var a: [Int: Claim] = [:]
             for (k, e) in c.evidence.enumerated() { a[e.page] = (mask >> k) & 1 == 1 ? .his : .hers }
-            if Contradictions.judge(c, assignments: a, found: all) == .settled { winners += 1 }
+            let v = Contradictions.judge(c, assignments: a, found: all)
+            if v == .settled { settledCount += 1 } else { anythingElse += 1 }
         }
-        check(winners == 1, "contradictions: of the 16 ways to set four pieces exactly one is right (\(winners))")
+        check(settledCount == 16 && anythingElse == 0, "contradictions: every one of the 16 ways to map the four pages settles: the player's own mapping is accepted (\(settledCount) of 16)")
+        // A restriction, when the data has one, still works and still says nothing: a page whose only defensible reading is Hers, mapped to His, leaves the group unsettled, silently.
+        let strict = Contradiction(id: "t", hers: "a", his: "b", evidence: [Evidence(page: 1, supports: .hers, defensible: [.hers], excerpt: ""), Evidence(page: 2, supports: .his, defensible: [.his, .hers], excerpt: ""), Evidence(page: 3, supports: .his, defensible: [.his, .hers], excerpt: "")])
+        check(Contradictions.judge(strict, assignments: [1: .his, 2: .his, 3: .his], found: [1, 2, 3]) == .incomplete && Contradictions.judge(strict, assignments: [1: .hers, 2: .his, 3: .his], found: [1, 2, 3]) == .settled, "contradictions: a page with one defensible reading that is mapped the other way leaves the group unsettled, and the verdict is only 'incomplete' (silence), never 'wrong'")
 
         // In the game.
         func twoWorlds() -> Game { Game(scenes: [.varrow: Scene.makeWorld(device: device), .glassWood: GlassWood.build(device: device)]) }
@@ -47,18 +49,15 @@ extension SelfTestRunner {
         check(!g.setClaim("who-left", page: 6, to: .his) && !g.setClaim("nothing", page: 4, to: .his), "contradictions: a page that is not evidence, or a contradiction that does not exist, changes nothing")
         g.setClaim("who-left", page: 4, to: .his)
         g.restorePage(5); g.restorePage(8); g.restorePage(9)
-        g.setClaim("who-left", page: 5, to: .his)                                   // wrong
+        g.setClaim("who-left", page: 5, to: .his)
         check(g.verdict("who-left") == .incomplete, "contradictions: two set is still unjudged")
-        // The third set page judges; the group is wrong, so it is 'not yet'. Nothing is cleared and nothing waits (F05 S2, Q19): the player may simply change a page.
-        g.setClaim("who-left", page: 8, to: .hers)                                  // wrong
-        check(g.verdict("who-left") == .notYet && !g.isSettled("who-left") && g.story.contradictionsResolved.isEmpty, "contradictions: three set, not all right: 'not yet', nothing settled")
-        check(g.claim("who-left", page: 4) == .his && g.claim("who-left", page: 5) == .his && g.claim("who-left", page: 8) == .hers, "contradictions: a wrong group is left as the player set it (no clearing, no wait)")
-        // Take page 5 back and put page 8 right: pages 4 and 8 are right, 9 is not yet set: the route for a player who overlooked page 5.
+        // The third set page judges: any mapping settles (the player's own, never 'wrong'); to see the record, take it back and set another way.
         check(g.setClaim("who-left", page: 5, to: .his) && g.claim("who-left", page: 5) == nil, "contradictions: a page can be taken back at once")
-        g.setClaim("who-left", page: 8, to: .his)
-        check(g.verdict("who-left") == .incomplete, "contradictions: two right of three needed is still unjudged")
-        g.setClaim("who-left", page: 9, to: .hers)
-        check(g.verdict("who-left") == .settled && g.isSettled("who-left") && g.story.contradictionsResolved == ["who-left"], "contradictions: three right, without page 5, settled and kept")
+        g.setClaim("who-left", page: 8, to: .hers)                                  // the player's own reading
+        check(g.verdict("who-left") == .incomplete, "contradictions: two pieces set is still unjudged")
+        g.setClaim("who-left", page: 9, to: .his)                                   // the third piece, mapped as the player reads it (pages 4, 8, 9: His, Hers, His)
+        check(g.verdict("who-left") == .settled && g.isSettled("who-left") && g.story.contradictionsResolved == ["who-left"], "contradictions: three pieces set, in the player's own mapping, without page 5: settled and kept")
+        check(g.claim("who-left", page: 4) == .his && g.claim("who-left", page: 8) == .hers && g.claim("who-left", page: 9) == .his, "contradictions: and the Notebook records the player's own mapping, not the author's")
         check(g.journal.hasUnread(.notebook), "contradictions: and the Notebook tab is marked (a line arrived)")
         let before = g.story.claims
         check(!g.setClaim("who-left", page: 4, to: .hers) && g.story.claims == before && g.story.contradictionsResolved == ["who-left"], "contradictions: once settled it is kept as it is")
@@ -70,7 +69,7 @@ extension SelfTestRunner {
         g.state.set("gw_end")
         check(g.gate.ready && g.gate.missing.isEmpty, "contradictions: with the altar, the pages and the settled contradiction the gate is ready")
         let back = twoWorlds(); back.restore(g.makeSave())
-        check(back.isSettled("who-left") && back.gate.contradictionsResolved == 1 && back.claim("who-left", page: 9) == .hers && back.verdict("who-left") == .settled, "contradictions: a save keeps the settled contradiction and what was set")
+        check(back.isSettled("who-left") && back.gate.contradictionsResolved == 1 && back.claim("who-left", page: 9) == .his && back.verdict("who-left") == .settled, "contradictions: a save keeps the settled contradiction and what was set")
         let unsettled = twoWorlds(); for n in [1, 2, 3, 5, 6, 7, 4, 8] { unsettled.restorePage(n) }
         unsettled.state.set("gw_end")
         check(unsettled.gate.ready && unsettled.gate.cue == nil, "contradictions: without it the gate is still ready (F05 S1: it is optional)")

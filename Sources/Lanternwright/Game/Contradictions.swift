@@ -7,18 +7,20 @@ enum Claim: String, Codable, CaseIterable {
     var next: Claim { self == .hers ? .his : .hers }
 }
 
-/// One thing found in the worlds that bears on a contradiction: here, a journal page. `supports` is what the story says it supports (the truth the player is asked to work out);
-/// `excerpt` is the few words the Notebook shows for it once the page is in the journal.
+/// One thing found in the worlds that bears on a contradiction: here, a journal page. `supports` is the side the author of the data first had in mind; `defensible` is every side the page's words can honestly be
+/// read as supporting (F07 B-contra, #80: the player mapped the pages "word for word" and was told they were wrong; the sides are interpretation, so the Notebook accepts any reading the text allows and
+/// never says a player is wrong). `excerpt` is the few words the Notebook shows for it once the page is in the journal.
 struct Evidence: Equatable {
     let page: Int
     let supports: Claim
+    let defensible: Set<Claim>
     let excerpt: String
 }
 
 /// A contradiction (S03.9, first slice): two claims, and pieces of evidence the player sets, one by one, against one claim or the other. The game confirms only in GROUPS (S02: Obra Dinn's
-/// rule): it says nothing until `groupSize` (three) found pieces are set; then it settles if every one set agrees with the story, and otherwise says only that the pages disagree, never WHICH
-/// one is wrong. There are MORE pieces of evidence than the group (S03.10b), so any three found settle it and a player who overlooked one still has a way. There is no penalty (F05 S2, Q19): a wrong group
-/// just stays as it is, with a quiet line, and the player may change any page. It does not gate anything (F05 S1); settled, it is kept (saved).
+/// rule): it says nothing until `groupSize` (three) found pieces are set; then it settles if every one set is a DEFENSIBLE reading of its page (`Evidence.defensible`), and otherwise says nothing at all:
+/// the verdict is "Settled" or silence, never "wrong", never which (F07 B-contra, Q25). There are MORE pieces of evidence than the group (S03.10b), so any three found settle it. No penalty, no timer; the
+/// Notebook records the player's own mapping (`StoryState.claims`). It does not gate anything (F05 S1); settled, it is kept (saved).
 struct Contradiction: Equatable {
     let id: String
     let hers: String
@@ -30,10 +32,15 @@ enum Contradictions {
     /// The one contradiction shipped in this slice. Wording is data, here only (the user may edit it; they have changed their mind about page wording before).
     static let all: [Contradiction] = [
         Contradiction(id: "who-left", hers: "He left me.", his: "She would not follow.", evidence: [
-            Evidence(page: 4, supports: .his, excerpt: "He asked again for the lens. He did not answer."),
-            Evidence(page: 5, supports: .hers, excerpt: "I went through the lens first."),
-            Evidence(page: 8, supports: .his, excerpt: "I will be waiting where the wood ends."),
-            Evidence(page: 9, supports: .hers, excerpt: "I would break it again."),         // S03.10b: the fourth; two for each account, so no all-the-same guess is right
+            // Defensible readings, with why (each page can be read word for word either way):
+            //  4: Ilse writes that Oren asked for the lens and did not answer her: he went his own way (Hers: he left me), or he asked and she refused (His: she would not follow).
+            //  5: Oren writes that he went through the lens first: he went ahead (Hers: he left me), or he went first and she did not come (His).
+            //  8: Oren writes that he will be waiting where the wood ends: he went on ahead (Hers: he left me), or he is waiting for her to follow (His).
+            //  9: Ilse writes that she would break the running rule again: she ran after him (His: she did follow), or she runs for the lamp, not for him (Hers).
+            Evidence(page: 4, supports: .his, defensible: [.hers, .his], excerpt: "He asked again for the lens. He did not answer."),
+            Evidence(page: 5, supports: .hers, defensible: [.hers, .his], excerpt: "I went through the lens first."),
+            Evidence(page: 8, supports: .his, defensible: [.hers, .his], excerpt: "I will be waiting where the wood ends."),
+            Evidence(page: 9, supports: .hers, defensible: [.hers, .his], excerpt: "I would break it again."),
         ]),
     ]
     static func find(_ id: String) -> Contradiction? { all.first { $0.id == id } }
@@ -44,17 +51,15 @@ enum Contradictions {
     enum Verdict: Equatable {
         /// Fewer than `groupSize` found pieces are set: nothing is said.
         case incomplete
-        /// A group is set and they do not all agree with the story: said quietly, without saying which.
-        case notYet
         case settled
     }
 
-    /// The verdict on a set of assignments (page -> claim) for `c`, given which pages are found: only the pieces that are found AND set count; with at least `groupSize` of them, every one must
-    /// agree with the story to settle it.
+    /// The verdict on a set of assignments (page -> claim) for `c`, given which pages are found: only the pieces that are found AND set count; with at least `groupSize` of them, every one must be a
+    /// defensible reading of its page to settle it. Anything else is `.incomplete`: the Notebook says nothing.
     static func judge(_ c: Contradiction, assignments: [Int: Claim], found: Set<Int>) -> Verdict {
         let set = c.evidence.filter { found.contains($0.page) && assignments[$0.page] != nil }
         guard set.count >= groupSize else { return .incomplete }
-        return set.allSatisfy { assignments[$0.page] == $0.supports } ? .settled : .notYet
+        return set.allSatisfy { e in assignments[e.page].map { e.defensible.contains($0) } ?? false } ? .settled : .incomplete
     }
 }
 
@@ -88,7 +93,7 @@ extension Game {
         story.claims[claimKey(id, page)] = claim(id, page: page) == side ? nil : side.rawValue
         switch verdict(id) {
         case .settled: story.contradictionsResolved.append(id); journal.addNotebookEntry()
-        case .notYet, .incomplete: break
+        case .incomplete: break
         }
         return true
     }
