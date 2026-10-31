@@ -201,8 +201,11 @@ struct LighthouseInterior {
         // Flags on the ground room's floor.
         shell.cylinder(radiusTop: innerR(floorY), radiusBottom: innerR(floorY), height: 0.02, segments: 48, smooth: false, surface: stone, transform: place * translation(SIMD3(0, floorY - 0.01, 0)))
         // The lens room's floor: a disc less the hatch the stair comes up through, in six sectors (a disc over the well and the part outside the hatch).
-        let sector = (2 * Float.pi - hatch) / 6
-        for i in 0..<6 {
+        // F07 review of A-shell: each sector's outer edge is a straight chord, which at 55 degrees sagged 24 cm inside the floor's radius and left crescents open between it and the floor ring; in 36 pieces the
+        // chord's sag is under 7 mm, inside the ring's 2 cm overlap.
+        let pieces = 36
+        let sector = (2 * Float.pi - hatch) / Float(pieces)
+        for i in 0..<pieces {
             let a0 = endAngle + Float(i) * sector, a1 = a0 + sector
             shell.ringBlock(centre: .zero, a0: -a1, a1: -a0, r0: 0.01, r1: innerR(lensFloorY), z0: lensFloorY - 0.25, z1: lensFloorY, surface: woodDark,
                             transform: place * rotationX(-.pi / 2))

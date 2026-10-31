@@ -14,7 +14,7 @@ gw-overview 5807556c7cb575e2
 gw-court e5b2d54e4928d3b4
 gw-altar 111562b7e87a488d
 gw-mirrors 837a6c1db90bf8a7
-dock-taa b69cc8836f9e96ef
+dock-taa fea288c4ce3ffd35
 shore-taa ba338bfc9804641b
 gw-court-taa 968841ba2df92624
 summit-beams 4aa61209142b5921

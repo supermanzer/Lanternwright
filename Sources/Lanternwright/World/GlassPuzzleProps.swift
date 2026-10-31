@@ -97,6 +97,9 @@ enum GlassPuzzleProps {
         fixed.lathe(profile: [SIMD2(0.95, 0), SIMD2(0.95, 0.14), SIMD2(0.80, 0.14), SIMD2(0.80, 0.24), SIMD2(0.52, 0.34), SIMD2(0.46, 0.95), SIMD2(0.60, 0.95), SIMD2(0.60, 1.02), SIMD2(0, 1.02)],
                     segments: 16, smooth: false, surface: stone, transform: translation(rp))
         fixed.torus(major: 0.70, minor: 0.02, segments: 24, sides: 6, surface: pale, transform: translation(rp + SIMD3(0, 0.245, 0)))
+        // F07 (review of A-page2): the slabs stand 3.5 cm (their half thickness) above the court's origin height, which is all `groundHeight` knew: a page on them (page 6, by the receiver) was set 3.5 cm too low
+        // and lay buried in the floor. The court floor is a platform at the slabs' height (the player steps up 3.5 cm onto it; the 3 mm joints' lift is below what a page or a foot can tell).
+        scene.platforms.append(Scene.Platform(center: SIMD2(GlassLayout.mirrorCourt.x, GlassLayout.mirrorCourt.z), halfSize: SIMD2(half, half), top: GlassLayout.mirrorCourt.y + 0.035 + 0.003))
         scene.add("gw_court", mesh: fixed.build(device: device, label: "court"), uniforms: ObjectUniforms(model: translation(GlassLayout.mirrorCourt)))
 
         // The moon-prism: a tall glowing crystal that always fires east.

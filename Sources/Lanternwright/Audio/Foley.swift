@@ -84,7 +84,7 @@ enum Foley {
                 for r in clinkHits[h].res.indices { ring += clinkHits[h].res[r].process(x) }
                 clink += ring * 0.55 * exp(-u / 0.045) * clinkHits[h].amp
             }
-            out[i] = (thud * 0.42 + knock * 0.5 * 0.42 + creak * (0.16 + 0.1 * strength) * 0.42 * 2.2 + clink * (0.125 + 0.05 * strength) * 0.42) * att * s * 0.65
+            out[i] = (thud * 0.42 + knock * 0.9 * 0.42 + creak * (0.16 + 0.1 * strength) * 0.42 * 2.2 + clink * (0.125 + 0.05 * strength) * 0.42) * att * s * 0.65
         }
         return out
     }

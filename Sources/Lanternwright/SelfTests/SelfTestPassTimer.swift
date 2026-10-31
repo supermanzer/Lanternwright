@@ -615,6 +615,7 @@ extension SelfTestRunner {
         guard name == "all" || name == "doorheavy" else { return }
         let sr: Float = 44100
         let A = FootstepAnalysis.self
+        func midShare(_ x: [Float]) -> Float { let sp = A.spectrum(x); return A.band(sp, 200, 520) / max(A.band(sp, 40, 9000), 1e-12) }
         func metrics(_ x: [Float]) -> (low: Float, centroid: Float, rise: Float) {
             let sp = A.spectrum(x), tot = max(A.band(sp, 40, 9000), 1e-12)
             var num: Float = 0, den: Float = 0
@@ -643,6 +644,9 @@ extension SelfTestRunner {
         let hard = Foley.doorLocked(strength: 1, sampleRate: sr)
         for (st, m, level) in all { print(String(format: "DOORHEAVY strength %.1f: %.0f %% of the power under 500 Hz, centroid %.0f Hz, worst 1/3-octave rise above 1 kHz %.1f dB, level %.2f x a stone run step", st, m.low * 100, m.centroid, m.rise, level)) }
         check(all.allSatisfy { $0.1.low >= 0.70 } && all.allSatisfy { $0.1.centroid < 700 }, "doorheavy: the door is heavy: \(all.map { String(format: "%.0f", $0.1.low * 100) }) % of the power under 500 Hz (at least 70; the old event had 21) and centroid \(all.map { String(format: "%.0f", $0.1.centroid) }) Hz (under 700; the old one 2760)")
+        let mids = [Float(0.3), 0.6, 1.0].map { midShare(Foley.doorLocked(strength: $0, sampleRate: sr)) }
+        print("DOORHEAVY 200-520 Hz share \(mids.map { String(format: "%.1f", $0 * 100) }) %")
+        check(mids.allSatisfy { $0 >= 0.05 }, "doorheavy: the part a laptop speaker can play: at least 5 % of the power in 200-520 Hz (\(mids.map { String(format: "%.1f", $0 * 100) }) %), not only the sub-100 Hz modes")
         check(all.allSatisfy { $0.1.rise < 6 }, "doorheavy: no tone above 1 kHz stands more than 6 dB over its neighbours (one-third-octave bands; worst \(all.map { String(format: "%.1f", $0.1.rise) }) dB)")
         check(all[2].2 >= 0.8 && all[2].2 <= 1.0 && all.allSatisfy { $0.2 <= 1.0 } && all[0].2 < all[1].2 && all[1].2 < all[2].2, "doorheavy: through the synth the door at full strength is \(String(format: "%.2f", all[2].2)) of a run step on stone (0.8-1.0), softer tries are softer (\(all.map { String(format: "%.2f", $0.2) }))")
         let env = A.envelope(hard, tau: 0.001), top = env.max() ?? 1
@@ -779,6 +783,17 @@ extension SelfTestRunner {
                 guard let h = floorAt(r * cos(a), r * sin(a), from: lf + 1.2), h >= lf - 0.01 else { ringHoles += 1; continue }
             }
         }
+        // The seam under the floor's edge: wherever the floor is there at 1.9 m (everywhere but the stair's hatch), it continues unbroken out to 2.2 m, so no crescent opens between a sector's chord and the ring.
+        var seamHoles = 0, seamN = 0
+        for k in 0..<180 {
+            let a = Float(k) / 180 * 2 * .pi
+            guard let inner = floorAt(1.9 * cos(a), 1.9 * sin(a), from: lf + 1.2), abs(inner - lf) < 0.01 else { continue }         // not the hatch
+            for r in stride(from: Float(1.95), through: 2.2, by: 0.025) {
+                seamN += 1
+                guard let h = floorAt(r * cos(a), r * sin(a), from: lf + 1.2), h >= lf - 0.01 else { seamHoles += 1; continue }
+            }
+        }
+        check(seamN > 600 && seamHoles == 0, "shellclosed: the floor's own seam is closed: \(seamN) rays from 1.95 to 2.2 m at every angle where the floor stands at 1.9 m all land on a floor (\(seamHoles) fell through to the ground)")
         check(ringN > 90 && ringHoles == 0, "shellclosed: the lens room's floor reaches the iron base: \(ringN) rays down the ring from 2.12 to 2.6 m all land on the floor ring, the kerb or the iron base, none falls through to the ground (\(ringHoles) misses)")
     }
 }
@@ -823,5 +838,55 @@ extension SelfTestRunner {
         h.state.set("gw_mirrors"); h.glass?.restore(from: h.state.flags); h.travel(to: .glassWood); h.simulate(seconds: 0.3)
         let hs = h.scenes[.glassWood]!
         check(PageFold.panelNames(6).allSatisfy { n in hs.items.first { $0.name == n }!.hidden } && hs.items.first { $0.name == "page_6" }!.hidden == false, "pagefold: a restored game shows no fold for a solved puzzle, only the page")
+    }
+}
+
+extension SelfTestRunner {
+    /// F07 review of A-page2: the pages' own checks use `Scene.groundHeight`, which is not what is DRAWN (page 6 lay 3.5 cm inside the court's slabs and could not be seen). Every sheet is checked against the DRAWN
+    /// geometry: rays dropped from above onto every item that is not a page (terrain, slabs, plates, the dock's boards) from 25 points of the sheet; no sheet point may be more than 3 mm below the highest surface under it.
+    func runPagesSeated() {
+        guard name == "all" || name == "pagesseated" else { return }
+        guard let device = MTLCreateSystemDefaultDevice() else { check(false, "pagesseated: no Metal device"); return }
+        var report: [String] = []
+        var worstAll: Float = 0
+        for (scene, pages) in [(Scene.makeWorld(device: device), StoryPages.varrowIDs), (GlassWood.build(device: device), StoryPages.glassIDs)] {
+            let sheet = PuzzleProps.pageMesh().vertices.map { SIMD3<Float>($0.position.x, $0.position.y, $0.position.z) }
+            let sample = stride(from: 0, to: sheet.count, by: 9).map { sheet[$0] }
+            let others = scene.items.filter { !$0.name.hasPrefix("page_") && !$0.name.hasPrefix("oren_fold") && $0.mesh.indexCount > 0 }
+            for n in pages {
+                guard let page = scene.items.first(where: { $0.name == "page_\(n)" }) else { continue }
+                var worst: Float = 0                                                     // the deepest a sampled sheet point lies below the highest drawn surface under it (metres, > 0 = buried)
+                for v in sample {
+                    let w = page.uniforms.model * SIMD4(v, 1)
+                    var top = -Float.infinity
+                    for it in others {
+                        let inv = it.uniforms.model.inverse
+                        let o4 = inv * SIMD4(w.x, w.y + 1.0, w.z, 1), d4 = inv * SIMD4(0, -1, 0, 0)
+                        let o = SIMD3(o4.x, o4.y, o4.z), d = SIMD3(d4.x, d4.y, d4.z)
+                        let verts = it.mesh.vertexBuffer.contents().bindMemory(to: Vertex.self, capacity: it.mesh.vertexBuffer.length / MemoryLayout<Vertex>.stride)
+                        let idx = it.mesh.indexBuffer.contents().bindMemory(to: UInt32.self, capacity: it.mesh.indexCount)
+                        for t in stride(from: 0, to: it.mesh.indexCount, by: 3) {
+                            let p0 = verts[Int(idx[t])].position, p1 = verts[Int(idx[t + 1])].position, p2 = verts[Int(idx[t + 2])].position
+                            let lo = SIMD3(min(p0.x, p1.x, p2.x), 0, min(p0.z, p1.z, p2.z)), hi = SIMD3(max(p0.x, p1.x, p2.x), 0, max(p0.z, p1.z, p2.z))
+                            if o.x < lo.x - 1e-4 || o.x > hi.x + 1e-4 || o.z < lo.z - 1e-4 || o.z > hi.z + 1e-4 { continue }     // the ray is vertical in item space for the translation-only models used here
+                            let a = SIMD3(p0.x, p0.y, p0.z), b = SIMD3(p1.x, p1.y, p1.z), c = SIMD3(p2.x, p2.y, p2.z)
+                            let e1 = b - a, e2 = c - a, pp = simd_cross(d, e2), det = simd_dot(e1, pp)
+                            if abs(det) < 1e-9 { continue }
+                            let inv2 = 1 / det, s = o - a, u = simd_dot(s, pp) * inv2
+                            if u < 0 || u > 1 { continue }
+                            let q = simd_cross(s, e1), vv = simd_dot(d, q) * inv2
+                            if vv < 0 || u + vv > 1 { continue }
+                            let dist = simd_dot(e2, q) * inv2
+                            if dist > 0 { top = max(top, (w.y + 1.0) - dist * simd_length(SIMD3(d4.x, d4.y, d4.z)) / max(simd_length(SIMD3(d4.x, d4.y, d4.z)), 1e-9)) }
+                        }
+                    }
+                    if top > -Float.infinity { worst = max(worst, top - w.y) }
+                }
+                report.append("page \(n) \(String(format: "%+.1f", worst * 1000)) mm")
+                worstAll = max(worstAll, worst)
+            }
+        }
+        if name == "pagesseated" { print("PAGESSEATED " + report.joined(separator: ", ")) }
+        check(report.count == 9 && worstAll < 0.003, "pagesseated: every page's sheet rests on what is drawn under it, none buried (deepest sampled point \(String(format: "%.1f", worstAll * 1000)) mm below the highest drawn surface; \(report.joined(separator: ", ")))")
     }
 }
