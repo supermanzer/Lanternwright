@@ -32,6 +32,7 @@ final class WaterPass: RenderPass {
             enc.setDepthStencilState(r.waterDepthState)
             enc.setCullMode(.none)
             var u = r.ocean.uniforms(camera: camera, level: r.tideLevel)
+            var u0 = u
             enc.setVertexBuffer(r.ocean.mesh.vertexBuffer, offset: 0, index: 0)
             enc.setVertexBytes(&frame, length: MemoryLayout<FrameUniforms>.stride, index: 1)
             enc.setVertexBytes(&u, length: MemoryLayout<ObjectUniforms>.stride, index: 2)
@@ -43,8 +44,28 @@ final class WaterPass: RenderPass {
             enc.setFragmentTexture(r.distanceTexture, index: 3)
             if !RenderLayer.isOff(.water) { enc.drawIndexedPrimitives(type: .triangle, indexCount: r.ocean.mesh.indexCount, indexType: .uint32,
                                       indexBuffer: r.ocean.mesh.indexBuffer, indexBufferOffset: 0) }
+            // S04.3: the Archive's water bodies (the Great Ledger gallery): the same water, drawn as a calm pool at their own height (their model's translation is the drain, B's; the tide lifts a held one a little).
+            let bodies = r.scene.items.filter { $0.isWaterBody && !$0.hidden }
+            if !bodies.isEmpty && !RenderLayer.isOff(.water) {
+                var bodyFrame = frame
+                bodyFrame.worldB = SIMD4(1, 0, 0, 0)                                                    // calm (no swash film), no sea offset
+                enc.setVertexBytes(&bodyFrame, length: MemoryLayout<FrameUniforms>.stride, index: 1)
+                enc.setFragmentBytes(&bodyFrame, length: MemoryLayout<FrameUniforms>.stride, index: 1)
+                for item in bodies {
+                    var u = item.uniforms
+                    let held = max(0, 1 + u.model.columns.3.y / ArchiveStory.drainDepth)
+                    u.model = translation(SIMD3(0, ArchiveStory.galleryTideRise(clock: r.clock) * held, 0)) * u.model
+                    enc.setVertexBuffer(item.mesh.vertexBuffer, offset: 0, index: 0)
+                    enc.setVertexBytes(&u, length: MemoryLayout<ObjectUniforms>.stride, index: 2)
+                    enc.drawIndexedPrimitives(type: .triangle, indexCount: item.mesh.indexCount, indexType: .uint32, indexBuffer: item.mesh.indexBuffer, indexBufferOffset: 0)
+                }
+                enc.setVertexBytes(&frame, length: MemoryLayout<FrameUniforms>.stride, index: 1)
+                enc.setFragmentBytes(&frame, length: MemoryLayout<FrameUniforms>.stride, index: 1)
+                enc.setVertexBuffer(r.ocean.mesh.vertexBuffer, offset: 0, index: 0)
+                enc.setVertexBytes(&u0, length: MemoryLayout<ObjectUniforms>.stride, index: 2)
+            }
             // Glass (crystal trees etc.): refracts the scene copy, so it is drawn after the water has been laid down.
-            let glass = r.scene.items.filter { $0.refractive && !$0.hidden }
+            let glass = r.scene.items.filter { $0.refractive && !$0.hidden && !$0.isWaterBody }
             if !glass.isEmpty {
                 enc.setRenderPipelineState(r.crystalPipeline)
                 // Depth WRITE on and back faces culled. This is a performance rule on Apple's tile-based GPU, measured here:

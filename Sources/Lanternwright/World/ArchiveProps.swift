@@ -17,13 +17,62 @@ enum ArchiveProps {
 
     static let stackUnits = 5, stackRows = 3
     static func sluiceName(_ k: Int) -> String { "ta_sluice_\(k)" }
-    static func gateName(_ k: Int) -> String { "ta_sluice_gate_\(k)" }
+    static func gateName(_ k: Int) -> String { "ti_sluice_\(k)" }                 // builder B drives it (emissive = open); `update` lifts it
     static func wheelName(_ k: Int) -> String { "ta_sluice_wheel_\(k)" }
     static let prismName = "ta_prism", beamInName = "ta_beam_in"
-    static func beamOutName(_ k: Int) -> String { "ta_beam_out_\(k)" }
+    static func beamOutName(_ k: Int) -> String { "ti_prism_beam_\(k)" }
+    static func markName(_ k: Int) -> String { "ta_prism_mark_\(k)" }
+    static let ringName = "ti_prism_ring_visual"
     /// The three dispersed beams (tide, wind, stone) and the direction they leave the prism in (radians about the vertical, spread either side of east).
     static let beamColours: [SIMD3<Float>] = [SIMD3(0.30, 0.70, 1.0), SIMD3(0.80, 0.95, 0.60), SIMD3(1.0, 0.58, 0.32)]
     static let beamSpread: Float = 0.20
+
+    /// The Archive's moving state (per scene): how far each gate stands open (0...1, eased), whether its collider is in, and the clock of the last update.
+    final class State {
+        var gate = [Float](repeating: 0, count: 3)
+        var gateCollider = [Bool](repeating: true, count: 3)                    // closed gates block the gap from the start (`addSluice` adds the colliders)
+        var lastTime: Float?
+    }
+    static func gateCollider(_ k: Int) -> (center: SIMD2<Float>, radius: Float) { (SIMD2(ArchiveLayout.sluices[k].x, ArchiveLayout.sluices[k].z), 0.9) }
+
+    /// Called every game tick (`Game.fixedStep`, one line) in the Archive: eases each gate toward its state (builder B's `ti_sluice_k` emissive = open), turns the wheel, takes the gate's collider out when
+    /// it is open enough to walk through (and puts it back when the puzzle closes it again), and points the prism's three components by the ring.
+    static func update(_ scene: Scene, time: Float, ringAngle: Float?, tableau: PageAuthor?) {
+        let st = scene.archive
+        let dt = min(max(time - (st.lastTime ?? time), 0), 0.25)
+        st.lastTime = time
+        for k in 0..<3 {
+            guard let item = scene.items.first(where: { $0.name == gateName(k) }) else { continue }
+            let open: Float = item.uniforms.emissive.w > 0.5 ? 1 : 0
+            let step = dt * 0.4
+            st.gate[k] += min(max(open - st.gate[k], -step), step)
+            let g = st.gate[k]
+            scene.update(gateName(k)) { $0.uniforms.model = sluiceGateModel(k, open: g) }
+            scene.update(wheelName(k)) { $0.uniforms.model = sluiceWheelModel(k, turns: g * 2) }
+            let blocking = g < 0.5, col = gateCollider(k)
+            if blocking && !st.gateCollider[k] {
+                scene.colliders.addCylinder(center: col.center, radius: col.radius, minY: ArchiveLayout.sluices[k].y - 1, maxY: ArchiveLayout.sluices[k].y + 4); st.gateCollider[k] = true
+            } else if !blocking && st.gateCollider[k] {
+                scene.colliders.cylinders.removeAll { $0.center == col.center && $0.radius == col.radius }; st.gateCollider[k] = false
+            }
+        }
+        let g = ArchiveTerrain.gallery
+        Player.galleryWater = (g.centre, g.half, ArchiveStory.waterLevel(scene, clock: time))
+        updatePrism(scene, ringAngle: ringAngle ?? TideArchivePuzzle.initialRing)
+        updateTableau(scene, shown: tableau, time: time)
+    }
+
+    /// S04.2 (decision on Q32, the eye under water in a sluice room): a player standing in a room the rising tide has made deeper than `floodDepth` m is walked out of it, away from the room's centre, at 1.6 m/s
+    /// (never into a wall: the pit's slopes are walkable and the push stops when the water is shallow again). Rooms only: the sea elsewhere is no deeper than the route's lowest point allows.
+    static let floodDepth: Float = 0.7
+    static func floodPush(position p: SIMD3<Float>, sea: Float) -> SIMD2<Float>? {
+        guard sea - p.y > floodDepth else { return nil }
+        for s in ArchiveLayout.sluiceSites {
+            let d = SIMD2(p.x, p.z) - s, r = simd_length(d)
+            if r < ArchiveLayout.sluiceFlat + ArchiveLayout.sluiceBlend { return r < 0.05 ? SIMD2(0, 1) : d / r }
+        }
+        return nil
+    }
 
     static func populate(_ scene: Scene, device: MTLDevice) {
         addStacks(scene, device: device)
@@ -31,6 +80,7 @@ enum ArchiveProps {
         for k in 0..<3 { addSluice(scene, device: device, k) }
         addPrismChamber(scene, device: device)
         addLanterns(scene, device: device)
+        ArchiveStory.populate(scene, device: device)
     }
 
     // MARK: Placement helpers
@@ -168,6 +218,19 @@ enum ArchiveProps {
         scene.colliders.addCylinder(center: SIMD2(c.x - 3.9, c.z), radius: 1.1, minY: c.y - 1, maxY: c.y + 5)
         scene.colliders.addCylinder(center: SIMD2(c.x + 2.6, c.z), radius: 1.1, minY: c.y - 1, maxY: c.y + 5)
         scene.colliders.addCylinder(center: SIMD2(c.x + 3.9, c.z), radius: 1.1, minY: c.y - 1, maxY: c.y + 5)
+        let gc = gateCollider(k)
+        scene.colliders.addCylinder(center: gc.center, radius: gc.radius, minY: c.y - 1, maxY: c.y + 4)                          // the closed gate (`update` takes it out when it is open)
+        // The gate's own MARK (S04.3 follow-up, #35-#36): on both piers, a painted band in the gate's colour (tide blue, wind green, stone orange) from where its water window begins to where it ends (the part
+        // of it above the floor), so the player can see "it is at the tide gate now" when the water stands in the band. A thin brass line caps it.
+        let win = Tide.windows[k], floorY = ArchiveLayout.sluiceFloors[k]
+        let lo = max(Tide.metres(level: win.lowerBound), floorY + 0.04), hi = Tide.metres(level: win.upperBound)
+        if hi > lo {
+            let col = beamColours[k] * 0.9
+            for sx: Float in [-1, 1] {
+                b.box(size: SIMD3(0.7, hi - lo, 0.05), surface: Surface(color: col, roughness: 0.6, material: .paint), transform: translation(SIMD3(sx * (gapHalf + 0.45), (lo + hi) / 2 - floorY, 0.47)))
+                b.box(size: SIMD3(0.76, 0.05, 0.07), surface: brass, transform: translation(SIMD3(sx * (gapHalf + 0.45), hi - floorY, 0.47)))
+            }
+        }
         scene.add(sluiceName(k), mesh: b.build(device: device, label: "sluice \(k)"), uniforms: ObjectUniforms(model: place))
         // The gate plate (oak with iron straps), closed: it fills the gap from the floor; open it is lifted `gateLift` m.
         var g = MeshBuilder()
@@ -228,7 +291,8 @@ enum ArchiveProps {
         var pu = ObjectUniforms(model: translation(prismPosition), tint: SIMD4(1, 1, 1, 1))
         pu.emissive = SIMD4(0.55, 0.75, 1.0, 0.7)
         scene.add(prismName, mesh: p.build(device: device, label: "prism"), uniforms: pu, refractive: true)
-        // One beam in (white, from a slit in the north-west wall to the prism) and three out (tide, wind, stone), thin emissive bars: light, so no shadow.
+        // One beam in (white, from a slit in the north-west wall to the prism) and three out (tide, wind, stone), thin emissive bars: light, so no shadow. The three components fan out of the prism
+        // `beamSpread` apart and turn with the ring (`updatePrism`); a MARK on the wall for each gate stands where its component lands when the ring is on that gate's angle.
         func beam(_ name: String, from: SIMD3<Float>, to: SIMD3<Float>, colour: SIMD3<Float>, width: Float, strength: Float) {
             let d = to - from, len = simd_length(d)
             var m = MeshBuilder()
@@ -239,11 +303,43 @@ enum ArchiveProps {
         }
         let inFrom = prismPosition + SIMD3(-r + wall + 0.4, 1.2, -2.2)
         beam(beamInName, from: inFrom, to: prismPosition, colour: SIMD3(1.0, 0.97, 0.9), width: 0.07, strength: 5)
+        for k in 0..<3 { beam(beamOutName(k), from: prismPosition, to: prismPosition + SIMD3(cos(beamAngle(k, ring: TideArchivePuzzle.initialRing)), -0.02, sin(beamAngle(k, ring: TideArchivePuzzle.initialRing))) * componentLength, colour: beamColours[k], width: 0.06, strength: 5) }
         for k in 0..<3 {
-            let a = (Float(k) - 1) * beamSpread
-            let dir = SIMD3(cos(a), -0.02, sin(a))
-            beam(beamOutName(k), from: prismPosition, to: prismPosition + dir * (r - wall - 0.5), colour: beamColours[k], width: 0.06, strength: 5)
+            let a = markAngle(k)
+            var m = MeshBuilder()
+            m.chamferBox(size: SIMD3(0.7, 1.0, 0.1), chamfer: 0.02, surface: brass, transform: .init(diagonal: SIMD4(1, 1, 1, 1)))
+            m.box(size: SIMD3(0.5, 0.8, 0.04), surface: Surface(color: beamColours[k] * 0.8, roughness: 0.4, material: .emissiveGlass), transform: translation(SIMD3(0, 0, 0.05)))
+            let at = SIMD3(cos(a) * (r - wall - 0.04), prismPosition.y - c.y, sin(a) * (r - wall - 0.04))
+            scene.add(markName(k), mesh: m.build(device: device, label: "prism mark \(k)"), uniforms: ObjectUniforms(model: translation(c + at) * rotationY(atan2(-cos(a), -sin(a)))))
         }
+        // The ring round the prism's pedestal: brass, with a notch every ring step (15 degrees) and a pointer; it turns with the ring (`updatePrism`).
+        var ring = MeshBuilder()
+        ring.torus(major: 0.78, minor: 0.05, segments: 36, sides: 6, surface: brass, transform: .init(diagonal: SIMD4(1, 1, 1, 1)))
+        for n in 0..<24 { ring.box(size: SIMD3(0.05, 0.06, 0.12), surface: iron, transform: rotationY(Float(n) / 24 * 2 * Float.pi) * translation(SIMD3(0.8, 0, 0))) }
+        ring.box(size: SIMD3(0.3, 0.08, 0.1), surface: brass, transform: translation(SIMD3(0.95, 0, 0)))
+        scene.add(ringName, mesh: ring.build(device: device, label: "prism ring"), uniforms: ObjectUniforms(model: translation(c + SIMD3(0, 0.55, 0)) * rotationY(-TideArchivePuzzle.initialRing)))
+    }
+
+    static let componentLength: Float = 5.5, componentSpread: Float = 0.21
+    /// The world direction (radians about the vertical, x east / z south) of component `k` when the ring stands at `ring`: the fan is centred on the ring's angle.
+    static func beamAngle(_ k: Int, ring: Float) -> Float { ring + (Float(k) - 1) * componentSpread }
+    /// Where gate `k`'s mark stands on the wall: the direction its component takes when the ring is on that gate's target angle (`TideArchivePuzzle.beamTargets`).
+    static func markAngle(_ k: Int) -> Float { beamAngle(k, ring: TideArchivePuzzle.beamTargets[k]) }
+    /// True when the ring stands on gate `k`'s target (to within a fifth of a ring step): the component rests on the mark.
+    static func resting(_ k: Int, ring: Float) -> Bool {
+        var d = (ring - TideArchivePuzzle.beamTargets[k]).truncatingRemainder(dividingBy: 2 * Float.pi)
+        if d > Float.pi { d -= 2 * Float.pi }; if d < -Float.pi { d += 2 * Float.pi }
+        return abs(d) < TideArchivePuzzle.ringStep * 0.2
+    }
+    static func updateTableau(_ scene: Scene, shown: PageAuthor?, time: Float) { ArchiveStory.updateTableau(scene, shown: shown, time: time) }
+    static func updatePrism(_ scene: Scene, ringAngle: Float) {
+        for k in 0..<3 {
+            let a = beamAngle(k, ring: ringAngle), lit = resting(k, ring: ringAngle)
+            let dir = simd_normalize(SIMD3(cos(a), -0.02, sin(a)))
+            scene.update(beamOutName(k)) { $0.uniforms.model = translation(prismPosition) * rotation(aligningYTo: dir); $0.uniforms.emissive = SIMD4(beamColours[k], lit ? 11 : 5) }
+            scene.update(markName(k)) { $0.uniforms.emissive = lit ? SIMD4(beamColours[k], 3.5) : SIMD4(0, 0, 0, 0) }
+        }
+        scene.update(ringName) { $0.uniforms.model = translation(ArchiveLayout.prismChamber + SIMD3(0, 0.55, 0)) * rotationY(-ringAngle) }
     }
 
     // MARK: Lanterns
@@ -263,7 +359,8 @@ enum ArchiveProps {
             while s < len {
                 let c = a + dir * s + nrm * 2.6 * side
                 side = -side
-                if scene.terrain.sampleHeight(x: c.x, z: c.y) > 1.2 {
+                let g = ArchiveTerrain.gallery, inCourt = simd_abs(c - g.centre).x < g.half.x + 1.5 && simd_abs(c - g.centre).y < g.half.y + 1.5
+                if scene.terrain.sampleHeight(x: c.x, z: c.y) > 1.2 && !inCourt {
                     let yaw = Island.noise.unit(Int32(c.x), Int32(c.y)) * 2 * .pi
                     let up = Placement.upright(terrain: scene.terrain, x: c.x, z: c.y, radius: 0.36, yaw: yaw)
                     body.append(bodyProto, transform: up.transform)

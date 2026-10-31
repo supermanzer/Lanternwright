@@ -5,7 +5,9 @@ import Foundation
 /// read the ground RELATIVE to it, the player wades relative to it (`Player.sea`), and the game asks `depth` / `isWadeable` where it must know whether a place can be reached now.
 extension Tide {
     static let lowSea: Float = -1.0, highSea: Float = 1.4
-    static func metres(_ t: Float) -> Float { lowSea + (highSea - lowSea) * level(t) }
+    static func metres(_ t: Float) -> Float { metres(level: level(t)) }
+    /// The sea's height (m) at a normalised level 0...1 (the puzzle's `windows` are in levels).
+    static func metres(level l: Float) -> Float { lowSea + (highSea - lowSea) * l }
     /// How deep water over a place may be (m) for the player to wade it: knee deep. Deeper and it cannot be reached.
     static var wadeDepth: Float { -Player.minGround }          // the same rule the movement uses (`Player.sea`)
     /// The lowest the sea ever stands in `kind` (the Archive's low tide; 0 elsewhere): a place is reachable at SOME time when its ground is above this less the wading depth.

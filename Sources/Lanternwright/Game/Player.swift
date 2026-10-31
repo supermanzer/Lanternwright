@@ -29,6 +29,14 @@ struct Player {
     /// S04.2: the sea's height (m) where the player is: 0 everywhere but the Tide Archive, whose tide the game writes here every tick (`Game.fixedStep`). Wading depth is the ground's depth under THIS: a place is
     /// too deep when the ground is more than `-minGround` (0.4 m) under the sea, whatever the sea's height.
     nonisolated(unsafe) static var sea: Float = 0
+    /// S04.3: the Great Ledger gallery's water (a body of its own, higher than the sea): where it is and how high its surface stands now (`ArchiveProps.update` writes it every tick; nil elsewhere). The player
+    /// does not wade into it deeper than `-minGround`, as into the sea, and it is empty (the drained gallery) once its surface is at the floor.
+    nonisolated(unsafe) static var galleryWater: (centre: SIMD2<Float>, half: SIMD2<Float>, level: Float)?
+    static func tooDeepInGallery(_ p: SIMD2<Float>, ground: Float) -> Bool {
+        guard let g = galleryWater else { return false }
+        let d = simd_abs(p - g.centre)
+        return d.x < g.half.x && d.y < g.half.y && g.level - ground > -minGround
+    }
 
     /// Walking pace by slope (rise over run in the direction of travel): steep climbs slow you toward 55 % of your pace, a gentle
     /// descent speeds you up by a little (8 %), and the ground you can walk (see `maxSlope`) never stops you. Cadence follows
@@ -134,6 +142,7 @@ struct Player {
     private func canMove(from: SIMD2<Float>, to: SIMD2<Float>, scene: Scene, ground: (Float, Float) -> Float) -> Bool {
         let g0 = ground(from.x, from.y)
         let g1 = ground(to.x, to.y)
+        if Player.tooDeepInGallery(to, ground: g1) && g1 < g0 { return false }                  // S04.3: not down into the gallery's water
         if g1 - Player.sea < Player.minGround && g1 < g0 { return false }       // never wade deeper (but allow retreating)
         let rise = g1 - g0
         if rise > Player.maxStep { return false }

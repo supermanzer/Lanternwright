@@ -120,6 +120,11 @@ enum Screenshot {
         renderer.autoExposure = options.autoExposure
         if let w = options.world { renderer.world = w } else if options.viewName?.hasPrefix("gw-") == true { renderer.world = .glassWood } else if options.viewName?.hasPrefix("ta-") == true { renderer.world = .tideArchive }
         if let g = applyState(options.state, scenes: renderer.scenes) { renderer.mistScale = g.mistScale; renderer.beamIntensity = g.beamAmount }
+        if renderer.world == .tideArchive {                                              // S04.3: the Archive's moving items for a still frame (the game drives them in play)
+            let sc = renderer.scene
+            if options.gatesOpen { for k in 0..<3 { sc.update(ArchiveProps.gateName(k)) { $0.uniforms.emissive = SIMD4(0.55, 0.85, 1.0, 1.4) } } }
+            for step in 0..<40 { ArchiveProps.update(sc, time: options.clock + Float(step) * 0.1, ringAngle: options.ringDegrees.map { $0 * Float.pi / 180 }, tableau: options.tableau) }
+        }
         let camera = options.camera ?? Self.viewCamera(options.viewName, renderer: renderer)
 
         // Several frames so time-dependent or temporally accumulated effects settle.

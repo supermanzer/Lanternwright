@@ -213,11 +213,20 @@ enum ArchiveLayout {
     /// (reachable only near low tide). `sluiceFloors` are their floor heights (the ground there is flat at that height: pads with a short blend).
     static let greatLedgerXZ = SIMD2<Float>(70, -30)
     static let greatLedger = point(greatLedgerXZ.x, greatLedgerXZ.y)
-    static let sluiceFloors: [Float] = [0.8, -0.2, -0.9]
+    static let sluiceFloors: [Float] = (0..<3).map { Tide.metres(level: Tide.windows[$0].upperBound) - 0.35 }      // the water in a room is at most 0.35 m deep when its gate's window closes: the gate can always be reached while it answers
     /// A sluice room is flat to `sluiceFlat` m round its centre and eases back into the terrace over `sluiceBlend` m more (the pad and the terrain's pit use the same two numbers: walls under 0.5).
     static let sluiceFlat: Float = 6, sluiceBlend: Float = 10
     static let sluiceSites: [SIMD2<Float>] = [SIMD2(-72, 108), SIMD2(72, 108), SIMD2(0, 118)]
     static let sluices: [SIMD3<Float>] = zip(sluiceSites, sluiceFloors).map { SIMD3($0.x, $1, $0.y) }      // not read from the terrain: the terrain is sunk to these heights
+    /// S04.3 follow-up: where builder B's interactables stand (the Pending-A items): the six pages (10-15) in the order the route meets them, the chain map's plinth, the shadow-play wall and the lantern at
+    /// each side of it (`tableauLantern[0]` Ilse's side, west; `[1]` Oren's, east), the two tools lying in the world, and the prism ring (the prism's own position).
+    static let pageSpots: [SIMD3<Float>] = [point(9, 98), point(stacks.x - 11.2, stacks.z + 1.0), point(sluiceSites[1].x, sluiceSites[1].y - 18), point(greatLedgerXZ.x - 28, greatLedgerXZ.y + 4),
+                                           point(dome.x + 4.6, dome.z + 10.6), point(prismChamber.x + 2.3, prismChamber.z + 1.5)]
+    static let chainMap = point(-31, -52)
+    static let tableauWall = point(-20, -32), tableauHalfWidth: Float = 4.0
+    static let tableauLantern: [SIMD3<Float>] = [point(-20 - 5.6, -30), point(-20 + 5.6, -30)]
+    static let findFork = point(-52, 14), findLens = point(sluiceSites[0].x, sluiceSites[0].y + 17)
+    static let prismRing = prismChamber + SIMD3(0, 1.75, 0)
     /// The third terrace's lamp stand and the way up to the dome.
     static let upperLamp = point(-36, -56)
     static let dome = point(0, -104)

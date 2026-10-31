@@ -15,6 +15,8 @@ struct DrawItem {
     /// A blazing emitter (emissive 3 or more: the lit lens, a lamp) is light too, read every frame so the lens stops casting once lit. Solid things with a faint glow of their own
     /// (the stones' glyph faces 0.3, caps, mirrors, chimes, glyph decals) are NOT light: they keep their shadows. Glass never casts.
     var lightOnly = false
+    /// S04.3: a WATER BODY (the Archive's gallery water): a flat mesh the water pass draws like a calm pool (instead of the opaque pass), flagged `refractive` so the opaque and shadow passes skip it.
+    var isWaterBody: Bool { name.hasPrefix("ti_gallery_water") }
     var castsShadow: Bool { !refractive && !lightOnly && uniforms.emissive.w < 3 }
     static func isLightOnly(_ name: String) -> Bool {
         name.hasPrefix("beam_") || name.hasPrefix("gw_beam_") || name.hasPrefix("gw_column") || name == "gw_altar_glow" || name.hasPrefix(LanternChain.coreName) || name == "lens_core" || name == "lens_ring"
@@ -105,6 +107,8 @@ final class Scene {
     var terrain: Terrain!
     /// Every piece placed on the ground (cones, twigs, pebbles, rocks, lanterns, trunk footings...), for the contact selftest (see Placement).
     var placed: [Placement.PlacedProp] = []
+    /// S04.3: the Tide Archive's moving state (gates, wheels, colliders): see `ArchiveProps.update`.
+    let archive = ArchiveProps.State()
     var colliders = Colliders()
     var walkables: [Walkable] = []
     /// Index in `walkables` of the causeway, which starts disabled and is enabled once the slabs have risen.

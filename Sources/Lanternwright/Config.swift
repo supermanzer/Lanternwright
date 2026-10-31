@@ -57,6 +57,9 @@ struct LaunchOptions {
     var banding = false
     var beamSignal = false
     var interiorOpen = false
+    var tableau: PageAuthor?
+    var ringDegrees: Float?
+    var gatesOpen = false
     var renderScale: Float = 1
     var parallaxSea = false
     var clock: Float = 12
@@ -90,6 +93,9 @@ struct LaunchOptions {
       --parallax-sea               Walk toward the sea and report how much the far water changes at the ocean disc's snap steps versus the others
       --shimmer-layers [N]         Shimmer attribution (G10.0.2): the same moving-world walk (wind on, clock advancing, TAA on) with each layer switched off in turn; ranked table
       --render-scale <0.4-1>       Draw the scene at this fraction of the output size and upscale with MetalFX's temporal scaler (G10.4.1); 1 = native (the TAA off/on columns of --shimmer are then identical: MetalFX runs either way)
+      --tableau ilse|oren          Archive screenshots: show that version of the shadow-play tableau on its wall
+      --ring <degrees>             Archive screenshots: the prism ring's angle (the three components turn with it; -90, -30 and 45 rest on the gates' marks)
+      --gates-open                 Archive screenshots: the three sluice gates open
       --interior-open              Draw the lighthouse's window light shafts as if the door were open (screenshots; pair with LW_LIGHTHOUSE_OPEN=1)
       --beam-signal                The lighthouse beam as the signal pattern (S03.4a; as after the Glass Wood altar), for screenshots (use --clock and --state both)
       --banding                    Banding probe (G10.0.3): distinct 8-bit levels, largest step and longest run along smooth sky strips in the final image
@@ -158,6 +164,9 @@ struct LaunchOptions {
             case "--render-scale": guard let v = Float(next()), v >= 0.4, v <= 1 else { fail("--render-scale expects a number from 0.4 to 1") }; o.renderScale = v
             case "--beam-signal": o.beamSignal = true
             case "--interior-open": o.interiorOpen = true
+            case "--tableau": o.tableau = next() == "oren" ? .oren : .ilse
+            case "--ring": guard let v = Float(next()) else { fail("--ring expects degrees") }; o.ringDegrees = v
+            case "--gates-open": o.gatesOpen = true
             case "--banding": o.banding = true
             case "--shimmer-layers": if i + 1 < args.count, let n = Int(args[i + 1]) { o.shimmerLayers = n; _ = next() } else { o.shimmerLayers = 60 }
             case "--new": o.newGame = true
@@ -456,9 +465,12 @@ enum Viewpoints {
         case "ta-terraces": return Self.lookFrom(ArchiveLayout.landing + SIMD3(26, 3.2, 26), at: ArchiveLayout.stacks + SIMD3(0, 4, 0))
         case "ta-stacks":   return Self.lookFrom(ArchiveLayout.stacks + SIMD3(-3.0, 1.7, 7.5), at: ArchiveLayout.stacks + SIMD3(-9.5, 1.2, -3.0))
         case "ta-gallery":  return Self.lookFrom(ArchiveLayout.greatLedger + SIMD3(-27, 17, 9), at: ArchiveLayout.greatLedger + SIMD3(0, -1, 0))
-        case "ta-sluice":   return Self.lookFrom(ArchiveLayout.sluices[2] + SIMD3(0, 6.0, 16), at: ArchiveLayout.sluices[2] + SIMD3(0, 0.5, 0))
+        case "ta-sluice":   return Self.lookFrom(ArchiveLayout.sluices[0] + SIMD3(0, 6.5, 17), at: ArchiveLayout.sluices[0] + SIMD3(0, 0.8, 0))
         case "ta-dome":     return Self.lookFrom(ArchiveLayout.upperLamp + SIMD3(30, 3.0, 24), at: ArchiveLayout.dome + SIMD3(0, 5, 0))
         case "ta-prism":    return Self.lookFrom(ArchiveProps.prismPosition + SIMD3(1.0, 0.2, 5.4), at: ArchiveProps.prismPosition + SIMD3(0.3, 0, 0))
+        case "ta-tableau":  return Self.lookFrom(ArchiveLayout.tableauWall + SIMD3(0, 3.2, 12), at: ArchiveLayout.tableauWall + SIMD3(0, 1.7, 0))
+        case "ta-pages":    return Self.lookFrom(ArchiveLayout.pageSpots[1] + SIMD3(2.2, 1.6, 2.5), at: ArchiveLayout.pageSpots[1])
+        case "ta-map":      return Self.lookFrom(ArchiveLayout.chainMap + SIMD3(0, 1.9, 2.4), at: ArchiveLayout.chainMap + SIMD3(0, 1.05, 0))
         case "ta-chamber":  return Self.lookFrom(ArchiveLayout.prismChamber + SIMD3(0, Player.eyeHeight, 16), at: ArchiveLayout.prismChamber + SIMD3(0, 2.0, 0))
         case "gw-arrival":  return Camera(position: GlassLayout.arrival + SIMD3(0, Player.eyeHeight, 4), yaw: 0, pitch: 0.06)
         case "gw-overview": return Camera(position: SIMD3(0, 70, 330), yaw: 0, pitch: -0.2)

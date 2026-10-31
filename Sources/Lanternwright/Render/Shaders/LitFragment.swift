@@ -37,7 +37,7 @@ fragment LitFragOut lit_fragment(LitOut in [[stage_in]],
     float rough = in.color.a;
     if (in.material > 0.5 && in.material < 1.5) {
         float3 Ng = n;
-        albedo = terrain_surface(in.worldPos, Ng, in.color.r, in.color.g, in.color.b, frame.worldB.x, fpix, frame.cameraPos.w, n, rough);
+        albedo = terrain_surface(in.worldPos, Ng, in.color.r, in.color.g, in.color.b, frame.worldB.x, fpix, frame.cameraPos.w, frame.worldB.z, frame.worldB.y, n, rough);
     }
 
     // Procedural prop materials (masonry, paint, iron, copper, wood, bark): albedo, roughness, metalness, bumped normal, AO.

@@ -685,6 +685,8 @@ final class Game {
         updateDiscoveries()
         Birds.update(scene, time: time)
         Player.sea = world == .tideArchive ? Tide.metres(time) : 0           // S04.2: the sea's height where the player wades
+        if world == .tideArchive, let push = ArchiveProps.floodPush(position: player.position, sea: Player.sea) { player.position.x += push.x * 1.6 * Game.tick; player.position.z += push.y * 1.6 * Game.tick }       // Q32: walked out of a room the tide has flooded
+        if world == .tideArchive { ArchiveProps.update(scene, time: time, ringAngle: tideArchive?.ringAngle, tableau: tableauShown) }          // S04.3: gates, prism, tableau (builder A's items)
         syncPageFolds()                                                       // F07 A-fold: pages 6-8 stand folded until their puzzle opens them
         // The one clue a dropped page is allowed (F03 #43): in a gust its edge lifts a degree or two and settles. Nothing outlines or lights it.
         for n in (world == .varrow ? StoryPages.varrowIDs : StoryPages.glassIDs) where !state.has("page_\(n)") && shownPages.contains(n) {
