@@ -129,7 +129,6 @@ kernel void grass_cull(uint row [[threadgroup_position_in_grid]], uint ix [[thre
         int2 gcell = base + int2(int(ix), int(row));
         float2 rnd = hash22(float2(gcell));
         float2 xz = (float2(gcell) + rnd) * cell;
-        float dist = length(xz - frame.cameraPos.xz);
         float fade = grass_chunk_fade(gcell, frame.cameraPos.xz, cell, radius);   // G10.G.2: the same chunk factor as the vertex shader; it drops a whole chunk at fade < 0.002
         float h = hash22(float2(gcell) + 17.0).x;
         // Cheapest tests first, each only rejecting with a margin (the vertex shader rejects at density < 0.22 and at hash > keep, and every factor after the first
