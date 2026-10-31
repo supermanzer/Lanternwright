@@ -48,3 +48,10 @@ Margin 4.0 m. Region = corridors and plazas plus the margin. Areas on a 2 m grid
   page_6: stand at (-78.1, 25.9), 16.0 m inside a corridor, eye 1.3 m of reach 3.4
   page_7: stand at (70.0, 14.6), 17.4 m inside a corridor, eye 1.3 m of reach 3.4
   page_8: stand at (1.2, -89.0), 16.8 m inside a corridor, eye 1.3 m of reach 3.4
+
+== tideArchive: ALL CLEAR
+  checked 11 required places, 0 interactables, 0 vantages
+  region 22356 m2 of 84976 m2 of dry land (26.3 %)
+  farthest reachable point from the origin: 156 m
+  props (83 scene items) beyond the region: over 20 m 54, over 60 m 50, over 150 m 39
+  interactables:

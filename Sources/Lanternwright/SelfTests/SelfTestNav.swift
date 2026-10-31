@@ -116,7 +116,7 @@ extension SelfTestRunner {
                 let s = tr.samples(spacing: 2)
                 for (a, b) in zip(s, s.dropFirst()) {
                     let ga = scene.groundHeight(x: a.x, z: a.y), gb = scene.groundHeight(x: b.x, z: b.y)
-                    if gb < Player.minGround || ga < Player.minGround { wet.append("\(tr.name) (\(Int(b.x)), \(Int(b.y)))") }
+                    if gb < Player.minGround + Tide.lowestSea(for: kind) || ga < Player.minGround + Tide.lowestSea(for: kind) { wet.append("\(tr.name) (\(Int(b.x)), \(Int(b.y)))") }
                     else if abs(gb - ga) / simd_length(b - a) > Player.maxSlope && !scene.isOnPlatform(b) { steep.append("\(tr.name) (\(Int(b.x)), \(Int(b.y)))") }
                 }
             }

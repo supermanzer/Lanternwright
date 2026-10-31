@@ -31,7 +31,7 @@ final class WaterPass: RenderPass {
             enc.setRenderPipelineState(r.waterPipeline)
             enc.setDepthStencilState(r.waterDepthState)
             enc.setCullMode(.none)
-            var u = r.ocean.uniforms(camera: camera)
+            var u = r.ocean.uniforms(camera: camera, level: r.tideLevel)
             enc.setVertexBuffer(r.ocean.mesh.vertexBuffer, offset: 0, index: 0)
             enc.setVertexBytes(&frame, length: MemoryLayout<FrameUniforms>.stride, index: 1)
             enc.setVertexBytes(&u, length: MemoryLayout<ObjectUniforms>.stride, index: 2)

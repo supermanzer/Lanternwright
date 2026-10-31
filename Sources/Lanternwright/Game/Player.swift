@@ -26,6 +26,9 @@ struct Player {
     static let slipSpeed: Float = 1.6
     /// The sea is a soft wall: you may not wade where the ground is deeper than this below the surface.
     static let minGround: Float = -0.4
+    /// S04.2: the sea's height (m) where the player is: 0 everywhere but the Tide Archive, whose tide the game writes here every tick (`Game.fixedStep`). Wading depth is the ground's depth under THIS: a place is
+    /// too deep when the ground is more than `-minGround` (0.4 m) under the sea, whatever the sea's height.
+    nonisolated(unsafe) static var sea: Float = 0
 
     /// Walking pace by slope (rise over run in the direction of travel): steep climbs slow you toward 55 % of your pace, a gentle
     /// descent speeds you up by a little (8 %), and the ground you can walk (see `maxSlope`) never stops you. Cadence follows
@@ -84,7 +87,7 @@ struct Player {
     static func runFactor(speed: Float) -> Float { min(max((speed - scaledWalkSpeed) / (scaledRunSpeed - scaledWalkSpeed), 0), 1) }
 
     /// Ankle-deep wading: in the shallows (ground below ~10 cm above the waterline) the water drags at you, down to 60 %.
-    static func wading(ground: Float) -> Float { 1 - 0.4 * smoothstep(0.1, -0.3, ground) }
+    static func wading(ground: Float) -> Float { 1 - 0.4 * smoothstep(0.1, -0.3, ground - Player.sea) }
     /// The speed the player is aiming for (m/s): walk or run, times the `pace` setting, the slope factor (`paceFactor`) and wading.
     static func wishSpeed(run: Bool, pace: Float, wading: Float) -> Float { (run ? runSpeed : walkSpeed) * paceScale * pace * wading }
 
@@ -131,7 +134,7 @@ struct Player {
     private func canMove(from: SIMD2<Float>, to: SIMD2<Float>, scene: Scene, ground: (Float, Float) -> Float) -> Bool {
         let g0 = ground(from.x, from.y)
         let g1 = ground(to.x, to.y)
-        if g1 < Player.minGround && g1 < g0 { return false }       // never wade deeper (but allow retreating)
+        if g1 - Player.sea < Player.minGround && g1 < g0 { return false }       // never wade deeper (but allow retreating)
         let rise = g1 - g0
         if rise > Player.maxStep { return false }
         let run = max(length(to - from), 1e-4)
@@ -172,7 +175,7 @@ struct Player {
             let dir = normalize(wishDir)
             let g0 = ground(position.x, position.z)
             let g1 = ground(position.x + dir.x, position.z + dir.y)
-            if g0 > Player.minGround || g1 > Player.minGround { pace = Player.paceFactor(slope: g1 - g0) }
+            if g0 - Player.sea > Player.minGround || g1 - Player.sea > Player.minGround { pace = Player.paceFactor(slope: g1 - g0) }
         }
         var wish = wishDir * Player.wishSpeed(run: input.run, pace: pace, wading: wading)
         if let nav, sdHere > 0, length(wish) > 0 {

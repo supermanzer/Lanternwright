@@ -18,6 +18,12 @@ enum NavCoverage {
             let plan = PuzzleProps.causewayPlan(terrain: scene.terrain)
             for k in 0..<PuzzleProps.slabCount { let c = plan.center(k); pts.append(Point(name: "causeway slab \(k)", position: SIMD3(c.x, 0, c.y))) }
             return pts
+        case .tideArchive:
+            var pts = [Point(name: "spawn (lamp end)", position: ArchiveLayout.lampEnd), Point(name: "open end", position: ArchiveLayout.openEnd), Point(name: "landing", position: ArchiveLayout.landing),
+                       Point(name: "the stacks", position: ArchiveLayout.stacks), Point(name: "Great Ledger gallery", position: ArchiveLayout.greatLedger),
+                       Point(name: "upper lamp", position: ArchiveLayout.upperLamp), Point(name: "dome", position: ArchiveLayout.dome), Point(name: "prism chamber", position: ArchiveLayout.prismChamber)]
+            for (k, s) in ArchiveLayout.sluices.enumerated() { pts.append(Point(name: "sluice \(k)", position: s)) }
+            return pts
         case .glassWood:
             var pts = [Point(name: "spawn (arrival)", position: GlassLayout.arrival), Point(name: "return lens", position: GlassLayout.returnLens),
                        Point(name: "junction", position: GlassLayout.junction), Point(name: "altar", position: GlassLayout.altar)]

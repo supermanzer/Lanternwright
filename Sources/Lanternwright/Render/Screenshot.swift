@@ -55,7 +55,7 @@ enum Screenshot {
         renderer.fixedTime = nil
         print("benchmark at \(options.width)x\(options.height), \(options.benchFrames ?? 0) frames per view")
         if let w = options.world { renderer.world = w }
-        var views = renderer.world == .glassWood ? ["gw-arrival", "gw-overview", "gw-court", "gw-altar"] : ["dock", "overview", "shore", "summit"]
+        var views = renderer.world == .glassWood ? ["gw-arrival", "gw-overview", "gw-court", "gw-altar"] : (renderer.world == .tideArchive ? ["ta-quay", "ta-terraces", "ta-gallery", "ta-dome"] : ["dock", "overview", "shore", "summit"])
         if let v = options.viewName { views = [v] }                // --bench N --view NAME: just that view (F02 T66.13: the cost near trees)
         let glassTris = renderer.scene.items.filter { $0.refractive }.reduce(0) { $0 + $1.mesh.indexCount / 3 }
         let allTris = renderer.scene.items.reduce(0) { $0 + $1.mesh.indexCount / 3 }
@@ -118,7 +118,7 @@ enum Screenshot {
 
         renderer.fixedTime = options.clock
         renderer.autoExposure = options.autoExposure
-        if let w = options.world { renderer.world = w } else if options.viewName?.hasPrefix("gw-") == true { renderer.world = .glassWood }
+        if let w = options.world { renderer.world = w } else if options.viewName?.hasPrefix("gw-") == true { renderer.world = .glassWood } else if options.viewName?.hasPrefix("ta-") == true { renderer.world = .tideArchive }
         if let g = applyState(options.state, scenes: renderer.scenes) { renderer.mistScale = g.mistScale; renderer.beamIntensity = g.beamAmount }
         let camera = options.camera ?? Self.viewCamera(options.viewName, renderer: renderer)
 

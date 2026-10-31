@@ -228,6 +228,7 @@ final class Scene {
         switch kind {
         case .varrow: return makeWorld(device: device)
         case .glassWood: return GlassWood.build(device: device)
+        case .tideArchive: return TideArchive.build(device: device)
         }
     }
 

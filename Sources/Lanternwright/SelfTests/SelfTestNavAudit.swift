@@ -12,6 +12,11 @@ extension SelfTestRunner {
         let reports = NavigationAudit.run(device: device)
         for r in reports {
             check(r.ok, "navaudit \(r.kind.rawValue): all clear (\(r.failures.count) problems: \(r.failures.prefix(3)))")
+            if r.kind == .tideArchive {                                                                    // S04.1: the Archive has landmarks only; its interactables, vantages and props arrive with S04.3 / S04.6 / S04.8
+                check(r.checkedPoints >= 11 && r.regionArea > 5_000 && r.regionArea < 40_000 && r.regionArea < r.landArea * 0.3,
+                      "navaudit \(r.kind.rawValue): it checked \(r.checkedPoints) required places (0 interactables and 0 vantages until S04.3/S04.6/S04.8); region \(Int(r.regionArea)) of \(Int(r.landArea)) m2 of dry land")
+                continue
+            }
             check(r.checkedPoints >= 20 && r.checkedInteractables >= (r.kind == .varrow ? 9 : 18) && r.checkedVantages >= 3,
                   "navaudit \(r.kind.rawValue): it checked \(r.checkedPoints) required places, \(r.checkedInteractables) interactables and \(r.checkedVantages) vantages")
             check(r.regionArea > 5_000 && r.regionArea < 40_000 && r.regionArea < r.landArea * 0.3 && r.farthest > 150 && r.items > 100 && r.over20 > 0 && r.over20 >= r.over60 && r.over60 >= r.over150,

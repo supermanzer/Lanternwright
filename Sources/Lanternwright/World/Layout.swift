@@ -78,19 +78,21 @@ extension Layout {
             switch kind {
             case .varrow: return varrow
             case .glassWood: return glassWood
+            case .tideArchive: return tideArchive
             }
         }
 
         /// M10.7: the loose versions (trails and plazas 1.6x wider), built once (a network builds its graph when it is made: never per tick).
         static let varrowLoose = varrow.widened(by: Guidance.looseWidth)
         static let glassWoodLoose = glassWood.widened(by: Guidance.looseWidth)
+        static let tideArchiveLoose = tideArchive.widened(by: Guidance.looseWidth)
 
         /// The network for a guidance setting (nil in free roam).
         static func network(for kind: WorldKind, guidance: Guidance) -> NavNetwork? {
             switch guidance {
             case .free: return nil
             case .guided: return network(for: kind)
-            case .loose: return kind == .varrow ? varrowLoose : glassWoodLoose
+            case .loose: return kind == .varrow ? varrowLoose : (kind == .glassWood ? glassWoodLoose : tideArchiveLoose)
             }
         }
         /// What the player is confined to right now (`Player.guidance`): nil in free roam.
@@ -164,5 +166,75 @@ extension Layout {
             ]
             return NavNetwork(trails: trails, plazas: plazas, vantages: vantages, spawn: xz(GlassLayout.arrival), arrivals: [xz(GlassLayout.arrival)])
         }()
+
+        /// The Tide Archive (S04.1, builder A's minimal network for the new world: builder B's S04.5 / S04.8 refine it): the route from the lamp end up to the prism chamber, the east quay's approach,
+        /// and a plaza at each landmark.
+        static let tideArchive: NavNetwork = {
+            let p = ArchiveLayout.path.map(xz)
+            let w = trailHalfWidth
+            let trails = [
+                NavNetwork.Trail("the terraces", p, halfWidth: w),
+                NavNetwork.Trail("the east quay", ArchiveLayout.eastApproach.map(xz), halfWidth: w),
+                NavNetwork.Trail("the sluice walk", ArchiveLayout.sluiceWalk.map(xz), halfWidth: 4.5),
+            ]
+            let plazas = [
+                NavNetwork.Plaza(name: "lamp end quay", center: xz(ArchiveLayout.lampEnd), radius: 16),
+                NavNetwork.Plaza(name: "open end quay", center: xz(ArchiveLayout.openEnd), radius: 16),
+                NavNetwork.Plaza(name: "landing", center: xz(ArchiveLayout.landing), radius: 18),
+                NavNetwork.Plaza(name: "the stacks", center: xz(ArchiveLayout.stacks), radius: 24),
+                NavNetwork.Plaza(name: "the gallery and its sluices", center: xz(ArchiveLayout.greatLedger), radius: 36),
+                NavNetwork.Plaza(name: "the upper lamp", center: xz(ArchiveLayout.upperLamp), radius: 16),
+                NavNetwork.Plaza(name: "the dome", center: xz(ArchiveLayout.dome), radius: 24),
+                NavNetwork.Plaza(name: "the prism chamber", center: xz(ArchiveLayout.prismChamber), radius: 18),
+            ]
+            return NavNetwork(trails: trails, plazas: plazas, vantages: [], spawn: xz(ArchiveLayout.lampEnd), arrivals: [xz(ArchiveLayout.lampEnd), xz(ArchiveLayout.openEnd)])
+        }()
     }
+}
+
+// MARK: The Tide Archive (S04.1, builder A)
+/// Landmark positions of the Tide Archive (S04: a half-drowned observatory of ledger terraces; docs/plans/S04-phase2-tide-archive.md). Like the Glass Wood's, every height is read from the world's own base
+/// terrain function (`ArchiveTerrain.base`), so a landmark sits at the natural height of the ground round it. The world runs from the SOUTH QUAYS (where the player arrives) up four terraces to the
+/// brass dome and the prism chamber at the north end; the Great Ledger gallery is a sunken court on the second terrace's east side, behind the three sluices along its west wall.
+enum ArchiveLayout {
+    static let noise = Noise(seed: 20_26)
+    static func groundY(_ x: Float, _ z: Float) -> Float { ArchiveTerrain.base(noise, x, z) }
+    static func point(_ x: Float, _ z: Float) -> SIMD3<Float> { SIMD3(x, groundY(x, z), z) }
+
+    /// Where the two routes land (S02 section 3: the lamp end for Ilse, the open end for Oren): two quays at the south edge, either side of the tide steps.
+    static let lampEnd = point(-46, 128)
+    static let openEnd = point(46, 128)
+    /// The first plaza, above the quays' landing: the tide steps start here.
+    static let landing = point(0, 92)
+    /// The shelves of ledgers on the second terrace, west.
+    static let stacks = point(-58, 30)
+    /// The Great Ledger gallery's floor (a sunken court on the second terrace, east). The three SLUICE ROOMS are sunken stone chambers on the lowest terrace, open to the sea: the tide floods them by
+    /// depth, so each can be reached only while the water in it is wadeable (S04.2): the tide room's floor is just under the terrace (reachable most of the cycle), the wind room's lower, the stone room's lowest
+    /// (reachable only near low tide). `sluiceFloors` are their floor heights (the ground there is flat at that height: pads with a short blend).
+    static let greatLedgerXZ = SIMD2<Float>(70, -30)
+    static let greatLedger = point(greatLedgerXZ.x, greatLedgerXZ.y)
+    static let sluiceFloors: [Float] = [0.8, -0.2, -0.9]
+    /// A sluice room is flat to `sluiceFlat` m round its centre and eases back into the terrace over `sluiceBlend` m more (the pad and the terrain's pit use the same two numbers: walls under 0.5).
+    static let sluiceFlat: Float = 6, sluiceBlend: Float = 10
+    static let sluiceSites: [SIMD2<Float>] = [SIMD2(-72, 108), SIMD2(72, 108), SIMD2(0, 118)]
+    static let sluices: [SIMD3<Float>] = zip(sluiceSites, sluiceFloors).map { SIMD3($0.x, $1, $0.y) }      // not read from the terrain: the terrain is sunk to these heights
+    /// The third terrace's lamp stand and the way up to the dome.
+    static let upperLamp = point(-36, -56)
+    static let dome = point(0, -104)
+    static let prismChamber = point(0, -132)
+
+    /// The walking route, in order: either quay -> landing -> the stacks -> the sluices' approach -> the gallery -> the third terrace -> the dome -> the prism chamber.
+    static let path: [SIMD3<Float>] = [
+        lampEnd, point(-24, 110), landing, point(-30, 60), stacks, point(-14, 0), point(20, -20), point(44, -30), greatLedger, point(44, -30), point(10, -44), upperLamp, point(-12, -80), dome, prismChamber,
+    ]
+    /// The east quay's approach joins the route at the landing.
+    static let eastApproach: [SIMD3<Float>] = [openEnd, point(24, 110), landing]
+    /// The sluice walk: the three sluice rooms in a loop off the landing (tide room west, wind room east, stone room between, a little up the first rise).
+    static let sluiceWalk: [SIMD3<Float>] = [landing, sluices[0], sluices[2], sluices[1], landing]
+
+    static let pads: [Layout.Pad] = [
+        Layout.Pad(center: lampEnd, radius: 9), Layout.Pad(center: openEnd, radius: 9), Layout.Pad(center: landing, radius: 12),
+        Layout.Pad(center: stacks, radius: 16), Layout.Pad(center: greatLedger, radius: 22), Layout.Pad(center: upperLamp, radius: 9),
+        Layout.Pad(center: dome, radius: 18), Layout.Pad(center: prismChamber, radius: 12),
+    ] + sluices.map { Layout.Pad(center: $0, radius: sluiceFlat, blend: sluiceBlend) }
 }

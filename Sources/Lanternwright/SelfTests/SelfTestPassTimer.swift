@@ -900,3 +900,139 @@ extension SelfTestRunner {
         check(report.count == 9 && worstAll < 0.003, "pagesseated: every page's sheet rests on what is drawn under it, none buried (deepest sampled point \(String(format: "%.1f", worstAll * 1000)) mm below the highest drawn surface; \(report.joined(separator: ", ")))")
     }
 }
+
+extension SelfTestRunner {
+    /// S04.1: the Tide Archive's world: it builds as its own scene; every landmark stands on dry ground at its pad's height; the terraces rise from the quays to the prism chamber in order; the whole route (both quays to
+    /// the prism chamber, past the sluices and down into the gallery) can be walked (no slope over half the walking limit's rise, no step); and the gallery is a court sunk into the second terrace.
+    func runArchiveWorld() {
+        guard name == "all" || name == "archiveworld" else { return }
+        guard let device = MTLCreateSystemDefaultDevice() else { check(false, "tidearchive: no Metal device"); return }
+        let sc = Scene.make(.tideArchive, device: device)
+        guard let t = sc.terrain else { check(false, "tidearchive: no terrain"); return }
+        check(sc.kind == .tideArchive && WorldKind.allCases.contains(.tideArchive) && WorldParams.make(.tideArchive, options: LaunchOptions()).name == "The Tide Archive", "tidearchive: the world is its own scene with its own parameters")
+        let marks: [(String, SIMD3<Float>)] = [("lamp end", ArchiveLayout.lampEnd), ("open end", ArchiveLayout.openEnd), ("landing", ArchiveLayout.landing), ("stacks", ArchiveLayout.stacks),
+                                                ("gallery", ArchiveLayout.greatLedger), ("upper lamp", ArchiveLayout.upperLamp), ("dome", ArchiveLayout.dome), ("prism chamber", ArchiveLayout.prismChamber)] + ArchiveLayout.sluices.enumerated().map { ("sluice \($0.offset)", $0.element) }
+        let bad = marks.filter { m in abs(t.sampleHeight(x: m.1.x, z: m.1.z) - m.1.y) > 0.25 || (!m.0.hasPrefix("sluice") && t.sampleHeight(x: m.1.x, z: m.1.z) < 0.3) }.map(\.0)
+        check(bad.isEmpty, "tidearchive: every landmark stands at its pad's height, on dry ground (the sluice rooms are sunk below the sea on purpose; off: \(bad))")
+        let order = [ArchiveLayout.lampEnd, ArchiveLayout.landing, ArchiveLayout.stacks, ArchiveLayout.upperLamp, ArchiveLayout.dome, ArchiveLayout.prismChamber].map(\.y)
+        check(zip(order, order.dropFirst()).allSatisfy { $1 >= $0 - 0.05 } && order[order.count - 1] - order[0] > 15 && Set(order.map { Int($0 / 3) }).count >= 4, "tidearchive: the terraces climb from the quays to the prism chamber (never down, more than 15 m in all, at least four levels: \(order.map { String(format: "%.1f", $0) }) m)")
+        // The route: every metre of both legs, the ground's slope between samples.
+        var worst: Float = 0, worstAt = SIMD2<Float>(0, 0), steps = 0
+        for leg in [ArchiveLayout.path, ArchiveLayout.eastApproach] {
+            for k in 0..<(leg.count - 1) {
+                let a = SIMD2(leg[k].x, leg[k].z), b = SIMD2(leg[k + 1].x, leg[k + 1].z), len = simd_length(b - a)
+                var prev = t.sampleHeight(x: a.x, z: a.y)
+                for i in 1...Int(len) {
+                    let p = a + (b - a) * (Float(i) / len)
+                    let h = t.sampleHeight(x: p.x, z: p.y)
+                    let slope = abs(h - prev); steps += 1
+                    if slope > worst { worst = slope; worstAt = p }
+                    prev = h
+                }
+            }
+        }
+        check(steps > 400 && worst < 0.5 * Player.maxSlope, "tidearchive: the whole route can be walked: \(steps) one-metre steps, the steepest \(String(format: "%.2f", worst)) at (\(Int(worstAt.x)), \(Int(worstAt.y))) (limit \(Player.maxSlope), half of it allowed)")
+        // The gallery is sunk into the second terrace: its floor well below the terrace round it.
+        let g = ArchiveTerrain.gallery, rim = t.sampleHeight(x: g.centre.x - g.half.x - 8, z: g.centre.y)
+        let floor = t.sampleHeight(x: g.centre.x, z: g.centre.y)
+        check(rim - floor > 3 && floor > 3 && floor < 9, "tidearchive: the Great Ledger gallery is a court sunk \(String(format: "%.1f", rim - floor)) m into the terrace (floor \(String(format: "%.1f", floor)) m, dry until its water is added)")
+        // The ground round the island falls into the sea: nothing walkable beyond the shore.
+        check(t.sampleHeight(x: 0, z: 260) < -1 && t.sampleHeight(x: 0, z: -260) < -1, "tidearchive: the island ends in the sea on its south and north sides")
+    }
+}
+
+extension SelfTestRunner {
+    /// S04.2: the tide. A pure function of the clock (period 90 s, -1.0 to +1.4 m, low at t = 0); the sluice rooms are reachable only while the water in them is wadeable, each for a different share of the cycle
+    /// (the tide room most of it, the wind room about half, the stone room only near low tide); the region API reports it; the water pass lifts the sea to it (frames: see TASKS).
+    func runTide() {
+        guard name == "all" || name == "tide" else { return }
+        check(abs(Tide.metres(0) + 1.0) < 1e-4 && abs(Tide.metres(45) - 1.4) < 1e-4 && abs(Tide.metres(90) + 1.0) < 1e-4 && abs(Tide.metres(30) - Tide.metres(30 + 90)) < 1e-4,
+              "tide: low (-1.0 m) at 0 s, high (+1.4 m) at 45 s, the same again every 90 s (\(String(format: "%.2f", Tide.metres(22.5))) m at a quarter)")
+        let shares = ArchiveLayout.sluiceFloors.map { Tide.wadeableShare(ground: $0) }
+        check(shares[0] > 0.7 && shares[1] > 0.4 && shares[1] < 0.7 && shares[2] > 0.2 && shares[2] < 0.5 && shares[0] > shares[1] && shares[1] > shares[2],
+              "tide: the sluice rooms can be waded for \(shares.map { String(format: "%.0f", $0 * 100) }) % of the cycle (tide room > 70, wind room 40-70, stone room 20-50: the lower the floor the shorter)")
+        // The right levels: at low tide all three; at high tide only the tide room is not under a deep sea... (it is 0.9 m deep then: none).
+        let low = ArchiveLayout.sluiceFloors.map { Tide.isWadeable(ground: $0, time: 0) }, high = ArchiveLayout.sluiceFloors.map { Tide.isWadeable(ground: $0, time: 45) }
+        check(low == [true, true, true] && high == [false, false, false], "tide: at low tide every sluice room can be reached, at high tide none can (\(low) / \(high))")
+        let wait = ArchiveLayout.sluiceFloors.map { Tide.nextWadeable(ground: $0, after: 45) ?? -1 }
+        check(wait.allSatisfy { $0 > 0 && $0 < 90 } && wait[2] > wait[0], "tide: after high tide the rooms open again in turn: the stone room last (waits \(wait.map { String(format: "%.0f", $0) }) s)")
+        guard let device = MTLCreateSystemDefaultDevice() else { return }
+        let sc = Scene.make(.tideArchive, device: device)
+        let region = ReachableRegion.make(.tideArchive, scene: sc)
+        let p = ArchiveLayout.sluices[2]
+        check(region.reachableNow(p, time: 0, kind: .tideArchive) && !region.reachableNow(p, time: 45, kind: .tideArchive) && region.reachableNow(ArchiveLayout.landing, time: 45, kind: .tideArchive),
+              "tide: the reachable-region API reports the tide: the stone room is reachable at low tide and not at high tide, the landing always")
+        check(Renderer.tideLevelFor(.tideArchive, clock: 45) > 1.3 && Renderer.tideLevelFor(.varrow, clock: 45) == 0 && Renderer.tideLevelFor(.glassWood, clock: 45) == 0,
+              "tide: the renderer lifts the sea in the Archive only (varrow and glass wood stay at 0)")
+    }
+}
+
+extension SelfTestRunner {
+    /// S04.3: the Archive's things are there and stand on the ground: the stacks, the dome, the chamber, the prism (glass) with one beam in and three out (light: no shadow), three sluices (frame, gate, wheel each, the gate
+    /// rising over its slots and the wheel turning), the lanterns on footings; every placed piece touches the ground under it (nothing hovers, nothing is buried more than a footing's depth), each landmark's
+    /// building sits at its pad's height, and the solid ones block the player.
+    func runArchiveProps() {
+        guard name == "all" || name == "archiveprops" else { return }
+        guard let device = MTLCreateSystemDefaultDevice() else { check(false, "archiveprops: no Metal device"); return }
+        let sc = Scene.make(.tideArchive, device: device)
+        func item(_ n: String) -> DrawItem? { sc.items.first { $0.name == n } }
+        let names = ["ta_stacks", "ta_dome", "ta_chamber", ArchiveProps.prismName, ArchiveProps.beamInName, "ta_lanterns", "ta_lantern_cores"] + (0..<3).flatMap { [ArchiveProps.sluiceName($0), ArchiveProps.gateName($0), ArchiveProps.wheelName($0), ArchiveProps.beamOutName($0)] }
+        let missing = names.filter { item($0) == nil }
+        check(missing.isEmpty && item(ArchiveProps.prismName)?.refractive == true, "archiveprops: the stacks, dome, chamber, prism (glass), beams, three sluices and the lanterns exist (missing: \(missing))")
+        check(([ArchiveProps.beamInName, "ta_lantern_cores"] + (0..<3).map { ArchiveProps.beamOutName($0) }).allSatisfy { item($0)?.castsShadow == false }, "archiveprops: the beams and the lamp cores are light: they cast no shadow")
+        // Contact: every recorded piece.
+        var up: [String: Float] = [:], down: [String: Float] = [:], counts: [String: Int] = [:]
+        for p in sc.placed { let g = Placement.contact(p, terrain: sc.terrain); counts[p.kind, default: 0] += 1; up[p.kind] = max(up[p.kind] ?? -9, g.touching); down[p.kind] = min(down[p.kind] ?? 9, g.touching) }
+        let kinds = ["ta_shelf", "ta_dome", "ta_lantern"]
+        check(kinds.allSatisfy { (counts[$0] ?? 0) > 0 } && (counts["ta_shelf"] ?? 0) == ArchiveProps.stackUnits * ArchiveProps.stackRows && (counts["ta_lantern"] ?? 0) >= 12,
+              "archiveprops: the placed pieces are recorded (\(counts.sorted { $0.key < $1.key }.map { "\($0.key) \($0.value)" }))")
+        check(kinds.allSatisfy { (up[$0] ?? 0) <= 0.03 && (down[$0] ?? 0) >= ($0 == "ta_dome" ? -0.9 : -0.6) }, "archiveprops: nothing hovers and nothing is buried deeper than its footing (largest gap \(kinds.map { String(format: "%.3f", up[$0] ?? 0) }) m, deepest \(kinds.map { String(format: "%.2f", down[$0] ?? 0) }) m for shelf / dome / lantern)")
+        // The chamber and the sluice rooms sit on their pads' flat ground.
+        let t = sc.terrain!
+        let c = ArchiveLayout.prismChamber, flat = (0..<8).map { k -> Float in let a = Float(k) / 8 * 2 * .pi; return t.sampleHeight(x: c.x + cos(a) * 6, z: c.z + sin(a) * 6) }
+        check((flat.max()! - flat.min()!) < 0.6 && abs(t.sampleHeight(x: c.x, z: c.z) - c.y) < 0.25 && ArchiveLayout.sluices.allSatisfy { abs(t.sampleHeight(x: $0.x, z: $0.z) - $0.y) < 0.25 },
+              "archiveprops: the chamber's ring (\(String(format: "%.2f", flat.max()! - flat.min()!)) m of relief) and the sluice rooms sit on flat pads")
+        // The sluice gate rises over its slots, the wheel turns, and nothing else moves.
+        let g0 = ArchiveProps.sluiceGateModel(1, open: 0), g1 = ArchiveProps.sluiceGateModel(1, open: 1), g2 = ArchiveProps.sluiceGateModel(1, open: 2)
+        let w0 = ArchiveProps.sluiceWheelModel(1, turns: 0), w1 = ArchiveProps.sluiceWheelModel(1, turns: 0.25)
+        check(abs((g1.columns.3.y - g0.columns.3.y) - ArchiveProps.gateLift) < 1e-4 && g2.columns.3.y == g1.columns.3.y && abs(w0.columns.0.x - 1) < 1e-4 && abs(w1.columns.0.x) < 1e-4 && abs(abs(w1.columns.0.y) - 1) < 1e-4,
+              "archiveprops: a gate lifts \(ArchiveProps.gateLift) m when opened (and no further) and the wheel turns about its axis")
+        // The solid buildings block the player.
+        func blocked(_ p: SIMD2<Float>) -> Bool { sc.colliders.cylinders.contains { simd_length(p - $0.center) < $0.radius + Player.radius } }
+        let pc = ArchiveLayout.prismChamber, jx = (ArchiveProps.chamberRadius - 0.45) * cos(75 * Float.pi / 180), jz = (ArchiveProps.chamberRadius - 0.45) * sin(75 * Float.pi / 180)
+        check(blocked(SIMD2(ArchiveLayout.dome.x, ArchiveLayout.dome.z)) && blocked(SIMD2(pc.x + 6.3, pc.z)) && blocked(SIMD2(pc.x + jx, pc.z + jz)) && blocked(SIMD2(pc.x - jx, pc.z + jz))
+              && !blocked(SIMD2(pc.x, pc.z + jz)) && !blocked(SIMD2(pc.x, pc.z + 2.5)) && !blocked(SIMD2(pc.x + 0.6, pc.z + jz)) && blocked(SIMD2(ArchiveLayout.sluices[0].x + 3.2, ArchiveLayout.sluices[0].z)) && !blocked(SIMD2(ArchiveLayout.sluices[0].x, ArchiveLayout.sluices[0].z + 3)),
+              "archiveprops: the dome, the chamber's wall and BOTH of its doorway's jambs and the sluice walls block the player; the doorway's span (1.5 m clear between the jambs' colliders) and the sluice gap are open")
+    }
+}
+
+extension SelfTestRunner {
+    /// S04.2 (review): the tide must reach the WATER on screen, not only the arithmetic: the frame of a sluice room at low tide (a dry floor) differs a great deal from the same view at high tide (a full room), and
+    /// the view at the same level 90 s later does not; the frame uniform and the water pass's level agree with `Tide.level`; and the player wades relative to the sea.
+    func runTideOnScreen() {
+        guard name == "all" || name == "tide" else { return }
+        let renderer = Renderer(device: device, options: LaunchOptions.parse(["lanternwright"]))
+        renderer.world = .tideArchive; renderer.taaEnabled = false
+        let w = 400, h = 225
+        let desc = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: Renderer.outputFormat, width: w, height: h, mipmapped: false)
+        desc.usage = [.renderTarget, .shaderRead]; desc.storageMode = .shared
+        let target = device.makeTexture(descriptor: desc)!
+        let cam = Screenshot.viewCamera("ta-sluice", renderer: renderer)
+        func frame(_ t: Float) -> [Float] {
+            renderer.fixedTime = t
+            for _ in 0..<2 { let cb = renderer.queue.makeCommandBuffer()!; renderer.encode(commandBuffer: cb, target: target, camera: cam); cb.commit(); cb.waitUntilCompleted() }
+            return Shimmer.luma(target)
+        }
+        let low = frame(0), high = frame(45), low2 = frame(90)
+        func diff(_ a: [Float], _ b: [Float]) -> Float { zip(a, b).reduce(0) { $0 + abs($1.0 - $1.1) } / Float(a.count) }
+        let dHigh = diff(low, high), dSame = diff(low, low2)
+        check(dHigh > 4 && dHigh > 5 * dSame, "tide on screen: a sluice room at high tide looks nothing like the same room at low tide (mean luma difference \(String(format: "%.1f", dHigh))), and looks like it again a tide later (\(String(format: "%.2f", dSame)))")
+        _ = frame(45)                                                                   // the frame uniform is written while a frame is encoded
+        check(abs(renderer.tideLevel - Tide.metres(45)) < 1e-4 && abs(renderer.frame.worldB.y - Tide.metres(45)) < 1e-4 && renderer.frame.worldB.z == 1, "tide on screen: the water pass's level and the frame uniform are the tide (\(renderer.tideLevel), \(renderer.frame.worldB.y))")
+        defer { Player.sea = 0 }
+        Player.sea = 0
+        let dry = Player.wading(ground: -0.9)
+        Player.sea = 1.4
+        check(Player.wading(ground: -0.9) < dry + 1e-6 && Player.wading(ground: 1.0) < 1 && Player.wading(ground: 2.5) == 1, "tide on screen: wading follows the sea (ground 1.0 m at high tide slows the player: \(String(format: "%.2f", Player.wading(ground: 1.0))), ground 2.5 m does not)")
+    }
+}

@@ -28,6 +28,9 @@ final class Renderer {
     /// The game's own clock (F02 A3): the wind, the grass, the trees and the audio all read the same one, so a gust you see is the gust you hear. Nil in tools that have no game.
     var worldTime: Float?
     var clock: Float { fixedTime ?? worldTime ?? Float(Date().timeIntervalSince(startTime)) }
+    /// S04.2: the sea's height in the current world (the Tide Archive's tide; 0 elsewhere).
+    var tideLevel: Float { Renderer.tideLevelFor(world, clock: clock) }
+    static func tideLevelFor(_ world: WorldKind, clock: Float) -> Float { world == .tideArchive ? Tide.metres(clock) : 0 }
     /// The clock the game hands the renderer for the wind (the game's own, the same one the audio's wind reads).
     static func windClock(game: Game) -> Float { game.time }
     /// Home-island atmosphere driven by the game: 1 = full mist, lower after the first trip through the lens; beam 0...1 = lit lighthouse sweep.

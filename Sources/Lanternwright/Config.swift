@@ -71,7 +71,7 @@ struct LaunchOptions {
 
     Usage: Lanternwright [options]
       --screenshot <path.png>      Render headless to a PNG and exit (no window)
-      --view <name>                Viewpoint: dock overview summit shore islet; gw-arrival gw-overview gw-court gw-court-high gw-chimes gw-altar
+      --view <name>                Viewpoint: dock overview summit shore islet; ta-overview ta-quay ta-terraces ta-stacks ta-gallery ta-sluice ta-dome ta-chamber ta-prism (the Tide Archive); gw-arrival gw-overview gw-court gw-court-high gw-chimes gw-altar
       --camera x,y,z,yaw,pitch     Explicit camera (radians for yaw/pitch)
       --size WxH                   Output size for --screenshot (default 1600x900)
       --auto-exposure              Let screenshots adapt their exposure to the scene (default: fixed)
@@ -149,7 +149,7 @@ struct LaunchOptions {
             case "--state": o.state = next()
             case "--world":
                 let w = next()
-                guard let k = (w == "glass" ? WorldKind.glassWood : WorldKind(rawValue: w)) else { fail("--world expects varrow or glass") }
+                guard let k = (w == "glass" ? WorldKind.glassWood : (w == "archive" ? WorldKind.tideArchive : WorldKind(rawValue: w))) else { fail("--world expects varrow, glass or archive") }
                 o.world = k
             case "--hide": Scene.hideNamed = next()
             case "--no-grass": Renderer.skipGrass = true
@@ -285,6 +285,12 @@ enum Viewpoints {
         let eye = close ? SIMD3(cam.x, scene.groundHeight(x: cam.x, z: cam.y) + 0.75, cam.y) : SIMD3(cam.x, scene.groundHeight(x: cam.x, z: cam.y) + 1.7, cam.y)
         let v = pos - eye
         return Camera(position: eye, yaw: atan2(v.x, -v.z), pitch: asin(v.y / simd_length(v)))
+    }
+
+    /// A camera at `eye` aimed at `target`.
+    static func lookFrom(_ eye: SIMD3<Float>, at target: SIMD3<Float>) -> Camera {
+        let d = target - eye
+        return Camera(position: eye, yaw: atan2(d.x, -d.z), pitch: asin(d.y / simd_length(d)))
     }
 
     /// The Glass Wood's pool (F02 G3, note #29): `gw-pool-user` is the user's own spot and view (4.7, -3.4, looking down at the waterline), `gw-pool` stands on the bank
@@ -444,6 +450,16 @@ enum Viewpoints {
         case "summit":   return Camera(position: SIMD3(-30, 70, -32), yaw: .pi, pitch: -0.05)
         case "shore":    return Camera(position: SIMD3(150, 3.2, 172), yaw: -1.95, pitch: 0.03)
         case "islet":    return Camera(position: SIMD3(-35, 3.5, -222), yaw: 0.0, pitch: 0.0)
+        // S04.1: the Tide Archive's six vantage points (and an overview from the sea). `lookFrom(eye, at:)` aims at a point.
+        case "ta-overview": return Self.lookFrom(SIMD3(60, 42, 300), at: SIMD3(0, 6, -20))
+        case "ta-quay":     return Self.lookFrom(ArchiveLayout.lampEnd + SIMD3(5, Player.eyeHeight, 8), at: ArchiveLayout.landing + SIMD3(0, 2.5, 0))
+        case "ta-terraces": return Self.lookFrom(ArchiveLayout.landing + SIMD3(26, 3.2, 26), at: ArchiveLayout.stacks + SIMD3(0, 4, 0))
+        case "ta-stacks":   return Self.lookFrom(ArchiveLayout.stacks + SIMD3(-3.0, 1.7, 7.5), at: ArchiveLayout.stacks + SIMD3(-9.5, 1.2, -3.0))
+        case "ta-gallery":  return Self.lookFrom(ArchiveLayout.greatLedger + SIMD3(-27, 17, 9), at: ArchiveLayout.greatLedger + SIMD3(0, -1, 0))
+        case "ta-sluice":   return Self.lookFrom(ArchiveLayout.sluices[2] + SIMD3(0, 6.0, 16), at: ArchiveLayout.sluices[2] + SIMD3(0, 0.5, 0))
+        case "ta-dome":     return Self.lookFrom(ArchiveLayout.upperLamp + SIMD3(30, 3.0, 24), at: ArchiveLayout.dome + SIMD3(0, 5, 0))
+        case "ta-prism":    return Self.lookFrom(ArchiveProps.prismPosition + SIMD3(1.0, 0.2, 5.4), at: ArchiveProps.prismPosition + SIMD3(0.3, 0, 0))
+        case "ta-chamber":  return Self.lookFrom(ArchiveLayout.prismChamber + SIMD3(0, Player.eyeHeight, 16), at: ArchiveLayout.prismChamber + SIMD3(0, 2.0, 0))
         case "gw-arrival":  return Camera(position: GlassLayout.arrival + SIMD3(0, Player.eyeHeight, 4), yaw: 0, pitch: 0.06)
         case "gw-overview": return Camera(position: SIMD3(0, 70, 330), yaw: 0, pitch: -0.2)
         case "gw-court":    return Camera(position: GlassLayout.mirrorCourt + SIMD3(26, 3.0, 30), yaw: -0.8, pitch: -0.05)

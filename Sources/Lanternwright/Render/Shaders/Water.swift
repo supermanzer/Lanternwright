@@ -20,11 +20,14 @@ constant float4 WAVES[4] = {
     float4(-0.70, 17.0, 0.06, 0.6), float4(2.20, 9.0, 0.03, 0.5)
 };
 
+// S04.2: the sea's height is `frame.worldB.y` (the Tide Archive's tide; 0 elsewhere): the ground under the water is compared with the sea RELATIVE to it, so every height below is relative to the sea.
+#define TSR(xz) (terrain_sample(terrainTex, (xz)) - float4(tide, 0.0, 0.0, 0.0))
 vertex WaterOut water_vertex(uint vid [[vertex_id]],
                              device const Vertex* verts [[buffer(0)]],
                              constant FrameUniforms& frame [[buffer(1)]],
                              constant ObjectUniforms& obj [[buffer(2)]],
                              texture2d<float> terrainTex [[texture(5)]]) {
+    float tide = frame.worldB.y;
     float4 w0 = obj.model * float4(verts[vid].position.xyz, 1.0);
     float2 xz = w0.xz;
     float t = frame.cameraPos.w;
@@ -32,14 +35,14 @@ vertex WaterOut water_vertex(uint vid [[vertex_id]],
     float strength = frame.misc.y * (1.0 - smoothstep(250.0, 1800.0, dist));   // flatten far waves (aliasing)
 
     // F03 G2 (World/Shore.swift): the ground under this vertex decides how the waves reach it. Depth h = how far the ground is under the sea (negative on land), s = its slope.
-    float4 gT = terrain_sample(terrainTex, xz);
-    float2 gGrad = float2(terrain_sample(terrainTex, xz + float2(2.0, 0.0)).x - terrain_sample(terrainTex, xz - float2(2.0, 0.0)).x,
-                          terrain_sample(terrainTex, xz + float2(0.0, 2.0)).x - terrain_sample(terrainTex, xz - float2(0.0, 2.0)).x) / 4.0;
+    float4 gT = TSR(xz);
+    float2 gGrad = float2(TSR(xz + float2(2.0, 0.0)).x - TSR(xz - float2(2.0, 0.0)).x,
+                          TSR(xz + float2(0.0, 2.0)).x - TSR(xz - float2(0.0, 2.0)).x) / 4.0;
     float shDepth = -gT.x, shSlope = length(gGrad);
     // The lee of the island (Shore.shadow: 20 steps of 24 m): land or shoal upwind of this point means the swell had to wrap round it (later, and smaller). Only near the island (the march is 480 m).
     float shShadow = 0.0;
     if (shDepth < 70.0) {
-        for (int i = 1; i <= 20; i++) shShadow += 24.0 * smoothstep(-6.0, -1.0, terrain_sample(terrainTex, xz - SHORE_WAVE_DIR * 24.0 * float(i)).x);
+        for (int i = 1; i <= 20; i++) shShadow += 24.0 * smoothstep(-6.0, -1.0, TSR(xz - SHORE_WAVE_DIR * 24.0 * float(i)).x);
         shShadow *= 1.0 - smoothstep(30.0, 70.0, shDepth);          // fades out with depth: a hard switch here drew a seam across the sea
     }
     float shAmp = shore_amp(shDepth) * shore_lee_amp(shShadow);
@@ -69,7 +72,7 @@ vertex WaterOut water_vertex(uint vid [[vertex_id]],
     o.seaY = wp.y;
     // F04 W1: the film's true height and edge are worked out PER PIXEL (water_fragment); the mesh only has to lie above the ground where there may be film, so near the shore it follows the
     // ground 35 cm above it (a vertex-level film cut the beach in the mesh's straight facets).
-    if (frame.worldB.x < 0.5) { float own = shore_swash_owns(gT.x); wp.y = wp.y * (1.0 - own) + (gT.x + 0.35) * own; }
+    if (frame.worldB.x < 0.5) { float own = shore_swash_owns(gT.x) * mix(1.0, 1.0 - smoothstep(0.3, 0.6, shSlope), frame.worldB.z); wp.y = wp.y * (1.0 - own) + (gT.x + tide + 0.35) * own; }
     o.worldPos = wp;
     o.gNormal = normalize(nrm);
     o.jac = (1.0 + jxx) * (1.0 + jzz) - jxz * jxz;
@@ -100,28 +103,29 @@ fragment float4 water_fragment(WaterOut in [[stage_in]],
                                texture2d<float> distTex [[texture(3)]],
                                texture2d<float> terrainTex [[texture(5)]]) {
     float t = frame.cameraPos.w;
+    float tide = frame.worldB.y;
     float3 P = in.worldPos;
     // F04 W1 (#52): the waterline is decided PER PIXEL. The sea is a coarse mesh (cells of 1 to 2 m near the shore) and its swash film sat at ground + a few cm only at its vertices, so between
     // them the film cut the real ground in straight facets (flat brown polygons, a sand bar clipped in steps). Here the water's height at the pixel is compared with the ground under THIS
     // pixel (the same height field the vertices read); the film fades to nothing over its last 10 cm (the pipeline blends on this alpha), so the contact line is the beach's own contour.
     bool calmPool = frame.worldB.x > 0.5;
-    float groundH = terrain_sample(terrainTex, P.xz).x;
+    float groundH = TSR(P.xz).x;
     float filmDepth = 1.0e3;                                           // vertical depth of water over the ground at this pixel (negative on land)
     if (!calmPool) {
-        float filmY = in.seaY;
+        float filmY = in.seaY - tide;
         if (groundH > -1.2) {
             // F05 W2 (#60): the swash's phase follows the beach's SLOPE (shallower beaches delay it by seconds), so the slope must be the beach's, not the pixel's: measured over +-24 m, neighbouring
             // pixels share a phase and the waterline is one front that advances and retreats together. (Over +-2 m a sandbar's flanks had the phase of a steep beach and the flat behind it
             // had a 12 s later one: a dry tongue stood inside the flooded beach.)
-            float2 gg = float2(terrain_sample(terrainTex, P.xz + float2(SHORE_SLOPE_BASE, 0.0)).x - terrain_sample(terrainTex, P.xz - float2(SHORE_SLOPE_BASE, 0.0)).x,
-                               terrain_sample(terrainTex, P.xz + float2(0.0, SHORE_SLOPE_BASE)).x - terrain_sample(terrainTex, P.xz - float2(0.0, SHORE_SLOPE_BASE)).x) / (2.0 * SHORE_SLOPE_BASE);
+            float2 gg = float2(TSR(P.xz + float2(SHORE_SLOPE_BASE, 0.0)).x - TSR(P.xz - float2(SHORE_SLOPE_BASE, 0.0)).x,
+                               TSR(P.xz + float2(0.0, SHORE_SLOPE_BASE)).x - TSR(P.xz - float2(0.0, SHORE_SLOPE_BASE)).x) / (2.0 * SHORE_SLOPE_BASE);
             // F06 W2: coverage is decided against the SMOOTHED beach (`Shore.coverGround`): the mean of this point and a ring of 8 points 10 m round it. The shelf by the dock is almost flat at sea level with +-10 cm
             // undulations, and comparing the front with each bump made dry islands and wet pockets come and go; now the waterline is one contour and the bumps lie under the thin water drawn over them.
             float cr = SHORE_COVER_RADIUS, cd = cr * 0.70710678;
-            float tEff = (groundH + terrain_sample(terrainTex, P.xz + float2(cr, 0.0)).x + terrain_sample(terrainTex, P.xz - float2(cr, 0.0)).x
-                        + terrain_sample(terrainTex, P.xz + float2(0.0, cr)).x + terrain_sample(terrainTex, P.xz - float2(0.0, cr)).x
-                        + terrain_sample(terrainTex, P.xz + float2(cd, cd)).x + terrain_sample(terrainTex, P.xz - float2(cd, cd)).x
-                        + terrain_sample(terrainTex, P.xz + float2(cd, -cd)).x + terrain_sample(terrainTex, P.xz - float2(cd, -cd)).x) / 9.0;
+            float tEff = (groundH + TSR(P.xz + float2(cr, 0.0)).x + TSR(P.xz - float2(cr, 0.0)).x
+                        + TSR(P.xz + float2(0.0, cr)).x + TSR(P.xz - float2(0.0, cr)).x
+                        + TSR(P.xz + float2(cd, cd)).x + TSR(P.xz - float2(cd, cd)).x
+                        + TSR(P.xz + float2(cd, -cd)).x + TSR(P.xz - float2(cd, -cd)).x) / 9.0;
             filmY = shore_sheet(in.seaY, tEff, shore_swash_edge(P.xz, t, length(gg)));
             filmDepth = filmY - tEff;
         } else { filmDepth = filmY - groundH; }

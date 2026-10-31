@@ -23,8 +23,13 @@ struct PadScore {
         [ToneTable.glassHz[0] / 2, ToneTable.glassHz[2], ToneTable.glassHz[3]],            // D3 A4 C5
         [ToneTable.glassHz[2] / 2, ToneTable.glassHz[1], ToneTable.glassHz[2]],            // A3 F#4 A4
     ])
+    /// The Tide Archive's slow chords (S04.1 placeholder until S04.4's own drone): the stones' tones an octave down, so it is the island's voice in a low register.
+    static let tideArchive = PadScore(name: "tideArchive", chords: [
+        [ToneTable.stoneHz[0] / 2, ToneTable.stoneHz[1] / 2, ToneTable.stoneHz[2] / 2],    // D3 A3 D4
+        [ToneTable.stoneHz[0] / 2, ToneTable.stoneHz[2] / 2, ToneTable.stoneHz[1]],        // D3 D4 A4
+    ])
     static func score(for world: WorldKind) -> PadScore {
-        switch world { case .varrow: return .varrow; case .glassWood: return .glassWood }
+        switch world { case .varrow: return .varrow; case .glassWood: return .glassWood; case .tideArchive: return .tideArchive }
     }
 
     @inline(__always) private static func h(_ n: Int) -> Float {

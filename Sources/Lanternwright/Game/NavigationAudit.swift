@@ -21,7 +21,7 @@ enum NavigationAudit {
     }
 
     static func run(device: MTLDevice) -> [Report] {
-        let scenes: [WorldKind: Scene] = [.varrow: Scene.make(.varrow, device: device), .glassWood: Scene.make(.glassWood, device: device)]
+        let scenes: [WorldKind: Scene] = [.varrow: Scene.make(.varrow, device: device), .glassWood: Scene.make(.glassWood, device: device), .tideArchive: Scene.make(.tideArchive, device: device)]
         let game = Game(scenes: scenes)
         return WorldKind.allCases.map { kind in
             if game.world != kind { game.travel(to: kind) }
@@ -104,7 +104,7 @@ enum NavigationAudit {
                     ground = scene.groundHeight(x: s.x, z: s.y)
                     // Standable: not in water deeper than the player may wade, and not on ground steeper than the walking limit.
                     let rise = max(abs(scene.groundHeight(x: s.x + 1, z: s.y) - ground), abs(scene.groundHeight(x: s.x, z: s.y + 1) - ground))
-                    guard ground > Player.minGround, rise <= Player.maxSlope || scene.isOnPlatform(s) else { continue }
+                    guard ground > Player.minGround + Tide.lowestSea(for: scene.kind), rise <= Player.maxSlope || scene.isOnPlatform(s) else { continue }
                 }
                 guard cylinders.allSatisfy({ simd_length(s - $0.center) >= $0.radius + Player.radius || ground >= $0.maxY || ground + Player.eyeHeight <= $0.minY }) else { continue }
                 let eye = SIMD3(s.x, ground + Player.eyeHeight, s.y)

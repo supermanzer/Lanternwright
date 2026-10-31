@@ -44,6 +44,12 @@ struct ReachableRegion {
 
     /// Inside the corridors or their margin: a place the feet can be.
     func contains(_ p: SIMD2<Float>) -> Bool { network.signedDistance(p) <= margin }
+    /// S04.2: reachable NOW in the Tide Archive: inside the region AND, where the sea covers the ground at game time `time`, no deeper than the player can wade (`Tide.wadeDepth`). In the other worlds the sea
+    /// does not move, so this is `contains`. The region itself is the dry-land corridor set; the tide takes places out of it for part of each cycle.
+    func reachableNow(_ p: SIMD3<Float>, time: Float, kind: WorldKind) -> Bool {
+        guard contains(SIMD2(p.x, p.z)) else { return false }
+        return kind != .tideArchive || Tide.isWadeable(ground: p.y, time: time)
+    }
     /// Metres from the region (0 inside it).
     func distance(to p: SIMD2<Float>) -> Float { max(network.signedDistance(p) - margin, 0) }
     /// Metres from the region to a sphere (0 when they touch). Horizontal, so it never overestimates.

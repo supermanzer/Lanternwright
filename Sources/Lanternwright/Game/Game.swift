@@ -582,6 +582,7 @@ final class Game {
                 pose = Game.routeEntry(e); pendingEntry = nil
                 if tideArchive != nil { state.set(e == .ilse ? TideArchivePuzzle.forkFlag : TideArchivePuzzle.lensFlag) }          // each route comes with its own tool
             } else { pose = (GlassLayout.arrival, 0) }
+        case .tideArchive: pose = (ArchiveLayout.lampEnd, 0)                  // S04.1: the lamp end (the route entries of S04.5 choose between the two quays)
         }
         player = Player(position: pose.position, yaw: pose.yaw)
         player.position.y = scene.groundHeight(x: pose.position.x, z: pose.position.z)
@@ -651,6 +652,7 @@ final class Game {
         for p in puzzles { p.updateVisuals(time: time) }
         updateDiscoveries()
         Birds.update(scene, time: time)
+        Player.sea = world == .tideArchive ? Tide.metres(time) : 0           // S04.2: the sea's height where the player wades
         syncPageFolds()                                                       // F07 A-fold: pages 6-8 stand folded until their puzzle opens them
         // The one clue a dropped page is allowed (F03 #43): in a gust its edge lifts a degree or two and settles. Nothing outlines or lights it.
         for n in (world == .varrow ? StoryPages.varrowIDs : StoryPages.glassIDs) where !state.has("page_\(n)") && shownPages.contains(n) {

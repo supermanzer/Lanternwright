@@ -115,7 +115,7 @@ extension Renderer {
         } else {
             frame.moonB = SIMD4(0, 1, 0, 0)
         }
-        frame.worldB = SIMD4(wp.palette, 0, 0, 0)
+        frame.worldB = SIMD4(wp.palette, tideLevel, world == .tideArchive ? 1 : 0, 0)                  // y = the sea's height (S04.2: the Tide Archive's tide; 0 in the other worlds)
         // Sun camera: eye one radius from the centre along the sun direction, box = the bounding sphere.
         let R = Renderer.shadowRadius
         let eye = Renderer.shadowCenter + sun * R
