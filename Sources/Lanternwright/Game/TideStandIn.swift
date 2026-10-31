@@ -11,12 +11,14 @@ enum TideStandIn {
         let x = GlassLayout.arrival.x + dx, z = GlassLayout.arrival.z + dz
         return SIMD3(x, scene.groundHeight(x: x, z: z), z)
     }
+    static func pagePosition(_ n: Int, scene: Scene) -> SIMD3<Float> { spot(2 + 2 * Float(n - 10), -13, scene) + SIMD3(0, 0.3, 0) }
     static func interactables(scene: Scene) -> [Interactable] {
         func box(_ id: String, _ c: SIMD3<Float>, _ prompt: String, enabled: Bool = true) -> Interactable { Interactable(id: id, min: c - SIMD3(0.6, 0.6, 0.6), max: c + SIMD3(0.6, 0.6, 0.6), prompt: prompt, reach: 3.4, enabled: enabled) }
         var list = TideArchivePuzzle.sluiceNames.enumerated().map { k, n in box(n, sluicePosition(k, scene: scene), "Touch the gate") }
         list.append(box(TideArchivePuzzle.ringName, ringPosition(scene: scene), "Turn the ring  \u{2039} \u{203A}", enabled: false))
         list.append(box(TideArchivePuzzle.findForkName, findPosition(false, scene: scene), "Take the fork"))
         list.append(box(TideArchivePuzzle.findLensName, findPosition(true, scene: scene), "Take the lens"))
+        for n in StoryPages.archiveIDs { list.append(box("page_\(n)", pagePosition(n, scene: scene), "Read the page")) }
         return list
     }
 }

@@ -37,3 +37,43 @@ enum StoryPages {
     static let glassIDs = [5, 6, 7, 8]
     static func ids(by author: PageAuthor) -> [Int] { all.filter { $0.author == author }.map(\.id) }
 }
+
+/// S04.7: the Tide Archive's six pages (10 to 15), each in the voice of the sibling whose route the player took (S02 section 3, lever 2); pages 11, 13 and 15 also carry the other sibling's trace, which the
+/// narrator quotes and reads. They are NOT in `StoryPages.all` (that is the nine pages the gate counts: the way on from the Archive is the solved puzzle only, never a count of pages). The texts are
+/// `docs/plans/S04-page-drafts.md`, applied as data and pinned by SHA-256 in `SelfTestStory`; the user has twice reacted to wording, so an edit is a text change plus a new pin.
+struct RoutePage: Equatable {
+    let id: Int
+    let ilse: String
+    let oren: String
+    let location: String
+    func text(route: PageAuthor) -> String { route == .oren ? oren : ilse }
+}
+
+extension StoryPages {
+    static let archive: [RoutePage] = [
+        RoutePage(id: 10, ilse: "The tide comes into the galleries and goes out again in about the time it takes me to read a shelf. The upper ledgers are dry. Someone built this place to be flooded and to keep its books anyway. I read the spines in the order the water leaves them.",
+                  oren: "Water in the galleries, rising while I stand here, and the ledgers on the high shelves not even damp. Whoever built this expected the sea and made room for it. I look for where the lamplight lies on the water and I walk toward it.",
+                  location: "tidearchive.arrival"),
+        RoutePage(id: 11, ilse: "The first line of the charter, in a hand I know from the stone plates at home: a Lanternwright keeps a light so that what is lost between places can find its way back. Not a title. A duty with a name. On the lintel, in chalk: \"Come on, I. You are too slow.\" Oren, a little ahead, as always. He writes as if I could simply come. I have kept a lamp for nine winters, and I do not know whether that chalk is a hand held out or a door left open behind him.",
+                  oren: "The first line of the charter: a Lanternwright keeps a light so that what is lost between places can find its way back. Not a lamp. A light, and for the ones who are lost, wherever that is. On the shelf beneath it, a rule-plate in Ilse's careful hand: \"Hold your tone until the lamp answers.\" She has made a wall out of a sentence that was meant to be a road.",
+                  location: "tidearchive.lectern"),
+        RoutePage(id: 12, ilse: "The Roll of Keepers: every name, every lantern, every pocket held. Maren's is here in the old keeper's hand, and after it the line that should say when she came home. It says nothing. I put my thumb on the blank and the page is cool, as if the ink had only just been taken away. I write her name again below, in mine. Someone should.",
+                  oren: "The Roll of Keepers is a ledger of everything held: names, lanterns, pockets. Maren's entry runs out into a blank. Two lines lower, in another ink: \"Oren. Through the lens first. Lost.\" Lost. I had wondered what the word looked like written down. It is tidier than I expected, and it is not in my hand.",
+                  location: "tidearchive.roll"),
+        RoutePage(id: 13, ilse: "The sluices answer to a tone and to the water together. Tide first, because everything begins at the water. Then wind. Then stone. But the water has to stand at the height of the tone, or the gate hears nothing and goes on holding. On the prism, a chalk arrow pointing at a gate I would not have tried. He thinks light can go anywhere. I think it has to be asked.",
+                  oren: "In the chamber at the top the prism takes my beam and gives it back as three: tide, wind, stone, each colour on its own gate. Turn the beam and the colours move; the water decides which gate is low enough to feel them. In the brass beside the prism, a ring pressed in the metal, the shape of Ilse's tuning fork. She would have held the tone until the gate gave. I turn the light.",
+                  location: "tidearchive.prism"),
+        RoutePage(id: 14, ilse: "The map is on the rim of the dome, in brass pins on slate. Varrow, then a line, then pins I do not know, then a line, a long chain of them, and the last pin has no name. The lighthouse is the first link. The lamp was never for ships. It is the place the chain is held from, and every keeper since has held it by answering.",
+                  oren: "On the rim of the dome, in brass pins on slate: a chain. Varrow is the first link, and the lens at the top of our lighthouse is the hook it hangs from. Pins beyond, further than I can read, and a last pin with no name. So that is what the light was for. Not ships. A road laid out in lamps, with someone at each end of it.",
+                  location: "tidearchive.dome"),
+        RoutePage(id: 15, ilse: "The gallery drains. The Great Ledger lies open at Maren's last entry and the lower half of the page is gone, worn away to a ragged edge. I can read the date. I can read \"to the\", and nothing after it. Under it, in chalk: \"Come on, I,\" and a ring drawn round the I. I do not rub it out. I do not know yet what it asks.",
+                  oren: "The gallery drains and the Great Ledger lies open at Maren's last entry. The lower half is worn away. I can read the date. I can read \"to the\", and nothing after it. At the stand beside it a lamp is burning, left lit for me, a little ahead of where I stand. She does not follow. She goes before me and lights the way I would have gone anyway.",
+                  location: "tidearchive.ledger"),
+    ]
+    static let archiveIDs = archive.map(\.id)
+    static func archivePage(_ id: Int) -> RoutePage? { archive.first { $0.id == id } }
+    /// The text of a page in the journal of a player on `route` (the nine pages are the same on both routes).
+    static func text(_ id: Int, route: PageAuthor) -> String? { page(id)?.text ?? archivePage(id)?.text(route: route) }
+    /// Who wrote it: the nine have their own authors; an Archive page is in the voice of the route's sibling.
+    static func author(_ id: Int, route: PageAuthor) -> PageAuthor? { page(id)?.author ?? (archivePage(id) != nil ? (route == .oren ? .oren : .ilse) : nil) }
+}

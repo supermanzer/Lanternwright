@@ -227,7 +227,7 @@ final class OverlayView: NSView {
             let page = pages[min(max(pageIndex, 0), pages.count - 1)]
             text(journalTab.heading, font: serif(15), color: faded, in: NSRect(x: p.minX + 48, y: p.minY + 46, width: p.width - 96, height: 22), align: .center)
             text("page \(toRoman(page.number))", font: .systemFont(ofSize: 12, weight: .medium), color: faded, in: NSRect(x: p.minX + 48, y: p.minY + 72, width: p.width - 96, height: 18), align: .center)
-            text(page.text, font: serif(24), color: ink, in: NSRect(x: p.minX + 56, y: p.minY + 110, width: p.width - 112, height: p.height - 210), spacing: 9)
+            text(page.text, font: serif(page.text.count > 400 ? 19 : (page.text.count > 330 ? 21 : 24)), color: ink, in: NSRect(x: p.minX + 56, y: p.minY + 110, width: p.width - 112, height: p.height - 210), spacing: 9)       // S04.7: the longer Archive pages are set a little smaller so they fit
             // Page dots + arrows.
             let dotsY = p.maxY - 50
             let totalW = CGFloat(pages.count) * 16
@@ -610,8 +610,8 @@ final class OverlayView: NSView {
     }
 
     private func toRoman(_ n: Int) -> String { OverlayView.roman(n) }
-    /// The page heading's numeral (pages 1 to 9; anything else clamps to the ends).
-    nonisolated static func roman(_ n: Int) -> String { ["", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX"][min(max(n, 0), 9)] }
+    /// The page heading's numeral (pages 1 to 15 now, S04.7; anything else clamps to the ends).
+    nonisolated static func roman(_ n: Int) -> String { ["", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII", "XIII", "XIV", "XV"][min(max(n, 0), 15)] }
 
     // MARK: Headless snapshot
 
@@ -646,6 +646,8 @@ enum OverlayDump {
         try v.snapshot(to: base + "-journal-oren.png")
         v = make(); v.journalOpen = true
         try v.snapshot(to: base + "-journal-empty.png")
+        v = make(); v.journalOpen = true; v.pages = [JournalPage(number: 11, text: StoryPages.archivePage(11)!.ilse)]; v.pageIndex = 0; v.tabItems = tabs(true, false, false)       // S04.7: the longest Archive page
+        try v.snapshot(to: base + "-archive-page.png")
         v = make(); v.journalOpen = true; v.journalTab = .notebook; v.notebookSeen = [true, true, false]; v.notebookStruck = [true, false, false]
         try v.snapshot(to: base + "-notebook.png")
         v = make(); v.journalOpen = true; v.journalTab = .notebook; v.notebookSeen = [true, true, true]; v.notebookStruck = [true, true, true]; v.notebookNotes = [Story.doorNote]

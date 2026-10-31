@@ -142,6 +142,23 @@ extension SelfTestRunner {
         loaded.simulate(seconds: T.Timing.drainDelay + 0.2)
         check(loaded.routeSolved && loaded.tideArchive?.opened == 3, "archive: and from the loaded save the last gate finishes it")
 
+        // S04.7: the Archive's pages in the journal: the route's voice, the narrator's tab, no gate, slots by world, and a save.
+        let pj = twoWorlds()
+        check(!pj.journal.pageSlots.map(\.world).contains("Tide Archive"), "archive pages: before a route the journal shows no Archive slots (they would give the place away)")
+        let ia = routeGame(.ilse), oa = routeGame(.oren)
+        frame(ia); frame(oa)
+        check(ia.journal.pageSlots.map(\.world) == ["Varrow", "Glass Wood", "Tide Archive"] && ia.journal.pageSlots[2].found == [Bool](repeating: false, count: 6), "archive pages: once a route has begun the journal shows six empty slots under 'Tide Archive'")
+        let gateBefore = ia.gate
+        ia.activate("page_11"); oa.activate("page_11")
+        check(ia.journal.collectedPages.first { $0.number == 11 }?.text == StoryPages.archivePage(11)!.ilse && oa.journal.collectedPages.first { $0.number == 11 }?.text == StoryPages.archivePage(11)!.oren, "archive pages: page 11 reads in Ilse's voice on her route and in Oren's on his (never the other's)")
+        check(ia.journal.tab == .ilse && oa.journal.tab == .oren && oa.journal.visibleTabs.contains(.oren) && ia.journal.hasUnread(.ilse), "archive pages: it is filed under the narrator's tab, unread")
+        check(ia.gate == gateBefore && oa.gate.ilsePages == gateBefore.ilsePages && oa.gate.orenPages == gateBefore.orenPages, "archive pages: and it counts for no gate")
+        check(ia.journal.pageSlots[2].found == [false, true, false, false, false, false], "archive pages: its slot is filled")
+        for n in StoryPages.archiveIDs { oa.activate("page_\(n)") }
+        check(StoryPages.archiveIDs.allSatisfy { n in oa.journal.collectedPages.first { $0.number == n }?.text == StoryPages.archivePage(n)!.oren }, "archive pages: all six, collected, read in Oren's voice")
+        let ol = twoWorlds(); ol.restore(oa.makeSave()); frame(ol)
+        check(ol.journal.collectedPages.filter { StoryPages.archiveIDs.contains($0.number) }.count == 6 && ol.journal.collectedPages.first { $0.number == 12 }?.text == StoryPages.archivePage(12)!.oren, "archive pages: a save keeps them and they load in the same voice")
+
         // With the flag off there is no Archive puzzle at all (the build stays as it was).
         Game.tideArchiveEnabled = false
         check(twoWorlds().tideArchive == nil, "archive: behind the flag: with it off there is no puzzle and no stand-in interactables")

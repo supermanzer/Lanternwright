@@ -479,6 +479,7 @@ final class Game {
         if read { journal.markRead(n) }
         for sc in scenes.values {                                                      // the page lives in whichever world it belongs to
             sc.update("page_\(n)") { $0.hidden = true }                                  // the page itself goes into the journal
+            sc.update("ti_page_\(n)") { $0.hidden = true }                               // (the Archive's pages carry the prefix: builder A's items)
         }
         setInteractable("page_\(n)", enabled: false)
     }
@@ -642,6 +643,7 @@ final class Game {
         syncExitLights()
         syncNextLens()
         syncTideInteractables()
+        journal.route = chosenPath ?? .ilse; journal.archiveShown = chosenPath != nil          // S04.7: the voice of pages 10-15, and the Archive's slots
         syncInterior()
         syncSeals()
         checkPortalStep()

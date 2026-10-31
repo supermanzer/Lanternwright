@@ -137,6 +137,7 @@ extension Game {
         story = s.story ?? StoryState()
         syncInterior(snap: true)             // an open lighthouse door puts the walls and floors in place BEFORE the player is (a save made inside the tower)
         for p in puzzles { p.restore(from: Set(s.worldFlags[p.world.rawValue] ?? [])) }
+        journal.route = chosenPath ?? .ilse; journal.archiveShown = chosenPath != nil
         for n in s.pages { restorePage(n) }
         if let w = s.world.flatMap(WorldKind.init(rawValue:)), w != world { travel(to: w) }
         let p = SIMD3(s.position[0], s.position[1], s.position[2])

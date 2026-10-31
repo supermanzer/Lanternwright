@@ -8,6 +8,8 @@ struct JournalPage {
 /// The keeper's journal: pages are found in the world and kept here for rereading. The pages themselves are data (`StoryPages`, S03.1).
 enum JournalContent {
     static let pages: [JournalPage] = StoryPages.all.map { JournalPage(number: $0.id, text: $0.text) }
+    /// The nine pages and the Tide Archive's six, as the player on `route` reads them (S04.7).
+    static func pages(route: PageAuthor) -> [JournalPage] { pages + StoryPages.archive.map { JournalPage(number: $0.id, text: $0.text(route: route)) } }
 }
 
 /// F05 S4: the journal's empty slots. One square per page, grouped by the WORLD it lies in (never the author, never a place): filled once the page is in the journal, hollow until then.
@@ -20,7 +22,7 @@ struct PageSlotGroup: Equatable {
 extension JournalState {
     /// The slot groups in the order a player meets the worlds. The pages' worlds are `StoryPages.varrowIDs` / `glassIDs`.
     var pageSlots: [PageSlotGroup] {
-        [("Varrow", StoryPages.varrowIDs), ("Glass Wood", StoryPages.glassIDs)].map { PageSlotGroup(world: $0.0, found: $0.1.map { collectedPages.map(\.number).contains($0) }) }
+        ([("Varrow", StoryPages.varrowIDs), ("Glass Wood", StoryPages.glassIDs)] + (archiveShown ? [("Tide Archive", StoryPages.archiveIDs)] : [])).map { PageSlotGroup(world: $0.0, found: $0.1.map { collectedPages.map(\.number).contains($0) }) }
     }
 }
 
@@ -56,12 +58,16 @@ struct JournalState {
     var current = 0
 
     /// Every collected page, in number order: what the save stores. The journal shows them by tab (`pages(in:)`).
-    var collectedPages: [JournalPage] { JournalContent.pages.filter { collected.contains($0.number) } }
+    var collectedPages: [JournalPage] { JournalContent.pages(route: route).filter { collected.contains($0.number) } }
+    /// S04.7: whose route the player is on decides the voice of pages 10 to 15 and which tab holds them (set by the game from the route flags; Ilse's until a route is begun).
+    var route: PageAuthor = .ilse
+    /// The Archive's slots show once a route has begun (not before: they would give the place away).
+    var archiveShown = false
 
     /// The collected pages that belong under `tab`, in number order.
     func pages(in tab: JournalTab) -> [JournalPage] {
         guard let author = tab.author else { return [] }
-        return collectedPages.filter { JournalTab.holding(StoryPages.page($0.number)?.author ?? .ilse).author == author }
+        return collectedPages.filter { JournalTab.holding(StoryPages.author($0.number, route: route) ?? .ilse).author == author }
     }
     var tabPages: [JournalPage] { pages(in: tab) }
 
@@ -91,7 +97,7 @@ struct JournalState {
     /// A page was collected: it goes under its author's tab, which opens on it.
     mutating func collect(_ number: Int) {
         collected.insert(number)
-        tab = JournalTab.holding(StoryPages.page(number)?.author ?? .ilse)
+        tab = JournalTab.holding(StoryPages.author(number, route: route) ?? .ilse)
         current = max(0, tabPages.firstIndex { $0.number == number } ?? 0)
     }
 

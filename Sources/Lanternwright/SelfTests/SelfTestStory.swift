@@ -18,6 +18,14 @@ extension SelfTestRunner {
 
         // The approved revisions (S02 appendix R1 to R3, user decision 6, 2026-10-28), spelled out so a change is deliberate: page 5 begins with the new first sentence and keeps the rest, page 4
         // gains its half-line after the old ending, page 9 is the new Ilse page, and pages 3 and 8 are as they were.
+        // S04.7: the Tide Archive's six pages, each in two voices, pinned as the others are (docs/plans/S04-page-drafts.md).
+        let archivePins: [Int: (String, String)] = [10: ("0398a0324f3043b1", "365cb97bbe8735cc"), 11: ("50712f9717ce14c1", "2db422054fcf8bf2"), 12: ("6ebb33d4b173c1f6", "a0176a5f0866747d"), 13: ("5411800985b7e899", "e90d440eed787b0f"), 14: ("671d73847cf928f1", "19a4e858b368d676"), 15: ("59143fa237fe87e5", "5ea6cb84b8896109")]
+        let archiveDrift = StoryPages.archive.filter { p in guard let pin = archivePins[p.id] else { return true }; return sha(p.ilse) != pin.0 || sha(p.oren) != pin.1 }.map(\.id)
+        check(StoryPages.archiveIDs == Array(10...15) && archiveDrift.isEmpty, "story: the Tide Archive's pages 10 to 15 are in order and every text, in both voices, is byte-identical to its pin (drift: \(archiveDrift))")
+        check(StoryPages.archive.allSatisfy { $0.ilse != $0.oren && !$0.ilse.isEmpty && !$0.oren.isEmpty }, "story: each Archive page has its own text in each sibling's voice")
+        check(StoryPages.archivePage(15)!.ilse.contains("Come on, I") && StoryPages.archivePage(11)!.ilse.contains("Come on, I") && StoryPages.archivePage(11)!.oren.contains("Hold your tone until the lamp answers") && StoryPages.archivePage(13)!.ilse.contains("chalk arrow") && StoryPages.archivePage(13)!.oren.contains("tuning fork") && StoryPages.archivePage(15)!.oren.contains("lamp is burning"), "story: pages 11, 13 and 15 carry the other sibling's trace, which the narrator quotes (Oren's chalk, Ilse's rule-plate and fork, her lamp)")
+        check(!StoryPages.archive.contains { $0.ilse.lowercased().contains("maren is dead") || $0.oren.lowercased().contains("dead") || $0.oren.lowercased().contains("died") } && StoryPages.archivePage(12)!.ilse.contains("Maren") && StoryPages.archivePage(15)!.ilse.contains("\"to the\""), "story: Maren stays ambiguous: named, blank, torn, never said to be dead")
+        check(Set(StoryPages.all.map(\.id)).isDisjoint(with: StoryPages.archiveIDs), "story: the Archive's pages are not among the nine the gate counts")
         let t = { (n: Int) in StoryPages.page(n)?.text ?? "" }
         check(t(5).hasPrefix("The week before the fog, I went through the lens first. Ilse will say I stole it, and she will be right about the lens and wrong about the reason."), "story: R1: page 5 begins 'The week before the fog, I went through the lens first.' and goes on as before")
         check(t(4).hasPrefix("Oren has asked again for the lens of the lighthouse lamp. He says light that can fold can also carry. Carry what, brother? He did not answer, and I did not like the silence.") && t(4).hasSuffix(" I told him the lens room is not a place for the impatient, which is not what he asked."), "story: R3: page 4 keeps its words and gains 'I told him the lens room is not a place for the impatient, which is not what he asked.' at the end")
@@ -28,6 +36,7 @@ extension SelfTestRunner {
         check(t(3) == "I tune the lamp each evening the way I first climbed this island: from the water, through the wind, to the stone. Out of order, they only argue." && t(8).hasPrefix("Two accounts will reach you, and they will not agree."), "story: page 3 is exactly as restored in F04 T1 and page 8 is unchanged")
 
         let numerals = StoryPages.all.map { OverlayView.roman($0.id) }
+        check(Set((1...15).map { OverlayView.roman($0) }).count == 15 && OverlayView.roman(10) == "X" && OverlayView.roman(15) == "XV", "story: the page headings run to XV, all different (the Archive's pages)")
         check(Set(numerals).count == 9 && OverlayView.roman(9) == "IX" && OverlayView.roman(8) == "VIII" && !numerals.contains(""), "story: the nine page headings are all different (page 9 reads IX, not a second VIII): \(numerals)")
         check(Viewpoints.pageApproach(9) == SIMD3(Layout.dockStrip().a.x, 0, Layout.dockStrip().a.y) && Viewpoints.pageView(scene: Scene.makeWorld(device: device), name: "page-stand-9") != nil, "story: the dev page cameras know page 9 (approach from the landward end of the dock)")
 
