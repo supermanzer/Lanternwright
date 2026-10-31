@@ -23,7 +23,7 @@ enum LensPortalProps {
     static let receiverName = "lh_receiver", beamName = "lh_ring_beam", portalName = "lh_portal"
     static let lampNames = ["lh_gate_lamp_0", "lh_gate_lamp_1", "lh_gate_lamp_2"]
     /// F06 B3 (Q24): the two exits take a light each while the gate is ready: a ring of warm beads round the lens (Ilse's exit) and a cool lit rim on the receiver's plate (Oren's exit). Hidden otherwise.
-    static let lensBeadsName = "lh_exit_lens_beads", receiverRimName = "lh_exit_receiver_rim"
+    static let lensBeadsName = "lh_exit_lens_beads", receiverRimName = "lh_exit_receiver_rim", receiverGlowName = "lh_exit_receiver_glow"
     /// S04.5: once the route world is solved the next lens (the Salt Flats, not yet ground) shows on the pedestal collar: dull glass, no light, no text.
     static let nextLensName = "lh_next_lens"
 
@@ -80,7 +80,15 @@ enum LensPortalProps {
             rim.box(size: SIMD3(0.34, 0.022, 0.02), surface: rimSurface, transform: f * translation(SIMD3(0, top + s * 0.16, 0.05)))
             rim.box(size: SIMD3(0.022, 0.34, 0.02), surface: rimSurface, transform: f * translation(SIMD3(s * 0.16, top, 0.05)))
         }
+        // F08 review: Oren's cue in the same presence as Ilse's (14 warm beads on the lens): fourteen cool beads in a ring 0.42 m round the plate, and a soft cool disc of light behind it, breathing together.
+        for k in 0..<14 {
+            let a = Float(k) / 14 * 2 * .pi
+            rim.sphere(radius: 0.05, segments: 8, surface: rimSurface, transform: f * translation(SIMD3(cos(a) * 0.42, top + sin(a) * 0.42, 0.05)))
+        }
         scene.add(receiverRimName, mesh: rim.build(device: device, label: "receiver rim"), uniforms: ObjectUniforms(model: matrix_identity_float4x4), hidden: !tools)
+        var glow = MeshBuilder()
+        glow.cylinder(radiusTop: 0.46, radiusBottom: 0.46, height: 0.004, segments: 32, smooth: true, surface: Surface(color: SIMD3(0.6, 0.8, 1.0), roughness: 0.6, material: .paleMetal), transform: f * translation(SIMD3(0, top, 0.006)) * rotationX(.pi / 2))
+        scene.add(receiverGlowName, mesh: glow.build(device: device, label: "receiver glow"), uniforms: ObjectUniforms(model: matrix_identity_float4x4), hidden: !tools)
 
         // The next lens: a small dull sphere of pale glass on the collar, hidden until the route world is solved (`Game.syncNextLens`). Nothing lights it: it is not ground yet.
         var next = MeshBuilder()

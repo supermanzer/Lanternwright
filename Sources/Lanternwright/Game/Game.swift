@@ -527,6 +527,7 @@ final class Game {
         let on = exitLightsOn, breath = 0.75 + 0.25 * sin(time * 1.2)
         sc.update(LensPortalProps.lensBeadsName) { $0.hidden = !on; $0.uniforms.emissive = SIMD4(1.0, 0.72, 0.3, on ? 2.2 * breath : 0) }
         sc.update(LensPortalProps.receiverRimName) { $0.hidden = !on; $0.uniforms.emissive = SIMD4(0.45, 0.7, 1.0, on ? 2.2 * breath : 0) }
+        sc.update(LensPortalProps.receiverGlowName) { $0.hidden = !on; $0.uniforms.emissive = SIMD4(0.35, 0.6, 1.0, on ? 1.3 * breath : 0) }          // a soft disc behind the plate
     }
 
     // MARK: The plates' glint and the ring's two ways (F06 B2b, Q22)

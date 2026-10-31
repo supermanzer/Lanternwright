@@ -141,7 +141,7 @@ What the bots now prove, on the default build (the Archive is ON; `LW_TIDE_ARCHI
 
 ### Verdict update, F08.1 (2026-10-31): the fork names whose route a click begins (step 23)
 
-At the fork (the gate ready, no route chosen) the lens's hover prompt reads "Ilse's way: touch the lens", the ring "Oren's way: turn the ring ‹ ›" and the open doorway of light "Oren's way: step into the light"; the lens carries a warm ring of lamp-tone beads on its underside and the receiver a cool blue-white frame (frames `shots/f08/fork.png`, `forkoren.png`). Before the fork and after a choice no sibling is named (`SelfTestForkPrompts`). *Verdict: Hinted to Clear: a player who knows Ilse as the lamp-keeper and Oren as the glass-and-tide brother can read each exit from its words and its light; the choice is still irreversible, and the prompt is the only warning (Q12). Confirm in play.* (Q35)
+At the fork (the gate ready, no route chosen) the lens's hover prompt reads "Ilse's way: touch the lens", the ring "Oren's way: turn the ring ‹ ›" and the open doorway of light "Oren's way: step into the light"; the lens carries a warm ring of 14 lamp-tone beads on its underside and the receiver a ring of 14 cool beads with a soft disc of light behind it (frames `shots/f08/fork.png`, `forkoren.png`). Before the fork and after a choice no sibling is named (`SelfTestForkPrompts`). *Verdict: Hinted to Clear: a player who knows Ilse as the lamp-keeper and Oren as the glass-and-tide brother can read each exit from its words and its light; the choice is still irreversible, and the prompt is the only warning (Q12). Confirm in play.* (Q35)
 
 ## What the bot proves, and what it does not
 
