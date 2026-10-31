@@ -9,6 +9,8 @@ enum SonicLandmarks {
         var hum = SIMD4<Float>(repeating: 0)        // x, y, z = stones, w = lighthouse tone
         var humPan = SIMD4<Float>(repeating: 0)
         var buoy: Float = 0, buoyPan: Float = 0
+        /// F07 A-buoy: +1 when the buoy is dead ahead, -1 dead behind (the pan alone cannot tell front from back).
+        var buoyFront: Float = 1
         var gallery: Float = 0                      // wind whistling round the lantern room
     }
 
@@ -35,6 +37,14 @@ enum SonicLandmarks {
         return min(max(simd_dot(d / len, right), -1), 1) * 0.85
     }
 
+    /// +1 for a source straight ahead of a listener facing `yaw`, -1 straight behind, 0 abeam.
+    static func front(listener: SIMD3<Float>, yaw: Float, source: SIMD3<Float>) -> Float {
+        let d = SIMD2(source.x - listener.x, source.z - listener.z)
+        let len = simd_length(d)
+        guard len > 0.5 else { return 1 }
+        return min(max(simd_dot(d / len, SIMD2(sin(yaw), -cos(yaw))), -1), 1)
+    }
+
     static func levels(listener p: SIMD3<Float>, yaw: Float, world: WorldKind, lighthouseLit: Bool) -> Levels {
         var l = Levels()
         guard world == .varrow else { return l }
@@ -54,6 +64,7 @@ enum SonicLandmarks {
         let bd = simd_length(SIMD3(p.x - b.x, 0, p.z - b.z))
         l.buoy = falloff(bd, ref: buoyRef, range: buoyRange)
         l.buoyPan = pan(listener: p, yaw: yaw, source: b)
+        l.buoyFront = front(listener: p, yaw: yaw, source: b)
         l.gallery = falloff(simd_length(SIMD2(p.x - lh.x, p.z - lh.z)), ref: galleryRef, range: galleryRange)
         return l
     }

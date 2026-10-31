@@ -654,3 +654,52 @@ extension SelfTestRunner {
         check(again == hard, "doorheavy: reproducible (a fixed seed)")
     }
 }
+
+extension SelfTestRunner {
+    /// F07 A-buoy (#70): the buoy bell is a positional source: the pan and the front/back follow the bearing from the listener and the player's yaw; through the synth the near ear is louder and leads, the far ear is
+    /// later and duller, the pan is LIVE (it follows the head while the bell rings), and a bell behind is duller than one ahead.
+    func runBuoyPlacement() {
+        guard name == "all" || name == "buoyplacement" else { return }
+        let dock = SIMD3<Float>(147.9, 1.4, 169.2)                                     // the user's spot in #70; the buoy is east-south-east of it
+        func lv(_ yaw: Float) -> (pan: Float, front: Float) { (SonicLandmarks.pan(listener: dock, yaw: yaw, source: Layout.buoy), SonicLandmarks.front(listener: dock, yaw: yaw, source: Layout.buoy)) }
+        let north = lv(0), east = lv(.pi / 2), south = lv(.pi), west = lv(-.pi / 2)
+        check(north.pan > 0.3 && east.pan > 0.2 && south.pan < -0.3 && west.pan < -0.2, "buoyplacement: the pan sign follows the bearing (facing N / E / S / W: \([north, east, south, west].map { String(format: "%+.2f", $0.pan) }))")
+        check(east.front > 0.7 && west.front < -0.7 && abs(north.front) < 0.7, "buoyplacement: and front/back follows it (E / W / N: \([east, west, north].map { String(format: "%+.2f", $0.front) }))")
+        let sr: Float = 44100
+        func render(pan: Float, front: Float = 1, seconds: Float = 0.8, flipAt: Float? = nil, flipTo: Float = 0) -> (l: [Float], r: [Float]) {
+            let s = AmbienceSynth(sampleRate: sr); s.windGain = 0; s.surfGain = 0; s.master = 1
+            s.buoyGain = 0.8; s.buoyPan = pan; s.buoyFront = front
+            s.play(.buoy)
+            let n = Int(sr * seconds)
+            var l = [Float](repeating: 0, count: n), r = l
+            l.withUnsafeMutableBufferPointer { lp in r.withUnsafeMutableBufferPointer { rp in
+                let flip = flipAt.map { Int($0 * sr) } ?? n
+                s.render(frames: flip, left: lp.baseAddress!, right: rp.baseAddress!)
+                if flip < n { s.buoyPan = flipTo; s.render(frames: n - flip, left: lp.baseAddress! + flip, right: rp.baseAddress! + flip) }
+            } }
+            return (l, r)
+        }
+        func rms(_ x: ArraySlice<Float>) -> Float { (x.reduce(0) { $0 + $1 * $1 } / Float(max(x.count, 1))).squareRoot() }
+        func lag(_ a: (l: [Float], r: [Float])) -> Int {                                // > 0: the left ear is later than the right
+            var best = 0, bestV: Float = -1e9
+            for k in -40...40 {
+                var acc: Float = 0
+                for i in 200..<Int(0.3 * sr) { let j = i + k; if j >= 0 && j < a.l.count { acc += a.l[j] * a.r[i] } }
+                if acc > bestV { bestV = acc; best = k }
+            }
+            return best
+        }
+        let right = render(pan: 0.8), left = render(pan: -0.8)
+        check(rms(right.r[0...]) > 1.6 * rms(right.l[0...]) && rms(left.l[0...]) > 1.6 * rms(left.r[0...]), "buoyplacement: through the synth the near ear is louder (pan +0.8: R/L \(String(format: "%.2f", rms(right.r[0...]) / rms(right.l[0...]))); pan -0.8: L/R \(String(format: "%.2f", rms(left.l[0...]) / rms(left.r[0...]))))")
+        let lr = lag(right), ll = lag(left)
+        check(lr >= 8 && lr <= 36 && ll <= -8 && ll >= -36, "buoyplacement: the near ear leads by about half a millisecond (lag \(lr) samples with the bell on the right, \(ll) on the left; 0.63 ms is 28)")
+        let swung = render(pan: 0.8, seconds: 1.4, flipAt: 0.6, flipTo: -0.8)
+        let late = Int(0.9 * sr)..<Int(1.4 * sr)
+        check(rms(swung.l[late]) > 1.4 * rms(swung.r[late]), "buoyplacement: the pan is live: a bell struck on the right and then turned to the left sounds from the left while it rings (L/R \(String(format: "%.2f", rms(swung.l[late]) / max(rms(swung.r[late]), 1e-9))))")
+        func hiShare(_ x: [Float]) -> Float { let sp = FootstepAnalysis.spectrum(Array(x[0..<Int(0.6 * sr)])); return FootstepAnalysis.band(sp, 1500, 9000) / max(FootstepAnalysis.band(sp, 40, 9000), 1e-12) }
+        let ahead = render(pan: 0, front: 1), behind = render(pan: 0, front: -1)
+        check(hiShare(behind.l) < 0.7 * hiShare(ahead.l) && rms(behind.l[0...]) > 0.3 * rms(ahead.l[0...]), "buoyplacement: a bell behind is duller than one ahead (power above 1.5 kHz \(String(format: "%.3f", hiShare(behind.l))) against \(String(format: "%.3f", hiShare(ahead.l)))) but still audible")
+        let far = AmbienceSynth(sampleRate: sr); far.windGain = 0; far.surfGain = 0; far.master = 1; far.buoyGain = 0; far.play(.buoy)
+        check(far.chimeDelaysForTest.isEmpty, "buoyplacement: out of range (level 0) the buoy does not ring at all")
+    }
+}

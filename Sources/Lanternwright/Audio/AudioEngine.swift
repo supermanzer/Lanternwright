@@ -112,7 +112,7 @@ final class AudioEngine {
         // Sonic landmarks: where each source is relative to the listener.
         let lv = SonicLandmarks.levels(listener: p, yaw: game.player.yaw, world: game.world, lighthouseLit: game.state.has("lighthouseLit"))
         synth.humGain = lv.hum; synth.humPan = lv.humPan
-        synth.buoyGain = lv.buoy; synth.buoyPan = lv.buoyPan
+        synth.buoyGain = lv.buoy; synth.buoyPan = lv.buoyPan; synth.buoyFront = lv.buoyFront
         synth.galleryGain = lv.gallery
         if game.world == .varrow && now >= buoyNext {
             if buoyNext > 0 { synth.play(.buoy) }

@@ -78,6 +78,7 @@ final class AmbienceSynth {
         var gain: Float
         var partials: [Partial]
         var pan: Float            // -1 left ... 1 right
+        var positional = false    // F07 A-buoy: a source in the world (the buoy): panned, delayed, shadowed and levelled LIVE from the listener's place and yaw, not at the moment it was struck
     }
     private var chimes: [ChimeVoice] = []
     private var rumbleLeft: Float = 0
@@ -99,7 +100,13 @@ final class AmbienceSynth {
     // Sonic landmarks (see SonicLandmarks): set by the main thread, smoothed here so nothing zippers.
     var humGain = SIMD4<Float>(repeating: 0)        // stones 0-2 and the lit lighthouse
     var humPan = SIMD4<Float>(repeating: 0)
-    var buoyGain: Float = 0, buoyPan: Float = 0
+    var buoyGain: Float = 0, buoyPan: Float = 0, buoyFront: Float = 1
+    // F07 A-buoy (#70: "the dinging seems to come from everywhere"): the bell used to be panned once, when it was struck, and fed whole into the reverb, so turning your head never moved it and the room smeared it
+    // all round. Now the buoy is a positional source, updated every sample from the listener: the equal-power pan with a stronger level difference, an interaural delay of up to 0.63 ms to the far ear, the far ear
+    // shadowed by the head (a low-pass that closes from 9 kHz to 1.8 kHz as the bell goes round to the side), a duller sound when it is behind, and only a third of it sent to the reverb.
+    private var buoyPanSm: Float = 0, buoyGainSm: Float = 0, buoyFrontSm: Float = 1
+    private var itdBuf = [Float](repeating: 0, count: 128), itdIdx = 0
+    private var farLP: Float = 0, backLPL: Float = 0, backLPR: Float = 0
     var galleryGain: Float = 0
     private var humSmooth = SIMD4<Float>(repeating: 0)
     private var gallerySmooth: Float = 0
@@ -248,7 +255,7 @@ final class AmbienceSynth {
             }
         case .ringTurn: playFoley(Foley.ringTurn(sampleRate: sampleRate), gain: 1, pan: 0)
         case .rumble: rumbleLeft = 5.5
-        case .buoy: if buoyGain > 0.004 { chimes.append(bell(ToneTable.buoyHz, gain: 0.5 * buoyGain, decayScale: 1.6, pan: buoyPan)) }
+        case .buoy: if buoyGain > 0.004 { var v = bell(ToneTable.buoyHz, gain: 0.5, decayScale: 1.6); v.positional = true; chimes.append(v) }
         }
         if chimes.count > 14 { chimes.removeFirst(chimes.count - 14) }
     }
@@ -442,7 +449,7 @@ final class AmbienceSynth {
             out[0] += lmL; out[1] += lmR
 
             // --- chimes (through the reverb) and the causeway rumble
-            var bellL: Float = 0, bellR: Float = 0
+            var bellL: Float = 0, bellR: Float = 0, buoySum: Float = 0
             for k in 0..<chimes.count {
                 var v = chimes[k]
                 if v.delay > 0 { v.delay -= dt; chimes[k] = v; continue }
@@ -452,14 +459,39 @@ final class AmbienceSynth {
                     if e > 0.001 { sum += sin(2 * .pi * v.f0 * p.ratio * v.age) * p.gain * e }
                 }
                 sum *= v.gain
-                bellL += sum * (0.5 - 0.5 * v.pan); bellR += sum * (0.5 + 0.5 * v.pan)
+                if v.positional { buoySum += sum } else { bellL += sum * (0.5 - 0.5 * v.pan); bellR += sum * (0.5 + 0.5 * v.pan) }
                 v.age += dt
                 chimes[k] = v
             }
             chimes.removeAll { $0.delay <= 0 && $0.age > $0.partials[0].decay * 3 }
-            let (rl, rr) = reverb.process(left: bellL + feet.sendL * 1.4, right: bellR + feet.sendR * 1.4)
+            // The buoy, placed (see `buoyPanSm`): its own smoothing (about 30 ms) so a turn of the head sweeps it round without a zipper.
+            let sm: Float = 1 - exp(-1 / (0.03 * sampleRate))
+            buoyPanSm += (buoyPan - buoyPanSm) * sm; buoyGainSm += (buoyGain - buoyGainSm) * sm; buoyFrontSm += (buoyFront - buoyFrontSm) * sm
+            itdBuf[itdIdx] = buoySum * buoyGainSm
+            var buoyL: Float = 0, buoyR: Float = 0
+            do {
+                let mono = itdBuf[itdIdx], side = abs(buoyPanSm)
+                let theta = (buoyPanSm * 0.5 + 0.5) * Float.pi / 2
+                var gl = cos(theta) * 1.4142 * 0.5, gr = sin(theta) * 1.4142 * 0.5
+                let delaySamples = 0.00063 * sampleRate * side
+                let di = Int(delaySamples), df = delaySamples - Float(di)
+                let d0 = itdBuf[(itdIdx - di + 128 * 2) % 128], d1 = itdBuf[(itdIdx - di - 1 + 128 * 2) % 128]
+                let delayed = d0 * (1 - df) + d1 * df
+                let farCut = 9000 - 7200 * side
+                farLP += (1 - exp(-2 * .pi * farCut / sampleRate)) * (delayed - farLP)
+                if buoyPanSm > 0 { gl *= (1 - 0.35 * side); buoyL = farLP * gl; buoyR = mono * gr }        // the bell is on the right: the left ear is the far one
+                else { gr *= (1 - 0.35 * side); buoyR = farLP * gr; buoyL = mono * gl }
+                let behind = max(0, -buoyFrontSm)                                                        // dull when it is behind (the ear's folds shade it)
+                if behind > 0.001 {
+                    let c = 1 - exp(-2 * .pi * (9000 - 6800 * behind) / sampleRate)
+                    backLPL += c * (buoyL - backLPL); backLPR += c * (buoyR - backLPR)
+                    buoyL = buoyL * (1 - behind) + backLPL * behind; buoyR = buoyR * (1 - behind) + backLPR * behind
+                } else { backLPL = buoyL; backLPR = buoyR }
+                itdIdx = (itdIdx + 1) % 128
+            }
+            let (rl, rr) = reverb.process(left: bellL + buoyL * 0.33 + feet.sendL * 1.4, right: bellR + buoyR * 0.33 + feet.sendR * 1.4)
             // Ducking: while a chime rings, the wind and surf (and the drone, hums) make way for it by up to 35 %.
-            let level = max(abs(bellL), abs(bellR))
+            let level = max(abs(bellL) + abs(buoyL), abs(bellR) + abs(buoyR))
             chimeFollow += (level > chimeFollow ? 0.01 : 0.00006) * (level - chimeFollow)       // fast attack, ~0.4 s release
             duckAmount = 0.35 * min(chimeFollow * 14, 1)
             var rumble: Float = 0
@@ -476,8 +508,8 @@ final class AmbienceSynth {
                 marginLP[0] += marginCoef * (out[0] - marginLP[0]); marginLP[1] += marginCoef * (out[1] - marginLP[1])
                 out[0] = marginLP[0]; out[1] = marginLP[1]
             } else { marginLP[0] = out[0]; marginLP[1] = out[1] }
-            out[0] = out[0] * (1 - duckAmount) + bellL + rl * 0.4 + rumble
-            out[1] = out[1] * (1 - duckAmount) + bellR + rr * 0.4 + rumble
+            out[0] = out[0] * (1 - duckAmount) + bellL + buoyL + rl * 0.4 + rumble
+            out[1] = out[1] * (1 - duckAmount) + bellR + buoyR + rr * 0.4 + rumble
             let slideOut = slide.next(speed: slideSpeed, gravel: slideGravel)                 // the gravel slide (F03 A3): silent unless slipping
             out[0] += slideOut; out[1] += slideOut
             if !foleyVoices.isEmpty {                                                       // one-shot buffers (F03): the door, ...
