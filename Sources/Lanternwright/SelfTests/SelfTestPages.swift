@@ -41,6 +41,35 @@ extension SelfTestRunner {
         }
         if verbose { print(String(format: "%d sheets: lowest vertex %.1f to %.1f mm above the ground under it; highest vertex at most %.1f cm", count, worst.0 * 1000, worst.1 * 1000, tallest * 100)) }
         check(count == 9 && worst.0 >= 0.0005 && worst.1 <= 0.005, "every dropped sheet lies ON its surface: the lowest vertex of each of \(count) sheets is \(String(format: "%.1f", worst.0 * 1000)) to \(String(format: "%.1f", worst.1 * 1000)) mm above the ground under it (0 to 5 mm; none sunk, none floating)")
+        // F07 A-page2 (#71: "the second page appears to be at an odd angle to the ground"): each sheet lies in the plane of the ground under it. The angle between the sheet's up and the normal of the best-fit plane of the
+        // ground under its footprint (5 x 5 samples over the sheet's extent) is under 8 degrees for all nine pages.
+        var angles: [(String, Float)] = []
+        for (sc, pages) in [(home, StoryPages.varrowIDs), (glass, StoryPages.glassIDs)] {
+            for n in pages {
+                for item in sc.items where item.name == "page_\(n)" {
+                    let m = item.uniforms.model
+                    let o = SIMD3(m.columns.3.x, m.columns.3.y, m.columns.3.z)
+                    let xs = sheet.map { ($0.x, $0.z) }, minX = xs.map { $0.0 }.min() ?? 0, maxX = xs.map { $0.0 }.max() ?? 0, minZ = xs.map { $0.1 }.min() ?? 0, maxZ = xs.map { $0.1 }.max() ?? 0
+                    var pts: [SIMD3<Float>] = []
+                    for i in 0..<5 { for j in 0..<5 {
+                        let l = SIMD4(minX + (maxX - minX) * Float(i) / 4, 0, minZ + (maxZ - minZ) * Float(j) / 4, 1), w = m * l
+                        pts.append(SIMD3(w.x, sc.groundHeight(x: w.x, z: w.z), w.z))
+                    } }
+                    let c = pts.reduce(SIMD3<Float>.zero, +) / Float(pts.count)
+                    // Least-squares plane y = a x + b z + d by the normal equations.
+                    var sxx: Float = 0, sxz: Float = 0, szz: Float = 0, sxy: Float = 0, szy: Float = 0
+                    for p in pts { let dx = p.x - c.x, dz = p.z - c.z, dy = p.y - c.y; sxx += dx * dx; sxz += dx * dz; szz += dz * dz; sxy += dx * dy; szy += dz * dy }
+                    let det = sxx * szz - sxz * sxz
+                    let ga = det > 1e-9 ? (sxy * szz - szy * sxz) / det : 0, gb = det > 1e-9 ? (szy * sxx - sxy * sxz) / det : 0
+                    let ground = simd_normalize(SIMD3(-ga, 1, -gb))
+                    let up = simd_normalize(SIMD3(m.columns.1.x, m.columns.1.y, m.columns.1.z))
+                    angles.append(("page \(n)", acos(min(1, simd_dot(ground, up))) * 180 / .pi))
+                    _ = o
+                }
+            }
+        }
+        if verbose || name == "pages" { print("PAGEANGLES " + angles.map { "\($0.0) \(String(format: "%.1f", $0.1))" }.joined(separator: ", ")) }
+        check(angles.count == 9 && angles.allSatisfy { $0.1 < 8 }, "every page lies in the plane of the ground under it: angle to the ground's plane \(angles.map { String(format: "%.1f", $0.1) }) degrees (under 8)")
         check(tallest < 0.20, "none stands on stilts or against a wall: the highest point of any sheet is \(String(format: "%.0f", tallest * 100)) cm above the ground under it")
         // Nothing is laid across a raised inlay: no sheet vertex within 6 cm (radially) of the arrival plate's rings and rim, the chime base's rings, or the altar's ring, and none over a
         // chime's foot or an altar pedestal (the inlays stand a few cm proud of the stone: a sheet across one would intersect it).

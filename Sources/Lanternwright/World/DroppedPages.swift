@@ -8,19 +8,19 @@ import simd
 /// A sheet is SETTLED onto the surface under it: it is turned to follow the ground's slope (at most 18 degrees), tilted by its own lean, and lowered until its lowest
 /// vertex is `clearance` (3 mm) above the ground under that vertex, so it lies ON the surface, never in it and never floating (SelfTestPages asserts it at every vertex).
 enum DroppedPages {
-    /// How a page lies: its yaw (radians), how far its far end is lifted by what it is caught on (radians). Page 3 (the wind stone's) is blown into the grass and leans hard; page 4's lies against the step.
+    /// How a page lies: its yaw (radians: the small deliberate twist about the vertical, so no two lie alike), how far its far end is lifted by what it is caught on (radians). F07 A-page2 (#71: a page at "an odd angle to the ground"): the leans were up to 17 degrees; now at most 3 degrees, so every sheet lies in the plane of the ground under it (SelfTestPages: under 8 degrees).
     struct Spec { var yaw: Float; var lean: Float }
     static func spec(_ n: Int) -> Spec {
         switch n {
-        case 1: return Spec(yaw: 0.45, lean: 0.04)          // along the boards: a sheet beside it would hang over the edge
-        case 2: return Spec(yaw: 2.10, lean: 0.07)
-        case 3: return Spec(yaw: -0.70, lean: 0.30)
-        case 4: return Spec(yaw: 1.10, lean: 0.12)
-        case 5: return Spec(yaw: 0.50, lean: 0.06)           // inside the band between the plate's inlaid rings, clear of both and of the edge
-        case 6: return Spec(yaw: -2.00, lean: 0.22)
-        case 7: return Spec(yaw: 2.60, lean: 0.09)
-        case 9: return Spec(yaw: -0.55, lean: 0.03)           // along the boards, like page 1, at the other end of the dock
-        default: return Spec(yaw: 0.90, lean: 0.10)
+        case 1: return Spec(yaw: 0.45, lean: 0.02)          // along the boards: a sheet beside it would hang over the edge
+        case 2: return Spec(yaw: 2.10, lean: 0.02)
+        case 3: return Spec(yaw: -0.70, lean: 0.05)
+        case 4: return Spec(yaw: 1.10, lean: 0.04)
+        case 5: return Spec(yaw: 0.50, lean: 0.02)           // inside the band between the plate's inlaid rings, clear of both and of the edge
+        case 6: return Spec(yaw: -2.00, lean: 0.05)
+        case 7: return Spec(yaw: 2.60, lean: 0.03)
+        case 9: return Spec(yaw: -0.55, lean: 0.02)           // along the boards, like page 1, at the other end of the dock
+        default: return Spec(yaw: 0.90, lean: 0.03)
         }
     }
 
