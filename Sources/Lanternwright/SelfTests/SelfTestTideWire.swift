@@ -6,8 +6,9 @@ import simd
 extension SelfTestRunner {
     func runTideWire() {
         guard name == "all" || name == "tidewire" || name == "tidearchive" else { return }
+        let flagWas = Game.tideArchiveEnabled
         Game.tideArchiveEnabled = true
-        defer { Game.tideArchiveEnabled = false }
+        defer { Game.tideArchiveEnabled = flagWas }
         let archive = TideArchive.build(device: device)
         func world3() -> Game { Game(scenes: [.varrow: Scene.makeWorld(device: device), .glassWood: GlassWood.build(device: device), .tideArchive: archive]) }
         func routeGame(_ route: PageAuthor) -> Game {

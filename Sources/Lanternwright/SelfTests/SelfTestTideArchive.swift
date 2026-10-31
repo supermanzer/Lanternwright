@@ -10,8 +10,9 @@ extension SelfTestRunner {
         guard name == "all" || name == "tidearchive" || name == "story" else { return }
         typealias T = TideArchivePuzzle
         let lh = Layout.lighthouse
+        let flagWas = Game.tideArchiveEnabled
         Game.tideArchiveEnabled = true
-        defer { Game.tideArchiveEnabled = false }
+        defer { Game.tideArchiveEnabled = flagWas }
 
         // The tide: a pure periodic function; low at 0, high at half a period; the windows come in order in one rise.
         check(abs(Tide.level(0)) < 1e-6 && abs(Tide.level(Tide.period / 2) - 1) < 1e-6 && abs(Tide.level(Tide.period) - Tide.level(0)) < 1e-4 && abs(Tide.level(13.7) - Tide.level(13.7 + Tide.period)) < 1e-4, "tide: low water at 0, high at half the period (\(Tide.period) s), and periodic")

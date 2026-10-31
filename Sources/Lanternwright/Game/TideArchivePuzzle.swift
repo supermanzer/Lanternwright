@@ -41,6 +41,7 @@ final class TideArchivePuzzle: WorldPuzzle {
     private let solved: () -> Bool
     private(set) var ringAngle: Float = TideArchivePuzzle.initialRing
     private var busy = false
+    private var snapGates = false
     /// Turns of each gate's wheel now (0 shut, 2 open): they run on a tween when the gate is answered or closed again, and are set outright by a load.
     private var wheelTurns: [Float] = [0, 0, 0]
     private var ringSerial = 0
@@ -65,7 +66,7 @@ final class TideArchivePuzzle: WorldPuzzle {
         for f in persistentFlags where flags.contains(f) { state.set(f) }
         busy = false; ringSerial += 1; ringAngle = TideArchivePuzzle.initialRing
         wheelTurns = TideArchivePuzzle.sluiceFlags.map { state.has($0) ? 2 : 0 }
-        syncVisuals(drain: state.has(TideArchivePuzzle.drainedFlag) ? 1 : 0)
+        snapGates = true; syncVisuals(drain: state.has(TideArchivePuzzle.drainedFlag) ? 1 : 0); snapGates = false
         // A save taken between the third gate and the drain (the 2.5 s delay) has all three gates open and the world not yet solved: finish it, or nothing ever would.
         if opened == TideArchivePuzzle.sluiceFlags.count && !state.has(Game.routeSolvedFlag) { complete() }
     }
@@ -191,7 +192,8 @@ final class TideArchivePuzzle: WorldPuzzle {
         for (k, name) in TideArchivePuzzle.sluiceNames.enumerated() {
             let open = state.has(TideArchivePuzzle.sluiceFlags[k])
             sc.update(name) { $0.uniforms.emissive = open ? SIMD4(0.55, 0.85, 1.0, 1.4) : SIMD4(0, 0, 0, 0) }                  // the stand-in's gate glows
-            sc.update(ArchiveProps.gateName(k)) { $0.uniforms.model = ArchiveProps.sluiceGateModel(k, open: open ? 1 : 0) }      // A's gate lifts and its wheel has turned twice
+            let snap = snapGates                                                                                                  // A's gate eases toward its emissive (open = 1) and moves its collider; a load puts the pose there at once
+            sc.update(ArchiveProps.gateName(k)) { $0.uniforms.emissive.w = open ? 1 : 0; if snap { $0.uniforms.model = ArchiveProps.sluiceGateModel(k, open: open ? 1 : 0) } }
             sc.update(ArchiveProps.wheelName(k)) { $0.uniforms.model = ArchiveProps.sluiceWheelModel(k, turns: self.wheelTurns[k]) }
             let lamp = open ? SluiceLamps.open : (aimedSluice == k ? SluiceLamps.aimed : SluiceLamps.idle)          // the room's lamp: its beam's colour, bright while the beam rests on this gate, steady once it is open
             sc.update(SluiceLamps.name(k)) { $0.uniforms.emissive.w = lamp }

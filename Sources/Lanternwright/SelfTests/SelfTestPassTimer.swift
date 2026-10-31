@@ -1194,7 +1194,9 @@ extension SelfTestRunner {
             let s = Scene.make(.tideArchive, device: device)
             let g = Game(scenes: [.varrow: Scene.makeWorld(device: device), .tideArchive: s]); g.travel(to: .tideArchive)
             let c = ArchiveProps.gateCollider(0).center
-            if open { s.update(ArchiveProps.gateName(0)) { $0.uniforms.emissive.w = 1 } }
+            if open {                                                              // the real path: the puzzle's own flag (B's puzzle writes the gate's emissive each frame, so setting the emissive by hand would be overwritten)
+                if let t = g.tideArchive { g.state.set(TideArchivePuzzle.sluiceFlags[0]); t.restore(from: [TideArchivePuzzle.sluiceFlags[0]]) } else { s.update(ArchiveProps.gateName(0)) { $0.uniforms.emissive.w = 1 } }
+            }
             g.simulate(seconds: 4)
             let b = PlaythroughBot(g)
             let start = c + SIMD2(0, 4)                                              // yaw 0 faces -z: from the room's far side toward the gap
