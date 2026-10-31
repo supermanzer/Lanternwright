@@ -12,7 +12,7 @@ Margin 4.0 m. Region = corridors and plazas plus the margin. Areas on a 2 m grid
   stone_stone: stand at (-5.5, -19.9), 18.0 m inside a corridor, eye 1.0 m of reach 3.5
   page_1: stand at (157.4, 181.8), 4.5 m inside a corridor, eye 1.4 m of reach 3.4
   page_2: stand at (120.7, 117.8), 17.3 m inside a corridor, eye 1.3 m of reach 3.4
-  page_3: stand at (42.4, 53.9), 17.3 m inside a corridor, eye 1.2 m of reach 3.4
+  page_3: stand at (42.4, 53.9), 17.3 m inside a corridor, eye 1.3 m of reach 3.4
   page_4: stand at (-26.9, -40.8), 18.2 m inside a corridor, eye 1.3 m of reach 3.4
   page_9: stand at (173.1, 203.3), 3.9 m inside a corridor, eye 1.3 m of reach 3.4
   lh_door: stand at (-29.7, -43.0), 21.0 m inside a corridor, eye 0.8 m of reach 4.0
@@ -28,7 +28,7 @@ Margin 4.0 m. Region = corridors and plazas plus the margin. Areas on a 2 m grid
   checked 21 required places, 18 interactables, 3 vantages
   region 14388 m2 of 137052 m2 of dry land (10.5 %)
   farthest reachable point from the origin: 170 m
-  props (226 scene items) beyond the region: over 20 m 80, over 60 m 54, over 150 m 38
+  props (235 scene items) beyond the region: over 20 m 80, over 60 m 54, over 150 m 38
   interactables:
   gw_return: stand at (0.0, 146.0), 8.0 m inside a corridor, eye 0.0 m of reach 5.0
   gw_mirror_0: stand at (-65.0, 30.0), 14.8 m inside a corridor, eye 0.0 m of reach 5.0
@@ -45,6 +45,6 @@ Margin 4.0 m. Region = corridors and plazas plus the margin. Areas on a 2 m grid
   gw_altar_ilse: stand at (-3.0, -92.0), 17.0 m inside a corridor, eye 0.0 m of reach 5.0
   gw_altar_oren: stand at (3.0, -92.0), 17.0 m inside a corridor, eye 0.0 m of reach 5.0
   page_5: stand at (2.1, 153.7), 11.3 m inside a corridor, eye 1.3 m of reach 3.4
-  page_6: stand at (-78.1, 25.9), 16.0 m inside a corridor, eye 1.2 m of reach 3.4
+  page_6: stand at (-78.1, 25.9), 16.0 m inside a corridor, eye 1.3 m of reach 3.4
   page_7: stand at (70.0, 14.6), 17.4 m inside a corridor, eye 1.3 m of reach 3.4
   page_8: stand at (1.2, -89.0), 16.8 m inside a corridor, eye 1.3 m of reach 3.4
