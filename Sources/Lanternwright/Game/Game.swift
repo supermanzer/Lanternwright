@@ -111,14 +111,10 @@ final class Game {
     private var atmosphereTargets: (mist: Float, beam: Float) { (state.has("lensTouched") ? Game.thinMist : 1, state.has("lighthouseLit") ? 1 : 0) }
     /// Jump the slow atmosphere easing to where it is heading (loading a save, `--state`).
     func settleAtmosphere() { (mistScale, beamAmount) = atmosphereTargets }
-    /// Auto-run: while on, moving means running (R toggles). Plus the one-time hint for players who never find Shift.
+    /// Auto-run: while on, moving means running (R toggles). (F07 B-run, #73: there is no longer a "Hold Shift to run" line after 45 s of walking: it was a tutorial remark with no meaning in the
+    /// world, and the controls screen already says it. Page 9 has the keepers' rule about running.)
     private(set) var autoRun = false
-    private var walkedSeconds: Float = 0
-    private var hasRun = false
-    /// A restored save that already showed the hint counts as having been told (the hint never repeats).
-    func markHintSeen() { hasRun = true }
-    static let runHintAfter: Float = 45
-    static let ownFlags = ["lensTouched", "hint_run", Game.pathIlseFlag, Game.pathOrenFlag, Game.doorOpenFlag, Game.portalOpenFlag]
+    static let ownFlags = ["lensTouched", Game.pathIlseFlag, Game.pathOrenFlag, Game.doorOpenFlag, Game.portalOpenFlag]
     /// 0...1: how far the "look closer" zoom has eased in (right mouse button or Z).
     private(set) var zoomAmount: Float = 0
     /// 0...1: how far into a run the player is (eased), which widens the view a little: speed you can see.
@@ -535,11 +531,6 @@ final class Game {
         let target = atmosphereTargets
         mistScale += (target.mist - mistScale) * min(1, Game.tick / 12)        // about 12 s to thin
         beamAmount += (target.beam - beamAmount) * min(1, Game.tick / 4)       // about 4 s to fade in
-        if input.run && length_squared(input.move) > 0 { hasRun = true }
-        if !hasRun && length_squared(input.move) > 0 && !journal.isOpen && !isTraveling { walkedSeconds += Game.tick }
-        if !hasRun && walkedSeconds > Game.runHintAfter && !state.has("hint_run") && banner == nil {
-            state.set("hint_run"); showBanner("Hold Shift to run, or press R to run automatically.")
-        }
         runBlend += (Player.runFactor(speed: player.speed) - runBlend) * (1 - exp(-4 * Game.tick))
         zoomAmount = LookCloser.ease(zoomAmount, held: input.zoom && !journal.isOpen && !isTraveling, dt: Game.tick)
         for p in puzzles { p.updateVisuals(time: time) }

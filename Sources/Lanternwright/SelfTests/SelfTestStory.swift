@@ -8,8 +8,8 @@ extension SelfTestRunner {
     func runStory() {
         guard name == "all" || name == "story" else { return }
         func sha(_ s: String) -> String { SHA256.hash(data: Data(s.utf8)).map { String(format: "%02x", $0) }.joined().prefix(16).description }
-        let pinned: [Int: String] = [1: "1d6b37740915dbc7", 2: "e272f0ff6d62259b", 3: "2243ff480bc14b15", 4: "6aa8964f69566dfa",
-                                     5: "86e5c27c6f0cf494", 6: "1ab3060595cf8ae5", 7: "602ddb09393e0d31", 8: "87ac886b7d441cbe", 9: "a3cf6bd467e9c41a"]
+        let pinned: [Int: String] = [1: "8d22e0f2dc14b25f", 2: "86f87e928ada0630", 3: "2243ff480bc14b15", 4: "561cfbc8deb2ffb8",
+                                     5: "86e5c27c6f0cf494", 6: "1ab3060595cf8ae5", 7: "602ddb09393e0d31", 8: "87ac886b7d441cbe", 9: "8944080ea1c4554e"]
         let drifted = StoryPages.all.filter { pinned[$0.id] != sha($0.text) }.map(\.id)
         check(StoryPages.all.map(\.id) == Array(1...9) && drifted.isEmpty, "story: the nine pages are in order and every text is byte-identical to its pin: 1, 2, 3, 6, 7, 8 as on main at the start of S03.1, 4, 5 and 9 as revised in S03.10 (changed: \(drifted))")
         check(JournalContent.pages.map(\.number) == StoryPages.all.map(\.id) && JournalContent.pages.map(\.text) == StoryPages.all.map(\.text), "story: the journal's pages are the story data, number for number and word for word")
@@ -20,8 +20,11 @@ extension SelfTestRunner {
         // gains its half-line after the old ending, page 9 is the new Ilse page, and pages 3 and 8 are as they were.
         let t = { (n: Int) in StoryPages.page(n)?.text ?? "" }
         check(t(5).hasPrefix("The week before the fog, I went through the lens first. Ilse will say I stole it, and she will be right about the lens and wrong about the reason."), "story: R1: page 5 begins 'The week before the fog, I went through the lens first.' and goes on as before")
-        check(t(4).hasPrefix("Oren has asked again for the lens. He says light that can fold can also carry. Carry what, brother? He did not answer, and I did not like the silence.") && t(4).hasSuffix(" I told him the lens room is not a place for the impatient, which is not what he asked."), "story: R3: page 4 keeps its words and gains 'I told him the lens room is not a place for the impatient, which is not what he asked.' at the end")
-        check(t(9) == "Rule the first: keepers do not run on the shingle. Rule the second: keepers run when the lamp is going out. I have broken the second only twice, and I would break it again." && StoryPages.page(9)?.author == .ilse, "story: R2: page 9 is Ilse's, and reads as drafted")
+        check(t(4).hasPrefix("Oren has asked again for the lens of the lighthouse lamp. He says light that can fold can also carry. Carry what, brother? He did not answer, and I did not like the silence.") && t(4).hasSuffix(" I told him the lens room is not a place for the impatient, which is not what he asked."), "story: R3: page 4 keeps its words and gains 'I told him the lens room is not a place for the impatient, which is not what he asked.' at the end")
+        check(t(9) == "Rule the first: keepers do not run on the shingle. Rule the second: keepers run when the lamp in the lighthouse is going out. I have broken the second only twice, and I would break it again." && StoryPages.page(9)?.author == .ilse, "story: R2: page 9 is Ilse's, and reads as drafted (plus the lighthouse, F07 B-lamp)")
+        // F07 B-lamp (#76): Ilse's pages 1, 2, 4 and 9 place the lamp in the lighthouse; pages 3 and 8 stay exactly as they were (pinned above).
+        check([1, 2, 4, 9].allSatisfy { t($0).contains("lighthouse") } && [1, 2, 4, 9].allSatisfy { StoryPages.page($0)?.author == .ilse }, "story: B-lamp: Ilse's pages 1, 2, 4 and 9 each say where the lamp is (in the lighthouse)")
+        check(t(3) == "I tune the lamp each evening the way I first climbed this island: from the water, through the wind, to the stone. Out of order, they only argue." && t(8).hasPrefix("Two accounts will reach you, and they will not agree."), "story: B-lamp: pages 3 and 8 are untouched")
         check(t(3) == "I tune the lamp each evening the way I first climbed this island: from the water, through the wind, to the stone. Out of order, they only argue." && t(8).hasPrefix("Two accounts will reach you, and they will not agree."), "story: page 3 is exactly as restored in F04 T1 and page 8 is unchanged")
 
         let numerals = StoryPages.all.map { OverlayView.roman($0.id) }

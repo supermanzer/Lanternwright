@@ -213,16 +213,14 @@ extension SelfTestRunner {
             check(r.player.speed > walkSpeed * 1.4, "with auto-run on, just walking runs (\(walkSpeed) -> \(r.player.speed) m/s)")
             r.advance(now: 5, input: press)
             check(!r.autoRun, "R turns it off again")
+            // F07 B-run (#73): no "hold Shift" line pops up however long a player walks without running.
             let h = Game(scene: Scene.makeWorld(device: device))
-            h.simulate(seconds: Game.runHintAfter - 5, input: walk)
-            check(h.banner == nil && !h.state.has("hint_run"), "no hint before \(Int(Game.runHintAfter)) s of walking")
-            h.simulate(seconds: 8, input: walk)
-            check(h.state.has("hint_run") && h.banner?.contains("Shift") == true, "after \(Int(Game.runHintAfter)) s of walking without running, the hint appears once")
-            let h2 = Game(scene: Scene.makeWorld(device: device)); var sprint = walk; sprint.run = true
-            h2.simulate(seconds: Game.runHintAfter + 5, input: sprint)
-            check(!h2.state.has("hint_run"), "a player who already runs never sees the hint")
-            let saved = h.makeSave(); let h3 = Game(scene: Scene.makeWorld(device: device)); h3.restore(saved)
-            check(h3.state.has("hint_run"), "the hint is remembered across sessions")
+            var said = false
+            for _ in 0..<12 { h.simulate(seconds: 10, input: walk); if h.banner != nil { said = true } }
+            check(!said && !h.state.has("hint_run"), "run: two minutes of walking without running never brings up a hint (it was a tutorial line with no meaning in the world)")
+            let old = Game(scene: Scene.makeWorld(device: device)); var oldSave = h.makeSave(); oldSave.worldFlags["hint_run"] = ["hint_run"]
+            old.restore(oldSave)
+            check(old.banner == nil, "run: a save from before, which carries the old flag, loads without trouble")
         }
         if name == "all" || name == "movefeel" {
             // B7 (partial): FOV widens while running and settles back; wading slows you.

@@ -132,7 +132,6 @@ extension Game {
     func restore(_ s: SaveData) {
         putAwayReading()                                                           // F05 S1: a card from before the load does not come back
         for f in Game.ownFlags where s.worldFlags[SaveData.gameBucket]?.contains(f) == true { state.set(f) }
-        if state.has("hint_run") { markHintSeen() }
         // The two routes exclude each other: a save that has both (only a hand-edited one can) is treated as undecided rather than guessing which came first.
         if state.has(Game.pathIlseFlag) && state.has(Game.pathOrenFlag) { state.set(Game.pathIlseFlag, false); state.set(Game.pathOrenFlag, false) }
         story = s.story ?? StoryState()
