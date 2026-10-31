@@ -336,7 +336,7 @@ enum ArchiveProps {
         for k in 0..<3 {
             let a = beamAngle(k, ring: ringAngle), lit = resting(k, ring: ringAngle)
             let dir = simd_normalize(SIMD3(cos(a), -0.02, sin(a)))
-            scene.update(beamOutName(k)) { $0.uniforms.model = translation(prismPosition) * rotation(aligningYTo: dir); $0.uniforms.emissive = SIMD4(beamColours[k], lit ? 6 : 3) }
+            scene.update(beamOutName(k)) { $0.uniforms.model = translation(prismPosition) * rotation(aligningYTo: dir); $0.uniforms.emissive = SIMD4(beamColours[k], lit ? 8 : 5) }
             scene.update(markName(k)) { $0.uniforms.emissive = lit ? SIMD4(beamColours[k], 3.5) : SIMD4(0, 0, 0, 0) }
         }
         scene.update(ringName) { $0.uniforms.model = translation(ArchiveLayout.prismChamber + SIMD3(0, 0.55, 0)) * rotationY(-ringAngle) }

@@ -213,7 +213,7 @@ enum ArchiveLayout {
     /// (reachable only near low tide). `sluiceFloors` are their floor heights (the ground there is flat at that height: pads with a short blend).
     static let greatLedgerXZ = SIMD2<Float>(70, -30)
     static let greatLedger = point(greatLedgerXZ.x, greatLedgerXZ.y)
-    static let sluiceFloors: [Float] = (0..<3).map { Tide.metres(level: Tide.windows[$0].upperBound) - 0.35 }      // the water in a room is at most 0.35 m deep when its gate's window closes: the gate can always be reached while it answers
+    static let sluiceFloors: [Float] = [0.8, -0.2, -0.9]      // the source of truth: `Tide.windows` (B's Q33) are derived from these
     /// A sluice room is flat to `sluiceFlat` m round its centre and eases back into the terrace over `sluiceBlend` m more (the pad and the terrain's pit use the same two numbers: walls under 0.5).
     static let sluiceFlat: Float = 6, sluiceBlend: Float = 10
     static let sluiceSites: [SIMD2<Float>] = [SIMD2(-72, 108), SIMD2(72, 108), SIMD2(0, 118)]

@@ -949,21 +949,21 @@ extension SelfTestRunner {
         check(abs(Tide.metres(0) + 1.0) < 1e-4 && abs(Tide.metres(45) - 1.4) < 1e-4 && abs(Tide.metres(90) + 1.0) < 1e-4 && abs(Tide.metres(30) - Tide.metres(30 + 90)) < 1e-4,
               "tide: low (-1.0 m) at 0 s, high (+1.4 m) at 45 s, the same again every 90 s (\(String(format: "%.2f", Tide.metres(22.5))) m at a quarter)")
         let shares = ArchiveLayout.sluiceFloors.map { Tide.wadeableShare(ground: $0) }
-        check(shares[0] > 0.3 && shares[0] < 0.6 && shares[1] > 0.45 && shares[1] < 0.8 && shares[2] > 0.95, "tide: the sluice rooms can be waded for \(shares.map { String(format: "%.0f", $0 * 100) }) % of the cycle (the tide room's floor is lowest: under 60 %; the wind room's 45-80 %; the stone room's, set by the highest window, always)")
-        // The rooms' floors come from the puzzle's own windows (B's `Tide.windows`): whenever a gate's window is open the water in its room is wadeable, so the gate can be reached while it answers.
+        check(shares[0] > 0.7 && shares[0] < 0.9 && shares[1] > 0.4 && shares[1] < 0.6 && shares[2] > 0.2 && shares[2] < 0.4, "tide: the sluice rooms (floors 0.8, -0.2, -0.9 m) can be waded for \(shares.map { String(format: "%.0f", $0 * 100) }) % of the cycle (the tide room most, the stone room least: about 80, 50 and 30 %)")
+        // The windows come from the rooms' floors (B's `Tide.window(forFloor:)`, Q33): whenever a gate's window is open the water in its room is wadeable, so the gate can be reached while it answers.
         var windowOK = true, someClosed = [false, false, false]
         for n in 0..<900 {
             let t = Float(n) / 900 * Tide.period
             for k in 0..<3 {
-                if Tide.inWindow(k, level: Tide.level(t)) && !Tide.isWadeable(ground: ArchiveLayout.sluiceFloors[k], time: t) { windowOK = false }
+                if Tide.inWindow(k, level: Tide.level(t)) && Tide.depth(ground: ArchiveLayout.sluiceFloors[k], time: t) > Tide.wadeDepth + 0.01 { windowOK = false }
                 if !Tide.inWindow(k, level: Tide.level(t)) { someClosed[k] = true }
             }
         }
-        check(windowOK && someClosed.allSatisfy { $0 }, "tide: whenever a gate's window is open the water in its room can be waded (floors from the windows), and each window does close")
+        check(windowOK && someClosed.allSatisfy { $0 }, "tide: whenever a gate's window is open the water in its room can be waded (windows from the floors), and each window does close")
         let low = ArchiveLayout.sluiceFloors.map { Tide.isWadeable(ground: $0, time: 0) }, high = ArchiveLayout.sluiceFloors.map { Tide.isWadeable(ground: $0, time: 45) }
-        check(low == [true, true, true] && high == [false, false, true], "tide: at low tide every room can be reached; at high tide the tide room and the wind room are too deep, the stone room (the highest floor) is not (\(low) / \(high))")
+        check(low == [true, true, true] && high == [false, false, false], "tide: at low tide every room can be reached; at high tide (1.4 m) every room is too deep (\(low) / \(high))")
         let wait = ArchiveLayout.sluiceFloors.map { Tide.nextWadeable(ground: $0, after: 45) ?? -1 }
-        check(wait[0] > 0 && wait[1] > 0 && wait[0] > wait[1] && wait[2] == 0, "tide: after high tide the deep rooms open again in turn (the wind room first, then the tide room), the stone room never closes (waits \(wait.map { String(format: "%.0f", $0) }) s)")
+        check(wait[0] > 0 && wait[1] > wait[0] && wait[2] > wait[1], "tide: after high tide the rooms open again in turn (the tide room first, then the wind room, then the stone room: waits \(wait.map { String(format: "%.0f", $0) }) s)")
         guard let device = MTLCreateSystemDefaultDevice() else { return }
         let sc = Scene.make(.tideArchive, device: device)
         let region = ReachableRegion.make(.tideArchive, scene: sc)
@@ -1101,8 +1101,8 @@ extension SelfTestRunner {
         ArchiveProps.update(sc, time: t + 2, ringAngle: -0.4, tableau: nil)
         check(rests && (0..<3).allSatisfy { item(ArchiveProps.markName($0))!.uniforms.emissive.w == 0 }, "archivestory: with the ring on gate k's angle component k lies on mark k and only that mark glows; between the targets none does")
         // The marks: each gate's band stands where its window's water levels are (a thin brass cap at the window's top above the floor); the rooms flood: walk out.
-        let deepPoint = SIMD3(ArchiveLayout.sluices[0].x + 2, ArchiveLayout.sluices[0].y, ArchiveLayout.sluices[0].z)
-        let push = ArchiveProps.floodPush(position: deepPoint, sea: 1.2), none = ArchiveProps.floodPush(position: deepPoint, sea: ArchiveLayout.sluices[0].y + 0.3)
+        let deepPoint = SIMD3(ArchiveLayout.sluices[2].x + 2, ArchiveLayout.sluices[2].y, ArchiveLayout.sluices[2].z)
+        let push = ArchiveProps.floodPush(position: deepPoint, sea: 1.2), none = ArchiveProps.floodPush(position: deepPoint, sea: ArchiveLayout.sluices[2].y + 0.3)
         check(push != nil && push!.x > 0.9 && none == nil && ArchiveProps.floodPush(position: ArchiveLayout.landing, sea: 1.4) == nil, "archivestory: a player standing in a room the tide has flooded deeper than \(ArchiveProps.floodDepth) m is walked out of it (away from its centre); in shallow water and on the route nothing happens")
         // The gallery: the water is a body of its own at its full level, lowered by B's drain; wading into it is limited by its depth.
         let w = item(ArchiveStory.waterName)!
