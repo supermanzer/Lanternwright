@@ -206,6 +206,31 @@ extension SelfTestRunner {
         rl.setClaim("who-left", page: 4, to: .hers); rl.setClaim("who-left", page: 8, to: .hers)
         check(rl.isSettled("who-left") && rl.gate.ilsePages == gateRoll.ilsePages && rl.gate.orenPages == gateRoll.orenPages, "roll: pages 4, 8 and 12, mapped as the player reads them, settle it, and no gate count changed")
 
+        // The shadow-play tableau (optional): data first.
+        let tb = ShadowTableaux.archive
+        check(tb.ilseSide.count == 2 && tb.orenSide.count == 2 && Set(tb.ilseSide.map(\.who)) == [.ilse, .oren] && Set(tb.orenSide.map(\.who)) == [.ilse, .oren], "tableau: the same two figures in both versions of the one moment")
+        check(tb.figures(.ilse) != tb.figures(.oren) && tb.ilseSide.map(\.posture) != tb.orenSide.map(\.posture) && zip(tb.ilseSide.sorted { $0.who.rawValue < $1.who.rawValue }, tb.orenSide.sorted { $0.who.rawValue < $1.who.rawValue }).allSatisfy { abs($0.x - $1.x) > 0.05 && $0.posture != $1.posture }, "tableau: each figure is in a different place and a different posture in the other version")
+        check(tb.ilseSide.allSatisfy { $0.x >= 0 && $0.x <= 1 && $0.height > 0.3 && $0.height <= 1 } && tb.orenSide.allSatisfy { $0.x >= 0 && $0.x <= 1 && $0.height > 0.3 && $0.height <= 1 }, "tableau: every silhouette lies on the wall and is of a sensible height")
+        let gapI = abs(tb.ilseSide[0].x - tb.ilseSide[1].x), gapO = abs(tb.orenSide[0].x - tb.orenSide[1].x)
+        check(gapO < gapI && tb.ilseSide[0].who == .ilse && tb.ilseSide[0].x < tb.ilseSide[1].x && tb.orenSide[0].who == .oren, "tableau: from Ilse's side the gap is wide and she stays at her lamp; from Oren's he stands nearer the middle and reaches back, the gap narrower")
+        check(abs(ShadowTableaux.shift(0)) < 1e-6 && abs(ShadowTableaux.shift(10) - 1) < 1e-5 && abs(ShadowTableaux.shift(5.3) - ShadowTableaux.shift(45.3)) < 1e-4, "tableau: the slow shift is a pure periodic function of the clock")
+        // Play: the route's own side first, the other once it has been seen; each shows its own version; seen is remembered; saves; nothing gates.
+        let ti = routeGame(.ilse); frame(ti); let tiT = ti.tideArchive!
+        func enabled(_ g: Game, _ side: PageAuthor) -> Bool { g.interactables.first { $0.id == T.tableauLightName(side) }?.enabled == true }
+        check(enabled(ti, .ilse) && !enabled(ti, .oren) && ti.tableauShown == nil, "tableau: on Ilse's route her own side's lantern can be lit from the start, Oren's cannot yet, and the wall is dark")
+        ti.activate(T.tableauLightName(.ilse)); frame(ti)
+        check(ti.tableauShown == .ilse && tiT.tableauSeen(.ilse) && !tiT.tableauSeen(.oren) && enabled(ti, .oren), "tableau: lighting it from her side shows her version, and the other side's lantern can now be lit")
+        let gateT = ti.gate
+        ti.activate(T.tableauLightName(.oren)); frame(ti)
+        check(ti.tableauShown == .oren && tiT.tableauSeen(.oren) && tiT.tableauSeen(.ilse) && ti.gate == gateT && !ti.routeSolved, "tableau: lighting it from his side shows his version instead; both are seen; nothing is solved or counted")
+        check((ti.scene.items.first { $0.name == ShadowTableaux.archive.lanternItems[.oren]! }?.uniforms.emissive.w ?? 0) > 0 || ti.scene.items.first { $0.name == ShadowTableaux.archive.lanternItems[.oren]! } == nil, "tableau: the lit side's lantern glows (the item is builder A's: absent in the stand-in)")
+        let tOren = routeGame(.oren); frame(tOren)
+        check(enabled(tOren, .oren) && !enabled(tOren, .ilse), "tableau: on Oren's route his own side is the one within reach first")
+        tOren.activate(T.tableauLightName(.oren)); frame(tOren)
+        check(tOren.tableauShown == .oren && enabled(tOren, .ilse), "tableau: and lighting it shows his version, then hers can be lit")
+        let tl = twoWorlds(); tl.restore(ti.makeSave()); frame(tl)
+        check(tl.tideArchive?.tableauSeen(.ilse) == true && tl.tideArchive?.tableauSeen(.oren) == true && tl.tableauShown == nil, "tableau: a save keeps which versions have been seen, and the wall is dark again after a load")
+
         // A save between the third gate and the drain still finishes (the 2.5 s window).
         let w = routeGame(.ilse), tideW = w.tideArchive!
         to(w, 2); tideW.touchSluice(0); to(w, w.time + hold)

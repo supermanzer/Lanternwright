@@ -83,6 +83,8 @@ final class Game {
     /// S04.6: the Tide Archive's key puzzle, present only behind `tideArchiveEnabled` (LW_TIDE_ARCHIVE=1 or a test) until builder A's world (S04.1) lands and the Glass Wood stops standing in.
     nonisolated(unsafe) static var tideArchiveEnabled = ProcessInfo.processInfo.environment["LW_TIDE_ARCHIVE"] == "1"
     private(set) var tideArchive: TideArchivePuzzle?
+    /// The version of the remembered moment on the Archive's wall now (nil: dark): builder A draws `ShadowTableaux.archive.figures(tableauShown)` on `ti_tableau_wall`.
+    var tableauShown: PageAuthor? { tideArchive?.tableauShown }
 
     /// Show text over the world; it stays for a time proportional to its length, unless replaced by a newer line.
     func showBanner(_ text: String) {
@@ -407,6 +409,7 @@ final class Game {
         setInteractable(TideArchivePuzzle.ringName, enabled: t.hasLens)
         setInteractable(TideArchivePuzzle.findForkName, enabled: !t.hasFork)
         setInteractable(TideArchivePuzzle.findLensName, enabled: !t.hasLens)
+        for side in [PageAuthor.ilse, .oren] { setInteractable(TideArchivePuzzle.tableauLightName(side), enabled: t.tableauSideAvailable(side, route: chosenPath)) }       // S04 optional: the tableau's two lanterns
     }
 
     // MARK: The guides (S04.8)

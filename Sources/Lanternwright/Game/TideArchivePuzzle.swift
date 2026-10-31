@@ -53,24 +53,41 @@ final class TideArchivePuzzle: WorldPuzzle {
     var isSolved: Bool { solved() }
 
     // MARK: WorldPuzzle
-    var persistentFlags: [String] { TideArchivePuzzle.sluiceFlags + [TideArchivePuzzle.forkFlag, TideArchivePuzzle.lensFlag, TideArchivePuzzle.wayTone, TideArchivePuzzle.wayBeam, TideArchivePuzzle.drainedFlag] }
+    var persistentFlags: [String] { TideArchivePuzzle.sluiceFlags + Array(TideArchivePuzzle.tableauFlags.values) + [TideArchivePuzzle.forkFlag, TideArchivePuzzle.lensFlag, TideArchivePuzzle.wayTone, TideArchivePuzzle.wayBeam, TideArchivePuzzle.drainedFlag] }
     func restore(from flags: Set<String>) {
+        tableauShown = nil
         for f in persistentFlags where flags.contains(f) { state.set(f) }
         busy = false; ringSerial += 1; ringAngle = TideArchivePuzzle.initialRing
         syncVisuals(drain: state.has(TideArchivePuzzle.drainedFlag) ? 1 : 0)
         // A save taken between the third gate and the drain (the 2.5 s delay) has all three gates open and the world not yet solved: finish it, or nothing ever would.
         if opened == TideArchivePuzzle.sluiceFlags.count && !state.has(Game.routeSolvedFlag) { complete() }
     }
-    func handles(_ id: String) -> Bool { TideArchivePuzzle.sluiceNames.contains(id) || id == TideArchivePuzzle.ringName || id == TideArchivePuzzle.findForkName || id == TideArchivePuzzle.findLensName }
+    func handles(_ id: String) -> Bool { TideArchivePuzzle.sluiceNames.contains(id) || TideArchivePuzzle.tableauLightNames.contains(id) || id == TideArchivePuzzle.ringName || id == TideArchivePuzzle.findForkName || id == TideArchivePuzzle.findLensName }
     func activate(_ id: String) {
         if let k = TideArchivePuzzle.sluiceNames.firstIndex(of: id) { touchSluice(k) }
         else if id == TideArchivePuzzle.ringName { turn(1) }
+        else if let side = [PageAuthor.ilse, .oren].first(where: { TideArchivePuzzle.tableauLightName($0) == id }) { lightTableau(from: side) }
         else if id == TideArchivePuzzle.findForkName { state.set(TideArchivePuzzle.forkFlag); emit(.chime(.lens)) }
         else if id == TideArchivePuzzle.findLensName { state.set(TideArchivePuzzle.lensFlag); emit(.chime(.lens)) }
     }
     func updateVisuals(time: Float) { syncVisuals(drain: nil) }
 
     private func chime(_ k: Int) -> ChimeKind { k == 0 ? .tide : (k == 1 ? .wind : .stone) }
+
+    // MARK: The shadow-play tableau (optional, S04)
+    /// The version on the wall now (nil: dark), and whether each has been seen.
+    private(set) var tableauShown: PageAuthor?
+    func tableauSeen(_ side: PageAuthor) -> Bool { TideArchivePuzzle.tableauFlags[side].map { state.has($0) } ?? false }
+    /// Which sides' lanterns can be reached: the route's own from the start, the other once the first version has been seen.
+    func tableauSideAvailable(_ side: PageAuthor, route: PageAuthor?) -> Bool { side == route || (route != nil && tableauSeen(route!)) }
+    /// Light the lantern from `side`: that side's version of the moment falls on the wall (the other goes dark), and it is remembered as seen.
+    func lightTableau(from side: PageAuthor) {
+        guard side == .ilse || side == .oren, let flag = TideArchivePuzzle.tableauFlags[side] else { return }
+        emit(.chime(.lens))
+        tableauShown = side
+        state.set(flag)
+        syncVisuals(drain: nil)
+    }
 
     // MARK: Ilse's way: the held tone
     func touchSluice(_ k: Int) {
@@ -154,6 +171,7 @@ final class TideArchivePuzzle: WorldPuzzle {
             let open = state.has(TideArchivePuzzle.sluiceFlags[k])
             sc.update(name) { $0.uniforms.emissive = open ? SIMD4(0.55, 0.85, 1.0, 1.4) : SIMD4(0, 0, 0, 0) }
         }
+        for side in [PageAuthor.ilse, .oren] { sc.update(ShadowTableaux.archive.lanternItems[side]!) { $0.uniforms.emissive = self.tableauShown == side ? SIMD4(1.0, 0.72, 0.3, 2.2) : SIMD4(0, 0, 0, 0) } }
         if let d = drain { sc.update("ti_gallery_water") { $0.uniforms.model = translation(SIMD3(0, -3.5 * d, 0)) } }
     }
 }

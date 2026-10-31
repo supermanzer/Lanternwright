@@ -20,6 +20,7 @@ enum TideStandIn {
         list.append(box(TideArchivePuzzle.findForkName, findPosition(false, scene: scene), "Take the fork"))
         list.append(box(TideArchivePuzzle.findLensName, findPosition(true, scene: scene), "Take the lens"))
         list.append(box(ChainMap.interactableName, mapPosition(scene: scene), "Read the map"))
+        for (i, side) in [PageAuthor.ilse, .oren].enumerated() { list.append(box(TideArchivePuzzle.tableauLightName(side), spot(-4 + 3 * Float(i), -13, scene) + SIMD3(0, 1.0, 0), "Light the lantern", enabled: false)) }
         for n in StoryPages.archiveIDs { list.append(box("page_\(n)", pagePosition(n, scene: scene), "Read the page")) }
         return list
     }

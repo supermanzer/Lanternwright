@@ -170,6 +170,12 @@ Format: `### Q<n> (date, who): the question` then *Default taken*, *Where it liv
 *What changes if the answer differs:* every number above is a constant; flipping to A's world is `routeWorldOverride`, the stand-in file and renaming the item ids.
 *Status:* open.
 
+### Q29 (2026-10-30, builder B, S04 optional items): the Roll of Keepers piece and the shadow-play tableau's data
+*Default taken:* (1) **The Roll of Keepers** is the Notebook contradiction's fifth piece of evidence (page 12, listed only once a route has begun, either account defensible, never "wrong", never gating, any three of the five settle it); its two route-specific lines are in `docs/plans/S04-page-drafts.md` for the user to read. (2) **The tableau** is data and state only: ONE remembered moment (the evening Oren went through the lens first), two figures, two versions (`ShadowTableaux.archive`: from Ilse's side a wide gap, she at her lamp, he turned away raising the lens; from Oren's side he is half turned reaching back, nearer the middle, she small and still); the player's own side's lantern can be lit from the start, the other side's once the first has been seen; the version shown is the last lit; seen versions are saved (`ti_tableau_ilse`, `ti_tableau_oren`) and nothing reads them yet (the optional third ending). The wall, the cut-out silhouettes and the light are builder A's, with the item names `ti_tableau_wall`, `ti_tableau_lantern_ilse/oren` and the interactable ids `ti_tableau_light_ilse/oren`. The moment chosen (the night of the lens) is the plan's (S02 lever 6: "the same remembered moment seen from each sibling's side"); a different or a second tableau is a data addition.
+*Where it lives:* `Game/Contradictions.swift` (page 12's `Evidence`), `Game/ShadowTableau.swift`, `Game/TideArchivePuzzle.swift` (`lightTableau`), `Game/TideStandIn.swift` (stand-in lanterns).
+*What changes if the answer differs:* the figures' places and postures are data; the unlock rule (own side first) is `tableauSideAvailable`.
+*Status:* open.
+
 ## Answered
 - 2026-10-28 S03 Oren's exit location: both exits at the original lighthouse; Oren's is a lens portal in the lens room, the dock arch is not an exit.
 - 2026-10-28 Page gate: 3 pages of each sibling.
