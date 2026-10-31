@@ -45,6 +45,8 @@ final class ArchiveAudio {
     private var level: Float = 0, rate: Float = 0, wg: Float = 0
     private var t: Double = 0
     private var baseGain: [Float] = [0, 0, 0]
+    /// Per-voice phases, ACCUMULATED each sample (2 pi f dt): a frequency that wanders (Oren's drift, the hall's lean) would otherwise smear the pitch by f' x t after minutes of play.
+    private var dronePhase: [Double] = [0, 0, 0], hallPhase: [Double] = [0, 0, 0]
     // Drips
     private struct Drip { var f0: Float; var age: Float; var delay: Float; var amp: Float; var pan: Float }
     private var drips: [Drip] = []
@@ -57,7 +59,9 @@ final class ArchiveAudio {
     private var voices: [Voice] = []
     private let openBuf: [Float], closeBuf: [Float]
 
-    init(sampleRate: Float, seed: UInt32 = 0xA2C1) {
+    /// `startTime` seeds the slow clocks (the pulses and drifts): the selftests start late to prove nothing depends on how long the game has been running.
+    init(sampleRate: Float, seed: UInt32 = 0xA2C1, startTime: Double = 0) {
+        t = startTime
         self.sampleRate = sampleRate
         noise = FoleyNoise(seed: seed)
         bubbles = BubbleSynth(sampleRate: sampleRate, seed: seed ^ 0x5EED)
@@ -69,7 +73,8 @@ final class ArchiveAudio {
     func handle(_ e: Event) { lock.lock(); queued.append(e); lock.unlock() }
 
     /// Add the Archive's layers to `left` / `right` (it adds, it does not overwrite).
-    func render(frames: Int, left: UnsafeMutablePointer<Float>, right: UnsafeMutablePointer<Float>) {
+    /// `master` is the synth's own master gain (the main mix runs at 0.5 in the game): the Archive's layers are scaled by it so they stand to the stones' drone, the chimes and the footsteps as they were tuned to.
+    func render(frames: Int, left: UnsafeMutablePointer<Float>, right: UnsafeMutablePointer<Float>, master: Float = 1) {
         lock.lock(); let inp = inputs; let events = queued; queued.removeAll(); lock.unlock()
         for e in events {
             switch e {
@@ -105,8 +110,9 @@ final class ArchiveAudio {
                     }
                     baseGain[v] += (g - baseGain[v]) * dt / 0.4
                     let fr = f * pow(2, cents / 1200)
-                    let ph = 2 * Double.pi * Double(fr) * t
-                    drone += Float(sin(ph) + 0.5 * sin(ph * 1.0007 + 0.4) + 0.22 * sin(2 * ph)) * baseGain[v] * 0.026
+                    dronePhase[v] += 2 * Double.pi * Double(fr) * Double(dt); if dronePhase[v] > 2 * Double.pi { dronePhase[v] -= 2 * Double.pi }
+                    let ph = dronePhase[v]
+                    drone += Float(sin(ph) + 0.5 * sin(ph * 1.0007 + 0.4) + 0.22 * sin(2 * ph)) * baseGain[v] * ArchiveFoley.droneGain
                 }
                 l += drone; r += drone
                 // --- the tide: laps (bubbles) that quicken with the water's rate, a hall hum that swells with its level and leans with its direction
@@ -117,7 +123,8 @@ final class ArchiveAudio {
                 var hum: Float = 0
                 for v in 0..<3 {
                     let f = ArchiveTones.hallHz[v] * (1 + 0.004 * (rate / 0.035))                    // rising water leans the room a few cents sharp, falling a few flat
-                    let ph = 2 * Double.pi * Double(f) * t
+                    hallPhase[v] += 2 * Double.pi * Double(f) * Double(dt); if hallPhase[v] > 2 * Double.pi { hallPhase[v] -= 2 * Double.pi }
+                    let ph = hallPhase[v]
                     hum += Float(sin(ph) + 0.55 * sin(2 * ph + 0.3) + 0.35 * sin(3 * ph + 0.9)) * (0.4 + 0.6 * level) * 0.010
                 }
                 hum *= wg * 0.5 + 0.12
@@ -161,7 +168,7 @@ final class ArchiveAudio {
                 l += x * (0.5 - 0.5 * voices[k].pan); r += x * (0.5 + 0.5 * voices[k].pan)
                 voices[k].pos += 1
             }
-            left[i] += l; right[i] += r
+            left[i] += l * master; right[i] += r * master
         }
         voices.removeAll { $0.pos >= $0.buf.count }
     }
@@ -171,7 +178,7 @@ enum ArchiveFoley {
     /// A sluice gate (an oak and iron slab on a rack, lifting out of or dropping into its stone frame): the F07 door's weight rules. Opening: a soft unseating thud, a stick-slip CREAK whose real
     /// harmonics (n x f0 with f0 rising 128 to 170 Hz as the gate climbs, only the partials inside 150-900 Hz), the water through the gap (a stream of bubbles that quickens, quiet), a long low ease at
     /// the end. Closing: the same creak falling, and a HEAVY thud at the end as the gate seats (the door's modes, 72 to 138 Hz with their overtones). About 2.3 s. Deterministic.
-    static let sluiceGain: Float = 0.96, forkGain: Float = 0.07
+    static let sluiceGain: Float = 0.96, forkGain: Float = 0.14, droneGain: Float = 0.075
 
     static func sluice(opening: Bool, sampleRate sr: Float, seed: UInt32 = 0x51A1) -> [Float] {
         var n = FoleyNoise(seed: seed ^ (opening ? 1 : 2))
@@ -184,7 +191,7 @@ enum ArchiveFoley {
         let modes: [(f: Float, tau: Float, a: Float)] = [(72, 0.085, 1.0), (96, 0.07, 0.85), (118, 0.06, 0.6), (138, 0.05, 0.45)]
         let harmonics: [(n: Float, a: Float, decay: Float)] = [(2, 0.75, 0.8), (3, 0.6, 0.6), (4, 0.42, 0.5), (6, 0.22, 0.35)]
         var bodyA = Biquad.lowpass(150, sampleRate: sr), bodyB = Biquad.lowpass(150, sampleRate: sr)
-        var phases = [Float](repeating: 0, count: 8)
+        var phases = [Float](repeating: 0, count: 9)             // by harmonic number, so a partial that crosses the band edge keeps its own phase
         let thudAt: Float = opening ? 0 : 1.95                                                          // closing: it seats at the end
         let thudAmp: Float = opening ? 0.55 : 1.0
         let creakStart: Float = opening ? 0.12 : 0.05, creakEnd: Float = opening ? 1.85 : 1.9
@@ -212,13 +219,11 @@ enum ArchiveFoley {
                 let f0: Float = opening ? 128 + 42 * p : 170 - 42 * p
                 let env = min(1, (ts - creakStart) / 0.15) * min(1, (creakEnd - ts) / 0.25)
                 var stack: Float = 0
-                var idx = 0
                 for h in 1...7 {
                     let f = Float(h) * f0
-                    if f < 150 || f > 900 { continue }
-                    phases[idx] += 2 * .pi * f / sr; if phases[idx] > 2 * .pi { phases[idx] -= 2 * .pi }
-                    stack += sin(phases[idx]) / pow(Float(h), 0.8)
-                    idx += 1
+                    phases[h] += 2 * .pi * f / sr; if phases[h] > 2 * .pi { phases[h] -= 2 * .pi }
+                    let edge = min(1, max(0, (f - 150) / 40)) * min(1, max(0, (900 - f) / 60))          // a partial fades in over 150-190 Hz and out over 840-900 Hz: no hard on and off
+                    if edge > 0 { stack += sin(phases[h]) * edge / pow(Float(h), 0.8) }
                 }
                 let x = n.next()
                 creak = (stack * 0.55 + (friction.process(x) + frictionLow.process(x)) * 0.35) * (0.25 + 0.75 * slip) * env

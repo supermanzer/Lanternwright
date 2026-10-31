@@ -32,7 +32,7 @@ final class AudioEngine {
                   let l = buffers[0].mData?.assumingMemoryBound(to: Float.self),
                   let r = buffers[1].mData?.assumingMemoryBound(to: Float.self) else { return noErr }
             synth.render(frames: Int(frames), left: l, right: r)
-            archive.render(frames: Int(frames), left: l, right: r)
+            archive.render(frames: Int(frames), left: l, right: r, master: synth.master)
             return noErr
         }
         engine.attach(node)

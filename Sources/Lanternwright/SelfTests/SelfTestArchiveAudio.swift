@@ -39,7 +39,7 @@ extension SelfTestRunner {
         // Present only when the player is: silent outside, there inside.
         var off = base; off.active = false
         let silent = render(4, inputs: off), there = render(6, inputs: base)
-        check(rms(silent) < 1e-5 && rms(there) > 0.002 && rms(there) < 0.05, "archive audio: silent outside the Archive and present, quiet, inside (RMS \(String(format: "%.5f", rms(silent))) outside, \(String(format: "%.4f", rms(there))) inside)")
+        check(rms(silent) < 1e-5 && rms(there) > 0.002 && rms(there) < 0.1, "archive audio: silent outside the Archive and present, quiet, inside (RMS \(String(format: "%.5f", rms(silent))) outside, \(String(format: "%.4f", rms(there))) inside)")
         let lowPart = A.onePoleLow(A.onePoleLow(there, 420), 420)
         check(rms(lowPart) / rms(there) > 0.75, "archive audio: the drone sits low, with the drips' pings the only thing above it (\(Int(100 * rms(lowPart) / rms(there))) % of the level is under about 400 Hz)")
 
@@ -67,6 +67,41 @@ extension SelfTestRunner {
         if verbose { print("oren peak gaps \(gapsO)") }
         check(!gapsO.allSatisfy { abs($0 - 4) <= 1.6 } && sO[0].count > 60, "archive audio: Oren's route key drifts: the tones do not peak in turn (gaps \(gapsO.map { String(format: "%.1f", $0) }))")
         check(ilse != orenX && ilse == render(36, inputs: base), "archive audio: the two keys differ, and each is reproducible")
+
+        // The drone's level against the stones' own drone (all three voices on, at the same master): the Archive's bed holds its own without drowning anything.
+        func stoneDroneRMS() -> Float {
+            let sy = AmbienceSynth(sampleRate: sr); sy.windGain = 0; sy.surfGain = 0; sy.master = 1
+            for v in 0..<3 { sy.setDrone(v, on: true) }
+            var l = [Float](repeating: 0, count: Int(sr * 6)), r = l
+            l.withUnsafeMutableBufferPointer { lp in r.withUnsafeMutableBufferPointer { rp in sy.render(frames: lp.count, left: lp.baseAddress!, right: rp.baseAddress!) } }
+            return rms(Array(l[Int(sr * 3)...]))
+        }
+        let stoneRMS = stoneDroneRMS(), bed = rms(there)
+        if verbose { print("drone levels: stones \(stoneRMS) archive bed \(bed) (ratio \(bed / stoneRMS))") }
+        check(bed > 0.3 * stoneRMS && bed < 0.9 * stoneRMS, "archive audio: the Archive's bed holds its own beside the stones' drone without drowning it (\(String(format: "%.2f", bed / stoneRMS)) x its level)")
+        // The engine mixes the layers through the synth's master (0.5 in the game): scaled by it, to the sample.
+        do {
+            let a = ArchiveAudio(sampleRate: sr), b = ArchiveAudio(sampleRate: sr)
+            a.setInputs(base); b.setInputs(base)
+            var l1 = [Float](repeating: 0, count: 8192), r1 = l1, l2 = l1, r2 = l1
+            l1.withUnsafeMutableBufferPointer { lp in r1.withUnsafeMutableBufferPointer { rp in a.render(frames: 8192, left: lp.baseAddress!, right: rp.baseAddress!) } }
+            l2.withUnsafeMutableBufferPointer { lp in r2.withUnsafeMutableBufferPointer { rp in b.render(frames: 8192, left: lp.baseAddress!, right: rp.baseAddress!, master: 0.5) } }
+            check(zip(l1, l2).allSatisfy { abs($0 * 0.5 - $1) < 1e-7 } && (l1.map { abs($0) }.max() ?? 0) > 0, "archive audio: the layers are scaled by the synth's master gain, as the rest of the mix is")
+        }
+        // Pitch does not drift with the session's length: started at 10 minutes, Oren's D3 drone and the hall hum are still within their own few cents of the ToneTable pitch.
+        var lateO = base; lateO.route = .oren; lateO.waterDistance = 3; lateO.tide = 0.5; lateO.tideRate = 0.035
+        func late(_ start: Double, _ inp: ArchiveAudio.Inputs) -> [Float] {
+            let a = ArchiveAudio(sampleRate: sr, startTime: start); a.setInputs(inp)
+            var l = [Float](repeating: 0, count: Int(sr * 10)), r = l
+            l.withUnsafeMutableBufferPointer { lp in r.withUnsafeMutableBufferPointer { rp in a.render(frames: lp.count, left: lp.baseAddress!, right: rp.baseAddress!) } }
+            return Array(l[Int(sr * 3)...])
+        }
+        let xl = late(600, lateO)
+        func peakNear(_ x: [Float], _ f0: Float, span: Float) -> Float { var best: Float = 0, bf = f0; var f = f0 - span; while f <= f0 + span { let p = tone(x, f); if p > best { best = p; bf = f }; f += 0.1 }; return bf }
+        let dPeak = peakNear(xl, ArchiveTones.baseHz[0], span: 12), hPeak = peakNear(xl, ArchiveTones.hallHz[0], span: 4)
+        if verbose { print("late pitch: drone D3 at \(dPeak) Hz (\(ArchiveTones.baseHz[0])), hall at \(hPeak) Hz (\(ArchiveTones.hallHz[0]))") }
+        check(abs(dPeak / ArchiveTones.baseHz[0] - 1) < 0.01 && abs(hPeak / ArchiveTones.hallHz[0] - 1) < 0.01, "archive audio: ten minutes into a session the drone and the hum are still on their ToneTable pitches (D3 at \(String(format: "%.1f", dPeak)) Hz, hum at \(String(format: "%.1f", hPeak)) Hz)")
+        check(late(0, base) != late(600, base), "archive audio: and the slow pulses and drifts really do start where the clock says")
 
         // The tide's wash follows the water's distance, its rate and its level.
         var rates = base; rates.tideRate = 0.035; rates.waterDistance = 2
