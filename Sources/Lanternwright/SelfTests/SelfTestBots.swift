@@ -87,7 +87,7 @@ extension SelfTestRunner {
             for _ in 0..<turns { turned = turned && bot.click("gw_pane_\(k)"); bot.wait(0.5) }
         }
         check(turned, "bot: turns each mirror and changes each pane with real clicks")
-        bot.wait(3)
+        bot.wait(3 + PageFold.duration)
         check(g.state.has("gw_mirrors"), "bot: the moonbeam meets tide, wind, stone in order and the court is solved")
         check(g.scenes[.glassWood]!.items.first { $0.name == "page_6" }.map { !$0.hidden } == true, "bot: Oren's page 6 appears at the orb")
         check(!g.pageWaiting && (g.banner ?? "") != "A page has come loose.", "bot: the live reveal does not announce itself (F03 #43: no banner, no marker): the page is simply there")
@@ -101,12 +101,12 @@ extension SelfTestRunner {
             rang = rang && bot.click("gw_chime_\(k)"); bot.wait(0.8)
         }
         check(rang, "bot: strikes the three pillars that carry the stones' tones")
-        bot.wait(3)
+        bot.wait(3 + PageFold.duration)
         check(g.state.has("gw_chimes"), "bot: the chime puzzle is solved")
         collectGW(7)
 
         check(bot.follow(Array(gp[8...]), within: 3.0), "bot: walks on to the altar")
-        bot.wait(6)
+        bot.wait(6 + PageFold.duration)
         var heard = true
         for id in ["gw_altar_ilse", "gw_altar_oren"] {
             heard = heard && bot.walk(to: (bot.interactable(id).map { ($0.min + $0.max) * 0.5 }) ?? GlassLayout.altar, within: 2.6, timeout: 45)

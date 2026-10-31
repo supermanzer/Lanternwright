@@ -209,6 +209,7 @@ enum GlassPuzzleProps {
         for n in 5...8 {
             let lie = pageLie(n, scene: scene)
             scene.add("page_\(n)", mesh: mesh, uniforms: ObjectUniforms(model: lie.model, tint: SIMD4(1, 1, 1, 1), emissive: SIMD4(0, 0, 0, 0)), hidden: n != 5)
+            if PageFold.numbers.contains(n) { PageFold.build(into: scene, device: device, page: n, base: lie.model) }          // F07 A-fold: pages 6-8 stand folded in the glass until their puzzle opens them
         }
     }
 

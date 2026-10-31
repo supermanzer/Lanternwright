@@ -96,8 +96,34 @@ final class Game {
     private func revealPage(_ n: Int, announce: Bool) {
         guard !state.has("page_\(n)") else { return }
         shownPages.insert(n)
+        if announce && PageFold.numbers.contains(n) && foldStart[n] == nil { foldStart[n] = time; return }         // F07 A-fold: the folded sheet opens first (`syncPageFolds` finishes the reveal)
+        finishReveal(n)
+    }
+    private func finishReveal(_ n: Int) {
         scenes[.glassWood]?.update("page_\(n)") { $0.hidden = false }
         setInteractable("page_\(n)", enabled: true)
+    }
+
+    // MARK: Oren's folded pages (F07 A-fold)
+
+    /// When each of Oren's folded pages (6, 7, 8) began to open (game time), and the fold state last applied to the scene (so it is written only when it changes).
+    private var foldStart: [Int: Float] = [:]
+    private var foldApplied: [Int: PageFold.State] = [:]
+    /// Pages 6-8 stand folded in the Glass Wood until their puzzle opens them: closed while unrevealed, opening for `PageFold.duration` s after the puzzle, gone once the readable page lies there (also for a
+    /// restored game: no fold, the page is simply there).
+    private func syncPageFolds() {
+        guard let sc = scenes[.glassWood] else { return }
+        for n in PageFold.numbers {
+            guard let base = pageModels[n] else { continue }
+            if let t0 = foldStart[n] {
+                let p = (time - t0) / PageFold.duration
+                if p >= 1 { foldStart[n] = nil; finishReveal(n); PageFold.apply(.gone, page: n, base: base, in: sc); foldApplied[n] = .gone }
+                else { PageFold.apply(.opening(p), page: n, base: base, in: sc); foldApplied[n] = .opening(p) }
+            } else {
+                let want: PageFold.State = (shownPages.contains(n) || state.has("page_\(n)")) ? .gone : .folded
+                if foldApplied[n] != want { PageFold.apply(want, page: n, base: base, in: sc); foldApplied[n] = want }
+            }
+        }
     }
 
     /// Varrow only (most tests need nothing else).
@@ -536,6 +562,7 @@ final class Game {
         for p in puzzles { p.updateVisuals(time: time) }
         updateDiscoveries()
         Birds.update(scene, time: time)
+        syncPageFolds()                                                       // F07 A-fold: pages 6-8 stand folded until their puzzle opens them
         // The one clue a dropped page is allowed (F03 #43): in a gust its edge lifts a degree or two and settles. Nothing outlines or lights it.
         for n in (world == .varrow ? StoryPages.varrowIDs : StoryPages.glassIDs) where !state.has("page_\(n)") && shownPages.contains(n) {
             if let base = pageModels[n] {

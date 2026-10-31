@@ -650,6 +650,7 @@ extension SelfTestRunner {
             check(item(g, "page_6").hidden, "the page does not appear in the same instant")
             g.simulate(seconds: 4)
             check(chimes(g.drainEvents()).filter { [.tide, .wind, .stone, .ignite].contains($0) }.prefix(4) == [.tide, .wind, .stone, .ignite], "the wood answers with tide, wind, stone, then the chord")
+            g.simulate(seconds: PageFold.duration + 0.5)                                                      // F07 A-fold: the folded sheet opens before the page can be read
             check(!item(g, "page_6").hidden && g.interactables.first { $0.id == "page_6" }?.enabled == true, "Oren's page 6 appears at the receiver")
             check(!item(g, "gw_column").hidden && item(g, "gw_column").uniforms.model.columns.1.y > 40, "a tall column of light rises from the receiver (height \(String(format: "%.0f", item(g, "gw_column").uniforms.model.columns.1.y)) m)")
 
@@ -706,6 +707,7 @@ extension SelfTestRunner {
             g.simulate(seconds: 4)
             let evs = chimes(g.drainEvents())
             check(evs.prefix(3) == [.glass0, .glass2, .glass4] && evs.contains(.ignite) && evs.filter { $0 == .glass0 }.count == 2, "each strike rings, then the three tones sound together and the shimmer follows (\(evs.prefix(8)))")
+            g.simulate(seconds: PageFold.duration + 0.5)                                                      // F07 A-fold
             check(!item(g, "page_7").hidden && g.interactables.first { $0.id == "page_7" }?.enabled == true, "Oren's page 7 appears at the chime ring")
             check(!item(g, "gw_column_chimes").hidden && item(g, "gw_column_chimes").uniforms.model.columns.1.y > 40, "an amber column of light rises from the ring")
             g.glass!.strikeChime(1)

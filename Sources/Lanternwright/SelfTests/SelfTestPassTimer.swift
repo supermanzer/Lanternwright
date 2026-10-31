@@ -782,3 +782,46 @@ extension SelfTestRunner {
         check(ringN > 90 && ringHoles == 0, "shellclosed: the lens room's floor reaches the iron base: \(ringN) rays down the ring from 2.12 to 2.6 m all land on the floor ring, the kerb or the iron base, none falls through to the ground (\(ringHoles) misses)")
     }
 }
+
+extension SelfTestRunner {
+    /// F07 A-fold (#74): pages 6, 7 and 8 stand FOLDED in the Glass Wood from the start (two panels each, not readable, not collectable), open over `PageFold.duration` s when their puzzle is solved with a light
+    /// running along the crease, and then the readable page lies where the fold was. Frames: see the TASKS entry.
+    func runPageFold() {
+        guard name == "all" || name == "pagefold" else { return }
+        guard let device = MTLCreateSystemDefaultDevice() else { check(false, "pagefold: no Metal device"); return }
+        let g = Game(scenes: [.varrow: Scene.makeWorld(device: device), .glassWood: GlassWood.build(device: device)])
+        let sc = g.scenes[.glassWood]!
+        func item(_ n: String) -> DrawItem? { sc.items.first { $0.name == n } }
+        g.travel(to: .glassWood); g.simulate(seconds: 0.2)
+        check(PageFold.numbers == [6, 7, 8] && PageFold.allNames.allSatisfy { item($0) != nil }, "pagefold: every one of pages 6, 7 and 8 has its fold items (two panels and a light)")
+        check(PageFold.numbers.allSatisfy { n in PageFold.panelNames(n).allSatisfy { item($0)?.hidden == false } && item(PageFold.lightName(n))?.hidden == true && item("page_\(n)")?.hidden == true && g.interactables.first { $0.id == "page_\(n)" }?.enabled == false },
+              "pagefold: before their puzzle each stands folded and visible, the readable page is not there and cannot be read")
+        // The geometry: a tent of height depth x sin(angle) that opens flat onto the page's own rest pose, the light running one way along the crease.
+        let base = item("page_6")!.uniforms.model
+        if name == "pagefold" { for n in PageFold.numbers { let c = item("page_\(n)")!.uniforms.model.columns.3; print("PAGEFOLD page \(n) at \(c.x), \(c.y), \(c.z)") } }
+        let closed = PageFold.panelModels(base: base, opened: 0), open = PageFold.panelModels(base: base, opened: 1)
+        func y(_ m: float4x4) -> Float { m.columns.3.y }
+        let flatOK = (0..<4).allSatisfy { c in simd_length(SIMD3(open.a[c].x - base[c].x, open.a[c].y - base[c].y, open.a[c].z - base[c].z)) < 1e-4 && simd_length(SIMD3(open.b[c].x - base[c].x, open.b[c].y - base[c].y, open.b[c].z - base[c].z)) < 1e-4 }
+        check(flatOK && y(closed.a) - y(base) > 0.12 && y(closed.a) - y(base) < 0.2, "pagefold: opened all the way the panels lie exactly on the page's rest pose; folded the crease stands \(String(format: "%.0f", (y(closed.a) - y(base)) * 100)) cm up")
+        let xs = stride(from: Float(0), through: 1, by: 0.1).map { simd_dot(SIMD3(PageFold.lightModel(base: base, opened: $0).columns.3.x - base.columns.3.x, 0, PageFold.lightModel(base: base, opened: $0).columns.3.z - base.columns.3.z), SIMD3(base.columns.0.x, 0, base.columns.0.z)) }
+        check(zip(xs, xs.dropFirst()).allSatisfy { $1 > $0 } && xs.first! < -0.17 && xs.last! > 0.17, "pagefold: the light runs from beyond one end of the crease to beyond the other as it opens (\(String(format: "%.2f", xs.first!)) to \(String(format: "%.2f", xs.last!)) m)")
+        // The live reveal: solve the mirror court; the fold opens for `duration` s and only then is the page there.
+        _ = g.drainEvents()
+        for _ in 0..<3 { g.glass!.click("gw_mirror_0") }; for _ in 0..<3 { g.glass!.click("gw_mirror_1") }; for _ in 0..<2 { g.glass!.click("gw_mirror_2") }
+        g.glass!.click("gw_pane_0"); g.glass!.click("gw_pane_1"); g.glass!.click("gw_pane_2")
+        check(g.state.has("gw_mirrors"), "pagefold: (the mirror court is solved)")
+        g.simulate(seconds: 2.0 + 0.5 * PageFold.duration)                                              // the reward's own delay, then half way through the opening
+        let half = item(PageFold.panelNames(6)[0])!, light = item(PageFold.lightName(6))!
+        check(!half.hidden && !light.hidden && item("page_6")!.hidden && g.interactables.first { $0.id == "page_6" }?.enabled == false && abs(y(half.uniforms.model) - y(base)) > 0.01 && abs(y(half.uniforms.model) - y(base)) < abs(y(closed.a) - y(base)),
+              "pagefold: half way the fold is opening (panel lower than the closed tent), the light is running, the readable page is not yet there")
+        g.simulate(seconds: 0.5 * PageFold.duration + 0.3)
+        check(PageFold.panelNames(6).allSatisfy { item($0)!.hidden } && item(PageFold.lightName(6))!.hidden && !item("page_6")!.hidden && g.interactables.first { $0.id == "page_6" }?.enabled == true,
+              "pagefold: then the fold is gone and the readable page lies there, ready to be read")
+        check([7, 8].allSatisfy { n in PageFold.panelNames(n).allSatisfy { item($0)?.hidden == false } && item("page_\(n)")?.hidden == true }, "pagefold: the other two stay folded until their puzzles are solved")
+        // A restored game with the mirror court solved has no fold at all, just the page.
+        let h = Game(scenes: [.varrow: Scene.makeWorld(device: device), .glassWood: GlassWood.build(device: device)])
+        h.state.set("gw_mirrors"); h.glass?.restore(from: h.state.flags); h.travel(to: .glassWood); h.simulate(seconds: 0.3)
+        let hs = h.scenes[.glassWood]!
+        check(PageFold.panelNames(6).allSatisfy { n in hs.items.first { $0.name == n }!.hidden } && hs.items.first { $0.name == "page_6" }!.hidden == false, "pagefold: a restored game shows no fold for a solved puzzle, only the page")
+    }
+}
