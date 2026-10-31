@@ -18,7 +18,7 @@ A Myst-like exploration and puzzle game for macOS, built in Swift with a custom 
 Playtest feedback is saved by the game (press **F**) to `~/Library/Application Support/Lanternwright/feedback/`. At the start of a session run `.build/release/Lanternwright --feedback` to read it (text, context, screenshot path; open the PNGs with Read). Turn anything actionable into a task in `docs/TASKS.md`, citing the entry id, and do not delete entries.
 
 ## Hard rules
-- **No `.metal` files.** Put MSL in Swift string literals under `Render/Shaders/` and register each new source in `ShaderLibrary.sources`. This machine has only Command Line Tools: there is no `metal` compiler and no Xcode.
+- **No `.metal` files.** Put MSL in Swift string literals under `Render/Shaders/` and register each new source in `ShaderLibrary.sources`; the game compiles them at runtime. The default developer directory is the Command Line Tools (leave it: do not run `xcode-select -s`). Full Xcode with the Metal toolchain is installed at `/Applications/Xcode.app`, reachable only through `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcrun metal ...`. Use it to check shaders offline with `scripts/validate-shaders.sh` (needs `--dump-shaders`; see the script); it is an extra check, not a replacement for the selftest.
 - Shared Swift⇄MSL structs use only `float4` and `float4x4`. If you change one, update `GPUTypes.swift`, `Shaders/Common.swift`, `expectedStride`, the selftest, and TASKS.md §0 together.
 - Follow the coordinate conventions in TASKS.md §0 (Y up, north = −Z, yaw 0 = north). Put landmark positions only in `World/Layout.swift`.
 - World generation is deterministic: use the seeded noise only.
