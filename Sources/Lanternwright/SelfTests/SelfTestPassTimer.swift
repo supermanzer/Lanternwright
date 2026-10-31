@@ -1156,6 +1156,23 @@ extension SelfTestRunner {
             if inCourt(SIMD2(game.player.position.x, game.player.position.z)) { breached += 1 }
         }
         check(breached == 0, "archivewalk: walking straight at the Great Ledger court from outside its north, east and south walls stops at the lining (\(breached) of 3 got in)")
+        // The lining holds by its posts (the terrain's steep blend outside also stops a walker, so the posts are checked directly): one every 0.8 m or less along each wall, none across the west opening.
+        let posts = sc.colliders.cylinders.map { $0.center }
+        func gapsAlong(_ pts: [Float], _ lo: Float, _ hi: Float) -> Float { let s = ([lo] + pts.sorted() + [hi]); return zip(s, s.dropFirst()).map { $1 - $0 }.max() ?? 99 }
+        let northG = gapsAlong(posts.filter { abs($0.y - (gg.centre.y - gg.half.y)) < 0.01 && abs($0.x - gg.centre.x) <= gg.half.x + 0.01 }.map { $0.x }, gg.centre.x - gg.half.x, gg.centre.x + gg.half.x)
+        let westPosts = posts.filter { abs($0.x - (gg.centre.x - gg.half.x)) < 0.01 && abs($0.y - gg.centre.y) <= gg.half.y + 0.01 }.map { $0.y }
+        let ramp = ArchiveLayout.greatLedger.z
+        check(northG <= 0.81 && !westPosts.contains { abs($0 - ramp) < 3.4 } && westPosts.contains { abs($0 - ramp) > 3.5 && abs($0 - ramp) < 4.4 },
+              "archivewalk: the court lining has a post at most 0.8 m apart along its north wall (largest gap \(String(format: "%.2f", northG)) m), and the west wall leaves 7 m open at the ramp and is closed beyond it")
+        // The wading rule on flat ground: entering deep water is refused, walking on or up inside it is allowed, going deeper is not (a rising tide cannot trap a standing player).
+        let inside = gg.centre, outside = gg.centre + SIMD2(0, -gg.half.y - 2), floorY = ArchiveStory.galleryFloor
+        Player.galleryWater = (gg.centre, gg.half, ArchiveStory.galleryFull)
+        let rule = [Player.galleryStepAllowed(from: outside, groundFrom: floorY, to: inside, groundTo: floorY),                 // flat, from outside into deep water
+                    Player.galleryStepAllowed(from: inside, groundFrom: floorY, to: inside + SIMD2(1, 0), groundTo: floorY),       // flat, already in it
+                    Player.galleryStepAllowed(from: inside, groundFrom: floorY, to: inside + SIMD2(1, 0), groundTo: floorY + 0.1), // up
+                    Player.galleryStepAllowed(from: inside, groundFrom: floorY, to: inside + SIMD2(1, 0), groundTo: floorY - 0.1)] // down
+        check(rule == [false, true, true, false], "archivewalk: into deep gallery water is refused even on flat ground; once in it, level and uphill steps are allowed and downhill ones are not (\(rule))")
+        Player.galleryWater = nil
         // The flooded court: entering from the west opening at the route's z, the player never stands in water deeper than the wading limit.
         game.simulate(seconds: 0.5)
         var worst: Float = 0, entered = false
@@ -1189,6 +1206,26 @@ extension SelfTestRunner {
                 minD = min(minD, simd_length(SIMD2(g.player.position.x, g.player.position.z) - c))
             }
             return minD
+        }
+        // B's puzzle writes the gate's pose snapped every tick; the eased pose A's update writes after it is what stays: opening takes about 2.5 s, not one tick, and a first update stands at the state.
+        do {
+            let s = Scene.make(.tideArchive, device: device), y0 = ArchiveLayout.sluices[1].y
+            let gy = { s.items.first { $0.name == ArchiveProps.gateName(1) }!.uniforms.model.columns.3.y }
+            ArchiveProps.update(s, time: 100, ringAngle: nil, tableau: nil)
+            s.update(ArchiveProps.gateName(1)) { $0.uniforms.emissive.w = 1.4 }
+            var mid: Float = 0
+            for n in 1...60 {
+                s.update(ArchiveProps.gateName(1)) { $0.uniforms.model = ArchiveProps.sluiceGateModel(1, open: 1) }          // (B's snap)
+                ArchiveProps.update(s, time: 100 + Float(n) / 60, ringAngle: nil, tableau: nil)
+                if n == 60 { mid = gy() - y0 }
+            }
+            let done = { () -> Float in for n in 61...200 { s.update(ArchiveProps.gateName(1)) { $0.uniforms.model = ArchiveProps.sluiceGateModel(1, open: 1) }; ArchiveProps.update(s, time: 100 + Float(n) / 60, ringAngle: nil, tableau: nil) }; return gy() - y0 }()
+            let fresh = Scene.make(.tideArchive, device: device)
+            fresh.update(ArchiveProps.gateName(1)) { $0.uniforms.emissive.w = 1.4 }
+            ArchiveProps.update(fresh, time: 500, ringAngle: nil, tableau: nil)
+            let atOnce = fresh.items.first { $0.name == ArchiveProps.gateName(1) }!.uniforms.model.columns.3.y - y0
+            check(mid > 0.5 && mid < 0.6 * ArchiveProps.gateLift && done > ArchiveProps.gateLift - 0.01 && atOnce > ArchiveProps.gateLift - 0.01,
+                  "archivewalk: with B's snapped pose written every tick a gate still rises over about 2.5 s (\(String(format: "%.2f", mid)) m after 1 s, \(String(format: "%.2f", done)) m after 3.3 s), and a first update stands it at its state (\(String(format: "%.2f", atOnce)) m)")
         }
         let closedD = gateTrial(open: false), openD = gateTrial(open: true)
         check(closedD > 0.8 && openD < 0.5, "archivewalk: walking at sluice gate 0 straight on, a closed gate stops you \(String(format: "%.2f", closedD)) m from its centre, an open one lets you through (closest \(String(format: "%.2f", openD)) m)")
