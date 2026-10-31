@@ -195,6 +195,17 @@ extension SelfTestRunner {
         cm.activate(ChainMap.interactableName); let savedMap = twoWorlds(); savedMap.restore(cm.makeSave())
         check(!savedMap.readingMap, "map: and it does not survive a load")
 
+        // S04 (optional): the Roll of Keepers' piece of evidence lists in the Notebook only once a route has begun, reads per route, takes the player's own mapping, and gates nothing.
+        let rl0 = twoWorlds(); for n in [4, 8] { rl0.restorePage(n) }
+        check(rl0.visibleEvidence(Contradictions.find("who-left")!).map(\.page) == [4, 5, 8, 9], "roll: before a route the Notebook lists the four pages of the nine, not the Archive's")
+        let rl = routeGame(.oren); for n in [4, 8] { rl.restorePage(n) }; frame(rl)
+        check(rl.visibleEvidence(Contradictions.find("who-left")!).map(\.page) == [4, 5, 8, 9, 12] && Contradictions.find("who-left")!.evidence.last!.excerpt(route: rl.journal.route) == "Oren. Through the lens first. Lost.", "roll: once a route has begun the fifth piece is listed, in that route's reading")
+        let gateRoll = rl.gate
+        rl.activate("page_12")
+        check(rl.setClaim("who-left", page: 12, to: .his) && rl.claim("who-left", page: 12) == .his, "roll: the found page can be set to either account")
+        rl.setClaim("who-left", page: 4, to: .hers); rl.setClaim("who-left", page: 8, to: .hers)
+        check(rl.isSettled("who-left") && rl.gate.ilsePages == gateRoll.ilsePages && rl.gate.orenPages == gateRoll.orenPages, "roll: pages 4, 8 and 12, mapped as the player reads them, settle it, and no gate count changed")
+
         // A save between the third gate and the drain still finishes (the 2.5 s window).
         let w = routeGame(.ilse), tideW = w.tideArchive!
         to(w, 2); tideW.touchSluice(0); to(w, w.time + hold)

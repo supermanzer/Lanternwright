@@ -15,6 +15,9 @@ struct Evidence: Equatable {
     let supports: Claim
     let defensible: Set<Claim>
     let excerpt: String
+    /// S04: the Roll of Keepers' page reads differently on each route, so its line in the Notebook does too (nil: the same on both).
+    var excerptOren: String? = nil
+    func excerpt(route: PageAuthor) -> String { route == .oren ? (excerptOren ?? excerpt) : excerpt }
 }
 
 /// A contradiction (S03.9, first slice): two claims, and pieces of evidence the player sets, one by one, against one claim or the other. The game confirms only in GROUPS (S02: Obra Dinn's
@@ -41,6 +44,9 @@ enum Contradictions {
             Evidence(page: 5, supports: .hers, defensible: [.hers, .his], excerpt: "I went through the lens first."),
             Evidence(page: 8, supports: .his, defensible: [.hers, .his], excerpt: "I will be waiting where the wood ends."),
             Evidence(page: 9, supports: .hers, defensible: [.hers, .his], excerpt: "I would break it again."),
+            // S04 (optional, the Tide Archive's page 12, the Roll of Keepers): the fifth piece, shown in the Notebook only once a route has begun. Like the others it can be read either way: the Roll names
+            // Maren and leaves her line blank (Ilse's route), or records Oren as lost (Oren's route): he went through first, or he was lost and did not leave. It never says wrong and never gates.
+            Evidence(page: 12, supports: .hers, defensible: [.hers, .his], excerpt: "Maren's name, and after it a blank line.", excerptOren: "Oren. Through the lens first. Lost."),
         ]),
     ]
     static func find(_ id: String) -> Contradiction? { all.first { $0.id == id } }
@@ -70,6 +76,8 @@ extension Game {
         return Contradictions.all.filter { c in c.evidence.contains { found.contains($0.page) } }
     }
 
+    /// The pieces of evidence the Notebook lists for `c` now: the Archive's (the Roll of Keepers, page 12) only once a route has begun (it would give the place away before).
+    func visibleEvidence(_ c: Contradiction) -> [Evidence] { c.evidence.filter { journal.archiveShown || !StoryPages.archiveIDs.contains($0.page) } }
     private func claimKey(_ id: String, _ page: Int) -> String { "\(id):\(page)" }
     func claim(_ id: String, page: Int) -> Claim? { story.claims[claimKey(id, page)].flatMap(Claim.init(rawValue:)) }
     func isSettled(_ id: String) -> Bool { story.contradictionsResolved.contains(id) }

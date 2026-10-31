@@ -8,8 +8,13 @@ extension SelfTestRunner {
         let c = Contradictions.find("who-left")!
         let all = Set([4, 5, 8, 9])
 
-        // The data: one contradiction, four pieces of evidence (pages 4, 5, 8, 9) with a story-side each, two and two, so no uniform guess is the answer; any three settle it.
-        check(Contradictions.all.count == 1 && c.evidence.map(\.page) == [4, 5, 8, 9] && c.evidence.map(\.supports) == [.his, .hers, .his, .hers], "contradictions: one contradiction, four pieces of evidence (pages 4, 5, 8, 9), supporting His, Hers, His, Hers")
+        // The data: one contradiction, five pieces of evidence (pages 4, 5, 8, 9 and, from the Tide Archive, 12) with a story-side each; any three settle it.
+        check(Contradictions.all.count == 1 && c.evidence.map(\.page) == [4, 5, 8, 9, 12] && c.evidence.map(\.supports) == [.his, .hers, .his, .hers, .hers], "contradictions: one contradiction, five pieces of evidence (pages 4, 5, 8, 9 and the Archive's 12), supporting His, Hers, His, Hers, Hers")
+        let roll = c.evidence.first { $0.page == 12 }!
+        check(roll.excerpt(route: .ilse) == "Maren's name, and after it a blank line." && roll.excerpt(route: .oren) == "Oren. Through the lens first. Lost." && c.evidence.filter { $0.page != 12 }.allSatisfy { $0.excerpt(route: .oren) == $0.excerpt(route: .ilse) }, "contradictions: the Roll of Keepers' line reads differently on each route and the others do not")
+        check(roll.defensible == Set(Claim.allCases) && !StoryPages.all.map(\.id).contains(12) && StoryPages.archiveIDs.contains(12), "contradictions: the Roll's piece can be read either way, and it is the Archive's page, not one of the nine the gate counts")
+        // Page 12 joins the group when it is found and set: with it, three of any of the five settle (Ilse never reached the Archive: nine pages still do it).
+        check(Contradictions.judge(c, assignments: [4: .hers, 8: .hers, 12: .his], found: [4, 8, 12]) == .settled && Contradictions.judge(c, assignments: [4: .hers, 12: .his], found: [4, 12]) == .incomplete, "contradictions: pages 4, 8 and 12 settle it by the player's own mapping; two do not, and nothing is said")
         check(Contradictions.groupSize == 3, "contradictions: three matched pieces judge it")
         check(c.hers == "He left me." && c.his == "She would not follow.", "contradictions: the two accounts are the book's own (Hers: He left me. His: She would not follow.)")
 

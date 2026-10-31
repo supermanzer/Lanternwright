@@ -54,6 +54,15 @@ Draft for the reviewer and the user to read **before** the texts are final (the 
 
 **Oren's route.** The gallery drains and the Great Ledger lies open at Maren's last entry. The lower half is worn away. I can read the date. I can read "to the", and nothing after it. At the stand beside it a lamp is burning, left lit for me, a little ahead of where I stand. She does not follow. She goes before me and lights the way I would have gone anyway.
 
+## The Roll of Keepers in the Notebook (optional contradiction evidence, applied as data: please read)
+
+The Notebook's one contradiction ("Hers: He left me." / "His: She would not follow.") gains a **fifth piece of evidence**: page 12, the Roll of Keepers. It is listed only once a route has begun (never before: it would give the place away), it needs the page to be found (page 12 lies in the Archive), and like the other four it takes **either** account: the verdict is only "Settled." or nothing, never "wrong" (F07 B-contra), and it gates nothing. Any three found pieces the player sets settle it, so a player who never reaches the Archive settles it from the nine pages as before. The line the Notebook shows for it (a few words from the page, as for the others) differs by route, because the page does:
+
+- **Ilse's route:** "Maren's name, and after it a blank line."  (reads as Hers if the blank is a departure she did not explain, as His if it is a silence he left behind; or as neither)
+- **Oren's route:** "Oren. Through the lens first. Lost."  (reads as Hers: he went first and she was left; or as His: the Roll calls him lost, and a lost keeper did not leave)
+
+Why both are defensible (the data's own reasons): the Roll records an absence and not a cause, which is exactly the thing the two accounts dispute.
+
 ## Notes for the reader
 
 - **Maren** appears in 12 and 15 only as a name, a blank and a torn line. Nothing says what became of her.

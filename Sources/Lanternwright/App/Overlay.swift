@@ -317,10 +317,10 @@ final class OverlayView: NSView {
                     }
                 }
             }
-            if let status = card.status { text(status, serif(14), faded, NSRect(x: p.minX + 56, y: p.minY + 540, width: p.width - 112, height: 20), .left, 0) }
+            if let status = card.status { text(status, serif(14), faded, NSRect(x: p.minX + 56, y: p.minY + 574, width: p.width - 112, height: 20), .left, 0) }
         }
         if !notebookNotes.isEmpty {
-            text(notebookNotes.joined(separator: "\n"), serif(15), ink, NSRect(x: p.minX + 56, y: p.minY + (claimCards.isEmpty ? 270 : 580), width: p.width - 112, height: 30), .left, 2)
+            text(notebookNotes.joined(separator: "\n"), serif(15), ink, NSRect(x: p.minX + 56, y: p.minY + (claimCards.isEmpty ? 270 : 604), width: p.width - 112, height: 30), .left, 2)
         }
         text("Tab  next tab     Esc or J  close", .systemFont(ofSize: 11), faded, NSRect(x: p.minX, y: p.maxY - 26, width: p.width, height: 16), .center, 0)
     }

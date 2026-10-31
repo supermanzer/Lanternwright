@@ -284,7 +284,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, MTKViewDelegate {
             let found = Set(journal.collectedPages.map(\.number))
             let v = game.verdict(c.id)
             return OverlayView.ClaimCard(id: c.id, hers: c.hers, his: c.his,
-                rows: c.evidence.map { OverlayView.ClaimRow(page: $0.page, excerpt: $0.excerpt, found: found.contains($0.page), side: game.claim(c.id, page: $0.page)?.title) },
+                rows: game.visibleEvidence(c)          // (the Archive's piece shows once a route has begun)
+                    .map { OverlayView.ClaimRow(page: $0.page, excerpt: $0.excerpt(route: journal.route), found: found.contains($0.page), side: game.claim(c.id, page: $0.page)?.title) },
                 status: v == .settled ? "Settled." : nil)
         })
         set(&overlay.notebookSeen, StoneID.allCases.map { game.state.has(Notebook.seenFlag($0)) })
