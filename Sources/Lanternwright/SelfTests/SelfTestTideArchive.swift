@@ -15,9 +15,20 @@ extension SelfTestRunner {
 
         // The tide: a pure periodic function; low at 0, high at half a period; the windows come in order in one rise.
         check(abs(Tide.level(0)) < 1e-6 && abs(Tide.level(Tide.period / 2) - 1) < 1e-6 && abs(Tide.level(Tide.period) - Tide.level(0)) < 1e-4 && abs(Tide.level(13.7) - Tide.level(13.7 + Tide.period)) < 1e-4, "tide: low water at 0, high at half the period (\(Tide.period) s), and periodic")
-        let w0 = Tide.wait(for: 0, from: 0), w1 = Tide.wait(for: 1, from: 0), w2 = Tide.wait(for: 2, from: 0)
-        check(w0 == 0 && w1 > 10 && w2 > w1 && w2 < 45, "tide: in one rise the tide gate answers first, then the wind gate, then the stone gate (\(w0), \(w1), \(w2) s from low water)")
-        check(!Tide.inWindow(0, level: 0.5) && !Tide.inWindow(2, level: 0.3) && Tide.inWindow(1, level: 0.5) && !Tide.inWindow(1, level: 0.1) && !Tide.inWindow(5, level: 0.5), "tide: each gate answers only at its own water level, and there are only three")
+        // The gates' windows follow A's sluice rooms (Q33): each answers while its room (floors 0.8, -0.2, -0.9 m) is wadeable, so in one cycle they come tide (high water), wind (falling mid water), stone (low water).
+        let t1 = Tide.wait(for: 0, from: 0) + 0.4
+        let t2 = t1 + 3.2 + Tide.wait(for: 1, from: t1 + 3.2) + 0.4
+        let t3 = t2 + 3.2 + Tide.wait(for: 2, from: t2 + 3.2) + 0.4
+        check(t1 < t2 && t2 < t3 && t3 - t1 < Tide.period, "tide: in ONE cycle the tide gate answers first, then the wind gate, then the stone gate: the stones' order is written in the falling water (\(String(format: "%.1f", t1)), \(String(format: "%.1f", t2)), \(String(format: "%.1f", t3)) s)")
+        for k in 0..<3 {
+            let w = Tide.windows[k]
+            let tLo = w.lowerBound, tHi = w.upperBound
+            // at the window's edges the room is at most knee deep (the player can stand in it) and at most 0.2 m dry
+            let deepest = Tide.lowSea + (Tide.highSea - Tide.lowSea) * tHi - ArchiveLayout.sluiceFloors[k]
+            let driest = Tide.lowSea + (Tide.highSea - Tide.lowSea) * tLo - ArchiveLayout.sluiceFloors[k]
+            check(deepest <= Tide.wadeDepth + 1e-4 && driest >= -0.2 - 1e-4 || tLo == 0, "tide: gate \(k)'s window keeps its room between 0.2 m dry and knee-deep (\(String(format: "%.2f", driest)) to \(String(format: "%.2f", deepest)) m)")
+        }
+        check(!Tide.inWindow(0, level: 0.5) && !Tide.inWindow(2, level: 0.3) && Tide.inWindow(1, level: 0.4) && !Tide.inWindow(1, level: 0.1) && Tide.inWindow(0, level: 0.8) && Tide.inWindow(2, level: 0.1) && !Tide.inWindow(5, level: 0.5), "tide: each gate answers only at its own water level, and there are only three")
 
         func twoWorlds() -> Game { Game(scenes: [.varrow: Scene.makeWorld(device: device), .glassWood: GlassWood.build(device: device)]) }
         func routeGame(_ route: PageAuthor) -> Game {
@@ -32,6 +43,8 @@ extension SelfTestRunner {
         }
         var clock = 9000.0
         func frame(_ g: Game) { for _ in 0..<2 { clock += 0.05; g.advance(now: clock, input: InputState()) } }
+        /// Wait until gate k's window has just opened (a margin of 0.4 s in), and a little longer if the window is already open but about to close.
+        func up(_ g: Game, _ k: Int) { g.simulate(seconds: Tide.wait(for: k, from: g.time) + 0.4) }
         func to(_ g: Game, _ t: Float) { if t > g.time { g.simulate(seconds: t - g.time) } }
         func fails(_ g: Game) -> Bool { g.drainEvents().contains(.chime(.fail)) }
         let hold = T.Timing.toneHold + 0.2
@@ -43,11 +56,11 @@ extension SelfTestRunner {
         check(a.interactables.first { $0.id == T.ringName }?.enabled == false && a.interactables.first { $0.id == T.findLensName }?.enabled == true && a.interactables.first { $0.id == T.findForkName }?.enabled == false, "archive: the ring waits for the lens, the lens lies there to be found, the fork is already in hand")
 
         // Ilse's way, the right way: tide gate at low water, wind at mid, stone at high, each tone held.
-        to(a, 2); tideA.touchSluice(0); to(a, a.time + hold)
+        up(a, 0); tideA.touchSluice(0); to(a, a.time + hold)
         check(tideA.opened == 1 && a.state.has("ti_sluice_0") && !a.routeSolved, "archive: the fork's tide tone, held at low water, opens the first gate")
-        to(a, 20); tideA.touchSluice(1); to(a, a.time + hold)
+        up(a, 1); tideA.touchSluice(1); to(a, a.time + hold)
         check(tideA.opened == 2, "archive: the wind tone, held at mid water, opens the second")
-        to(a, 30); tideA.touchSluice(2); to(a, a.time + hold)
+        up(a, 2); tideA.touchSluice(2); to(a, a.time + hold)
         check(tideA.opened == 3 && !a.routeSolved, "archive: the stone tone at high water opens the third: the gallery has yet to drain")
         a.simulate(seconds: T.Timing.drainDelay + 0.2)
         check(a.routeSolved && a.state.has(T.drainedFlag) && tideA.knowsTones && !tideA.knowsBeam, "archive: then the gallery drains and the world is solved; Ilse's way is known, Oren's is not")
@@ -57,10 +70,10 @@ extension SelfTestRunner {
 
         // A wrong order closes everything, softly, and loses nothing else.
         let b = routeGame(.ilse), tideB = b.tideArchive!
-        to(b, 2); tideB.touchSluice(0); to(b, b.time + hold)
-        to(b, 20); _ = b.drainEvents(); tideB.touchSluice(2); to(b, b.time + hold)
+        up(b, 0); tideB.touchSluice(0); to(b, b.time + hold)
+        _ = b.drainEvents(); tideB.touchSluice(2); to(b, b.time + hold)
         check(tideB.opened == 1, "archive: the stone gate at the wrong moment (the water not high yet) does not answer and nothing closes")
-        to(b, 30); tideB.touchSluice(2); to(b, b.time + hold)
+        up(b, 2); tideB.touchSluice(2); to(b, b.time + hold)
         let ev = b.drainEvents()
         check(ev.contains(.chime(.fail)) && ev.contains(.droneSour), "archive: the stone gate before the wind gate: a soft fail chime and the tones sour")
         b.simulate(seconds: T.Timing.wrongResetDelay + 0.2)
@@ -72,13 +85,13 @@ extension SelfTestRunner {
         check(tideC.opened == 0 && fails(c), "archive: the tide gate at high water does not answer, with a soft fail")
         // Without the fork a touch only rings.
         let d = routeGame(.oren), tideD = d.tideArchive!
-        to(d, 2); _ = d.drainEvents(); tideD.touchSluice(0); to(d, d.time + hold)
+        up(d, 0); _ = d.drainEvents(); tideD.touchSluice(0); to(d, d.time + hold)
         check(!tideD.hasFork && tideD.opened == 0, "archive: without the fork a gate only rings")
         d.activate(T.findForkName)
         check(tideD.hasFork && d.interactables.first { $0.id == T.findForkName }?.enabled == true, "archive: the fork lying in the world, taken, is in hand (Oren's route finds Ilse's way)")
         frame(d)
         check(d.interactables.first { $0.id == T.findForkName }?.enabled == false, "archive: and it is no longer there to take")
-        to(d, d.time + (Tide.period - d.time.truncatingRemainder(dividingBy: Tide.period)) + 2); tideD.touchSluice(0); to(d, d.time + hold)
+        up(d, 0); tideD.touchSluice(0); to(d, d.time + hold)
         check(tideD.opened == 1 && tideD.knowsTones, "archive: Oren with the fork opens the first gate by tone, and Ilse's way is known to him")
 
         // Oren's way: the ring turned until the beam rests on a gate's mark, held, at the right water.
@@ -87,15 +100,15 @@ extension SelfTestRunner {
         frame(o)
         check(o.interactables.first { $0.id == T.ringName }?.enabled == true, "archive: with the lens the prism ring answers")
         func aim(_ g: Game, _ p: T, _ k: Int) { let steps = Int(((T.beamTargets[k] - p.ringAngle) / T.ringStep).rounded()); var left = steps; while left != 0 { let s = left > 0 ? 1 : -1; p.turn(s); left -= s } }
-        to(o, 2); aim(o, tideO, 0); to(o, o.time + T.Timing.beamHold + 0.2)
+        up(o, 0); aim(o, tideO, 0); to(o, o.time + T.Timing.beamHold + 0.2)
         check(tideO.opened == 1 && tideO.knowsBeam && !tideO.knowsTones, "archive: the beam turned onto the tide gate and held at low water opens it; Oren's way is known, Ilse's is not")
-        to(o, 20); aim(o, tideO, 1); to(o, o.time + T.Timing.beamHold + 0.2)
-        to(o, 30); aim(o, tideO, 2); to(o, o.time + T.Timing.beamHold + 0.2)
+        up(o, 1); aim(o, tideO, 1); to(o, o.time + T.Timing.beamHold + 0.2)
+        up(o, 2); aim(o, tideO, 2); to(o, o.time + T.Timing.beamHold + 0.2)
         o.simulate(seconds: T.Timing.drainDelay + 0.2)
         check(tideO.opened == 3 && o.routeSolved, "archive: wind at mid water and stone at high water: the gallery drains by the beam")
         // Aiming across the other marks on the way does not try them (only a rest of the full hold counts).
         let p = routeGame(.oren), tideP = p.tideArchive!
-        to(p, 20); aim(p, tideP, 1); p.simulate(seconds: 0.5); aim(p, tideP, 2); p.simulate(seconds: 0.5); aim(p, tideP, 0)
+        up(p, 1); aim(p, tideP, 1); p.simulate(seconds: 0.5); aim(p, tideP, 2); p.simulate(seconds: 0.5); aim(p, tideP, 0)
         check(tideP.opened == 0, "archive: sweeping the beam across the marks without resting on one tries nothing")
         // A click on the ring turns it toward the side aimed at, like the lighthouse ring; the arrow keys either way.
         let q = routeGame(.oren), tideQ = q.tideArchive!
@@ -133,12 +146,12 @@ extension SelfTestRunner {
 
         // Saves: the gates, the tools and the ways known come back; a partial set stays open.
         let r = routeGame(.ilse), tideR = r.tideArchive!
-        to(r, 2); tideR.touchSluice(0); to(r, r.time + hold)
-        to(r, 20); tideR.touchSluice(1); to(r, r.time + hold)
+        up(r, 0); tideR.touchSluice(0); to(r, r.time + hold)
+        up(r, 1); tideR.touchSluice(1); to(r, r.time + hold)
         let loaded = twoWorlds(); loaded.restore(r.makeSave()); loaded.simulate(seconds: 0.2)
         check(loaded.tideArchive?.opened == 2 && loaded.tideArchive?.hasFork == true && loaded.tideArchive?.knowsTones == true && !loaded.routeSolved && loaded.chosenPath == .ilse, "archive: a save keeps two gates open, the fork, the way known and the route")
         // The loaded game can finish it.
-        to(loaded, loaded.time + (Tide.period - loaded.time.truncatingRemainder(dividingBy: Tide.period)) + 30); loaded.tideArchive?.touchSluice(2); to(loaded, loaded.time + hold)
+        up(loaded, 2); loaded.tideArchive?.touchSluice(2); to(loaded, loaded.time + hold)
         loaded.simulate(seconds: T.Timing.drainDelay + 0.2)
         check(loaded.routeSolved && loaded.tideArchive?.opened == 3, "archive: and from the loaded save the last gate finishes it")
 
@@ -227,12 +240,12 @@ extension SelfTestRunner {
 
         // S04.4: the puzzle tells the Archive's audio what happens: the fork's tone held and let go, a gate opening and closing.
         let evG = routeGame(.ilse), tideEv = evG.tideArchive!
-        to(evG, 2); _ = evG.drainEvents(); tideEv.touchSluice(0)
+        up(evG, 0); _ = evG.drainEvents(); tideEv.touchSluice(0)
         let e1 = evG.drainEvents()
         to(evG, evG.time + hold)
         let e2 = evG.drainEvents()
         check(e1.contains(.forkTone(0, true)) && e2.contains(.forkTone(0, false)) && e2.contains(.sluice(0, true)), "archive audio events: touching a gate with the fork holds its tone, and letting it go and the gate opening are sent (\(e1.count + e2.count) events)")
-        to(evG, 30); tideEv.touchSluice(2); to(evG, evG.time + hold + T.Timing.wrongResetDelay + 0.3)
+        up(evG, 2); tideEv.touchSluice(2); to(evG, evG.time + hold + T.Timing.wrongResetDelay + 0.3)
         check(evG.drainEvents().contains(.sluice(0, false)) && tideEv.opened == 0, "archive audio events: the stone gate before the wind gate sends the open tide gate closing")
 
         // The shadow-play tableau (optional): data first.
@@ -262,9 +275,9 @@ extension SelfTestRunner {
 
         // A save between the third gate and the drain still finishes (the 2.5 s window).
         let w = routeGame(.ilse), tideW = w.tideArchive!
-        to(w, 2); tideW.touchSluice(0); to(w, w.time + hold)
-        to(w, 20); tideW.touchSluice(1); to(w, w.time + hold)
-        to(w, 30); tideW.touchSluice(2); to(w, w.time + hold)
+        up(w, 0); tideW.touchSluice(0); to(w, w.time + hold)
+        up(w, 1); tideW.touchSluice(1); to(w, w.time + hold)
+        up(w, 2); tideW.touchSluice(2); to(w, w.time + hold)
         check(tideW.opened == 3 && !w.routeSolved, "archive: all three gates open and the drain not yet done (the window)")
         let wl = twoWorlds(); wl.restore(w.makeSave())
         wl.simulate(seconds: T.Timing.drainDelay + 0.3)

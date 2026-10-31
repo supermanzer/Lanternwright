@@ -10,9 +10,15 @@ enum Tide {
     /// How fast the level is changing now, per second (positive: rising): the derivative of `level`. The sound of the water follows it.
     static func rate(_ t: Float) -> Float { .pi / period * sin(2 * .pi * t / period) }
 
-    /// The water levels at which each sluice (tide, wind, stone) answers: tide at low water, wind at mid water, stone at high water. They overlap a little so a patient player is never shut out
-    /// between two of them. In one rise (low to high, 45 s) the three come in the order the stones are struck in: that is the cue, written into the water, not in a page.
-    static let windows: [ClosedRange<Float>] = [0.0...0.4, 0.35...0.65, 0.6...1.0]
+    /// The water levels at which each sluice (tide, wind, stone) answers (S04 wiring, Q33): a gate is in a sunken sluice room (`ArchiveLayout.sluiceFloors`: 0.8, -0.2, -0.9 m) that can only be
+    /// WADED when the water over its floor is under knee depth, and the gate hears the player only while the room is wadeable or at most 0.2 m dry: the room's depth between -0.2 m and `Tide.wadeDepth`.
+    /// So the stone room (the lowest) answers only near low water, the wind room at mid water, the tide room (the highest) up to high water. They fall in the stones' order on a FALLING tide
+    /// (tide, wind, stone), which is the cue written in the water; on a rising one they come the other way round.
+    static func window(forFloor floor: Float) -> ClosedRange<Float> {
+        let range = highSea - lowSea
+        return max(0, (floor - 0.2 - lowSea) / range)...min(1, (floor + wadeDepth - lowSea) / range)
+    }
+    static let windows: [ClosedRange<Float>] = ArchiveLayout.sluiceFloors.map(window(forFloor:))
     static func inWindow(_ sluice: Int, level: Float) -> Bool { windows.indices.contains(sluice) && windows[sluice].contains(level) }
     /// Seconds from `t` until the sluice's window next opens (0 if it is open now): for tests and tools.
     static func wait(for sluice: Int, from t: Float) -> Float {
