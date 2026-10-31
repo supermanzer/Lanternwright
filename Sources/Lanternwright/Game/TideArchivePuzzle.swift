@@ -15,6 +15,8 @@ final class TideArchivePuzzle: WorldPuzzle {
     enum Timing {
         static let toneHold: Float = 3.0, beamHold: Float = 2.0
         static let wrongResetDelay: Float = 0.8
+        /// A wheel's two turns when its gate is answered (or back when the gates close again).
+        static let wheelSpin: Float = 2.5
         /// From the third gate to the gallery being drained (the solved flag), and how long the drain takes to show.
         static let drainDelay: Float = 2.5, drainDuration: Float = 6.0
     }
@@ -39,6 +41,8 @@ final class TideArchivePuzzle: WorldPuzzle {
     private let solved: () -> Bool
     private(set) var ringAngle: Float = TideArchivePuzzle.initialRing
     private var busy = false
+    /// Turns of each gate's wheel now (0 shut, 2 open): they run on a tween when the gate is answered or closed again, and are set outright by a load.
+    private var wheelTurns: [Float] = [0, 0, 0]
     private var ringSerial = 0
 
     init(state: PuzzleState, animator: Animator, emit: @escaping (GameEvent) -> Void, level: @escaping () -> Float, scene: @escaping () -> Scene?, solved: @escaping () -> Bool) {
@@ -60,6 +64,7 @@ final class TideArchivePuzzle: WorldPuzzle {
         tableauShown = nil
         for f in persistentFlags where flags.contains(f) { state.set(f) }
         busy = false; ringSerial += 1; ringAngle = TideArchivePuzzle.initialRing
+        wheelTurns = TideArchivePuzzle.sluiceFlags.map { state.has($0) ? 2 : 0 }
         syncVisuals(drain: state.has(TideArchivePuzzle.drainedFlag) ? 1 : 0)
         // A save taken between the third gate and the drain (the 2.5 s delay) has all three gates open and the world not yet solved: finish it, or nothing ever would.
         if opened == TideArchivePuzzle.sluiceFlags.count && !state.has(Game.routeSolvedFlag) { complete() }
@@ -144,14 +149,25 @@ final class TideArchivePuzzle: WorldPuzzle {
         }
         state.set(TideArchivePuzzle.sluiceFlags[k])
         emit(.sluice(k, true))
+        spinWheel(k, to: 2, duration: Timing.wheelSpin)
         state.set(way == .tone ? TideArchivePuzzle.wayTone : TideArchivePuzzle.wayBeam)
         emit(.chime(.ignite))
         syncVisuals(drain: nil)
         if opened == TideArchivePuzzle.sluiceFlags.count { complete() }
     }
 
+    private func spinWheel(_ k: Int, to target: Float, duration: Float) {
+        let from = wheelTurns[k]
+        animator.tween(duration: duration, ease: .inOutCubic) { [weak self] t in
+            guard let self else { return }
+            self.wheelTurns[k] = from + (target - from) * t
+            self.syncVisuals(drain: nil)
+        }
+    }
+
     private func closeAll() {
         for (k, f) in TideArchivePuzzle.sluiceFlags.enumerated() where state.has(f) { emit(.sluice(k, false)) }
+        for k in TideArchivePuzzle.sluiceFlags.indices where wheelTurns[k] > 0 { spinWheel(k, to: 0, duration: Timing.wheelSpin) }
         for f in TideArchivePuzzle.sluiceFlags { state.set(f, false) }
         busy = false
         syncVisuals(drain: nil)
@@ -176,7 +192,9 @@ final class TideArchivePuzzle: WorldPuzzle {
             let open = state.has(TideArchivePuzzle.sluiceFlags[k])
             sc.update(name) { $0.uniforms.emissive = open ? SIMD4(0.55, 0.85, 1.0, 1.4) : SIMD4(0, 0, 0, 0) }                  // the stand-in's gate glows
             sc.update(ArchiveProps.gateName(k)) { $0.uniforms.model = ArchiveProps.sluiceGateModel(k, open: open ? 1 : 0) }      // A's gate lifts and its wheel has turned twice
-            sc.update(ArchiveProps.wheelName(k)) { $0.uniforms.model = ArchiveProps.sluiceWheelModel(k, turns: open ? 2 : 0) }
+            sc.update(ArchiveProps.wheelName(k)) { $0.uniforms.model = ArchiveProps.sluiceWheelModel(k, turns: self.wheelTurns[k]) }
+            let lamp = open ? SluiceLamps.open : (aimedSluice == k ? SluiceLamps.aimed : SluiceLamps.idle)          // the room's lamp: its beam's colour, bright while the beam rests on this gate, steady once it is open
+            sc.update(SluiceLamps.name(k)) { $0.uniforms.emissive.w = lamp }
             sc.update(ArchiveProps.beamOutName(k)) { $0.uniforms.emissive.w = TideArchivePuzzle.beamStrength * (open || aimedSluice == k ? 1.6 : 1.0) }          // the dispersed beam of the sluice the ring rests on, or has opened, brightens from A's own strength
         }
         for side in [PageAuthor.ilse, .oren] { sc.update(ShadowTableaux.archive.lanternItems[side]!) { $0.uniforms.emissive = self.tableauShown == side ? SIMD4(1.0, 0.72, 0.3, 2.2) : SIMD4(0, 0, 0, 0) } }

@@ -50,6 +50,7 @@ enum TideArchive {
             scene.add(chunk.name, mesh: chunk.mesh, uniforms: chunk.uniforms)
         }
         ArchiveProps.populate(scene, device: device)                       // S04.3
+        SluiceLamps.build(into: scene, device: device)                     // S04 wiring (builder B): the lamp in each sluice room that answers the prism's beam
         return scene
     }
 }
