@@ -26,6 +26,9 @@ enum ChimeKind: Int, Equatable {
 }
 
 final class AmbienceSynth {
+    /// F07 A-steps (#75: "the footsteps are too loud relative to the other sounds"): the footsteps' level in the mix, 4 dB lower than before (1.4 x 0.631). The ONE constant: every surface keeps its character and its level
+    /// relative to the other surfaces; only the footsteps as a whole sit lower against the wind, the surf, the chimes and the rest. (Reverb send follows it.)
+    static let stepMix: Float = 1.4 * 0.631
     var windGain: Float = 0.3
     var surfGain: Float = 0.0
     var master: Float = 0.5
@@ -489,7 +492,7 @@ final class AmbienceSynth {
                 } else { backLPL = buoyL; backLPR = buoyR }
                 itdIdx = (itdIdx + 1) % 128
             }
-            let (rl, rr) = reverb.process(left: bellL + buoyL * 0.33 + feet.sendL * 1.4, right: bellR + buoyR * 0.33 + feet.sendR * 1.4)
+            let (rl, rr) = reverb.process(left: bellL + buoyL * 0.33 + feet.sendL * AmbienceSynth.stepMix, right: bellR + buoyR * 0.33 + feet.sendR * AmbienceSynth.stepMix)
             // Ducking: while a chime rings, the wind and surf (and the drone, hums) make way for it by up to 35 %.
             let level = max(abs(bellL) + abs(buoyL), abs(bellR) + abs(buoyR))
             chimeFollow += (level > chimeFollow ? 0.01 : 0.00006) * (level - chimeFollow)       // fast attack, ~0.4 s release
@@ -522,8 +525,8 @@ final class AmbienceSynth {
             }
 
             // Soft clip: tanh keeps any pile-up of sounds from ever hard-clipping the speakers.
-            left[i] = tanh((out[0] + stepL * 1.4) * m)
-            right[i] = tanh((out[1] + stepR * 1.4) * m)
+            left[i] = tanh((out[0] + stepL * AmbienceSynth.stepMix) * m)
+            right[i] = tanh((out[1] + stepR * AmbienceSynth.stepMix) * m)
             time += 1.0 / Double(sampleRate)
         }
     }

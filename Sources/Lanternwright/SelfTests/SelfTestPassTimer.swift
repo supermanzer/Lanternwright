@@ -569,7 +569,9 @@ extension SelfTestRunner {
             return l
         }
         func peak(_ x: [Float]) -> Float { x.map { abs($0) }.max() ?? 0 }
-        let runs = [SurfaceKind.stone, .wood, .grass].map { k in peak(render { $0.stepSurface = k; $0.stepRun = true; $0.stepCounter += 1 }) }
+        // The level rules below are against a run step at the level BEFORE F07 A-steps lowered the footsteps by 4 dB (the door was set against that level and keeps its weight; it is now louder than a step by that much).
+        let beforeSteps = 1.4 / AmbienceSynth.stepMix
+        let runs = [SurfaceKind.stone, .wood, .grass].map { k in beforeSteps * peak(render { $0.stepSurface = k; $0.stepRun = true; $0.stepCounter += 1 }) }
         let door = [Float(0.3), 0.6, 1.0].map { st in peak(render { $0.doorStrength = st; $0.play(.doorLocked) }) }
         let ringSig = render({ $0.play(.ringTurn) }, seconds: 1)
         check(door[2] > 0.6 * runs[0] && door[2] < 1.3 * runs[0] && door[0] > 0.3 * runs[0], "doorlevel: through the synth the door at full strength is \(String(format: "%.2f", door[2] / runs[0])) times a run step on stone (0.3 / 0.6 / 1 strength: \(door.map { String(format: "%.2f", $0 / runs[0]) })), within 0.6-1.3 at its hardest")
@@ -629,7 +631,7 @@ extension SelfTestRunner {
             l.withUnsafeMutableBufferPointer { lp in r.withUnsafeMutableBufferPointer { rp in s.render(frames: lp.count, left: lp.baseAddress!, right: rp.baseAddress!) } }
             return l.map { abs($0) }.max() ?? 0
         }
-        let run = synthPeak { $0.stepSurface = .stone; $0.stepRun = true; $0.stepCounter += 1 }
+        let run = (1.4 / AmbienceSynth.stepMix) * synthPeak { $0.stepSurface = .stone; $0.stepRun = true; $0.stepCounter += 1 }          // a run step at the level before F07 A-steps (-4 dB)
         // The user's third complaint (#72: a snare drum, thin and staccato, no weight): the OLD event (knock + rattle + iron clank, builds before F07) measured 21 % of its power under 500 Hz, a centroid of
         // 2.76 kHz and 0.49 / 0.66 / 0.88 of a stone run step at strengths 0.3 / 0.6 / 1. The new physical model must be heavy: at least 70 % of the power under 500 Hz, a centroid under 700 Hz, no tone more than 6 dB
         // over its neighbours in the one-third-octave bands above 1 kHz, a level of 0.8-1.0 of a stone run step at full strength (and not louder than a run step at any), an attack of 3-8 ms, and it must ring out.
@@ -701,5 +703,25 @@ extension SelfTestRunner {
         check(hiShare(behind.l) < 0.7 * hiShare(ahead.l) && rms(behind.l[0...]) > 0.3 * rms(ahead.l[0...]), "buoyplacement: a bell behind is duller than one ahead (power above 1.5 kHz \(String(format: "%.3f", hiShare(behind.l))) against \(String(format: "%.3f", hiShare(ahead.l)))) but still audible")
         let far = AmbienceSynth(sampleRate: sr); far.windGain = 0; far.surfGain = 0; far.master = 1; far.buoyGain = 0; far.play(.buoy)
         check(far.chimeDelaysForTest.isEmpty, "buoyplacement: out of range (level 0) the buoy does not ring at all")
+    }
+}
+
+extension SelfTestRunner {
+    /// F07 A-steps (#75): the footsteps sit 4 dB lower in the mix (one constant), each surface keeping its level against the others.
+    func runStepMix() {
+        guard name == "all" || name == "stepmix" else { return }
+        let sr: Float = 44100
+        func peak(_ surface: SurfaceKind, run: Bool) -> Float {
+            let s = AmbienceSynth(sampleRate: sr); s.windGain = 0; s.surfGain = 0; s.master = 1
+            s.stepSurface = surface; s.stepRun = run; s.stepCounter += 1
+            var l = [Float](repeating: 0, count: Int(sr * 2)), r = l
+            l.withUnsafeMutableBufferPointer { lp in r.withUnsafeMutableBufferPointer { rp in s.render(frames: lp.count, left: lp.baseAddress!, right: rp.baseAddress!) } }
+            return l.map { abs($0) }.max() ?? 0
+        }
+        let db = 20 * log10(AmbienceSynth.stepMix / 1.4)
+        check(abs(db + 4) < 0.05, "stepmix: the footsteps are \(String(format: "%.2f", db)) dB against the F06 mix (1.4), one constant")
+        // The pinned stone run step through the synth before F07 was 0.2440 (selftest doorlevel, F06): now 0.631 of it; the surfaces keep their order (wood > stone > grass).
+        let stone = peak(.stone, run: true), wood = peak(.wood, run: true), grass = peak(.grass, run: true)
+        check(abs(stone / 0.2440 - 0.631) < 0.03 && wood > stone && stone > grass, "stepmix: a stone run step peaks at \(String(format: "%.3f", stone)) (0.2440 x 0.631 = 0.154) and the surfaces keep their order (wood \(String(format: "%.3f", wood)), stone, grass \(String(format: "%.3f", grass)))")
     }
 }
