@@ -71,8 +71,18 @@ final class Game {
         lensPortal = LensPortalPuzzle(scene: scenes[.varrow]!, state: state, emit: { [weak self] in self?.pending.append($0) }, gate: { [weak self] in self?.gate ?? GateState.evaluate(altarSolved: false, pages: [], resolved: []) }, say: { [weak self] in self?.showBanner($0) },
                                      sealed: { [weak self] in self?.portalSealed ?? false })
         puzzles = [puzzle] + [tonePlates as WorldPuzzle, lensPortal as WorldPuzzle] + (glass.map { [$0] } ?? [])
+        if Game.tideArchiveEnabled {
+            let t = TideArchivePuzzle(state: state, animator: animator, emit: { [weak self] in self?.pending.append($0) }, level: { [weak self] in Tide.level(self?.time ?? 0) },
+                                      scene: { [weak self] in self.flatMap { $0.scenes[$0.routeWorld] } }, solved: { [weak self] in self?.routeSolved ?? false })
+            tideArchive = t
+            puzzles.append(t)
+        }
         buildInteractables()
     }
+
+    /// S04.6: the Tide Archive's key puzzle, present only behind `tideArchiveEnabled` (LW_TIDE_ARCHIVE=1 or a test) until builder A's world (S04.1) lands and the Glass Wood stops standing in.
+    nonisolated(unsafe) static var tideArchiveEnabled = ProcessInfo.processInfo.environment["LW_TIDE_ARCHIVE"] == "1"
+    private(set) var tideArchive: TideArchivePuzzle?
 
     /// Show text over the world; it stays for a time proportional to its length, unless replaced by a newer line.
     func showBanner(_ text: String) {
@@ -220,6 +230,7 @@ final class Game {
                 gwList.append(Interactable(id: "page_\(n)", min: p - SIMD3(0.5, 0.3, 0.5), max: p + SIMD3(0.5, 0.4, 0.5),
                                            prompt: "Read the page", reach: 3.4, enabled: n == 5))     // 6-8 are revealed by the puzzles
             }
+            if tideArchive != nil, routeWorld == .glassWood { gwList += TideStandIn.interactables(scene: scenes[.glassWood]!) }          // the stand-in's gates, ring and finds
             worldInteractables[.glassWood] = gwList
         }
     }
@@ -249,6 +260,7 @@ final class Game {
 
     func activate(_ id: String) {
         if id == "lens_ring" { lensPortal.turn(ringClickSteps()); return }              // before the puzzle's own handler, which would always turn it one way
+        if id == TideArchivePuzzle.ringName { tideArchive?.turn(ringClickSteps(for: id)); return }
         if let owner = puzzles.first(where: { $0.handles(id) }) {
             owner.activate(id)
         } else if id.hasPrefix("page_"), let n = Int(id.dropFirst(5)) {
@@ -385,6 +397,16 @@ final class Game {
         sc.update("gw_return_core") { $0.uniforms.emissive.w = returnGlow(ring: false) }
     }
 
+    // MARK: The Archive's tools (S04.6)
+
+    /// The ring answers once the lens is in hand; a tool lying in the world is there until it is taken.
+    private func syncTideInteractables() {
+        guard let t = tideArchive else { return }
+        setInteractable(TideArchivePuzzle.ringName, enabled: t.hasLens)
+        setInteractable(TideArchivePuzzle.findForkName, enabled: !t.hasFork)
+        setInteractable(TideArchivePuzzle.findLensName, enabled: !t.hasLens)
+    }
+
     // MARK: The next lens (S04.5)
 
     /// While the lighthouse is open and the route world is solved, the next lens shows on the collar, dim.
@@ -411,8 +433,8 @@ final class Game {
 
     /// A click on the ring turns it the way the prompt's arrows point, the same as the arrow keys: the left half is the Left arrow's way (-1, counter-clockwise seen from above), the right half the Right
     /// arrow's (+1, clockwise); the centre is +1, as a click always was (the bot clicks the centre).
-    func ringClickSteps() -> Int {
-        guard let it = interactables.first(where: { $0.id == "lens_ring" }) else { return 1 }
+    func ringClickSteps(for id: String = "lens_ring") -> Int {
+        guard let it = interactables.first(where: { $0.id == id }) else { return 1 }
         let c = (it.min + it.max) * 0.5, cam = camera
         let right = simd_normalize(simd_cross(cam.forward, SIMD3<Float>(0, 1, 0)))
         let p = cam.position + cam.forward * simd_dot(c - cam.position, cam.forward)          // where the crosshair's ray passes the ring's depth
@@ -502,7 +524,10 @@ final class Game {
         switch kind {
         case .varrow: pose = (Layout.isletCenter + SIMD3(0, 0, 5), 0)          // beside the lens, facing it
         case .glassWood:
-            if let e = pendingEntry, kind == routeWorld { pose = Game.routeEntry(e); pendingEntry = nil } else { pose = (GlassLayout.arrival, 0) }
+            if let e = pendingEntry, kind == routeWorld {
+                pose = Game.routeEntry(e); pendingEntry = nil
+                if tideArchive != nil { state.set(e == .ilse ? TideArchivePuzzle.forkFlag : TideArchivePuzzle.lensFlag) }          // each route comes with its own tool
+            } else { pose = (GlassLayout.arrival, 0) }
         }
         player = Player(position: pose.position, yaw: pose.yaw)
         player.position.y = scene.groundHeight(x: pose.position.x, z: pose.position.z)
@@ -607,7 +632,8 @@ final class Game {
         }
         if journal.isOpen && input.tabPressed { journal.cycleTab() }
         if journal.isOpen && input.pageFlip != 0 { journal.flip(input.pageFlip) }
-        else if !journal.isOpen && input.pageFlip != 0 && hovered?.id == "lens_ring" { lensPortal.turn(input.pageFlip) }       // the arrow keys turn the ring while it is under the crosshair
+        else if !journal.isOpen && input.pageFlip != 0 && hovered?.id == "lens_ring" { lensPortal.turn(input.pageFlip) }
+        else if !journal.isOpen && input.pageFlip != 0 && hovered?.id == TideArchivePuzzle.ringName { tideArchive?.turn(input.pageFlip) }       // the arrow keys turn the ring while it is under the crosshair
         journal.markShown()
         syncDoorNote()
         syncLanternChain()
@@ -615,6 +641,7 @@ final class Game {
         syncPlateGlint()
         syncExitLights()
         syncNextLens()
+        syncTideInteractables()
         syncInterior()
         syncSeals()
         checkPortalStep()
