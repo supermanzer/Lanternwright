@@ -580,7 +580,7 @@ inline MatOut mat_plank(float3 Pl, float3 P, float3 N, float3 base, float seed, 
     MatOut o;
     bool fresh = seed > 0.995;
     float hp = fract(seed * 7.13), hq = fract(seed * 13.7 + 0.3);
-    float vGrain = featVis(0.02, fpix), vFib = featVis(0.004, fpix), vKnot = featVis(0.08, fpix);
+    float vGrain = featVis(0.02, fpix);
     float xs = Pl.x;                                         // along the board
     float c = v * 0.11;                                      // metres across the board from its centre line
     WoodGrain wg = wood_grain(xs, c, seed, hp, hq, fpix);

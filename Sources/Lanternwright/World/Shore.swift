@@ -28,7 +28,7 @@ enum Shore {
     /// phase, so a dry patch stood next to a flooded one (#60). The swash is one front along a beach: `swashMean` s plus a fifth of the slope's deviation from it.
     static let swashMean: Float = 6, swashDelayShare: Float = 0.2
     static func swashDelay(slope s: Float) -> Float { swashMean + swashDelayShare * (delay(depth: 0, slope: s) - swashMean) }
-    static let swashPeriod: Float = 7.3, swashMax: Float = 0.55, swashDepth: Float = 0.7
+    static let swashPeriod: Float = 7.3, swashMax: Float = 0.55
 
     /// Seconds a crest takes longer than deep-water travel to reach depth `h` (m) up a beach of slope `s`: the integral of (1/sqrt(g h) - 1/c0) along the way, for a
     /// uniform slope: 2 (sqrt(deepDepth) - sqrt(h)) / (s sqrt(g)).
@@ -99,7 +99,7 @@ enum Shore {
         """
         constant float SHORE_DEEP = \(deepDepth), SHORE_SLOPE_FLOOR = \(slopeFloor), SHORE_MAX_DELAY = \(maxDelay);
         constant float SHORE_SLOPE_BASE = \(slopeBase), SHORE_COVER_RADIUS = \(coverRadius);
-        constant float SHORE_SWASH_PERIOD = \(swashPeriod), SHORE_SWASH_MAX = \(swashMax), SHORE_SWASH_DEPTH = \(swashDepth);
+        constant float SHORE_SWASH_PERIOD = \(swashPeriod), SHORE_SWASH_MAX = \(swashMax);
         inline float shore_delay(float h, float s) {
             float hh = clamp(h, 0.0, SHORE_DEEP);
             return min(SHORE_MAX_DELAY, 2.0 * (sqrt(SHORE_DEEP) - sqrt(hh)) / (max(s, SHORE_SLOPE_FLOOR) * sqrt(\(gravity))));
