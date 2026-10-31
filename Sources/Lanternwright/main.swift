@@ -5,6 +5,11 @@ let options = LaunchOptions.parse(CommandLine.arguments)
 
 if options.showFeedbackDir { print(FeedbackStore.directory.path); exit(0) }
 if options.showFeedback { print(FeedbackStore.formatted(FeedbackStore.loadAll())); exit(0) }
+// --dump-shaders <path>: the Metal source exactly as the game compiles it (ShaderLibrary.make joins the same list with a newline); no device, no window, no output.
+if let path = options.dumpShadersPath {
+    do { try ShaderLibrary.sources.joined(separator: "\n").write(toFile: path, atomically: true, encoding: .utf8); exit(0) }
+    catch { FileHandle.standardError.write(Data("error: \(error)\n".utf8)); exit(1) }
+}
 GPUTypes.validateLayouts()
 
 guard let device = MTLCreateSystemDefaultDevice() else {

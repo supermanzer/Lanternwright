@@ -41,6 +41,7 @@ struct LaunchOptions {
     var showFeedback = false
     var showFeedbackDir = false
     var dumpOverlayBase: String?
+    var dumpShadersPath: String?
     var benchFrames: Int?
     var auditPropsOut: String?
     var auditProps = false
@@ -81,6 +82,7 @@ struct LaunchOptions {
       --world <name>               World to render: varrow, glass (views named gw-* imply glass)
       --state <name>               World state: solved, mirrors, chimes, both, mirrorswrong, tide, tidewind
       --dump-overlay <base>        Render crosshair/journal/end/intro overlays to <base>-*.png and exit
+      --dump-shaders <path>        Write the whole Metal source (what the game compiles at launch) to <path> and exit, with no device or window (scripts/validate-shaders.sh)
       --approach <target|all> <out>  Continuous-detail measurement: walk toward a target, write a contact sheet and luma/high-frequency numbers
       --approach-range <start> <min> <factor>  with --approach: override the distances (e.g. 90 30 0.97 to walk through the tree LOD band)
       --hard-lod                   Debug: switch tree LODs instantly (the pre-R09 behaviour), for before/after measurements
@@ -162,6 +164,7 @@ struct LaunchOptions {
             case "--feedback": o.showFeedback = true
             case "--feedback-dir": o.showFeedbackDir = true
             case "--dump-overlay": o.dumpOverlayBase = next()
+            case "--dump-shaders": o.dumpShadersPath = next()
             case "--audit-slopes": o.auditSlopes = true
             case "--list-pages": o.listPages = true
             case "--nav-overlay": o.navOverlayPath = next()
