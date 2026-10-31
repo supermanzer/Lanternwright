@@ -31,6 +31,7 @@ enum ArchiveProps {
     final class State {
         var gate = [Float](repeating: 0, count: 3)
         var gateCollider = [Bool](repeating: true, count: 3)                    // closed gates block the gap from the start (`addSluice` adds the colliders)
+        var gateY = [Float?](repeating: nil, count: 3)                           // the height `update` last wrote each gate at: a different height is another writer's (B's puzzle jumps a gate on a restore)
         var lastTime: Float?
     }
     static func gateCollider(_ k: Int) -> (center: SIMD2<Float>, radius: Float) { (SIMD2(ArchiveLayout.sluices[k].x, ArchiveLayout.sluices[k].z), 0.9) }
@@ -44,11 +45,13 @@ enum ArchiveProps {
         for k in 0..<3 {
             guard let item = scene.items.first(where: { $0.name == gateName(k) }) else { continue }
             let open: Float = item.uniforms.emissive.w > 0.5 ? 1 : 0
+            let y = item.uniforms.model.columns.3.y
+            if let w = st.gateY[k], abs(y - w) > 1e-4 { st.gate[k] = min(max((y - ArchiveLayout.sluices[k].y) / gateLift, 0), 1) }          // adopt a pose written from outside
             let step = dt * 0.4
             st.gate[k] += min(max(open - st.gate[k], -step), step)
             let g = st.gate[k]
             scene.update(gateName(k)) { $0.uniforms.model = sluiceGateModel(k, open: g) }
-            scene.update(wheelName(k)) { $0.uniforms.model = sluiceWheelModel(k, turns: g * 2) }
+            st.gateY[k] = ArchiveLayout.sluices[k].y + min(max(g, 0), 1) * gateLift
             let blocking = g < 0.5, col = gateCollider(k)
             if blocking && !st.gateCollider[k] {
                 scene.colliders.addCylinder(center: col.center, radius: col.radius, minY: ArchiveLayout.sluices[k].y - 1, maxY: ArchiveLayout.sluices[k].y + 4); st.gateCollider[k] = true
