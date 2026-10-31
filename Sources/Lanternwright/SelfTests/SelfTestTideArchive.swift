@@ -206,6 +206,25 @@ extension SelfTestRunner {
         rl.setClaim("who-left", page: 4, to: .hers); rl.setClaim("who-left", page: 8, to: .hers)
         check(rl.isSettled("who-left") && rl.gate.ilsePages == gateRoll.ilsePages && rl.gate.orenPages == gateRoll.orenPages, "roll: pages 4, 8 and 12, mapped as the player reads them, settle it, and no gate count changed")
 
+        // S04.4b: the Archive's floors underfoot: wet slate, brass grating, water to the ankle; outside the Archive nothing changes.
+        let fl = routeGame(.ilse); frame(fl)
+        let slateSpot = SIMD3(GlassLayout.arrival.x - 6, fl.scene.groundHeight(x: GlassLayout.arrival.x - 6, z: GlassLayout.arrival.z), GlassLayout.arrival.z)
+        let grateSpot = SIMD3(GlassLayout.arrival.x + 10, fl.scene.groundHeight(x: GlassLayout.arrival.x + 10, z: GlassLayout.arrival.z), GlassLayout.arrival.z)
+        fl.player.position = slateSpot; to(fl, 2); frame(fl)                                      // low water: dry
+        let dryMix = fl.surfaceMix.mix
+        check(fl.archiveActive && fl.archiveFloor == .slate && fl.archiveWaterDepth == 0 && dryMix[StepMaterial.stone.rawValue] == 1 && dryMix[StepMaterial.wetSand.rawValue] == 0 && fl.currentSurface == .stone && fl.currentHollowness == 0, "archive floors: dry slate at low water steps as stone, not hollow")
+        to(fl, 45); frame(fl)                                                                          // high water
+        let wetMix = fl.surfaceMix.mix
+        check(fl.archiveWaterDepth > 0.15 && fl.archiveWaterDepth <= 0.3 && wetMix[StepMaterial.wetSand.rawValue] > 0.4 && wetMix[StepMaterial.stone.rawValue] < 0.7 && abs(wetMix.sum() - 1) < 1e-5, "archive floors: slate under ankle-deep water at high tide steps damp: stone with a wet, soft body (\(String(format: "%.2f", fl.archiveWaterDepth)) m of water, wet-sand weight \(String(format: "%.2f", wetMix[StepMaterial.wetSand.rawValue])))")
+        check(smoothstep(0.08, -0.25, fl.waterGroundHeight) > 0.2 && fl.waterGroundHeight < 0 && smoothstep(0.08, -0.25, { fl.player.position = slateSpot; to(fl, 90 + 2); frame(fl); return fl.waterGroundHeight }()) < 0.05, "archive floors: the water's splash grows with the depth over the floor and is gone at low water")
+        fl.player.position = grateSpot; to(fl, 90 + 2); frame(fl)
+        let gMix = fl.surfaceMix.mix
+        check(fl.archiveFloor == .grating && gMix[StepMaterial.wood.rawValue] > 0.3 && gMix[StepMaterial.stone.rawValue] > 0.4 && abs(gMix.sum() - 1) < 1e-5 && fl.currentHollowness > 0.8, "archive floors: brass grating steps as a hollow board over stone")
+        let outside = twoWorlds(); frame(outside)
+        check(!outside.archiveActive && outside.surfaceMix.mix == outside.scene.surfaceMix(x: outside.player.position.x, z: outside.player.position.z).mix && outside.waterGroundHeight == outside.scene.groundHeight(x: outside.player.position.x, z: outside.player.position.z), "archive floors: outside the Archive the surfaces and the water are the scene's own, unchanged")
+        let onVarrow = routeGame(.ilse); onVarrow.travel(to: .varrow); frame(onVarrow)
+        check(!onVarrow.archiveActive, "archive floors: back on Varrow the Archive's floors are not in force")
+
         // S04.4: the puzzle tells the Archive's audio what happens: the fork's tone held and let go, a gate opening and closing.
         let evG = routeGame(.ilse), tideEv = evG.tideArchive!
         to(evG, 2); _ = evG.drainEvents(); tideEv.touchSluice(0)

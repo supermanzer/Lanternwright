@@ -31,7 +31,7 @@ final class ArchiveAudio {
     }
 
     /// An event the game sends: a sluice gate opening or closing, the tuning fork's tone held or let go.
-    enum Event: Equatable { case sluice(Int, opening: Bool), fork(Int, on: Bool) }
+    enum Event: Equatable { case sluice(Int, opening: Bool), fork(Int, on: Bool), grate(run: Bool) }
 
     let sampleRate: Float
     private let lock = NSLock()
@@ -57,7 +57,12 @@ final class ArchiveAudio {
     // Sluice voices (precomputed buffers)
     private struct Voice { var buf: [Float]; var pos = 0; var gain: Float; var pan: Float }
     private var voices: [Voice] = []
-    private let openBuf: [Float], closeBuf: [Float]
+    private var footSwitch = 0
+    private let openBuf: [Float], closeBuf: [Float], grateBufs: [[Float]]
+    private var reverb: ArchiveReverb
+    /// How much of the layers goes through the gallery reverb (`ArchiveFoley.reverbWet`; the selftests set it to 0 to hear the dry layers).
+    var wet: Float = ArchiveFoley.reverbWet
+    private var quietFor: Float = 99                                              // seconds since the layers last made a sound (the reverb sleeps after its tail has died)
 
     /// `startTime` seeds the slow clocks (the pulses and drifts): the selftests start late to prove nothing depends on how long the game has been running.
     init(sampleRate: Float, seed: UInt32 = 0xA2C1, startTime: Double = 0) {
@@ -67,6 +72,8 @@ final class ArchiveAudio {
         bubbles = BubbleSynth(sampleRate: sampleRate, seed: seed ^ 0x5EED)
         openBuf = ArchiveFoley.sluice(opening: true, sampleRate: sampleRate)
         closeBuf = ArchiveFoley.sluice(opening: false, sampleRate: sampleRate)
+        grateBufs = (0..<4).map { ArchiveFoley.grate(variant: $0, sampleRate: sampleRate) }
+        reverb = ArchiveReverb(sampleRate: sampleRate)
     }
 
     func setInputs(_ i: Inputs) { lock.lock(); inputs = i; lock.unlock() }
@@ -81,6 +88,7 @@ final class ArchiveAudio {
             case .sluice(_, let opening): if voices.count < 4 { voices.append(Voice(buf: opening ? openBuf : closeBuf, gain: ArchiveFoley.sluiceGain, pan: 0.15 * noise.next())) }
             case .fork(let k, let on) where (0..<3).contains(k): forkTarget[k] = on ? 1 : 0; if on { forkStruck[k] = 1 }
             case .fork: break
+            case .grate(let run): if voices.count < 6 { footSwitch = (footSwitch + 1) % 4; voices.append(Voice(buf: grateBufs[footSwitch], gain: ArchiveFoley.grateGain * (run ? 1 : 0.7), pan: footSwitch % 2 == 0 ? -0.2 : 0.2)) }
             }
         }
         let dt = 1 / sampleRate
@@ -168,6 +176,12 @@ final class ArchiveAudio {
                 l += x * (0.5 - 0.5 * voices[k].pan); r += x * (0.5 + 0.5 * voices[k].pan)
                 voices[k].pos += 1
             }
+            // the gallery's reverb on everything above: it sleeps once the layers have been quiet for longer than its tail
+            if abs(l) + abs(r) > 1e-7 { quietFor = 0 } else { quietFor += dt }
+            if quietFor < ArchiveFoley.reverbSeconds * 1.6 && wet > 0 {
+                let w = reverb.process(left: l, right: r)
+                l += w.0 * wet; r += w.1 * wet
+            }
             left[i] += l * master; right[i] += r * master
         }
         voices.removeAll { $0.pos >= $0.buf.count }
@@ -179,6 +193,29 @@ enum ArchiveFoley {
     /// harmonics (n x f0 with f0 rising 128 to 170 Hz as the gate climbs, only the partials inside 150-900 Hz), the water through the gap (a stream of bubbles that quickens, quiet), a long low ease at
     /// the end. Closing: the same creak falling, and a HEAVY thud at the end as the gate seats (the door's modes, 72 to 138 Hz with their overtones). About 2.3 s. Deterministic.
     static let sluiceGain: Float = 0.96, forkGain: Float = 0.14, droneGain: Float = 0.075
+    /// The gallery's reverb: how long its tail takes to fall 60 dB, and how much of the Archive's layers is sent to it (the one wet constant: 0 is dry).
+    static let reverbSeconds: Float = 1.9, reverbWet: Float = 0.3
+    static let grateGain: Float = 0.5
+
+    /// A footfall on the brass grating (S04.4b): the ring of bars under a boot, a short smear of inharmonic resonances at 500-1700 Hz (noise through nine Q 8 band-passes at random frequencies, as the door's clink is: a
+    /// metallic smear, never a pitch) over a small hollow knock (the box under the grating), about 0.3 s, four variants so no two steps are alike. Quiet: it rides on the step's own stone and wood.
+    static func grate(variant: Int, sampleRate sr: Float, seed: UInt32 = 0x6A7E) -> [Float] {
+        var n = FoleyNoise(seed: seed &+ UInt32(variant) &* 7919)
+        let len = Int(0.3 * sr)
+        var out = [Float](repeating: 0, count: len)
+        var res = (0..<9).map { _ in Biquad.bandpass(500 + 1200 * n.unit(), q: 8, sampleRate: sr) }
+        var knock = Biquad.bandpass(210, q: 1.2, sampleRate: sr)
+        for i in 0..<len {
+            let t = Float(i) / sr
+            let x = n.next()
+            var ring: Float = 0
+            for r in res.indices { ring += res[r].process(x) }
+            let attack = min(1, t / 0.003)
+            out[i] = (ring * 0.2 * exp(-t / 0.08) + knock.process(n.next()) * 1.4 * exp(-t / 0.03)) * attack * 0.5
+        }
+        for i in 0..<Int(0.01 * sr) { out[len - 1 - i] *= Float(i) / (0.01 * sr) }
+        return out
+    }
 
     static func sluice(opening: Bool, sampleRate sr: Float, seed: UInt32 = 0x51A1) -> [Float] {
         var n = FoleyNoise(seed: seed ^ (opening ? 1 : 2))
@@ -252,4 +289,41 @@ extension ArchiveAudio {
         let inArchive = game.tideArchive != nil && game.world == game.routeWorld && game.chosenPath != nil
         return Inputs(active: inArchive, route: game.chosenPath, tide: Tide.level(game.time), tideRate: Tide.rate(game.time), waterDistance: game.archiveWaterDistance)
     }
+}
+
+/// S04.4b: the gallery's reverb for the Archive's layers only (the main synth's own reverb is for its chimes and is left alone): a four-line feedback delay network (mutually prime delays of about
+/// 30 to 56 ms, a Householder mixing matrix that neither adds nor removes energy, each line attenuated so the tail falls 60 dB in `rt60`, and a one-pole low-pass in the loop so the highs die first,
+/// as in a stone room full of books). SIMD4 state and fixed buffers: no allocation, about a dozen multiplies a sample.
+struct ArchiveReverb {
+    static let base: [Int] = [1319, 1693, 2153, 2447]                  // samples at 44.1 kHz
+    private var buffers: [[Float]]
+    private var pos = [Int](repeating: 0, count: 4)
+    private var damp = SIMD4<Float>(repeating: 0)
+    private var gains = SIMD4<Float>(repeating: 0)
+    let sampleRate: Float
+    private(set) var rt60: Float
+    /// Loop low-pass: 0 bright ... 1 dark.
+    var darkness: Float = 0.55
+
+    init(sampleRate: Float, rt60: Float = ArchiveFoley.reverbSeconds) {
+        self.sampleRate = sampleRate; self.rt60 = rt60
+        buffers = ArchiveReverb.base.map { [Float](repeating: 0, count: max(8, Int(Float($0) * sampleRate / 44100))) }
+        setDecay(rt60)
+    }
+    mutating func setDecay(_ seconds: Float) {
+        rt60 = min(max(seconds, 0.2), 8)
+        for i in 0..<4 { gains[i] = pow(10, -3 * Float(buffers[i].count) / sampleRate / rt60) }
+    }
+    /// One stereo sample in, one out (wet only).
+    mutating func process(left: Float, right: Float) -> (Float, Float) {
+        var out = SIMD4<Float>(buffers[0][pos[0]], buffers[1][pos[1]], buffers[2][pos[2]], buffers[3][pos[3]])
+        damp += (1 - darkness) * (out - damp)
+        out = damp
+        let mixed = out - 0.5 * (out[0] + out[1] + out[2] + out[3])              // Householder: x - (2/N) sum, N = 4
+        let input = SIMD4<Float>(left, right, left, right) * 0.5
+        let next = mixed * gains + input
+        for i in 0..<4 { buffers[i][pos[i]] = next[i]; pos[i] = (pos[i] + 1) % buffers[i].count }
+        return ((out[0] + out[2]) * 0.5, (out[1] + out[3]) * 0.5)
+    }
+    var isSilent: Bool { buffers.allSatisfy { b in !b.contains { abs($0) > 1e-6 } } }
 }

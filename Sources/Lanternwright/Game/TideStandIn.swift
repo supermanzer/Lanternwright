@@ -6,6 +6,10 @@ import simd
 enum TideStandIn {
     static func sluicePosition(_ k: Int, scene: Scene) -> SIMD3<Float> { spot(8 + 2.2 * Float(k), -4, scene) + SIMD3(0, 1.2, 0) }
     static func mapPosition(scene: Scene) -> SIMD3<Float> { spot(-4, -9, scene) + SIMD3(0, 1.2, 0) }
+    /// Where the stand-in's floors are: a grating strip across the middle of the pad (the sluice channel), slate elsewhere. Builder A's world replaces this with its gallery floors.
+    static func floor(at p: SIMD3<Float>) -> Game.ArchiveFloor { abs(p.x - (GlassLayout.arrival.x + 10)) < 3 ? .grating : .slate }
+    /// The water over the floor at `p` for a tide level: none far from the water, up to ankle-deep (0.3 m) at high tide beside it.
+    static func waterDepth(tide: Float, at p: SIMD3<Float>) -> Float { waterDistance(from: p) < 24 ? max(0, 0.3 * tide - 0.04) : 0 }
     static func waterDistance(from p: SIMD3<Float>) -> Float { simd_length(SIMD2(p.x - (GlassLayout.arrival.x - 14), p.z - GlassLayout.arrival.z)) }
     static func ringPosition(scene: Scene) -> SIMD3<Float> { spot(8, -9, scene) + SIMD3(0, 1.2, 0) }
     static func findPosition(_ lens: Bool, scene: Scene) -> SIMD3<Float> { spot(lens ? 12 : 4, -9, scene) + SIMD3(0, 0.6, 0) }

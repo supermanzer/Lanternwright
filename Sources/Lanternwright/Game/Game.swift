@@ -168,7 +168,27 @@ final class Game {
     private var interiorSurface: SurfaceKind? {
         interiorApplied && world == .varrow ? interior.surface(x: player.position.x, z: player.position.z, feetY: player.position.y) : nil
     }
+    /// S04.4b: the Archive's floors underfoot: wet slate in the galleries, brass grating over the sluice channels, and the water over either (ankle-deep at the most). The stand-in's floors and water are
+    /// `TideStandIn`'s; builder A's world (S04.3) feeds `archiveFloor` and `archiveWaterDepth` from its own gallery floors and the water's surface height instead.
+    enum ArchiveFloor { case slate, grating }
+    var archiveActive: Bool { tideArchive != nil && world == routeWorld && chosenPath != nil }
+    var archiveFloor: ArchiveFloor { TideStandIn.floor(at: player.position) }
+    /// Metres of water over the floor at the player's feet (0 dry), from the same tide the gates and the water use.
+    var archiveWaterDepth: Float { TideStandIn.waterDepth(tide: Tide.level(time), at: player.position) }
+    /// How wet the floor is for the step's sound: 0 dry ... 1 wet at about 8 cm of water.
+    var archiveWetness: Float { smoothstep(0.0, 0.08, archiveWaterDepth) }
+    /// The ground height the water sounds (the splash, the entering and leaving) are measured against: the scene's ground, or in the Archive the floor under the water (negative once there is about 8 cm of water over it).
+    var waterGroundHeight: Float { archiveActive ? 0.1 - 1.2 * archiveWaterDepth : scene.groundHeight(x: player.position.x, z: player.position.z) }          // a dry floor sits 0.1 m above the waterline; ten centimetres of water is where wading begins
     var surfaceMix: (mix: StepMix, pebble: Float) {
+        if archiveActive {
+            var m = StepMix(repeating: 0)
+            let wet = archiveWetness
+            switch archiveFloor {
+            case .slate: m[StepMaterial.stone.rawValue] = 1 - 0.55 * wet; m[StepMaterial.wetSand.rawValue] = 0.55 * wet           // wet slate: the stone's click with a damp, soft body
+            case .grating: m[StepMaterial.wood.rawValue] = 0.45 * (1 - 0.3 * wet); m[StepMaterial.stone.rawValue] = 0.55 + 0.45 * 0.3 * wet     // brass grating: a hollow board and the stone beneath
+            }
+            return (m, 0)
+        }
         if let k = interiorSurface {
             var m = StepMix(repeating: 0)
             m[(k == .wood ? StepMaterial.wood : StepMaterial.stone).rawValue] = 1
@@ -178,8 +198,8 @@ final class Game {
     }
     var currentPlank: Int { scene.plankIndex(x: player.position.x, z: player.position.z) }
     /// 0...1: how hollow the dock sounds under the feet (from the clearance under the planks).
-    var currentHollowness: Float { scene.hollowness(x: player.position.x, z: player.position.z) }
-    var currentSurface: SurfaceKind { interiorSurface ?? scene.surface(x: player.position.x, z: player.position.z) }
+    var currentHollowness: Float { archiveActive ? (archiveFloor == .grating ? 0.85 : 0) : scene.hollowness(x: player.position.x, z: player.position.z) }
+    var currentSurface: SurfaceKind { archiveActive ? .stone : (interiorSurface ?? scene.surface(x: player.position.x, z: player.position.z)) }
 
     /// Events since the last call (audio and UI consume these).
     func drainEvents() -> [GameEvent] { defer { pending = [] }; return pending }

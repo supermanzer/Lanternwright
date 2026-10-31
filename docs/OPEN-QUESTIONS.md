@@ -193,6 +193,12 @@ Format: `### Q<n> (date, who): the question` then *Default taken*, *Where it liv
 *What changes if the answer differs:* an underwater tint/fog when the eye is below `Player.sea` (a small post-process flag), or S04.6 driving the player out of a flooding room before the eye goes under.
 *Status:* open.
 
+### Q32 (2026-10-31, builder B, S04.4b: the Archive's footsteps and gallery reverb)
+*Default taken:* (1) **Footsteps** use the existing voices (no new step recipe): dry slate is `stone`; slate under water blends `wetSand` into it (up to 0.55 at about 8 cm of water: a damp, soft body); brass grating is a hollow `wood` over `stone` with the dock's hollowness at 0.85, plus a short ring of bars on each step (four variants of a 0.3 s smear of inharmonic resonances at 500-2000 Hz over a small knock, peak 0.27 of a stone run step, the door's reference) so it sounds metallic without a new material. The water's splash and its entering and leaving events are measured against the floor under the water (`Game.waterGroundHeight`: a dry floor 0.1 m above the waterline, about 10 cm of water is where wading begins, up to ankle-deep 0.3 m at high tide), from the same tide the gates and the audio use. Keyed on the route world and a begun route; outside it nothing changes. Floors and water depth are `TideStandIn`'s until A's world feeds `archiveFloor` and `archiveWaterDepth`. (2) **Reverb:** a four-line FDN of its own (the existing FDNReverb allocates every sample), rt60 1.9 s, one wet constant `ArchiveFoley.reverbWet` 0.3, only on the Archive's layers, asleep when they are silent; the busiest ten seconds cost under 1 % of real time.
+*Where it lives:* `Audio/ArchiveAudio.swift` (`ArchiveReverb`, `ArchiveFoley.grate`), `Game.archiveFloor / archiveWaterDepth / waterGroundHeight / surfaceMix`, three lines in `AudioEngine` (water height, grating event).
+*What changes if the answer differs:* levels and the wet constant are constants; a real metal step voice would be a new `StepMaterial`.
+*Status:* open.
+
 ## Answered
 - 2026-10-28 S03 Oren's exit location: both exits at the original lighthouse; Oren's is a lens portal in the lens room, the dock arch is not an exit.
 - 2026-10-28 Page gate: 3 pages of each sibling.

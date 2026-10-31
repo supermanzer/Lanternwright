@@ -103,6 +103,49 @@ extension SelfTestRunner {
         check(abs(dPeak / ArchiveTones.baseHz[0] - 1) < 0.01 && abs(hPeak / ArchiveTones.hallHz[0] - 1) < 0.01, "archive audio: ten minutes into a session the drone and the hum are still on their ToneTable pitches (D3 at \(String(format: "%.1f", dPeak)) Hz, hum at \(String(format: "%.1f", hPeak)) Hz)")
         check(late(0, base) != late(600, base), "archive audio: and the slow pulses and drifts really do start where the clock says")
 
+        // The gallery's reverb (S04.4b): a stable four-line FDN whose tail falls 60 dB in about its rt60, and one wet constant.
+        do {
+            var rv = ArchiveReverb(sampleRate: sr)
+            var tail: [Float] = []
+            for i in 0..<Int(sr * 4) { let w = rv.process(left: i == 0 ? 1 : 0, right: 0); tail.append(w.0 + w.1) }
+            func energy(_ lo: Float, _ hi: Float) -> Float { tail[Int(lo * sr)..<Int(hi * sr)].reduce(0) { $0 + $1 * $1 } }
+            let e1 = energy(0.4, 0.6), e2 = energy(1.4, 1.6)
+            let dbPerSecond = 10 * log10(max(e1, 1e-20) / max(e2, 1e-20))                         // energy drop over one second
+            let rt60 = 60 / max(dbPerSecond, 1e-3)
+            if verbose { print("reverb: drop \(dbPerSecond) dB per second, rt60 \(rt60) s, peak \(tail.map { abs($0) }.max() ?? 0)") }
+            check(!tail.contains { !$0.isFinite } && (tail.map { abs($0) }.max() ?? 9) < 1 && e1 > 0, "archive audio: the gallery reverb is stable and finite")
+            check(rt60 > 0.6 * ArchiveFoley.reverbSeconds && rt60 < 1.6 * ArchiveFoley.reverbSeconds, "archive audio: its tail falls 60 dB in about \(ArchiveFoley.reverbSeconds) s (measured \(String(format: "%.1f", rt60)) s)")
+            check(energy(3.5, 4.0) < 1e-3 * energy(0.0, 0.5), "archive audio: and it dies away (the last half second has under a thousandth of the first)")
+            let dry = { () -> [Float] in let a = ArchiveAudio(sampleRate: sr); a.wet = 0; a.setInputs(off); a.handle(.sluice(0, opening: false)); var l = [Float](repeating: 0, count: Int(sr * 5)), r = l; l.withUnsafeMutableBufferPointer { lp in r.withUnsafeMutableBufferPointer { rp in a.render(frames: lp.count, left: lp.baseAddress!, right: rp.baseAddress!) } }; return l }()
+            let wetX = { () -> [Float] in let a = ArchiveAudio(sampleRate: sr); a.setInputs(off); a.handle(.sluice(0, opening: false)); var l = [Float](repeating: 0, count: Int(sr * 5)), r = l; l.withUnsafeMutableBufferPointer { lp in r.withUnsafeMutableBufferPointer { rp in a.render(frames: lp.count, left: lp.baseAddress!, right: rp.baseAddress!) } }; return l }()
+            let after = Int(2.6 * sr)                                                               // the closing sluice's buffer ends at 2.3 s: what is left after it is the room
+            let tailDry = rms(Array(dry[after..<(after + Int(sr))])), tailWet = rms(Array(wetX[after..<(after + Int(sr))]))
+            check(tailDry < 1e-6 && tailWet > 1e-4 && tailWet < 0.05, "archive audio: the wet constant (\(ArchiveFoley.reverbWet)) puts the room in: a second after the gate has stopped there is a tail (RMS \(String(format: "%.5f", tailWet))) where the dry layers are silent")
+            check(abs(rms(Array(wetX[0..<Int(2.2 * sr)])) / rms(Array(dry[0..<Int(2.2 * sr)])) - 1) < 0.6, "archive audio: and the room does not change the level much (\(String(format: "%.2f", rms(Array(wetX[0..<Int(2.2 * sr)])) / rms(Array(dry[0..<Int(2.2 * sr)])))) x the dry RMS)")
+            // bounded CPU: ten seconds of the busiest layers, drips and a sluice, take a tiny share of the time they last
+            let a = ArchiveAudio(sampleRate: sr); var busy = base; busy.waterDistance = 2; busy.tideRate = -0.035; a.setInputs(busy)
+            var l = [Float](repeating: 0, count: 512), r = l
+            let t0 = Date()
+            for k in 0..<Int(sr * 10 / 512) { if k % 40 == 0 { a.handle(.sluice(0, opening: true)); a.handle(.grate(run: true)) }; l.withUnsafeMutableBufferPointer { lp in r.withUnsafeMutableBufferPointer { rp in a.render(frames: 512, left: lp.baseAddress!, right: rp.baseAddress!) } } }
+            let used = Float(Date().timeIntervalSince(t0)) / 10
+            if verbose { print("archive audio cpu: \(used * 100) % of real time") }
+            check(used < 0.10, "archive audio: with the reverb the busiest ten seconds cost \(String(format: "%.1f", used * 100)) % of real time (under 10 %)")
+        }
+        // The brass grating under a boot: a smear of ring over a small hollow knock, quiet, short, and not a pitch.
+        do {
+            let run = (1.4 / AmbienceSynth.stepMix) * { () -> Float in let s = AmbienceSynth(sampleRate: sr); s.windGain = 0; s.surfGain = 0; s.master = 1; s.stepSurface = .stone; s.stepRun = true; s.stepCounter += 1; var l = [Float](repeating: 0, count: Int(sr * 2)), r = l; l.withUnsafeMutableBufferPointer { lp in r.withUnsafeMutableBufferPointer { rp in s.render(frames: lp.count, left: lp.baseAddress!, right: rp.baseAddress!) } }; return l.map { abs($0) }.max() ?? 0 }()
+            let g = (0..<4).map { ArchiveFoley.grate(variant: $0, sampleRate: sr) }
+            let sp = A.spectrum(g[0])
+            let ringShare = A.band(sp, 400, 2000) / max(A.band(sp, 40, 9000), 1e-12)
+            let peak = (g.map { ($0.map { abs($0) }.max() ?? 0) * ArchiveFoley.grateGain }.max() ?? 0) / run
+            if verbose { print("grate: ring share \(ringShare), peak \(peak) of a run step") }
+            check(g.allSatisfy { !$0.contains { !$0.isFinite } && $0.count == Int(0.3 * sr) } && g[0] != g[1] && g[2] != g[3], "archive audio: the grating step has four variants, finite, 0.3 s each")
+            check(ringShare > 0.5, "archive audio: it is the ring of bars: \(Int(100 * ringShare)) % of its power in 400-2000 Hz")
+            check(peak <= 0.4 && peak >= 0.05, "archive audio: and quiet: at most \(String(format: "%.2f", peak)) of a stone run step (the same reference as the door), riding on the step's own stone and wood")
+            let decayT = A.decayTime(g[0], lowpass: 3000, dB: 30)
+            check(decayT < 0.25, "archive audio: it rings out in \(String(format: "%.2f", decayT)) s, not a drone")
+        }
+
         // The tide's wash follows the water's distance, its rate and its level.
         var rates = base; rates.tideRate = 0.035; rates.waterDistance = 2
         var still = base; still.waterDistance = 2

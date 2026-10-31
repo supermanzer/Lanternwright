@@ -76,7 +76,7 @@ final class AudioEngine {
     static func feedWater(_ water: inout WaterContact, into synth: AmbienceSynth, game: Game) {
         let p = game.player.position
         let speed = game.player.speed
-        if let e = water.update(groundY: game.scene.groundHeight(x: p.x, z: p.z), speed: speed) { synth.waterEvent(e) }
+        if let e = water.update(groundY: game.waterGroundHeight, speed: speed) { synth.waterEvent(e) }
         synth.waterDrag = water.drag(speed: speed); synth.waterLap = water.lap(speed: speed)
     }
 
@@ -93,8 +93,8 @@ final class AudioEngine {
             synth.stepSurface = game.currentSurface
             let under = game.surfaceMix
             synth.stepMix = under.mix; synth.stepPebble = under.pebble; synth.stepPlank = game.currentPlank; synth.stepHollow = game.currentHollowness
-            let gy = game.scene.groundHeight(x: game.player.position.x, z: game.player.position.z)
-            synth.stepSplash = smoothstep(0.08, -0.25, gy)
+            synth.stepSplash = smoothstep(0.08, -0.25, game.waterGroundHeight)
+            if game.archiveActive && game.archiveFloor == .grating { archive.handle(.grate(run: game.lastFootWasRun)) }          // S04.4b: the brass grating rings under the boot
             synth.stepRun = game.lastFootWasRun
             synth.stepPan = game.footfalls % 2 == 0 ? -0.3 : 0.3      // alternate feet
             synth.stepCounter += 1
