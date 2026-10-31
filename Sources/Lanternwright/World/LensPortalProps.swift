@@ -24,6 +24,8 @@ enum LensPortalProps {
     static let lampNames = ["lh_gate_lamp_0", "lh_gate_lamp_1", "lh_gate_lamp_2"]
     /// F06 B3 (Q24): the two exits take a light each while the gate is ready: a ring of warm beads round the lens (Ilse's exit) and a cool lit rim on the receiver's plate (Oren's exit). Hidden otherwise.
     static let lensBeadsName = "lh_exit_lens_beads", receiverRimName = "lh_exit_receiver_rim"
+    /// S04.5: once the route world is solved the next lens (the Salt Flats, not yet ground) shows on the pedestal collar: dull glass, no light, no text.
+    static let nextLensName = "lh_next_lens"
 
     static var ringY: Float { LighthouseInterior.lensFloorY + LighthouseInterior.ringHeight }
     /// A frame at angle `a`, radius `r`, height `y` above the tower's foot, whose local z points at the tower's axis (a thing standing on the glass facing in).
@@ -76,6 +78,11 @@ enum LensPortalProps {
             rim.box(size: SIMD3(0.022, 0.34, 0.02), surface: rimSurface, transform: f * translation(SIMD3(s * 0.16, top, 0.05)))
         }
         scene.add(receiverRimName, mesh: rim.build(device: device, label: "receiver rim"), uniforms: ObjectUniforms(model: matrix_identity_float4x4), hidden: !tools)
+
+        // The next lens: a small dull sphere of pale glass on the collar, hidden until the route world is solved (`Game.syncNextLens`). Nothing lights it: it is not ground yet.
+        var next = MeshBuilder()
+        next.sphere(radius: 0.11, segments: 16, surface: Surface(color: SIMD3(0.55, 0.58, 0.6), roughness: 0.3, material: .paleMetal), transform: translation(SIMD3(0, LighthouseInterior.lensFloorY + 0.46, 0.5)))
+        scene.add(nextLensName, mesh: next.build(device: device, label: "next lens"), uniforms: ObjectUniforms(model: translation(Layout.lighthouse)), hidden: !tools)
 
         // The beam preview: a thin pale ribbon from the ring outward along its pointer (turned with the ring: the model is a rotation about the axis).
         var beam = MeshBuilder()

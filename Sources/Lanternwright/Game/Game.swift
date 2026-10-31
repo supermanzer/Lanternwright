@@ -140,7 +140,7 @@ final class Game {
     /// Auto-run: while on, moving means running (R toggles). (F07 B-run, #73: there is no longer a "Hold Shift to run" line after 45 s of walking: it was a tutorial remark with no meaning in the
     /// world, and the controls screen already says it. Page 9 has the keepers' rule about running.)
     private(set) var autoRun = false
-    static let ownFlags = ["lensTouched", Game.pathIlseFlag, Game.pathOrenFlag, Game.doorOpenFlag, Game.portalOpenFlag]
+    static let ownFlags = ["lensTouched", Game.routeSolvedFlag, Game.pathIlseFlag, Game.pathOrenFlag, Game.doorOpenFlag, Game.portalOpenFlag]
     /// 0...1: how far the "look closer" zoom has eased in (right mouse button or Z).
     private(set) var zoomAmount: Float = 0
     /// 0...1: how far into a run the player is (eased), which widens the view a little: speed you can see.
@@ -385,6 +385,16 @@ final class Game {
         sc.update("gw_return_core") { $0.uniforms.emissive.w = returnGlow(ring: false) }
     }
 
+    // MARK: The next lens (S04.5)
+
+    /// While the lighthouse is open and the route world is solved, the next lens shows on the collar, dim.
+    var nextLensShown: Bool { interiorApplied && world == .varrow && routeSolved }
+    private func syncNextLens() {
+        guard let sc = scenes[.varrow] else { return }
+        let on = nextLensShown
+        sc.update(LensPortalProps.nextLensName) { $0.hidden = !on }
+    }
+
     // MARK: The exits' lights (F06 B3, Q24)
 
     /// While the lighthouse is open, the gate is ready and no route is chosen, the two exits are lit, each its own colour: warm beads round the lens (Ilse's), a cool rim round the receiver's
@@ -492,7 +502,7 @@ final class Game {
         switch kind {
         case .varrow: pose = (Layout.isletCenter + SIMD3(0, 0, 5), 0)          // beside the lens, facing it
         case .glassWood:
-            if let e = pendingEntry { pose = Game.routeEntry(e); pendingEntry = nil } else { pose = (GlassLayout.arrival, 0) }
+            if let e = pendingEntry, kind == routeWorld { pose = Game.routeEntry(e); pendingEntry = nil } else { pose = (GlassLayout.arrival, 0) }
         }
         player = Player(position: pose.position, yaw: pose.yaw)
         player.position.y = scene.groundHeight(x: pose.position.x, z: pose.position.z)
@@ -604,6 +614,7 @@ final class Game {
         syncReturnCue()
         syncPlateGlint()
         syncExitLights()
+        syncNextLens()
         syncInterior()
         syncSeals()
         checkPortalStep()

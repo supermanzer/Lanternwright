@@ -55,7 +55,7 @@ extension SelfTestRunner {
         check(!a.beginRoute(.oren) && a.chosenPath == .ilse, "fork: the other route cannot be begun")
         let pathBefore = a.state.has(Game.pathIlseFlag)
         a.touchLampLens()
-        check(a.chosenPath == .ilse && a.state.has(Game.pathIlseFlag) == pathBefore && !a.isTraveling, "fork: touching the lens again changes nothing")
+        check(a.chosenPath == .ilse && a.state.has(Game.pathIlseFlag) == pathBefore && !a.state.has(Game.pathOrenFlag), "fork: touching the lens again chooses nothing new (S04.5: it reopens her world until it is solved; see the archive tests)")
 
         // Oren's route: turn the ring onto the receiver with real touches, the portal opens, step into the doorway: the route begins, Ilse's exit is sealed, the player is at the altar end.
         let o = lensGame()

@@ -17,7 +17,15 @@ extension Game {
     var platesSealed: Bool { chosenPath == .oren }
     var portalSealed: Bool { chosenPath == .ilse }
 
-    /// Where the Glass Wood is entered for a route: its pose (position, yaw).
+    /// S04.5: the world a route enters, and where the lens and the doorway lead back to until it is solved. It is the Tide Archive (S04.1, builder A); until that world exists it is the Glass Wood,
+    /// which stands in for it (the one switch: set `routeWorldOverride` when the Archive's scene is passed to `Game(scenes:)`).
+    nonisolated(unsafe) static var routeWorldOverride: WorldKind?
+    var routeWorld: WorldKind { Game.routeWorldOverride ?? .glassWood }
+    /// Set by the route world's puzzle when it is solved (S04.6; for the stand-in, a test or tool sets it): the lens and the doorway then no longer lead there, and the next lens on the ring is shown dim.
+    static let routeSolvedFlag = "route_solved"
+    var routeSolved: Bool { state.has(Game.routeSolvedFlag) }
+
+    /// Where the route world is entered for a route: its pose (position, yaw): the lamp end for Ilse, the open end for Oren (S02 section 3, lever 1). The stand-in's two ends are its arrival pad and its altar end.
     static func routeEntry(_ author: PageAuthor) -> (position: SIMD3<Float>, yaw: Float) {
         author == .oren ? (GlassLayout.altar + SIMD3(0, 0, 7), 0) : (GlassLayout.arrival, 0)
     }
@@ -25,28 +33,41 @@ extension Game {
     /// Begin the route of `author` if the gate is ready and the other route has not been begun: seal the other exit, then fade through to the Glass Wood.
     @discardableResult
     func beginRoute(_ author: PageAuthor) -> Bool {
-        guard world == .varrow, !isTraveling, scenes[.glassWood] != nil, gate.ready, choosePath(author) else { return false }
+        guard world == .varrow, !isTraveling, scenes[routeWorld] != nil, gate.ready, choosePath(author) else { return false }
         pendingEntry = author
         syncSeals()
-        fadeThrough(to: .glassWood)
+        fadeThrough(to: routeWorld)
+        return true
+    }
+
+    /// S04.5: back from the route world before it is solved, the way in is the same one: Ilse's lens, Oren's open doorway. It leads there again (to the same end) until `routeSolved`; nothing is chosen
+    /// again and the sealed exit stays sealed. Returns false if it does not (not on Varrow, travelling, no route, already solved, or no such world).
+    @discardableResult
+    func reenterRoute() -> Bool {
+        guard world == .varrow, !isTraveling, let route = chosenPath, !routeSolved, scenes[routeWorld] != nil else { return false }
+        pendingEntry = route
+        fadeThrough(to: routeWorld)
         return true
     }
 
     /// Touching the lens in the lens room: Ilse's route if the gate is ready; otherwise the gate's quiet line (nothing before the altar), and nothing once a route is begun.
     func touchLampLens() {
-        guard chosenPath == nil else { return }
+        if let route = chosenPath {
+            if route == .ilse { reenterRoute() }                                       // S04.5: Ilse's lens opens her world again until it is solved; once solved it does nothing
+            return
+        }
         if gate.ready { beginRoute(.ilse) } else if let cue = gate.cue { showBanner(cue) }
     }
 
     /// The player standing in the open portal's doorway steps through (checked every frame).
     func checkPortalStep() {
-        guard lensPortal.isOpen, chosenPath == nil, world == .varrow, !isTraveling, !journal.isOpen else { return }
+        guard lensPortal.isOpen, chosenPath == nil || (chosenPath == .oren && !routeSolved), world == .varrow, !isTraveling, !journal.isOpen else { return }
         let p = player.position - Layout.lighthouse
         let r = (p.x * p.x + p.z * p.z).squareRoot()
         var d = abs(atan2(p.z, p.x) - LighthouseInterior.portalAngle).truncatingRemainder(dividingBy: 2 * .pi)
         if d > .pi { d = 2 * .pi - d }
         guard r >= Game.portalZone.minRadius, d <= Game.portalZone.halfAngle, abs(p.y - LighthouseInterior.lensFloorY) < 0.3 else { return }
-        beginRoute(.oren)
+        if chosenPath == nil { beginRoute(.oren) } else { reenterRoute() }               // S04.5: Oren's doorway stays open and leads back in until the world is solved
     }
 
     /// The sealed exit is dimmed (and dead: the plates and the ring check `platesSealed` / `portalSealed`): the plates' stone darkens, the receiver and its lamps go dark.
