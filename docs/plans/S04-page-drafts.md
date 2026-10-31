@@ -38,7 +38,7 @@ Draft for the reviewer and the user to read **before** the texts are final (the 
 
 ## Page 13: the sluices (with a trace)
 
-**Ilse's route.** The sluices answer to a tone and to the water together. Tide first, because everything begins at the water. Then wind. Then stone. But the water has to stand at the height of the tone, or the gate hears nothing and goes on holding. On the prism, a chalk arrow pointing at a gate I would not have tried. He thinks light can go anywhere. I think it has to be asked.
+**Ilse's route.** The sluices answer to a tone and to the water together. Tide first, because everything begins at the water. Then wind. Then stone. On the prism, a chalk arrow pointing at a gate I would not have tried. He thinks light can go anywhere. I think it has to be asked.
 
 **Oren's route.** In the chamber at the top the prism takes my beam and gives it back as three: tide, wind, stone, each colour on its own gate. Turn the beam and the colours move; the water decides which gate is low enough to feel them. In the brass beside the prism, a ring pressed in the metal, the shape of Ilse's tuning fork. She would have held the tone until the gate gave. I turn the light.
 

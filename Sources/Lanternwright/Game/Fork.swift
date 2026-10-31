@@ -44,7 +44,7 @@ extension Game {
     /// again and the sealed exit stays sealed. Returns false if it does not (not on Varrow, travelling, no route, already solved, or no such world).
     @discardableResult
     func reenterRoute() -> Bool {
-        guard world == .varrow, !isTraveling, let route = chosenPath, !routeSolved, scenes[routeWorld] != nil else { return false }
+        guard tideArchive != nil, world == .varrow, !isTraveling, let route = chosenPath, !routeSolved, scenes[routeWorld] != nil else { return false }           // behind the flag: with it off nothing sets route_solved, so the old end state (the lens does nothing once a route is begun) stays
         pendingEntry = route
         fadeThrough(to: routeWorld)
         return true
@@ -61,7 +61,7 @@ extension Game {
 
     /// The player standing in the open portal's doorway steps through (checked every frame).
     func checkPortalStep() {
-        guard lensPortal.isOpen, chosenPath == nil || (chosenPath == .oren && !routeSolved), world == .varrow, !isTraveling, !journal.isOpen else { return }
+        guard lensPortal.isOpen, chosenPath == nil || (chosenPath == .oren && !routeSolved && tideArchive != nil), world == .varrow, !isTraveling, !journal.isOpen else { return }
         let p = player.position - Layout.lighthouse
         let r = (p.x * p.x + p.z * p.z).squareRoot()
         var d = abs(atan2(p.z, p.x) - LighthouseInterior.portalAngle).truncatingRemainder(dividingBy: 2 * .pi)

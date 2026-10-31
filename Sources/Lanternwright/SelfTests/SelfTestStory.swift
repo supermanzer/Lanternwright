@@ -19,7 +19,7 @@ extension SelfTestRunner {
         // The approved revisions (S02 appendix R1 to R3, user decision 6, 2026-10-28), spelled out so a change is deliberate: page 5 begins with the new first sentence and keeps the rest, page 4
         // gains its half-line after the old ending, page 9 is the new Ilse page, and pages 3 and 8 are as they were.
         // S04.7: the Tide Archive's six pages, each in two voices, pinned as the others are (docs/plans/S04-page-drafts.md).
-        let archivePins: [Int: (String, String)] = [10: ("0398a0324f3043b1", "365cb97bbe8735cc"), 11: ("50712f9717ce14c1", "2db422054fcf8bf2"), 12: ("6ebb33d4b173c1f6", "a0176a5f0866747d"), 13: ("5411800985b7e899", "e90d440eed787b0f"), 14: ("671d73847cf928f1", "19a4e858b368d676"), 15: ("59143fa237fe87e5", "5ea6cb84b8896109")]
+        let archivePins: [Int: (String, String)] = [10: ("0398a0324f3043b1", "365cb97bbe8735cc"), 11: ("50712f9717ce14c1", "2db422054fcf8bf2"), 12: ("6ebb33d4b173c1f6", "a0176a5f0866747d"), 13: ("a68c198842fdf4d8", "e90d440eed787b0f"), 14: ("671d73847cf928f1", "19a4e858b368d676"), 15: ("59143fa237fe87e5", "5ea6cb84b8896109")]
         let archiveDrift = StoryPages.archive.filter { p in guard let pin = archivePins[p.id] else { return true }; return sha(p.ilse) != pin.0 || sha(p.oren) != pin.1 }.map(\.id)
         check(StoryPages.archiveIDs == Array(10...15) && archiveDrift.isEmpty, "story: the Tide Archive's pages 10 to 15 are in order and every text, in both voices, is byte-identical to its pin (drift: \(archiveDrift))")
         check(StoryPages.archive.allSatisfy { $0.ilse != $0.oren && !$0.ilse.isEmpty && !$0.oren.isEmpty }, "story: each Archive page has its own text in each sibling's voice")

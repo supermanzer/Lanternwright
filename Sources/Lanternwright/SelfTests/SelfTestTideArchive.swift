@@ -195,6 +195,16 @@ extension SelfTestRunner {
         cm.activate(ChainMap.interactableName); let savedMap = twoWorlds(); savedMap.restore(cm.makeSave())
         check(!savedMap.readingMap, "map: and it does not survive a load")
 
+        // A save between the third gate and the drain still finishes (the 2.5 s window).
+        let w = routeGame(.ilse), tideW = w.tideArchive!
+        to(w, 2); tideW.touchSluice(0); to(w, w.time + hold)
+        to(w, 20); tideW.touchSluice(1); to(w, w.time + hold)
+        to(w, 30); tideW.touchSluice(2); to(w, w.time + hold)
+        check(tideW.opened == 3 && !w.routeSolved, "archive: all three gates open and the drain not yet done (the window)")
+        let wl = twoWorlds(); wl.restore(w.makeSave())
+        wl.simulate(seconds: T.Timing.drainDelay + 0.3)
+        check(wl.routeSolved && wl.state.has(T.drainedFlag), "archive: a save made in that window finishes the drain after a load (it used to leave the world unsolved for good)")
+
         // With the flag off there is no Archive puzzle at all (the build stays as it was).
         Game.tideArchiveEnabled = false
         check(twoWorlds().tideArchive == nil, "archive: behind the flag: with it off there is no puzzle and no stand-in interactables")

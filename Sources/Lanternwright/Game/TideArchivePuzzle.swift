@@ -54,7 +54,13 @@ final class TideArchivePuzzle: WorldPuzzle {
 
     // MARK: WorldPuzzle
     var persistentFlags: [String] { TideArchivePuzzle.sluiceFlags + [TideArchivePuzzle.forkFlag, TideArchivePuzzle.lensFlag, TideArchivePuzzle.wayTone, TideArchivePuzzle.wayBeam, TideArchivePuzzle.drainedFlag] }
-    func restore(from flags: Set<String>) { for f in persistentFlags where flags.contains(f) { state.set(f) }; busy = false; ringSerial += 1; ringAngle = TideArchivePuzzle.initialRing; syncVisuals(drain: state.has(TideArchivePuzzle.drainedFlag) ? 1 : 0) }
+    func restore(from flags: Set<String>) {
+        for f in persistentFlags where flags.contains(f) { state.set(f) }
+        busy = false; ringSerial += 1; ringAngle = TideArchivePuzzle.initialRing
+        syncVisuals(drain: state.has(TideArchivePuzzle.drainedFlag) ? 1 : 0)
+        // A save taken between the third gate and the drain (the 2.5 s delay) has all three gates open and the world not yet solved: finish it, or nothing ever would.
+        if opened == TideArchivePuzzle.sluiceFlags.count && !state.has(Game.routeSolvedFlag) { complete() }
+    }
     func handles(_ id: String) -> Bool { TideArchivePuzzle.sluiceNames.contains(id) || id == TideArchivePuzzle.ringName || id == TideArchivePuzzle.findForkName || id == TideArchivePuzzle.findLensName }
     func activate(_ id: String) {
         if let k = TideArchivePuzzle.sluiceNames.firstIndex(of: id) { touchSluice(k) }

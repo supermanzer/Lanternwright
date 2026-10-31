@@ -7,6 +7,9 @@ import simd
 extension SelfTestRunner {
     func runRouteWorld() {
         guard name == "all" || name == "routeworld" || name == "story" else { return }
+        let flagWas = Game.tideArchiveEnabled
+        Game.tideArchiveEnabled = true                                              // re-entry belongs to the Archive build (behind the flag); the flag-off behaviour is checked at the end
+        defer { Game.tideArchiveEnabled = flagWas }
         typealias I = LighthouseInterior
         let lh = Layout.lighthouse
         func twoWorlds() -> Game { Game(scenes: [.varrow: Scene.makeWorld(device: device), .glassWood: GlassWood.build(device: device)]) }
@@ -78,5 +81,11 @@ extension SelfTestRunner {
         again.travel(to: .varrow); step(again, 3); again.player = Player(position: SIMD3(lh.x - 0.2, lh.y + I.lensFloorY, lh.z - 1.45), yaw: .pi); step(again)
         again.touchLampLens()
         check(again.isTraveling && again.chosenPath == .ilse, "route world: from a loaded save the lens still opens her world")
+        // With the flag off nothing changes from the old build: once a route is begun the lens does nothing (nothing could ever set route_solved).
+        Game.tideArchiveEnabled = false
+        let off = lensGame(); _ = off.beginRoute(.ilse); fade(off); backToLensRoom(off)
+        off.touchLampLens()
+        check(!off.isTraveling && off.world == .varrow && !off.reenterRoute(), "route world: with the Archive switched off, touching the lens after her route has begun does nothing, as before")
+        Game.tideArchiveEnabled = true
     }
 }
