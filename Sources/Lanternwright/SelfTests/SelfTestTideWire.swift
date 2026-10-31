@@ -108,7 +108,11 @@ extension SelfTestRunner {
         for k in 0..<2 { mg.simulate(seconds: Tide.wait(for: k, from: mg.time) + 0.4); mp.touchSluice(k); mg.simulate(seconds: TideArchivePuzzle.Timing.toneHold + 0.2) }
         check(mp.opened == 2 && !mg.routeSolved, "tide wire: two gates open by the fork, the world not solved")
         let ms = mg.makeSave()
-        archive.update(ArchiveProps.gateName(0)) { $0.uniforms.model = ArchiveProps.sluiceGateModel(0, open: 0) }         // (the scene is shared by these games: put it back as a fresh one is)
+        for k in 0..<3 {                                                                                                   // (the scene is shared by these games: put every gate, wheel and lamp back as a fresh one is, so only the restore can raise them)
+            archive.update(ArchiveProps.gateName(k)) { $0.uniforms.model = ArchiveProps.sluiceGateModel(k, open: 0) }
+            archive.update(ArchiveProps.wheelName(k)) { $0.uniforms.model = ArchiveProps.sluiceWheelModel(k, turns: 0) }
+            archive.update(SluiceLamps.name(k)) { $0.uniforms.emissive.w = SluiceLamps.idle }
+        }
         let mr = world3(); mr.restore(ms); mr.simulate(seconds: 0.3)
         let gy = { (k: Int) -> Float in archive.items.first { $0.name == ArchiveProps.gateName(k) }?.uniforms.model.columns.3.y ?? 0 }
         check(mr.tideArchive?.opened == 2 && !mr.routeSolved && mr.chosenPath == .ilse && mr.world == .tideArchive, "tide wire: a save mid-puzzle restores in the Archive with two gates open")
