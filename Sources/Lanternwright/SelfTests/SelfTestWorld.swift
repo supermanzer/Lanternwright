@@ -959,7 +959,7 @@ extension SelfTestRunner {
             let walk = p.speed
             var r = InputState(); r.move = SIMD2(1, 0); r.run = true
             for _ in 0..<(3 * 120) { p.step(dt: dt, input: r, scene: scene) }
-            check(abs(walk - 2.6) < 0.3 && abs(p.speed - 4.4) < 0.5, "walk \(String(format: "%.2f", walk)) m/s, run \(String(format: "%.2f", p.speed)) m/s (on a slope)")
+            check(abs(walk - 2.6) < 0.3 && abs(p.speed - 5.5) < 0.6, "walk \(String(format: "%.2f", walk)) m/s, run \(String(format: "%.2f", p.speed)) m/s (on a slope)")
 
             // 5b. Gait: walking is an unhurried ~1.9 steps/s; running lengthens the stride (1.25x) and quickens it (1.25x) rather than only stepping faster.
             func cadence(run: Bool) -> Float {

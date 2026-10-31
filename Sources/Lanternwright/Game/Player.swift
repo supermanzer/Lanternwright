@@ -6,7 +6,8 @@ struct Player {
     static let radius: Float = 0.35
     /// M10.2: a stroll, not a march (the island is a few hundred metres across: a minute or two between landmarks), and a brisk run, not a sprint. The setting `pace` (0.7...1.3) scales both.
     static let walkSpeed: Float = 2.6
-    static let runSpeed: Float = 4.4
+    /// F07 B-pace (#81, "running 25 % faster in ground covered"): 4.4 -> 5.5 m/s; the walk is unchanged. The stride lengthens with it (`stepLength`) so the cadence stays about 3.2 steps/s, not a flurry.
+    static let runSpeed: Float = 5.5
     /// Velocity time constants (s): how long the player takes to reach 63 % of a new wish velocity (ease-in) and to lose 63 % of it when the keys are released (ease-out).
     static let accelTau: Float = 0.12
     static let decelTau: Float = 0.16
@@ -77,9 +78,9 @@ struct Player {
     private(set) var lastStepWasRun = false
 
     /// Distance between footfalls. Walking at 2.6 m/s with 1.2 m steps is about 2.2 steps/s, an unhurried natural
-    /// cadence; running lengthens the step (1.5 m at 4.4 m/s, about 2.9 steps/s) as well as quickening it,
+    /// cadence; running lengthens the step (1.7 m at 5.5 m/s, about 3.2 steps/s) as well as quickening it,
     /// which is what makes a run read as a different gait and not as walking on fast-forward. Both follow the `pace` setting.
-    static func stepLength(speed: Float) -> Float { 1.2 + 0.3 * runFactor(speed: speed) }
+    static func stepLength(speed: Float) -> Float { 1.2 + 0.5 * runFactor(speed: speed) }
     static func runFactor(speed: Float) -> Float { min(max((speed - scaledWalkSpeed) / (scaledRunSpeed - scaledWalkSpeed), 0), 1) }
 
     /// Ankle-deep wading: in the shallows (ground below ~10 cm above the waterline) the water drags at you, down to 60 %.
