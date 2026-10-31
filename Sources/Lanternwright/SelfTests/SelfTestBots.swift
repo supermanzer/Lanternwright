@@ -179,6 +179,7 @@ extension SelfTestRunner {
         for _ in 0..<90 where o.chosenPath == nil { var fwd = InputState(); fwd.move = SIMD2(0, 1); o.player.yaw = 0; obot.tick(fwd) }
         obot.wait(Game.fadeOutSeconds + Game.holdSeconds + Game.fadeInSeconds + 0.8)
         check(o.chosenPath == .oren && o.world == .glassWood && o.platesSealed && !o.portalSealed, "bot: Oren's route begins in the Glass Wood and Ilse's exit is sealed (\(String(describing: o.chosenPath)) \(o.world) plates \(o.platesSealed) portal \(o.portalSealed))")
+        archiveEndToEnd(atLens: atLens, label: "archive end")                      // S04.9: both routes through the real Archive from this same moment
         // The seals hold across a save and a load, in both worlds' end states.
         for (label, game, route) in [("Ilse", g, PageAuthor.ilse), ("Oren", o, PageAuthor.oren)] {
             let again = twoWorlds(); again.restore(game.makeSave()); again.travel(to: .varrow); again.simulate(seconds: Game.fadeOutSeconds + Game.holdSeconds + Game.fadeInSeconds + 1)

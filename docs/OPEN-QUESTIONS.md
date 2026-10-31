@@ -206,6 +206,12 @@ Format: `### Q<n> (date, who): the question` then *Default taken*, *Where it liv
 *What changes if the answer differs:* a different order is a change of `Tide.window(forFloor:)` (and the room floors are A's); the beam feedback is the `emissive.w` constants in `syncVisuals`.
 *Status:* open.
 
+### Q34 (2026-10-31, builder B, S04.9: the Archive route on by default)
+*Default taken:* `Game.tideArchiveEnabled` is true unless `LW_TIDE_ARCHIVE=0` (the dev switch back to the old placeholder: the route leads to the Glass Wood, no puzzle). Games built with only the two older scenes still get the Glass Wood as the stand-in route world (tests, `--selftest`), with the puzzle on. The stand-in's map and guides in the Glass Wood scene are built hidden and shown only when they stand in. The Archive now builds the route's guide lantern and lamps (one additive line in `TideArchive.build`).
+*Where it lives:* `Game.tideArchiveEnabled`, `GuideLanterns.build(chainMap:)`, `Game.init`, `SelfTestArchiveEnd.swift`.
+*What changes if the answer differs:* set the default back with one character; saves made before S04.9 load fine (the puzzle's flags are new and absent).
+*Status:* open.
+
 ## Answered
 - 2026-10-28 S03 Oren's exit location: both exits at the original lighthouse; Oren's is a lens portal in the lens room, the dock arch is not an exit.
 - 2026-10-28 Page gate: 3 pages of each sibling.

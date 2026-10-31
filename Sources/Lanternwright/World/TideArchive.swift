@@ -50,6 +50,7 @@ enum TideArchive {
             scene.add(chunk.name, mesh: chunk.mesh, uniforms: chunk.uniforms)
         }
         ArchiveProps.populate(scene, device: device)                       // S04.3
+        GuideLanterns.build(into: scene, device: device, chainMap: false)   // S04.9 (builder B): the route's guide lantern and lamps (A's own chain map is ti_chain_map, ArchiveStory)
         SluiceLamps.build(into: scene, device: device)                     // S04 wiring (builder B): the lamp in each sluice room that answers the prism's beam
         return scene
     }

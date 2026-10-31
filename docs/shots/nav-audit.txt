@@ -53,7 +53,7 @@ Margin 4.0 m. Region = corridors and plazas plus the margin. Areas on a 2 m grid
   checked 11 required places, 17 interactables, 0 vantages
   region 22356 m2 of 84976 m2 of dry land (26.3 %)
   farthest reachable point from the origin: 156 m
-  props (87 scene items) beyond the region: over 20 m 54, over 60 m 50, over 150 m 39
+  props (132 scene items) beyond the region: over 20 m 54, over 60 m 50, over 150 m 39
   interactables:
   ti_sluice_0: stand at (-67.5, 109.5), 3.7 m inside a corridor, eye 0.1 m of reach 3.4
   ti_sluice_1: stand at (74.5, 109.5), 1.6 m inside a corridor, eye 0.1 m of reach 3.4

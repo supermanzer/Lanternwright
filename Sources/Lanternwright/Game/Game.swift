@@ -77,11 +77,12 @@ final class Game {
             tideArchive = t
             puzzles.append(t)
         }
+        if tideArchive != nil, scenes[.tideArchive] == nil { scenes[.glassWood]?.update(ChainMap.interactableName) { $0.hidden = false } }          // S04.9: with no Archive built the Glass Wood's own chain map stands in
         buildInteractables()
     }
 
-    /// S04.6: the Tide Archive's key puzzle, present only behind `tideArchiveEnabled` (LW_TIDE_ARCHIVE=1 or a test) until builder A's world (S04.1) lands and the Glass Wood stops standing in.
-    nonisolated(unsafe) static var tideArchiveEnabled = ProcessInfo.processInfo.environment["LW_TIDE_ARCHIVE"] == "1"
+    /// S04.6/S04.9: the Tide Archive's key puzzle. ON by default since S04.9; `LW_TIDE_ARCHIVE=0` is the dev switch back to the old placeholder (the route leads to the Glass Wood and nothing is solved there). Without the Archive's scene in `Game(scenes:)` the Glass Wood stands in for it.
+    nonisolated(unsafe) static var tideArchiveEnabled = ProcessInfo.processInfo.environment["LW_TIDE_ARCHIVE"] != "0"
     private(set) var tideArchive: TideArchivePuzzle?
     /// Metres from the player to the nearest water the tide moves (the Archive's galleries): the wash is loud beside it and gone far from it. The stand-in's water is a notional spot west of the arrival pad; builder A's world replaces it with the gallery's surface (the nearest point of `ti_gallery_water`).
     var archiveWaterDistance: Float {

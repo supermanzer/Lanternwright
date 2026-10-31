@@ -63,8 +63,8 @@ enum GuideLanterns {
     static func lampLit(_ k: Int, playerProgress: Float) -> Bool { playerProgress >= lampDistance(k) - litRange }
 
     /// The items: one lantern and `maxLamps` lamps, hidden until the game shows them. A small post with a cage and a core that is the light.
-    static func build(into scene: Scene, device: MTLDevice) {
-        let hidden = !Game.tideArchiveEnabled
+    static func build(into scene: Scene, device: MTLDevice, chainMap: Bool = true) {
+        let hidden = true                                                  // `Game` shows what it needs: the guides while a route is on (syncGuides), the stand-in's map only when the Glass Wood stands in for the Archive
         let iron = Surface(color: SIMD3(0.05, 0.055, 0.07), roughness: 0.5, material: .iron)
         let glass = Surface(color: SIMD3(1.0, 0.82, 0.5), roughness: 0.3, material: .emissiveGlass)
         func lantern(post: Bool) -> MeshBuilder {
@@ -78,7 +78,7 @@ enum GuideLanterns {
             return m
         }
         // The chain map (S04.8, `ChainMap`): a slate slab on a post with the brass pins on it; read like the door note. Placed by the stand-in until the Archive's own spot lands.
-        do {
+        if chainMap {
             let slate = Surface(color: SIMD3(0.16, 0.19, 0.2), roughness: 0.8, material: .dressed)
             let brass = Surface(color: SIMD3(0.7, 0.55, 0.22), roughness: 0.35, material: .paleMetal)
             var map = MeshBuilder()
