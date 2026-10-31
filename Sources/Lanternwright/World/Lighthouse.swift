@@ -120,6 +120,14 @@ enum Lighthouse {
             // pos: 0 = W inner, 1 = W outer, 2 = E inner, 3 = E outer
             b.addIndexed(positions: pos, indices: [0, 3, 2, 0, 1, 3], smoothNormals: nrm, surface: granite, transform: matrix_identity_float4x4)
         }
+        // F07 A-shell (#77: "the floor does not extend into the doorway; it looks like I am about to drop through a hole"): the room's floor stopped at the wall's inner face and the doorway's cut left the
+        // ground showing across the wall's thickness. A granite sill slab runs from the interior floor (its top 3 mm under the floor disc's, so they never fight) out through the whole thickness of the wall to a
+        // step proud of the door leaf, 1.3 m wide (wider than the gap, so it passes under both jambs).
+        do {
+            let rIn = LighthouseInterior.innerR(LighthouseInterior.floorY), rOut = wallR(baseY) + 0.35
+            b.bevelBox(size: SIMD3(1.3, 0.34, rOut - rIn + 0.1), bevel: 0.02, surface: granite,
+                       transform: translation(SIMD3(0, baseY - 0.003 - 0.17, (rIn - 0.1 + rOut) / 2)))
+        }
         shaftWithDoor()
         shaft(from: baseY + 2.4, to: 3.6, granite)
         stringCourse(3.68, out: 0.20, granite)

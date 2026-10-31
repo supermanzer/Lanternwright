@@ -725,3 +725,60 @@ extension SelfTestRunner {
         check(abs(stone / 0.2440 - 0.631) < 0.03 && wood > stone && stone > grass, "stepmix: a stone run step peaks at \(String(format: "%.3f", stone)) (0.2440 x 0.631 = 0.154) and the surfaces keep their order (wood \(String(format: "%.3f", wood)), stone, grass \(String(format: "%.3f", grass)))")
     }
 }
+
+extension SelfTestRunner {
+    /// F07 A-shell (#77, #78): the floor goes through the doorway (no hole between the step and the room's floor) and the lens room's floor reaches the gallery's iron base (no open ring). Rays dropped straight down
+    /// onto the tower's exterior mesh and the interior shell must land on a floor within a few cm of the floor's height at every sample.
+    func runShellClosed() {
+        guard name == "all" || name == "shellclosed" else { return }
+        guard let device = MTLCreateSystemDefaultDevice() else { check(false, "shellclosed: no Metal device"); return }
+        let sc = Scene.makeWorld(device: device)
+        guard let tower = sc.items.first(where: { $0.name == "lighthouse" }), let shell = sc.items.first(where: { $0.name == LighthouseInterior.wallName }) else { check(false, "shellclosed: no tower or shell item"); return }
+        let L = Layout.lighthouse
+        /// Height (tower frame: y = 0 at the tower's foot) of the first surface below `yFrom` at the tower-frame point (x, z), over the tower's mesh (in its own frame) and the shell's (in world coordinates).
+        func floorAt(_ x: Float, _ z: Float, from yFrom: Float) -> Float? {
+            var best: Float?
+            for (item, offset) in [(tower, SIMD3<Float>.zero), (shell, L)] {
+                let verts = item.mesh.vertexBuffer.contents().bindMemory(to: Vertex.self, capacity: item.mesh.vertexBuffer.length / MemoryLayout<Vertex>.stride)
+                let idx = item.mesh.indexBuffer.contents().bindMemory(to: UInt32.self, capacity: item.mesh.indexCount)
+                let o = SIMD3(x, yFrom, z) + offset, d = SIMD3<Float>(0, -1, 0)
+                for t in stride(from: 0, to: item.mesh.indexCount, by: 3) {
+                    let a = SIMD3(verts[Int(idx[t])].position.x, verts[Int(idx[t])].position.y, verts[Int(idx[t])].position.z)
+                    let b = SIMD3(verts[Int(idx[t + 1])].position.x, verts[Int(idx[t + 1])].position.y, verts[Int(idx[t + 1])].position.z)
+                    let c = SIMD3(verts[Int(idx[t + 2])].position.x, verts[Int(idx[t + 2])].position.y, verts[Int(idx[t + 2])].position.z)
+                    let e1 = b - a, e2 = c - a, p = simd_cross(d, e2), det = simd_dot(e1, p)
+                    if abs(det) < 1e-9 { continue }
+                    let inv = 1 / det, s = o - a, u = simd_dot(s, p) * inv
+                    if u < 0 || u > 1 { continue }
+                    let q = simd_cross(s, e1), v = simd_dot(d, q) * inv
+                    if v < 0 || u + v > 1 { continue }
+                    let dist = simd_dot(e2, q) * inv
+                    if dist > 0 && (best == nil || dist < best!) { best = dist }
+                }
+            }
+            return best.map { yFrom - $0 }
+        }
+        // The doorway: down the door's axis and either side of it, from the outer end of the sill to the room's floor.
+        var worstDoor: Float = 0, holes = 0, n = 0
+        let floor = LighthouseInterior.floorY
+        for x: Float in [-0.4, 0, 0.4] {
+            for z in stride(from: LighthouseInterior.innerR(floor) - 0.3, through: Lighthouse.wallR(floor) + 0.3, by: 0.1) {
+                n += 1
+                guard let h = floorAt(x, z, from: floor + 1.5) else { holes += 1; continue }
+                worstDoor = max(worstDoor, abs(h - floor)); if abs(h - floor) > 0.02 { holes += 1 }
+            }
+        }
+        check(n > 30 && holes == 0, "shellclosed: the floor runs through the doorway: \(n) rays down its width and thickness all land within 2 cm of the floor's height (worst \(String(format: "%.3f", worstDoor)) m, \(holes) misses)")
+        // The lens room: the ring between the floor's edge (2.1 m) and the gallery's iron base (2.62 m), all round, has a floor: no ray falls below the floor's height.
+        var ringHoles = 0, ringN = 0
+        let lf = LighthouseInterior.lensFloorY
+        for k in 0..<24 {
+            let a = Float(k) / 24 * 2 * .pi
+            for r in stride(from: Float(2.12), through: 2.6, by: 0.12) {
+                ringN += 1
+                guard let h = floorAt(r * cos(a), r * sin(a), from: lf + 1.2), h >= lf - 0.01 else { ringHoles += 1; continue }
+            }
+        }
+        check(ringN > 90 && ringHoles == 0, "shellclosed: the lens room's floor reaches the iron base: \(ringN) rays down the ring from 2.12 to 2.6 m all land on the floor ring, the kerb or the iron base, none falls through to the ground (\(ringHoles) misses)")
+    }
+}

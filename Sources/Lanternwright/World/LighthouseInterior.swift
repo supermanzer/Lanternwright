@@ -192,6 +192,12 @@ struct LighthouseInterior {
         profile.append(SIMD2(innerR(doorTop), doorTop))
         shell.lathe(profile: profile, segments: 48, smooth: true, surface: lime, transform: place)
         shell.lathe(profile: [SIMD2(innerR(doorTop), doorTop), SIMD2(innerR(floorY), floorY)], segments: 48, smooth: true, surface: lime, transform: place, omit: [11, 12])
+        // F07 A-shell (#78: "the floors and wall components do not connect; this appears only partially built"): the lens room's floor ends at the shaft's inside radius (2.1 m) but the lantern room's iron base and
+        // the gallery deck begin at 2.62 m, so a ring 52 cm wide stood open down to the ground. A floor ring closes it: from under the floor's edge out to the deck, its inner top 2 mm under the floor's (hidden by it),
+        // flush at the floor's height out to r 2.45 and then a kerb up to the deck's level where the iron base stands on it.
+        let ringTop = lensFloorY - 0.002
+        shell.lathe(profile: [SIMD2(2.08, ringTop - 0.25), SIMD2(2.66, ringTop - 0.25), SIMD2(2.66, Lighthouse.topY + 0.33), SIMD2(2.45, Lighthouse.topY + 0.33), SIMD2(2.45, ringTop), SIMD2(2.08, ringTop)],
+                    segments: 48, smooth: false, surface: woodDark, transform: place)
         // Flags on the ground room's floor.
         shell.cylinder(radiusTop: innerR(floorY), radiusBottom: innerR(floorY), height: 0.02, segments: 48, smooth: false, surface: stone, transform: place * translation(SIMD3(0, floorY - 0.01, 0)))
         // The lens room's floor: a disc less the hatch the stair comes up through, in six sectors (a disc over the well and the part outside the hatch).
