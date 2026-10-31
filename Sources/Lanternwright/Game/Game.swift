@@ -83,6 +83,8 @@ final class Game {
     /// S04.6: the Tide Archive's key puzzle, present only behind `tideArchiveEnabled` (LW_TIDE_ARCHIVE=1 or a test) until builder A's world (S04.1) lands and the Glass Wood stops standing in.
     nonisolated(unsafe) static var tideArchiveEnabled = ProcessInfo.processInfo.environment["LW_TIDE_ARCHIVE"] == "1"
     private(set) var tideArchive: TideArchivePuzzle?
+    /// Metres from the player to the nearest water the tide moves (the Archive's galleries): the wash is loud beside it and gone far from it. The stand-in's water is a notional spot west of the arrival pad; builder A's world replaces it with the gallery's surface (the nearest point of `ti_gallery_water`).
+    var archiveWaterDistance: Float { TideStandIn.waterDistance(from: player.position) }
     /// The version of the remembered moment on the Archive's wall now (nil: dark): builder A draws `ShadowTableaux.archive.figures(tableauShown)` on `ti_tableau_wall`.
     var tableauShown: PageAuthor? { tideArchive?.tableauShown }
 

@@ -6,6 +6,7 @@ import simd
 enum TideStandIn {
     static func sluicePosition(_ k: Int, scene: Scene) -> SIMD3<Float> { spot(8 + 2.2 * Float(k), -4, scene) + SIMD3(0, 1.2, 0) }
     static func mapPosition(scene: Scene) -> SIMD3<Float> { spot(-4, -9, scene) + SIMD3(0, 1.2, 0) }
+    static func waterDistance(from p: SIMD3<Float>) -> Float { simd_length(SIMD2(p.x - (GlassLayout.arrival.x - 14), p.z - GlassLayout.arrival.z)) }
     static func ringPosition(scene: Scene) -> SIMD3<Float> { spot(8, -9, scene) + SIMD3(0, 1.2, 0) }
     static func findPosition(_ lens: Bool, scene: Scene) -> SIMD3<Float> { spot(lens ? 12 : 4, -9, scene) + SIMD3(0, 0.6, 0) }
     private static func spot(_ dx: Float, _ dz: Float, _ scene: Scene) -> SIMD3<Float> {

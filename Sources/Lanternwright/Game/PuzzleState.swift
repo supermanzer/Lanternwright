@@ -19,6 +19,9 @@ enum GameEvent: Equatable {
     /// The lamp's answer motif (S03.4, builder A plays it): once on the return to Varrow after the altar, and again each time the player comes within `Game.answerPhraseRadius` of the lighthouse door after
     /// `Game.answerPhraseQuiet` seconds away. Never once the door is open or a route is begun.
     case answerPhrase
+    /// S04.4: a sluice gate of the Tide Archive opening (true) or closing (false), and the tuning fork's tone for a stone held (true) or let go: builder B's Archive audio plays them.
+    case sluice(Int, Bool)
+    case forkTone(Int, Bool)
 }
 
 /// The world's memory: named flags (a "blackboard"). Puzzles read and write these, and rendering reads them,

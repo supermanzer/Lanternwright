@@ -94,7 +94,7 @@ final class TideArchivePuzzle: WorldPuzzle {
         emit(.chime(chime(k)))                                                       // a touch always rings, with the fork or without
         guard hasFork, !isSolved, !busy, k >= opened, TideArchivePuzzle.sluiceNames.indices.contains(k) else { return }
         busy = true
-        emit(.drone(k, true))
+        emit(.drone(k, true)); emit(.forkTone(k, true))
         animator.after(Timing.toneHold) { [weak self] in self?.endAttempt(k, .tone) }
     }
 
@@ -127,7 +127,7 @@ final class TideArchivePuzzle: WorldPuzzle {
     private enum Way { case tone, beam }
     private func endAttempt(_ k: Int, _ way: Way) {
         busy = false
-        emit(.drone(k, false))
+        emit(.drone(k, false)); if way == .tone { emit(.forkTone(k, false)) }
         guard !isSolved, k == opened || !state.has(TideArchivePuzzle.sluiceFlags[k]) else { return }
         guard Tide.inWindow(k, level: level()) else {                                // the water is not at that gate's level: it hears nothing and goes on holding
             emit(.chime(.fail))
@@ -140,6 +140,7 @@ final class TideArchivePuzzle: WorldPuzzle {
             return
         }
         state.set(TideArchivePuzzle.sluiceFlags[k])
+        emit(.sluice(k, true))
         state.set(way == .tone ? TideArchivePuzzle.wayTone : TideArchivePuzzle.wayBeam)
         emit(.chime(.ignite))
         syncVisuals(drain: nil)
@@ -147,6 +148,7 @@ final class TideArchivePuzzle: WorldPuzzle {
     }
 
     private func closeAll() {
+        for (k, f) in TideArchivePuzzle.sluiceFlags.enumerated() where state.has(f) { emit(.sluice(k, false)) }
         for f in TideArchivePuzzle.sluiceFlags { state.set(f, false) }
         busy = false
         syncVisuals(drain: nil)

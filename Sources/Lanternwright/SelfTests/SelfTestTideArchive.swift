@@ -206,6 +206,16 @@ extension SelfTestRunner {
         rl.setClaim("who-left", page: 4, to: .hers); rl.setClaim("who-left", page: 8, to: .hers)
         check(rl.isSettled("who-left") && rl.gate.ilsePages == gateRoll.ilsePages && rl.gate.orenPages == gateRoll.orenPages, "roll: pages 4, 8 and 12, mapped as the player reads them, settle it, and no gate count changed")
 
+        // S04.4: the puzzle tells the Archive's audio what happens: the fork's tone held and let go, a gate opening and closing.
+        let evG = routeGame(.ilse), tideEv = evG.tideArchive!
+        to(evG, 2); _ = evG.drainEvents(); tideEv.touchSluice(0)
+        let e1 = evG.drainEvents()
+        to(evG, evG.time + hold)
+        let e2 = evG.drainEvents()
+        check(e1.contains(.forkTone(0, true)) && e2.contains(.forkTone(0, false)) && e2.contains(.sluice(0, true)), "archive audio events: touching a gate with the fork holds its tone, and letting it go and the gate opening are sent (\(e1.count + e2.count) events)")
+        to(evG, 30); tideEv.touchSluice(2); to(evG, evG.time + hold + T.Timing.wrongResetDelay + 0.3)
+        check(evG.drainEvents().contains(.sluice(0, false)) && tideEv.opened == 0, "archive audio events: the stone gate before the wind gate sends the open tide gate closing")
+
         // The shadow-play tableau (optional): data first.
         let tb = ShadowTableaux.archive
         check(tb.ilseSide.count == 2 && tb.orenSide.count == 2 && Set(tb.ilseSide.map(\.who)) == [.ilse, .oren] && Set(tb.orenSide.map(\.who)) == [.ilse, .oren], "tableau: the same two figures in both versions of the one moment")

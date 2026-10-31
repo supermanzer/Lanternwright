@@ -6,6 +6,8 @@ final class AudioEngine {
     private let engine = AVAudioEngine()
     private var source: AVAudioSourceNode?
     private var lastUpdate = 0.0
+    /// S04.4: the Tide Archive's layers, mixed in after the main synth (Audio/ArchiveAudio.swift).
+    let archive: ArchiveAudio
     private var water = WaterContact()
     private var lastFootfalls = 0
     private var buoyStrikes = 0
@@ -15,6 +17,7 @@ final class AudioEngine {
         // Match the synth to the hardware rate so no resampling is needed (44100 if there is no device).
         let rate = engine.outputNode.outputFormat(forBus: 0).sampleRate
         synth = AmbienceSynth(sampleRate: rate > 0 ? Float(rate) : 44100)
+        archive = ArchiveAudio(sampleRate: rate > 0 ? Float(rate) : 44100)
     }
 
     /// Returns false (and stays silent) if there is no usable audio device. The game must not depend on sound.
@@ -22,13 +25,14 @@ final class AudioEngine {
     func start() -> Bool {
         let sr = Double(engine.outputNode.outputFormat(forBus: 0).sampleRate)
         guard sr > 0, let format = AVAudioFormat(standardFormatWithSampleRate: sr, channels: 2) else { return false }
-        let synth = self.synth
+        let synth = self.synth, archive = self.archive
         let node = AVAudioSourceNode(format: format) { _, _, frames, abl in
             let buffers = UnsafeMutableAudioBufferListPointer(abl)
             guard buffers.count >= 2,
                   let l = buffers[0].mData?.assumingMemoryBound(to: Float.self),
                   let r = buffers[1].mData?.assumingMemoryBound(to: Float.self) else { return noErr }
             synth.render(frames: Int(frames), left: l, right: r)
+            archive.render(frames: Int(frames), left: l, right: r)
             return noErr
         }
         engine.attach(node)
@@ -49,6 +53,8 @@ final class AudioEngine {
         case .drone(let i, let on): synth.setDrone(i, on: on)
         case .droneSour: synth.sourDrone()
         case .droneBloom: synth.bloomDrone()
+        case .sluice(let k, let opening): archive.handle(.sluice(k, opening: opening))
+        case .forkTone(let k, let on): archive.handle(.fork(k, on: on))
         default: break
         }
     }
@@ -76,6 +82,7 @@ final class AudioEngine {
 
     /// Called every frame; does real work about 8 times a second (the wind is fed every frame).
     func update(now: Double, game: Game) {
+        archive.setInputs(ArchiveAudio.inputs(game: game))
         synth.windStrength = AudioEngine.windInput(game: game)
         synth.marginPressure = game.player.marginPressure
         AudioEngine.feedWater(&water, into: synth, game: game)

@@ -7,6 +7,9 @@ enum Tide {
     /// Low water at clock 0, high at half a period.
     static func level(_ t: Float) -> Float { 0.5 - 0.5 * cos(2 * .pi * t / period) }
 
+    /// How fast the level is changing now, per second (positive: rising): the derivative of `level`. The sound of the water follows it.
+    static func rate(_ t: Float) -> Float { .pi / period * sin(2 * .pi * t / period) }
+
     /// The water levels at which each sluice (tide, wind, stone) answers: tide at low water, wind at mid water, stone at high water. They overlap a little so a patient player is never shut out
     /// between two of them. In one rise (low to high, 45 s) the three come in the order the stones are struck in: that is the cue, written into the water, not in a page.
     static let windows: [ClosedRange<Float>] = [0.0...0.4, 0.35...0.65, 0.6...1.0]
