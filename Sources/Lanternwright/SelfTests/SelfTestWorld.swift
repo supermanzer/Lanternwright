@@ -953,7 +953,7 @@ extension SelfTestRunner {
             around.position.y = ground(around)
             for _ in 0..<(6 * 120) { around.step(dt: dt, input: InputState(move: SIMD2(0, 1)), scene: scene) }
             check(distance(flat(around.position), lh) > Lighthouse.colliderRadius + Player.radius - 0.1 && around.position.y < Layout.lighthouse.y + 0.65, "from the east the plinth is climbed to its second tread and the wall stops you, without clipping into it")
-            // 5. Speeds: walking settles at 2.6 m/s, running at 4.4 m/s (M10.2, retuned).
+            // 5. Speeds: walking settles at 2.6 m/s, running at 5.5 m/s (M10.2, retuned; F07 B-pace).
             p = Player(position: SIMD3(40, 34, 55), yaw: 0)
             for _ in 0..<(3 * 120) { p.step(dt: dt, input: InputState(move: SIMD2(1, 0)), scene: scene) }
             let walk = p.speed
@@ -979,7 +979,7 @@ extension SelfTestRunner {
             }
             let walkCadence = cadence(run: false), runCadence = cadence(run: true)
             check(walkCadence > 1.8 && walkCadence < 2.6, "walking cadence is natural (\(String(format: "%.2f", walkCadence)) steps/s)")
-            check(runCadence / walkCadence > 1.1 && runCadence / walkCadence < 1.6,      // M10.2: the run/walk speed ratio fell from 2.0 to 1.57, so the floor fell from 1.2 to 1.1 (stride and cadence each about 1.25x nominal)
+            check(runCadence / walkCadence > 1.1 && runCadence / walkCadence < 1.6,      // the run/walk speed ratio is 2.1 (5.5 / 2.6, F07 B-pace), the stride 1.42x and the cadence about 1.5x, so the floor is 1.1
                    "running is a different gait, not 2x walking (\(String(format: "%.2f", runCadence)) vs \(String(format: "%.2f", walkCadence)) steps/s = \(String(format: "%.2f", runCadence / walkCadence))x)")
             check(Player.stepLength(speed: Player.runSpeed) > 1.2 * Player.stepLength(speed: Player.walkSpeed), "the run stride is longer than the walk stride")
 

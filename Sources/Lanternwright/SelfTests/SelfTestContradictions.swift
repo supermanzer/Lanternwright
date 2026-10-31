@@ -13,7 +13,7 @@ extension SelfTestRunner {
         check(Contradictions.groupSize == 3, "contradictions: three matched pieces judge it")
         check(c.hers == "He left me." && c.his == "She would not follow.", "contradictions: the two accounts are the book's own (Hers: He left me. His: She would not follow.)")
 
-        // The grouping rule (pure): nothing is judged until three found pieces are set; then only agreed or not yet, never which.
+        // The grouping rule (pure): nothing is judged until three found pieces are set; then settled, or silence; never 'wrong', never which.
         let right: [Int: Claim] = [4: .his, 5: .hers, 8: .his, 9: .hers]
         check(Contradictions.judge(c, assignments: right, found: all) == .settled, "contradictions: all four found and set right: settled")
         for skip in [4, 5, 8, 9] {

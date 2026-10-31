@@ -19,7 +19,7 @@ struct Evidence: Equatable {
 
 /// A contradiction (S03.9, first slice): two claims, and pieces of evidence the player sets, one by one, against one claim or the other. The game confirms only in GROUPS (S02: Obra Dinn's
 /// rule): it says nothing until `groupSize` (three) found pieces are set; then it settles if every one set is a DEFENSIBLE reading of its page (`Evidence.defensible`), and otherwise says nothing at all:
-/// the verdict is "Settled" or silence, never "wrong", never which (F07 B-contra, Q25). There are MORE pieces of evidence than the group (S03.10b), so any three found settle it. No penalty, no timer; the
+/// the verdict is "Settled" or silence, never "wrong", never which (F07 B-contra, Q26). There are MORE pieces of evidence than the group (S03.10b), so any three found settle it. No penalty, no timer; the
 /// Notebook records the player's own mapping (`StoryState.claims`). It does not gate anything (F05 S1); settled, it is kept (saved).
 struct Contradiction: Equatable {
     let id: String
@@ -84,8 +84,8 @@ extension Game {
     }
 
     /// Set the evidence on `page` against `side` in one step (setting the side it already has unsets it, so a page can be taken back before the group is judged). Only found evidence can be set, a
-    /// settled contradiction is kept as it is. When `groupSize` or more found pieces are set and all agree with the story it is settled and saved; a wrong
-    /// group is left as it is (the verdict says only 'not yet'). Returns false if nothing was changed.
+    /// settled contradiction is kept as it is. When `groupSize` or more found pieces are set and every one is a defensible reading it is settled and saved; otherwise nothing
+    /// happens and nothing is said (the player's mapping is kept as set). Returns false if nothing was changed.
     @discardableResult
     func setClaim(_ id: String, page: Int, to side: Claim) -> Bool {
         guard let c = Contradictions.find(id), c.evidence.contains(where: { $0.page == page }), !isSettled(id),

@@ -91,7 +91,7 @@ Format: `### Q<n> (date, who): the question` then *Default taken*, *Where it liv
 *What changes if the answer differs:* the position is `along` / `side` in `pageBase(9)`; joining the contradiction is another `Evidence` entry (and a `judge` rule for "any three of four").
 *Status:* open.
 
-### Q16 (2026-10-29, builder B, S03.9 follow-up): how is the contradiction made fair and not brute-forceable?
+### Q16 (2026-10-29, builder B, S03.9 follow-up): how is the contradiction made fair and not brute-forceable? (superseded by Q19, then Q26: there is no wait, no clearing, and no 'wrong' any more)
 *Default taken:* a fourth piece of evidence (page 9, Hers: "I would break it again.") and any three found-and-set pieces must all agree; a wrong group clears the pages and the Notebook takes nothing for 30 s, saying only that the pages disagree.
 *Where it lives:* `Contradictions.all` (the evidence), `Contradictions.groupSize` (3), `Contradictions.retrySeconds` (30), `Game.setClaim`.
 *What changes if the answer differs:* change the constants (a longer wait; groupSize 4 to require all) or the sides in the data; the tests follow the constants. The wait is not saved: quitting and relaunching skips it (a 10 to 20 s cost against 30 s; accepted, persisting it is a `StoryState` field if wanted).
@@ -110,7 +110,7 @@ Format: `### Q<n> (date, who): the question` then *Default taken*, *Where it liv
 *What changes if the answer differs:* set `contradictionWaived = false` and the gate asks for one settled contradiction again (the quiet line `cueContradiction` is kept); the selftest "only the waiver lets that save in" shows the user's save would then not be ready.
 *Status:* open.
 
-### Q19 (2026-10-29, builder B, F05 S2): the Notebook's two accounts, simplified: no penalty, more room
+### Q19 (2026-10-29, builder B, F05 S2): the Notebook's two accounts, simplified: no penalty, more room (the 'These pages disagree' line was removed in F07 B-contra, Q26)
 *Default taken:* the contradiction has no penalty timer and no clearing: a wrong group of three stays as set, with the quiet line "These pages disagree. Read them again.", and any page can be changed at once (it is optional and does not gate the door, Q18, so brute force costs nothing that matters; this supersedes the 30 s wait of Q16). One tap per page: each found page has its own Hers and His boxes. The card says what it is ("Two accounts of the same night. They disagree." / "Which page is whose memory?"), the Hers and His quotes stay (they are what the boxes mean), and the Notebook panel is taller (660 pt) while a contradiction is showing. The "Notes" label is gone; the door note's line stands alone.
 *Where it lives:* `Game/Contradictions.swift` (`setClaim`, no `retrySeconds`), `App/Overlay.swift` (`drawNotebook`, `panel`, `claimRow`, `claimBox`).
 *What changes if the answer differs:* a penalty is a `retryAt` check in `setClaim` (see git history, S03.9 follow-up); a different heading is one string.

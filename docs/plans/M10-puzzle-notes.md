@@ -7,7 +7,7 @@ Written by builder B at M10.5 (2026-10-27). Source for the facts: M10.3 to M10.5
 - **A known route.** The player stays within 4 m of an authored corridor (trails 9 to 11 m wide, plazas 12 to 36 m radius). Corridors cover about 11 % of each world's dry land (16 % with the margin), so every place the eye can be is known. The overlays (`--nav-overlay`) show it.
 - **A composed view.** A `Vantage` (position, target, 4 m tolerance) gives a light framing assist: within the tolerance, and looking within 25 degrees of the target, the camera is drawn toward it at most 6 degrees/s (about 2 degrees/s at full look-closer), eased in and out, and cancelled by any input (off for 0.6 s after it). It never fights the player. `--nav-overlay` prints the exact `--camera` for each station so a frame can be rendered.
 - **A terrain ray test per station** (`SelfTestNav`): a station whose target cannot be seen fails the selftest. This is how the pilot found what the terrain hides (below).
-- **Cost to keep in mind: time.** With the real controller along the centre lines: dock to lighthouse 143 s walking / 85 s running (at 2.6 / 4.4 m/s; 162 / 103 s at the first M10.2 speeds); lighthouse to causeway start 76 s; across the causeway 43 s. Any "go back and look again" beat costs minutes, not seconds.
+- **Cost to keep in mind: time.** With the real controller along the centre lines: dock to lighthouse 143 s walking / 85 s running at 2.6 / 4.4 m/s (about 68 s running since F07 B-pace made it 5.5; 162 / 103 s at the first M10.2 speeds); lighthouse to causeway start 76 s; across the causeway 43 s. Any "go back and look again" beat costs minutes, not seconds.
 
 ## The stones pilot (built)
 
