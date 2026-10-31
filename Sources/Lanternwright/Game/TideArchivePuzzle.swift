@@ -107,6 +107,7 @@ final class TideArchivePuzzle: WorldPuzzle {
         while a <= -.pi { a += 2 * .pi }
         ringAngle = a
         ringSerial += 1
+        syncVisuals(drain: nil)
         guard !busy, let k = aimedSluice else { return }
         let serial = ringSerial
         animator.after(Timing.beamHold) { [weak self] in
@@ -171,7 +172,10 @@ final class TideArchivePuzzle: WorldPuzzle {
         guard let sc = scene() else { return }
         for (k, name) in TideArchivePuzzle.sluiceNames.enumerated() {
             let open = state.has(TideArchivePuzzle.sluiceFlags[k])
-            sc.update(name) { $0.uniforms.emissive = open ? SIMD4(0.55, 0.85, 1.0, 1.4) : SIMD4(0, 0, 0, 0) }
+            sc.update(name) { $0.uniforms.emissive = open ? SIMD4(0.55, 0.85, 1.0, 1.4) : SIMD4(0, 0, 0, 0) }                  // the stand-in's gate glows
+            sc.update(ArchiveProps.gateName(k)) { $0.uniforms.model = ArchiveProps.sluiceGateModel(k, open: open ? 1 : 0) }      // A's gate lifts and its wheel has turned twice
+            sc.update(ArchiveProps.wheelName(k)) { $0.uniforms.model = ArchiveProps.sluiceWheelModel(k, turns: open ? 2 : 0) }
+            sc.update(ArchiveProps.beamOutName(k)) { $0.uniforms.emissive.w = open || aimedSluice == k ? 1.6 : 1.0 }             // the dispersed beam of the sluice the ring rests on, or has opened, brightens
         }
         for side in [PageAuthor.ilse, .oren] { sc.update(ShadowTableaux.archive.lanternItems[side]!) { $0.uniforms.emissive = self.tableauShown == side ? SIMD4(1.0, 0.72, 0.3, 2.2) : SIMD4(0, 0, 0, 0) } }
         if let d = drain { sc.update("ti_gallery_water") { $0.uniforms.model = translation(SIMD3(0, -3.5 * d, 0)) } }

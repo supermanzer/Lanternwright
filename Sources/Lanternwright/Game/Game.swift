@@ -84,7 +84,14 @@ final class Game {
     nonisolated(unsafe) static var tideArchiveEnabled = ProcessInfo.processInfo.environment["LW_TIDE_ARCHIVE"] == "1"
     private(set) var tideArchive: TideArchivePuzzle?
     /// Metres from the player to the nearest water the tide moves (the Archive's galleries): the wash is loud beside it and gone far from it. The stand-in's water is a notional spot west of the arrival pad; builder A's world replaces it with the gallery's surface (the nearest point of `ti_gallery_water`).
-    var archiveWaterDistance: Float { TideStandIn.waterDistance(from: player.position) }
+    var archiveWaterDistance: Float {
+        guard realArchive else { return TideStandIn.waterDistance(from: player.position) }
+        if archiveWaterDepth > 0 { return 0 }
+        let p = SIMD2(player.position.x, player.position.z)
+        return max(0, (ArchiveLayout.sluiceSites.map { simd_length(p - $0) }.min() ?? 60) - ArchiveLayout.sluiceFlat)
+    }
+    /// True when the player is in builder A's Archive world (rather than the Glass Wood standing in for it).
+    var realArchive: Bool { world == .tideArchive && scenes[.tideArchive] != nil }
     /// The version of the remembered moment on the Archive's wall now (nil: dark): builder A draws `ShadowTableaux.archive.figures(tableauShown)` on `ti_tableau_wall`.
     var tableauShown: PageAuthor? { tideArchive?.tableauShown }
 
@@ -172,9 +179,12 @@ final class Game {
     /// `TideStandIn`'s; builder A's world (S04.3) feeds `archiveFloor` and `archiveWaterDepth` from its own gallery floors and the water's surface height instead.
     enum ArchiveFloor { case slate, grating }
     var archiveActive: Bool { tideArchive != nil && world == routeWorld && chosenPath != nil }
-    var archiveFloor: ArchiveFloor { TideStandIn.floor(at: player.position) }
+    var archiveFloor: ArchiveFloor { realArchive ? TideSpots.floor(at: player.position) : TideStandIn.floor(at: player.position) }
     /// Metres of water over the floor at the player's feet (0 dry), from the same tide the gates and the water use.
-    var archiveWaterDepth: Float { TideStandIn.waterDepth(tide: Tide.level(time), at: player.position) }
+    var archiveWaterDepth: Float {
+        realArchive ? Tide.depth(ground: scene.groundHeight(x: player.position.x, z: player.position.z), time: time)
+                    : TideStandIn.waterDepth(tide: Tide.level(time), at: player.position)
+    }
     /// How wet the floor is for the step's sound: 0 dry ... 1 wet at about 8 cm of water.
     var archiveWetness: Float { smoothstep(0.0, 0.08, archiveWaterDepth) }
     /// The ground height the water sounds (the splash, the entering and leaving) are measured against: the scene's ground, or in the Archive the floor under the water (negative once there is about 8 cm of water over it).
@@ -257,6 +267,7 @@ final class Game {
             if tideArchive != nil, routeWorld == .glassWood { gwList += TideStandIn.interactables(scene: scenes[.glassWood]!) }          // the stand-in's gates, ring and finds
             worldInteractables[.glassWood] = gwList
         }
+        if scenes[.tideArchive] != nil { worldInteractables[.tideArchive] = TideSpots.interactables(scene: scenes[.tideArchive]!) }
     }
 
     private func setInteractable(_ id: String, enabled: Bool) {
@@ -305,7 +316,7 @@ final class Game {
             showBanner(hasReturned ? Story.doorLockedReturned : "Locked. The keeper took the key with her.")
         } else if id == "lens" {
             touchLens()
-        } else if id == "gw_return" {
+        } else if id == "gw_return" || TideSpots.returnIDs.contains(id) {
             fadeThrough(to: .varrow)
         }
     }
@@ -443,7 +454,8 @@ final class Game {
         guard let route = chosenPath else { return nil }
         if guideRoute != route { guidePath = nil; guideRoute = route }
         if guidePath == nil, let net = Layout.Navigation.active(for: routeWorld) {
-            let a = Game.routeEntry(route).position, b = Game.routeEntry(route == .ilse ? .oren : .ilse).position
+            let a = Game.routeEntry(route, in: routeWorld).position
+            let b = routeWorld == .tideArchive ? ArchiveLayout.prismChamber : Game.routeEntry(route == .ilse ? .oren : .ilse, in: routeWorld).position
             guidePath = GuidePath(net.route(from: SIMD2(a.x, a.z), to: SIMD2(b.x, b.z)))
         }
         return guidePath
@@ -453,6 +465,7 @@ final class Game {
     private(set) var guideLamps: [(position: SIMD2<Float>, lit: Bool)] = []
     private func syncGuides() {
         guard tideArchive != nil, let sc = scenes[routeWorld] else { return }
+        if routeSolved, scenes[.tideArchive] != nil, !state.has("page_15") { setInteractable("page_15", enabled: true) }          // the Great Ledger page on the gallery floor, once the water is down
         let on = world == routeWorld && chosenPath != nil && !routeSolved
         let path = on ? routeGuidePath() : nil
         guideLantern = nil; guideLamps = []
@@ -597,12 +610,11 @@ final class Game {
         let pose: (position: SIMD3<Float>, yaw: Float)
         switch kind {
         case .varrow: pose = (Layout.isletCenter + SIMD3(0, 0, 5), 0)          // beside the lens, facing it
-        case .glassWood:
+        case .glassWood, .tideArchive:
             if let e = pendingEntry, kind == routeWorld {
-                pose = Game.routeEntry(e); pendingEntry = nil
+                pose = Game.routeEntry(e, in: kind); pendingEntry = nil
                 if tideArchive != nil { state.set(e == .ilse ? TideArchivePuzzle.forkFlag : TideArchivePuzzle.lensFlag) }          // each route comes with its own tool
-            } else { pose = (GlassLayout.arrival, 0) }
-        case .tideArchive: pose = (ArchiveLayout.lampEnd, 0)                  // S04.1: the lamp end (the route entries of S04.5 choose between the two quays)
+            } else { pose = kind == .glassWood ? (GlassLayout.arrival, 0) : (ArchiveLayout.lampEnd, 0) }
         }
         player = Player(position: pose.position, yaw: pose.yaw)
         player.position.y = scene.groundHeight(x: pose.position.x, z: pose.position.z)

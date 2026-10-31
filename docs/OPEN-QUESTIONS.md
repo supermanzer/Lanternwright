@@ -199,6 +199,12 @@ Format: `### Q<n> (date, who): the question` then *Default taken*, *Where it liv
 *What changes if the answer differs:* levels and the wet constant are constants; a real metal step voice would be a new `StepMaterial`.
 *Status:* open.
 
+### Q33 (2026-10-31, builder B, S04 wiring: the puzzle on A's real Archive)
+*Default taken:* (1) **Windows follow the rooms.** A gate answers while its sluice room's floor is wadeable (Tide.window(forFloor:) from `ArchiveLayout.sluiceFloors`), so on the falling tide the order is the tide gate (room lowest), then the wind gate, then the stone gate (A's reachability conflict: the stone room is only wadeable near low sea). Oren's remote beam way: the ring is in the prism chamber (z about -132) and the sluice rooms are at z about 108-118, so the player turns the ring and the dispersed beam of the sluice it rests on brightens (`ta_beam_out_k`), the gate lifts and its wheel turns in its room, the drone and the gate foley sound; nobody has to be at the gate. (2) **Spots** are derived from A's landmarks (`Game/TideSpots.swift`) and set on the real floor; the PROPS at the spots A has not built (tools, pages 10-15, chain map, tableau lanterns, quay return rings) are A's, listed on the board topic `story`. (3) **The stand-in stays** (Glass Wood) as the fallback for two-scene games and tests. (4) The default flag `LW_TIDE_ARCHIVE` stays off until S04.9 hands over.
+*Where it lives:* `Game/TideSpots.swift`, `Game/Tide.swift`, `Game.travel / routeEntry / archiveFloor / archiveWaterDepth`, `TideArchivePuzzle.syncVisuals`; test `SelfTestTideWire.swift`.
+*What changes if the answer differs:* a different order is a change of `Tide.window(forFloor:)` (and the room floors are A's); the beam feedback is the `emissive.w` constants in `syncVisuals`.
+*Status:* open.
+
 ## Answered
 - 2026-10-28 S03 Oren's exit location: both exits at the original lighthouse; Oren's is a lens portal in the lens room, the dock arch is not an exit.
 - 2026-10-28 Page gate: 3 pages of each sibling.

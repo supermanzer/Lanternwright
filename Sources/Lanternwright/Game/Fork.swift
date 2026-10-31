@@ -20,14 +20,15 @@ extension Game {
     /// S04.5: the world a route enters, and where the lens and the doorway lead back to until it is solved. It is the Tide Archive (S04.1, builder A); until that world exists it is the Glass Wood,
     /// which stands in for it (the one switch: set `routeWorldOverride` when the Archive's scene is passed to `Game(scenes:)`).
     nonisolated(unsafe) static var routeWorldOverride: WorldKind?
-    var routeWorld: WorldKind { Game.routeWorldOverride ?? .glassWood }
+    var routeWorld: WorldKind { Game.routeWorldOverride ?? (Game.tideArchiveEnabled && scenes[.tideArchive] != nil ? .tideArchive : .glassWood) }
     /// Set by the route world's puzzle when it is solved (S04.6; for the stand-in, a test or tool sets it): the lens and the doorway then no longer lead there, and the next lens on the ring is shown dim.
     static let routeSolvedFlag = "route_solved"
     var routeSolved: Bool { state.has(Game.routeSolvedFlag) }
 
     /// Where the route world is entered for a route: its pose (position, yaw): the lamp end for Ilse, the open end for Oren (S02 section 3, lever 1). The stand-in's two ends are its arrival pad and its altar end.
-    static func routeEntry(_ author: PageAuthor) -> (position: SIMD3<Float>, yaw: Float) {
-        author == .oren ? (GlassLayout.altar + SIMD3(0, 0, 7), 0) : (GlassLayout.arrival, 0)
+    static func routeEntry(_ author: PageAuthor, in world: WorldKind = .glassWood) -> (position: SIMD3<Float>, yaw: Float) {
+        if world == .tideArchive { return (author == .oren ? ArchiveLayout.openEnd : ArchiveLayout.lampEnd, 0) }      // the two quays (S04.1), facing the tide steps
+        return author == .oren ? (GlassLayout.altar + SIMD3(0, 0, 7), 0) : (GlassLayout.arrival, 0)
     }
 
     /// Begin the route of `author` if the gate is ready and the other route has not been begun: seal the other exit, then fade through to the Glass Wood.
