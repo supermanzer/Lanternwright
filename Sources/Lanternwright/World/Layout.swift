@@ -224,7 +224,7 @@ enum ArchiveLayout {
     /// each side of it (`tableauLantern[0]` Ilse's side, west; `[1]` Oren's, east), the two tools lying in the world, and the prism ring (the prism's own position).
     /// F09.1: every spot is ON the guided route (within ~3 m of its centreline) and in story order: 10 landing, 11 lectern at the stacks, 12 the Roll of Keepers' desk on the way to the gallery, 13 outside the prism chamber,
     /// 14 under the dome, 15 on the Great Ledger gallery's floor (appears once the water is down). `TideSpots` derives the interaction boxes from these, so a prop and its box cannot drift apart again.
-    static let pageSpots: [SIMD3<Float>] = [besideRoute(9, 98), besideRoute(-54, 27), besideRoute(35, -23), besideRoute(3, -120), besideRoute(-3, -91), point(greatLedgerXZ.x - 4, greatLedgerXZ.y)]
+    static let pageSpots: [SIMD3<Float>] = [besideRoute(9, 98), besideRoute(-54, 27), besideRoute(35, -23), besideRoute(3, -120), besideRoute(-9, -94), point(greatLedgerXZ.x - 4, greatLedgerXZ.y)]
     /// The spot on the route's graded strip nearest (x, z), then `offset` m across it from the centreline (towards the original spot): grass does not grow within 1.2 m of the route (`Terrain.pathWeight`), so a page lying
     /// there has no blade through it (#95), and the player passes it at arm's length.
     static func besideRoute(_ x: Float, _ z: Float, offset: Float = 0.8) -> SIMD3<Float> {
@@ -239,7 +239,7 @@ enum ArchiveLayout {
         let q = d > 1e-3 ? best.q + away / d * offset : best.q + SIMD2(offset, 0)
         return point(q.x, q.y)
     }
-    static let chainMap = point(8, -96)
+    static let chainMap = besideRoute(-11, -100, offset: 2.4)
     static let tableauWall = point(44, -44), tableauHalfWidth: Float = 4.0
     static let tableauLantern: [SIMD3<Float>] = [point(44 - 5.6, -42), point(44 + 5.6, -42)]
     static let findFork = point(-42, 43), findLens = point(-27, -62)
