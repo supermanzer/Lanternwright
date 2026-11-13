@@ -77,6 +77,20 @@ extension SelfTestRunner {
             og.simulate(seconds: Tide.wait(for: k, from: og.time) + 0.4)
             let steps = Int(((TideArchivePuzzle.beamTargets[k] - puzzle.ringAngle) / TideArchivePuzzle.ringStep).rounded())
             puzzle.turn(steps); og.simulate(seconds: TideArchivePuzzle.Timing.beamHold + 0.3)
+            if k == 0 {
+                // F09.1 item 5 (#111: "does not allow me to turn it again"): with a gate open the ring is still under the crosshair, still answers a click and the arrow keys, and an open gate's lamp
+                // stays steady when the ring turns away (it never locks, and an opened gate is not taken back).
+                let ob = PlaythroughBot(og)
+                ob.aim(at: TideSpots.prismRing); ob.tick()
+                let angle0 = puzzle.ringAngle
+                check(puzzle.opened == 1 && og.hovered?.id == TideArchivePuzzle.ringName && og.hoverPrompt?.hasPrefix("Turn the ring") == true, "tide wire (F09.1 #111): with the first gate open the reticle on the ring still picks it (\(og.hovered?.id ?? "-"), prompt \(og.hoverPrompt ?? "-"))")
+                _ = ob.click(TideArchivePuzzle.ringName); ob.wait(0.3)
+                check(abs(puzzle.ringAngle - angle0) > 1e-4, "tide wire (F09.1 #111): and a click on it turns it again (angle \(angle0) to \(puzzle.ringAngle))")
+                var key = InputState(); key.pageFlip = -1; ob.tick(key); ob.tick(key)
+                check(puzzle.ringAngle != angle0 + TideArchivePuzzle.ringStep, "tide wire (F09.1 #111): the arrow key turns it the other way too")
+                check(archive.items.first { $0.name == SluiceLamps.name(0) }?.uniforms.emissive.w == SluiceLamps.open && puzzle.opened == 1, "tide wire (F09.1 #111): the opened gate's lamp stays steady and the gate stays open while the ring is turned away")
+                og.simulate(seconds: Tide.wait(for: 1, from: og.time) + 0.4)
+            }
         }
         og.simulate(seconds: TideArchivePuzzle.Timing.drainDelay + 0.5)
         check(og.routeSolved && puzzle.opened == 3, "tide wire: Oren, by the ring turned onto each mark in the prism chamber, drains the gallery")

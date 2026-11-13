@@ -31,7 +31,7 @@ enum InteractableAudit {
     struct Hit { var t: Float; var item: String }
 
     /// The nearest drawn thing along the ray: a triangle of any item that is not hidden (unless `includeHidden`) or a water body, or the terrain. Glass is skipped (see through).
-    static func cast(scene: Scene, origin o: SIMD3<Float>, dir d: SIMD3<Float>, maxT: Float, includeHidden: Bool) -> Hit? {
+    static func cast(scene: Scene, origin o: SIMD3<Float>, dir d: SIMD3<Float>, maxT: Float, includeHidden: Bool, includeGlass: Bool = false) -> Hit? {
         var best: Hit?
         var limit = maxT
         // Terrain: march in 0.25 m steps (it is a heightfield; the props that stand on it come out of it).
@@ -42,7 +42,7 @@ enum InteractableAudit {
             t += 0.25
         }
         for item in scene.items {
-            if (item.hidden && !includeHidden) || item.refractive || item.isWaterBody { continue }
+            if (item.hidden && !includeHidden) || (item.refractive && !includeGlass) || item.isWaterBody { continue }
             let (lo, hi) = item.worldBounds
             guard let tb = Interaction.rayBox(origin: o, dir: d, min: lo - SIMD3(repeating: 0.02), max: hi + SIMD3(repeating: 0.02)), tb <= limit else { continue }
             if let th = hitTriangles(item, origin: o, dir: d, maxT: limit), th < limit { limit = th; best = Hit(t: th, item: item.name) }
@@ -226,7 +226,10 @@ enum InteractableAudit {
             guard let r = results[kind] else { continue }
             let bad = r.rows.filter { !$0.verdict }.count
             out.append("== \(kind.rawValue): \(bad == 0 && r.orphans.isEmpty ? "ALL PASS" : "\(bad) FAIL, \(r.orphans.count) unboxed props")  (\(r.rows.count) interactables)")
-            for row in r.rows {
+            var printedInterior = false
+            let interiorIDs: Set<String> = ["lens_ring", "lh_lens_touch", "lh_portal_step"]
+            for row in r.rows.sorted(by: { interiorIDs.contains($0.id) != interiorIDs.contains($1.id) ? !interiorIDs.contains($0.id) : false }) {
+                if interiorIDs.contains(row.id) && !printedInterior { out.append("-- lighthouse interior (part of Varrow; the fourth world of the audit)"); printedInterior = true }
                 let c = String(format: "(%.1f, %.1f, %.1f)", row.centre.x, row.centre.y, row.centre.z)
                 let s = row.stand.map { String(format: "stand (%.1f, %.1f)", $0.x, $0.y) } ?? "no stand"
                 out.append("  \(row.verdict ? "PASS" : "FAIL")  \(row.id)\(row.enabled ? "" : " [dormant]")  box \(c)  nearest mesh \(row.nearest) \(String(format: "%.2f", row.nearestDistance)) m  reach \(row.reachable ? "ok" : "NO")  ray \(row.seen ? "hits \(row.hit)" : "NO PROP IN VIEW (centre ray meets \(row.hit))")  \(s)\(row.eye.map { String(format: " eye %.2f,%.2f,%.2f", $0.x, $0.y, $0.z) } ?? "")")
