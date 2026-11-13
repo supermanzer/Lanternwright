@@ -128,6 +128,9 @@ final class AmbienceSynth {
     private var droneTarget: [Float] = [0, 0, 0]
     private var droneGain: [Float] = [0, 0, 0]
     private var droneSour: Float = 0
+    /// F09.4: the integrated detune of each drone voice and of the lighthouse's two tones (radians): the slide and the vibrato accumulate here instead of multiplying the clock.
+    private var droneExtra = [Double](repeating: 0, count: 3)
+    private var lhExtra: (Double, Double) = (0, 0)
     private var droneBloomLeft: Float = 0
     private var droneThirdGain: Float = 0
     private let droneLock = NSLock()
@@ -410,8 +413,11 @@ final class AmbienceSynth {
                     let rate: Float = droneTarget[v] > droneGain[v] ? 0.00006 : 0.00012           // slow in (~0.4 s), slower out
                     droneGain[v] += (droneTarget[v] * (droneBloomLeft > 0 ? 1.5 : 1) - droneGain[v]) * (droneSour > 0 ? 0.0004 : rate)
                     if droneGain[v] > 1e-5 {
-                        let f = AmbienceSynth.droneHz[v] * (1 - 0.018 * droneSour)               // sour = sliding flat
-                        let ph = 2 * Double.pi * Double(f) * td
+                        // F09.4 (#92): sour = sliding flat. The phase is the steady one (f0 * time) PLUS the integral of the slide (f - f0), never (f0 * (1 - slide)) * time: that product's
+                        // instantaneous frequency is off by f0 * time * dSlide/dt, which grows with the play time (at ten minutes a 1.6 s slide of 1.8 % swept thousands of hertz).
+                        let f0 = Double(AmbienceSynth.droneHz[v])
+                        droneExtra[v] += 2 * Double.pi * f0 * Double(-0.018 * droneSour) * Double(dt)
+                        let ph = 2 * Double.pi * f0 * td + droneExtra[v]
                         let s1 = Float(sin(ph) + sin(ph * 1.0007 + 0.4) + 0.25 * sin(2 * ph))
                         drone += s1 * 0.5 * droneGain[v] * 0.12
                     }
@@ -438,8 +444,13 @@ final class AmbienceSynth {
                     let pn = humPan[v]; lmL += s * (1 - pn) * 0.5 * 1.4; lmR += s * (1 + pn) * 0.5 * 1.4
                 }
                 if humSmooth.w > 1e-4 {         // the lit lighthouse: a slow open fifth, D3 + A3, with a gentle vibrato
-                    let vib = 1 + 0.002 * sin(t * 0.7)
-                    let s = Float(sin(2 * Double.pi * Double(ToneTable.stoneHz[0] * 0.5 * vib) * td) + 0.7 * sin(2 * Double.pi * Double(ToneTable.stoneHz[1] * 0.5 * vib) * td + 0.5)) * humSmooth.w * 0.028
+                    // F09.4 (#92: "the tones go out of tune ... as we approach the lighthouse"): the vibrato multiplied the ABSOLUTE time (f * (1 + 0.002 sin 0.7t) * t), so its instantaneous frequency
+                    // was off by f * t * 0.0014 cos 0.7t: the longer the game had run, the wider the swing (about a fifth after ten minutes). Now the vibrato is integrated into a bounded phase offset
+                    // and cut to 0.04 % (under 1 cent peak), so the lit lighthouse's D3 + A3 stay within 3 cents of the stones' tones at any play time.
+                    let vibRate = Double(0.0004 * sin(t * 0.7))
+                    let f1 = Double(ToneTable.stoneHz[0] * 0.5), f2 = Double(ToneTable.stoneHz[1] * 0.5)
+                    lhExtra.0 += 2 * Double.pi * f1 * vibRate * Double(dt); lhExtra.1 += 2 * Double.pi * f2 * vibRate * Double(dt)
+                    let s = Float(sin(2 * Double.pi * f1 * td + lhExtra.0) + 0.7 * sin(2 * Double.pi * f2 * td + lhExtra.1 + 0.5)) * humSmooth.w * 0.028
                     let pn = humPan.w; lmL += s * (1 - pn) * 0.5 * 1.4; lmR += s * (1 + pn) * 0.5 * 1.4
                 }
                 if gallerySmooth > 1e-4 {       // wind round the gallery: a soft, broad band of noise (Q 1.5) whose centre rides the gust, never a pure tone
