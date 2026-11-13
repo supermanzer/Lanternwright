@@ -72,6 +72,6 @@ extension SelfTestRunner {
             print("corridorlod: per frame over \(eyes.count) eyes the camera rule draws \(Int(meanFrame)) tree triangles on average (worst \(drawnTrisMax)); of those, in levels the corridor rule would have removed: \(wasteDrawn)")
         }
         check(violations == 0, "corridorlod: no eye anywhere in the region ever draws a tree level the corridor bound rules out (\(violations) violations over \(eyes.count) eyes and \(groups.count) cells): the camera's own per-frame rule is already tighter, so pinning by corridor saves 0 triangles in any frame")
-        check(staticTris >= 0 && allTris > 0, "corridorlod: the static ceiling is \(staticTris) of \(allTris) tree triangles (\(String(format: "%.1f", Double(staticBytes) / 1e6)) of \(allBytes / 1_000_000) MB): memory and build time, not frame time (measured, see docs: all trees together cost 0.1-0.6 ms of 8-10 ms at 2560x1440)")
+        check(allTris > 0, "corridorlod: (a report, not a bound) the static ceiling is \(staticTris) of \(allTris) tree triangles (\(String(format: "%.1f", Double(staticBytes) / 1e6)) of \(allBytes / 1_000_000) MB): memory and build time, not frame time (measured, see docs: all trees together cost 0.1-0.6 ms of 8-10 ms at 2560x1440)")
     }
 }
