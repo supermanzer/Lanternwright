@@ -12,7 +12,7 @@ extension SelfTestRunner {
         let terrain: Terrain = archive.terrain
         let body = Props.stoneLantern().body.vertices.map { SIMD3($0.position.x, $0.position.y, $0.position.z) }.filter { $0.y > 0.25 }
         // The solids: the terrain, and every cylinder collider of the Archive except the lanterns' own footings (radius 0.3 at a lantern's centre).
-        let ownCentres = Set((ArchiveProps.lanternSites(terrain: terrain, relocate: false) + ArchiveProps.lanternSites(terrain: terrain)).map { SIMD2($0.centre.x.rounded() * 0 + $0.centre.x, $0.centre.y) })
+        let ownCentres = Set((ArchiveProps.lanternSites(terrain: terrain, relocate: false) + ArchiveProps.lanternSites(terrain: terrain)).map { SIMD2($0.centre.x, $0.centre.y) })
         let standCentres = Set(ArchiveLayout.tableauLantern.map { SIMD2($0.x, $0.z) })        // each tableau lantern's lamp sits on its own stand: that collider is the stand
         let solids = archive.colliders.cylinders.filter { !($0.radius == 0.3 && ownCentres.contains($0.center)) && !standCentres.contains($0.center) }
         func inside(_ t: float4x4, _ pts: [SIMD3<Float>]) -> (count: Int, worst: Float) {
@@ -39,7 +39,7 @@ extension SelfTestRunner {
             print("lanternwalls: \(old.count) route lanterns; before the fix \(oldBad.count) have the lamp body in the ground: " + list)
         }
         let oldWorst: Float = oldBad.map { inside($0.transform, body).worst }.max() ?? 0
-        check(!oldBad.isEmpty, "lanternwalls: mutation: the placement as it was puts \(oldBad.count) of \(old.count) route lanterns' lamp bodies into the ground (worst \(String(format: "%.2f", oldWorst)) m): the fault of #97")
+        check(!oldBad.isEmpty, "lanternwalls: mutation: the placement as it was puts \(oldBad.count) of \(old.count) route lanterns' lamp bodies into the ground or a wall's collider (worst \(String(format: "%.2f", oldWorst)) m): the fault of #97")
         let nearSpot = oldBad.filter { simd_length($0.centre - spot) < 12 }
         let nearText = nearSpot.map { "(\(Int($0.centre.x)), \(Int($0.centre.y)))" }.joined(separator: " ")
         check(!nearSpot.isEmpty, "lanternwalls: and one of them is within 12 m of the note's spot (-2.1, -91.8): \(nearText)")

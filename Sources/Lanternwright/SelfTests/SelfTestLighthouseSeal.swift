@@ -10,19 +10,22 @@ import simd
 /// Mutation: the sweep is also run on the colliders as they were before F09.5 (`legacyDoorGap`), and it must find the leak (#105).
 extension SelfTestRunner {
     /// Heights (tower frame, 0.25 m bins) where a player pushed outward gets out, and how many pushes were made.
-    private func sealLeaks(_ cols: Colliders, _ o: LighthouseInterior) -> (leaks: [Float], pushes: Int) {
+    private func sealLeaks(_ cols: Colliders, _ o: LighthouseInterior) -> (leaks: [Float], pushes: Int, skipped: Int, adjusted: Int) {
         typealias I = LighthouseInterior
         let lh = Layout.lighthouse
-        var leaks: [Float] = [], n = 0
+        var leaks: [Float] = [], n = 0, skipped = 0, adjusted = 0
         func push(angle a: Float, from r0: Float, feet h: Float) {
             for skew: Float in [-0.5, 0, 0.5] {
                 let dir = SIMD2(cos(a + skew), sin(a + skew))
                 var pos = SIMD2(lh.x, lh.z) + SIMD2(cos(a), sin(a)) * r0
                 let feetY = lh.y + h
                 var out = false
-                var probe = pos                                                              // a start that already overlaps a collider (on a hatch post) is not a place a player can be
+                // A start that overlaps a collider (against the wall, on a hatch post) is first moved to where the controller would put the player; one that resolves to outside the tower is no place a player can be.
+                var probe = pos
                 cols.resolve(position: &probe, radius: Player.radius, feetY: feetY, height: Player.eyeHeight)
-                if simd_length(probe - pos) > 1e-3 { continue }
+                if simd_length(probe - pos) > 1e-3 { adjusted += 1 }
+                if simd_length(probe - SIMD2(lh.x, lh.z)) > I.innerR(h) || o.height(x: probe.x, z: probe.y, feetY: feetY) == nil { skipped += 1; continue }
+                pos = probe
                 for _ in 0..<80 {
                     pos += dir * 0.05
                     cols.resolve(position: &pos, radius: Player.radius, feetY: feetY, height: Player.eyeHeight)
@@ -49,7 +52,7 @@ extension SelfTestRunner {
             var da = abs(a - .pi / 2); if da > .pi { da = 2 * .pi - da }
             if da > 0.9 { push(angle: a, from: 2.5, feet: I.floorY) }
         }
-        return (leaks, n)
+        return (leaks, n, skipped, adjusted)
     }
 
     func runLighthouseSeal() {
@@ -64,7 +67,7 @@ extension SelfTestRunner {
         let legacyBins = Set(legacy.leaks).sorted()
         if name == "lhseal" { print("lhseal: sweep \(fixed.pushes) pushes; leaks now at \(Set(fixed.leaks).sorted()); the pre-F09.5 colliders leak at \(legacyBins.first.map { "\($0)" } ?? "-")...\(legacyBins.last.map { "\($0)" } ?? "-") m (\(legacy.leaks.count) pushes)") }
         check(legacy.leaks.count > 0, "lhseal: mutation: with the door gap as it was before F09.5 the sweep finds the way out (#105: \(legacy.leaks.count) of \(legacy.pushes) pushes leave the tower, at \(legacyBins.first.map { String(format: "%.2f", $0) } ?? "-")-\(legacyBins.last.map { String(format: "%.2f", $0) } ?? "-") m)")
-        check(fixed.pushes > 2000 && fixed.leaks.isEmpty, "lhseal: a capsule pushed outward from eight places across the stair at every step, round the lens room and round the ground room never leaves the tower (\(fixed.pushes) pushes, \(fixed.leaks.count) leaks, at \(Set(fixed.leaks).sorted()))")
+        check(fixed.pushes > 2000 && fixed.skipped * 4 < fixed.pushes && fixed.leaks.isEmpty, "lhseal: a capsule pushed outward from eight places across the stair at every step, round the lens room and round the ground room never leaves the tower (\(fixed.pushes) pushes, \(fixed.adjusted) starts moved off a collider first, \(fixed.skipped) skipped as outside the tower, \(fixed.leaks.count) leaks, at \(Set(fixed.leaks).sorted()))")
         let game = Game(scenes: [.varrow: Scene.makeWorld(device: device), .glassWood: GlassWood.build(device: device)])
         game.state.set(Game.doorOpenFlag)
         var clock = 5000.0
