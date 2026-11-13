@@ -2,13 +2,13 @@
 
 Source: `.build/release/Lanternwright --feedback` (notes #89-#111 on the Archive/lighthouse build, #112-#116 on a fresh run).
 Main at d028420 (`f08` merged). Reviewer: w1:p4. Builder A = w1:p1 (`../lanternwright-a`), builder B = w1:p5 (`../lanternwright-b`).
-Standing rule: never block on the user; log defaults in docs/OPEN-QUESTIONS.md (next Q37+), proceed.
+Standing rule: never block on the user; log defaults in docs/OPEN-QUESTIONS.md (start at Q41: Q37-Q40 are reserved by the reviewer for P01/S05), proceed.
 Tags: `f09-a`, `f09-b`. Workflow: docs/GIT-WORKFLOW.md (branch from origin/main, selftest 0 FAIL, shader validation clean, ff-merge under the `merge` lock, push, tag, rebundle, say what to look at).
 Puzzle design (the Myst comparison the user asked for) is NOT in this plan: reviewer is writing `docs/plans/P01-myst-puzzle-benchmark.md`; do not redesign puzzles here beyond what a note below asks.
 
 ## The one root cause behind ten notes: what you can touch is not what you can see
 #95 #96 #99 #100 #102 #107 #109 #110 #115 #116 (and Q28 "I cannot interact with the pages") all say the same thing in the Archive and on the dock:
-a prompt appears with no object, or an object (page, puzzle ring, map) is visible and does nothing. Cause (verified in code): B's interaction boxes (`Game/TideSpots.swift`: `box(...)`, half 0.5-1.3 m, reach 3.4-5 m) were placed by coordinates against A's layout before A's props existed (the header of that file says so). The pages, tools, quay return rings and the map are boxes with no or misplaced geometry; the pages that DO have a prop (e.g. `ti_page_N`, page 6 "outside the guided path") are not where the box is or are not on the corridor.
+a prompt appears with no object, or an object (page, puzzle ring, map) is visible and does nothing. Likely cause (my grep saw only literal `scene.add` names, pages are built via `pageName(n)`, so audit, do not assume): B's interaction boxes (`Game/TideSpots.swift`: `box(...)`, half 0.5-1.3 m, reach 3.4-5 m) were placed by coordinates against A's layout before A's props existed (the header of that file says so). The pages, tools, quay return rings and the map are boxes with no or misplaced geometry; the pages that DO have a prop (e.g. `ti_page_N`, page 6 "outside the guided path") are not where the box is or are not on the corridor.
 
 ### F09.1 Interaction contract audit (owner: B; A fixes any missing/misplaced prop B lists) — PRIORITY 1
 The contract: every enabled `Interactable` has (a) a visible prop that the reticle ray actually hits, within the box; (b) its box is reachable from inside the guided corridor (standing eye height, within `reach`); and every visible readable/usable prop is an Interactable. Prompts appear only when (a) holds.
@@ -46,6 +46,9 @@ User principle (#91): "Ground both these sounds in the properties of the physica
 - #101 "Opening the three gates appears to have lowered the water here but it is unclear how I have gained from this." (48.7, 11.4, -27.1) After the gates open the player should see what the water was hiding: the Great Ledger gallery floor and page 15 (and the tableau), and a lit path appears (guide light parks at the gallery door per F09.2). Make the gain visible: a dimmed lamp or a glint on the revealed floor, a reveal sound cue by a stair rising out of the water.
 - #104 "There does not appear to be a way out of this world or any clear puzzles to solve" (-12.9, 11.9, -2.9): the player is at the quay region with the interaction boxes failing (F09.1). After F09.1 the audit table must also include "exit to the previous world" and for each room "what is the player's visible next goal". Add a world-level goal indicator: the guide light (F09.2) is the only goal hint; on first arrival it must rest at the first objective.
 - #111 see F09.1 item 5.
+
+### #106 (siblings lead to the same place)
+Not in F09. It is approved direction and becomes S05 (`docs/plans/P01-myst-puzzle-benchmark.md` P01.7, Q40); the reviewer writes the plan next.
 
 ## Fresh-run notes (#112-#116)
 

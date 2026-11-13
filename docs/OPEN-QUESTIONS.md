@@ -232,6 +232,21 @@ Format: `### Q<n> (date, who): the question` then *Default taken*, *Where it liv
 ### User: keep (F08, 2026-10-31)
 Q5 keep (EDGE_K 1.0) · Q15 keep (page 9 stays on the dock and counts for the gate) · Q17 accepted (the far-field fade is enough) · Q30 keep (grass LOD ships OFF) · Q25 works (run 5.5 m/s, hint gone) · Q20 keep ("The lamp is waiting." and the brighter ring) · Q6 works (door note) · Q9 works (plates) · Q23 makes sense (quiet cues) · Q10 okay (interior brightness, lampPower 0.85) · Q27 works (rail, page wording) · Q14 every return (no change).
 
+### User: keep, second batch (2026-10-31, recorded by the reviewer 2026-11-12)
+Q1 keep (causeway footings; the Archive uses them to help the player remember the tone order) · Q2 keep · Q3 keep · Q12 keep · Q21 keep · Q26 keep · Q31 keep · Q32a keep · Q32b keep. Q28 (pages): "The mechanics are unclear to the player as I cannot interact with the pages for more context" -> F09.1 (interaction contract audit). Not yet answered: Q4, Q29, Q33, Q34.
+
+### Q37 (2026-11-12, reviewer, P01): ratify the complexity budget
+`docs/plans/P01-myst-puzzle-benchmark.md` section 4: 3-6 manipulations per puzzle, code length 3-5 (one up to 8 per world), clue never at the machine and at least one area away, at least 2 puzzles open at once after 10 minutes, no failure state, feedback on two channels within 1 s, 15-25 min per world. *Default taken:* these numbers guide P01.1/P01.2. *What changes if the answer differs:* the numbers in the audit only. *Status:* open.
+
+### Q38 (2026-11-12, reviewer, P01.3): the lighthouse door plates use the beam signal instead of the stones' order
+Today the plates take tide, wind, stone, the fourth time that order is the answer. *Default taken (not built yet):* the plates must be struck in the order the lighthouse beam's signal pattern shows after the altar (watched from outside), mapped to the three glyphs by something learned earlier; the old order stays as the Notebook fallback. *Status:* open.
+
+### Q39 (2026-11-12, reviewer, P01.5): an optional three-level hint layer in the Notebook?
+Myst's Masterpiece Edition added one (where to look / what to look for / the answer). *Default taken:* NOT built; the game stays opaque unless the user says yes. *Status:* open.
+
+### Q40 (2026-11-12, reviewer, S05, from note #106): sibling routes in different places with different puzzles
+The direction is the user's (note #106: "different locations, in the same worlds, and different puzzles"), so it is approved and queued as S05 after F09. Specifics are the default in P01.7: each route world has two sites, 2 of 5 puzzles shared, Ilse = interior and instruments (listen, read), Oren = exterior and elements (aim, time), the sites meet at the chain map; Archive first. *What changes if the answer differs:* which puzzles go to which sibling. *Status:* open.
+
 ## Answered
 - 2026-10-28 S03 Oren's exit location: both exits at the original lighthouse; Oren's is a lens portal in the lens room, the dock arch is not an exit.
 - 2026-10-28 Page gate: 3 pages of each sibling.
