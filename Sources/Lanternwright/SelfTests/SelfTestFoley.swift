@@ -18,48 +18,7 @@ extension SelfTestRunner {
             return (A.band(sp, 80, 200) / tot, A.band(sp, 200, 1000) / tot, A.band(sp, 1000, 3000) / tot, tot, sp)
         }
         // ---- A2 the locked door: see runDoorHeavy (F07 A-door replaced the knock, rattle and clank of F03 / F05).
-        // ---- A3 the slope slide (#45): gravel giving way. 44.1 kHz renders, fixed seed.
-        do {
-            func render(_ speed: Float, _ gravel: Float, _ seconds: Float = 5) -> [Float] { SlideSynth.render(speed: speed, gravel: gravel, seconds: seconds, sampleRate: sr) }
-            let full = render(1, 1, 6)
-            let steady = Array(full.dropFirst(Int(0.5 * sr)))
-            let chunks = stride(from: 0, to: steady.count - Int(0.25 * sr), by: Int(0.25 * sr)).map { Array(steady[$0..<$0 + Int(0.25 * sr)]) }
-            let sp = chunks.map { A.spectrum($0) }
-            let tot = A.mean(sp.map { A.band($0, 40, 9000) })
-            let bedShare = A.mean(sp.map { A.band($0, 100, 250) }) / max(tot, 1e-12)
-            let grainShare = A.mean(sp.map { A.band($0, 1000, 6000) }) / max(tot, 1e-12)
-            let rmsFull = Self.rms(steady)
-            if verbose { print(String(format: "slide full speed on gravel: rms %.4f, bed 100-250 Hz %.0f %%, grains 1-6 kHz %.0f %% of the power", rmsFull, bedShare * 100, grainShare * 100)) }
-            check(bedShare > 0.15 && grainShare > 0.35, "gravel slide: a low bed at 100-250 Hz (\(Int(bedShare * 100)) % of the power, at least 15 %) under dense grains at 1-6 kHz (\(Int(grainShare * 100)) %, at least 35 %)")
-            // Grain structure and density: grains are 5-30 ms and their number rises with speed.
-            func started(_ speed: Float) -> (grains: Int, stones: Int) { let g = SlideSynth(sampleRate: sr); for _ in 0..<Int(6 * sr) { _ = g.next(speed: speed, gravel: 1) }; return (g.grainsStarted, g.stonesStarted) }
-            let sl = started(0.3), sm = started(0.6), sh = started(1)
-            if verbose { print("slide: grains per 6 s at speed 0.3 / 0.6 / 1: \(sl.grains) / \(sm.grains) / \(sh.grains); stones \(sl.stones) / \(sm.stones) / \(sh.stones)") }
-            check(sl.grains < sm.grains && sm.grains < sh.grains && Double(sh.grains) > 2.5 * Double(sl.grains) && sh.grains / 6 > 80, "grain density rises with slide speed (grains per second: \(sl.grains / 6) at 0.3, \(sm.grains / 6) at 0.6, \(sh.grains / 6) at full; at least 80 per second at full)")
-            check(sh.stones >= 3 && sh.stones <= 24 && sl.stones < sh.stones, "a few larger stones clack: \(sh.stones) in six seconds at full speed, \(sl.stones) at a slow slide")
-            // Level follows speed.
-            let rms = [Float(0.25), 0.5, 0.75, 1].map { Self.rms(Array(render($0, 1, 3).dropFirst(Int(0.5 * sr)))) }
-            check(zip(rms, rms.dropFirst()).allSatisfy { $1 > $0 * 1.15 } && rms[3] > 2.0 * rms[0], "the level follows the speed (rms at 0.25, 0.5, 0.75, 1: \(rms.map { String(format: "%.4f", $0) }))")
-            // It stops within 0.2 s of regaining footing.
-            let g = SlideSynth(sampleRate: sr)
-            var trace: [Float] = []
-            for _ in 0..<Int(2 * sr) { trace.append(g.next(speed: 1, gravel: 1)) }
-            let steadyRms = Self.rms(Array(trace.suffix(Int(0.5 * sr))))
-            var after: [Float] = []
-            for _ in 0..<Int(0.6 * sr) { after.append(g.next(speed: 0, gravel: 1)) }
-            let w1 = Self.rms(Array(after[Int(0.15 * sr)..<Int(0.20 * sr)])), w2 = Self.rms(Array(after[Int(0.20 * sr)..<Int(0.25 * sr)]))
-            if verbose { print(String(format: "slide stop: rms steady %.4f; 150-200 ms after %.5f (%.0f dB); 200-250 ms %.5f (%.0f dB)", steadyRms, w1, 20 * log10(max(w1, 1e-9) / steadyRms), w2, 20 * log10(max(w2, 1e-9) / steadyRms))) }
-            check(w1 < 0.03 * steadyRms && w2 < 0.01 * steadyRms, "the slide is gone within 0.2 s of regaining footing (-30 dB by 200 ms: \(String(format: "%.0f", 20 * log10(max(w1, 1e-9) / steadyRms))) dB; -40 dB by 250 ms: \(String(format: "%.0f", 20 * log10(max(w2, 1e-9) / steadyRms))) dB)")
-            check(Self.rms(render(0, 1, 1)) < 1e-6, "no sound at all when not slipping")
-            // Surface-aware: grass is softer and darker, with no stones.
-            let gr = render(1, 0, 6), gv = render(1, 1, 6)
-            let spG = A.spectrum(Array(gr.dropFirst(Int(0.5 * sr)))), spV = A.spectrum(Array(gv.dropFirst(Int(0.5 * sr))))
-            let cg = A.centroid(spG), cv = A.centroid(spV)
-            let sg = started(1)
-            let gs = SlideSynth(sampleRate: sr); for _ in 0..<Int(6 * sr) { _ = gs.next(speed: 1, gravel: 0) }
-            if verbose { print(String(format: "slide on grass: rms %.4f vs gravel %.4f, centroid %.0f vs %.0f Hz, stones %d, grains %d vs %d", Self.rms(gr), Self.rms(gv), cg, cv, gs.stonesStarted, gs.grainsStarted, sg.grains)) }
-            check(Self.rms(Array(gr.dropFirst(Int(0.5 * sr)))) < 0.7 * rmsFull && cg < 0.8 * cv && gs.stonesStarted == 0, "grass slopes are softer, darker and have no stones: rms \(String(format: "%.0f", 100 * Self.rms(Array(gr.dropFirst(Int(0.5 * sr)))) / rmsFull)) % of the gravel's, spectral centroid \(Int(cg)) Hz against \(Int(cv)) Hz, \(gs.stonesStarted) stones")
-        }
+        // ---- A3 the slope slide: see runSlide (F09.4 replaced the dense gravel voice of F03 with sparse scuffs and clacks).
         // ---- A4 shallow water (#49): bubbles, not noise. 44.1 kHz renders.
         do {
             var rng = FoleyNoise(seed: 0xA4A4)
