@@ -109,6 +109,26 @@ enum AudioSpace {
         return Ambient(windGain: 1, surfGain: 0.75 * field.level, surfFar: field.farness, surfAirCutoff: field.airCutoff, shoreDistance: field.meanDistance)
     }
 
+    /// F09.4 (#91): hills shelter. 0 on open ground, up to 1 deep in the lee of a hill: the steepest rise of the ground UPWIND (the wind blows from `-Wind.direction`) above the
+    /// listener's ears, seen from 8 to 80 m out; 2 degrees is nothing, 12 degrees or more is a full lee. The wind is quieter and darker there.
+    static func windShelter(at p: SIMD3<Float>, ground: (Float, Float) -> Float) -> Float {
+        let up = -Wind.direction, ear = p.y + 1.7
+        var worst: Float = 0
+        for d: Float in [8, 14, 22, 34, 50, 80] {
+            let h = ground(p.x + up.x * d, p.z + up.y * d)
+            worst = max(worst, atan2(h - ear, d))
+        }
+        let t = min(max((worst - 0.035) / (0.21 - 0.035), 0), 1)
+        return t * t * (3 - 2 * t)
+    }
+
+    /// F09.4 (#91): foliage. Leaves hiss in the wind where there are trees close by: counted from the trunks (the thin cylinders, not the stones or the tower) within 14 m, 8 of them is a wood.
+    static func treeCover(at p: SIMD3<Float>, colliders: [CylinderCollider]) -> Float {
+        var n = 0
+        for c in colliders where c.radius <= 1.2 && simd_length(SIMD2(c.center.x - p.x, c.center.y - p.z)) < 14 && c.maxY - c.minY > 2 { n += 1 }
+        return min(Float(n) / 8, 1)
+    }
+
     static func read(listener p: SIMD3<Float>, yaw: Float, ground: (Float, Float) -> Float) -> Reading {
         var r = Reading()
         r.openness = openness(at: p, ground: ground)

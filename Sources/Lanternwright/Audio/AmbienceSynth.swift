@@ -156,22 +156,30 @@ final class AmbienceSynth {
     /// 0...1: how much leaf and grass there is underfoot; the wind rustles only where there is something to rustle.
     var vegetation: Float = 0
     /// Linear amplitude of the wind at `windStrength` 1 and `windGain` 1 relative to the unit the level targets are measured in (calibrated by `--selftest wind`).
-    static let windUnit: Float = 0.5
+    static let windUnit: Float = 0.66
+    /// The grass's rustle keeps the absolute level it had under the F03 wind (its unit was 0.5): it is the faint high hiss of leaves, not part of the body.
+    static let rustleUnit: Float = 0.5
     /// Level in dB against the surf at the waterline: a lull and a full gust (A3: the lull at most -6 dB, a gust peak at most +2 dB, so at least 12 dB between them).
     static let windLullDB: Float = -25, windGustDB: Float = -8
     /// The wind lull before F03 A1 (-14 dB). The drone's level is defined against THIS: the user asked to keep the drone where it was (-24 dB under that lull, -38 dB against the
     /// waterline surf) when the wind came down, so the pad no longer tracks the wind's new, lower lull.
     static let windLullDBBeforeF03: Float = -14
     private var windSm: Float = 0, windTargetSm: Float = 0
-    private var windBrown = [Float](repeating: 0, count: 2), windLP1 = [Float](repeating: 0, count: 2), windLP2 = [Float](repeating: 0, count: 2)
-    private var windW1 = [Float](repeating: 0, count: 2), windW2 = [Float](repeating: 0, count: 2)      // low-passed WHITE noise: the mid-range body that speakers can reproduce
+    private var windLP1 = [Float](repeating: 0, count: 2), windLP2 = [Float](repeating: 0, count: 2)
+    /// F09.4 (#91): the wind is PINK turbulence (Paul Kellet's three-pole 1/f filter on white noise, a 90 Hz high-pass under it so nothing sits where a laptop's speakers distort),
+    /// through a gentle two-pole low-pass whose corner rides the gust (about 280 Hz in a lull to 1 kHz in a gust, no resonance), and its level is multiplied by an irregular
+    /// turbulence envelope (one fast, about 1 Hz, and one slow, about 0.12 Hz, both noise) so gusts are not a regular swell.
+    private var windPink = [[Float]](repeating: [0, 0, 0], count: 2), windHP = [Float](repeating: 0, count: 2), windHP2 = [Float](repeating: 0, count: 2)
+    private var turbRng: UInt32 = 0x1F123BB5
+    private var turbFast: Float = 0, turbSlow: Float = 0
+    /// 0...1: how deep in the lee of a hill the listener stands (set by the engine from `AudioSpace.windShelter`): the wind is quieter and darker there.
+    var windShelter: Float = 0
+    private var shelterSm: Float = 0
     private var rustleA = [Float](repeating: 0, count: 2), rustleB = [Float](repeating: 0, count: 2)
-    private var windA: Float = 0.1, windF: Float = 0.1, windAmp: Float = 0
+    private var windA: Float = 0.1, windAmp: Float = 0
     private var gallLow: Float = 0, gallBand: Float = 0
     private var farSmooth: Float = 0, airSmooth: Float = 8000
     private var waveNow = SurfWaves.State(), waveSm = SurfWaves.State(), swellNow: Float = 0.5
-    // One gentle formant (Q about 1.2: a broad bump, never a whistle), a state-variable band-pass (low, band) per channel.
-    private var howlLow = [[Float]](repeating: [0, 0], count: 2), howlBand = [[Float]](repeating: [0, 0], count: 2)
     private var panSmooth: Float = 0, occlusionSmooth: Float = 0
     private var surfMuffle: [Float] = [0, 0]
     /// How far the ambient bed is ducked right now (0 = not at all): a chime rings over the wind and surf.
@@ -299,6 +307,9 @@ final class AmbienceSynth {
         let dt = 1 / sampleRate
         let wind = windGain, surf = surfGain, m = master
         let panTarget = surfPan, occTarget = surfOcclusion
+        let turbFastA = 1 - exp(-2 * Float.pi * 1.1 / sampleRate), turbSlowA = 1 - exp(-2 * Float.pi * 0.12 / sampleRate)
+        let turbFastScale = 1 / (0.577 * (turbFastA / (2 - turbFastA)).squareRoot()), turbSlowScale = 1 / (0.577 * (turbSlowA / (2 - turbSlowA)).squareRoot())
+        let hpA = 1 - exp(-2 * Float.pi * 110 / sampleRate)
 
         for i in 0..<frames {
             let td = time, t = Float(td)                    // `t` for the slow functions (gusts, waves); `td` for anything that is an audio-rate phase
@@ -309,11 +320,17 @@ final class AmbienceSynth {
             if let src = windSource { if i & 63 == 0 { windTargetSm = src(t) } } else { windTargetSm = windStrength }
             windSm += (windTargetSm - windSm) * 0.0006
             let ws = min(max(windSm, 0), 1)
+            shelterSm += (windShelter - shelterSm) * 0.00005
             if i & 15 == 0 {
-                windA = 1 - exp(-2 * .pi * (110 + 330 * ws) / sampleRate)                     // the body's corner rides the gust: 110 Hz in a lull, 440 Hz in a gust (F03 A1: a light breeze, mostly below 300 Hz)
-                windF = 2 * sin(.pi * (200 + 260 * ws) / sampleRate)
-                windAmp = windGain * AmbienceSynth.windUnit * pow(10, (AmbienceSynth.windLullDB + (AmbienceSynth.windGustDB - AmbienceSynth.windLullDB) * pow(ws, 0.9)) / 20)
+                windA = 1 - exp(-2 * .pi * (280 + 700 * ws) * (1 - 0.35 * shelterSm) / sampleRate)     // F09.4: the corner rides the gust (and darkens in a lee); two gentle poles, no resonance
+                windAmp = windGain * AmbienceSynth.windUnit * pow(10, (AmbienceSynth.windLullDB + (AmbienceSynth.windGustDB - AmbienceSynth.windLullDB) * pow(ws, 0.9)) / 20) * (1 - 0.45 * shelterSm)
             }
+            // The turbulence envelope (shared by both ears): two low-passed noises, normalised to unit deviation, make a mean-square-preserving gamma-like gain that never repeats.
+            turbRng ^= turbRng << 13; turbRng ^= turbRng >> 17; turbRng ^= turbRng << 5
+            let tw = Float(Int32(bitPattern: turbRng)) / Float(Int32.max)
+            turbFast += turbFastA * (tw - turbFast); turbSlow += turbSlowA * (tw - turbSlow)
+            let g1 = max(0.3, 1 + 0.15 * turbFast * turbFastScale), g2 = max(0.5, 1 + 0.05 * turbSlow * turbSlowScale)
+            let turbulence = g1 * g1 / 1.1 * g2
             // Surf (F02 A1): discrete waves from SurfWaves (a swash, a crest, a drain, a quiet gap), evaluated every 32 samples and smoothed. Far inland the waves
             // give way to a slow smooth swell (lower level and darker, by the level law and the air-absorption cutoff, not by adding sub-bass).
             if i & 31 == 0 { waveNow = SurfWaves.state(time: t); swellNow = SurfWaves.farSwell(time: t) }
@@ -324,17 +341,20 @@ final class AmbienceSynth {
             let sweepPan = 0.35 * waveSm.sweep * (1 - far)                  // each wave travels along the shore
             var out = [Float](repeating: 0, count: 2)
             for ch in 0..<2 {
-                // --- wind: brown noise (about -12 dB/octave, with a 40 Hz floor), low-passed at a corner that rides the gust, one broad formant that only a strong gust
-                // opens (Q 1.2), and a faint high rustle where there is grass or leaf. No narrow resonance anywhere: a high-Q band-pass is a boiling kettle.
+                // --- wind (F09.4): pink turbulence with nothing under 90 Hz, a gentle two-pole low-pass whose corner rides the gust, an irregular turbulence envelope, and a faint high rustle
+                // where there is grass or leaf. No resonance anywhere: a narrow band is a boiling kettle, and a low hum is a sine wave on a laptop's speakers.
                 let w = white(ch)
-                windBrown[ch] = 0.990 * windBrown[ch] + 0.06 * w
-                windLP1[ch] += windA * (windBrown[ch] - windLP1[ch]); windLP2[ch] += windA * (windLP1[ch] - windLP2[ch])
-                windW1[ch] += windA * (w - windW1[ch]); windW2[ch] += windA * (windW1[ch] - windW2[ch])
-                howlLow[ch][0] += windF * howlBand[ch][0]; let hi1 = w * 0.4 - howlLow[ch][0] - howlBand[ch][0] / 1.2; howlBand[ch][0] += windF * hi1
+                windPink[ch][0] = 0.99765 * windPink[ch][0] + w * 0.0990460; windPink[ch][1] = 0.96300 * windPink[ch][1] + w * 0.2965164; windPink[ch][2] = 0.57000 * windPink[ch][2] + w * 1.0526913
+                let pink = (windPink[ch][0] + windPink[ch][1] + windPink[ch][2] + w * 0.1848) * 0.11
+                windHP[ch] += hpA * (pink - windHP[ch])
+                let hp1 = pink - windHP[ch]
+                windHP2[ch] += hpA * (hp1 - windHP2[ch])
+                let shaped = hp1 - windHP2[ch]                                                 // two poles: next to nothing under 90 Hz
+                windLP1[ch] += windA * (shaped - windLP1[ch]); windLP2[ch] += windA * (windLP1[ch] - windLP2[ch])
                 let wr = white(ch)                                                            // its own noise: independent of the body
                 rustleA[ch] += 0.35 * (wr - rustleA[ch]); rustleB[ch] += 0.15 * (wr - rustleB[ch])
                 let rustle = (rustleA[ch] - rustleB[ch]) * ws * vegetation * 0.8
-                let windOut = ((windLP2[ch] * 1.1 + windW2[ch] * 1.4) + howlBand[ch][0] * ws * ws * 0.22 + rustle) * windAmp
+                let windOut = windLP2[ch] * turbulence * windAmp + rustle * windAmp * (AmbienceSynth.rustleUnit / AmbienceSynth.windUnit)
 
                 // --- surf. The two channels have independent noise, so the wash has width.
                 brown[ch] = 0.997 * brown[ch] + 0.03 * white(ch)

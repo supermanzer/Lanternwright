@@ -6,6 +6,7 @@ final class AudioEngine {
     private let engine = AVAudioEngine()
     private var source: AVAudioSourceNode?
     private var lastUpdate = 0.0
+    private var treeCover: Float = 0                // F09.4: trunks close by (leaves hiss in the wind), refreshed with the slow tick
     /// S04.4: the Tide Archive's layers, mixed in after the main synth (Audio/ArchiveAudio.swift).
     let archive: ArchiveAudio
     private var water = WaterContact()
@@ -63,7 +64,7 @@ final class AudioEngine {
     /// is the gust you hear). Static so the selftests can drive exactly what the engine drives.
     static func windInput(game: Game) -> Float { Wind.strength(at: game.player.position, time: game.time) }
     /// How much grass is underfoot (the wind only rustles where there is something to rustle).
-    static func vegetationInput(game: Game) -> Float { game.surfaceMix.mix[StepMaterial.grass.rawValue] }
+    static func vegetationInput(game: Game, treeCover: Float = 0) -> Float { max(game.surfaceMix.mix[StepMaterial.grass.rawValue], 0.8 * treeCover) }
 
     /// The slide (F03 A3): how fast the ground is giving way under the player, and how stony it is (anything that is not grass). Static so the selftests drive what the engine drives.
     static func feedSlide(into synth: AmbienceSynth, game: Game) {
@@ -86,7 +87,7 @@ final class AudioEngine {
         synth.windStrength = AudioEngine.windInput(game: game)
         synth.marginPressure = game.player.marginPressure
         AudioEngine.feedWater(&water, into: synth, game: game)
-        synth.vegetation = AudioEngine.vegetationInput(game: game)
+        synth.vegetation = AudioEngine.vegetationInput(game: game, treeCover: treeCover)
         AudioEngine.feedSlide(into: synth, game: game)
         if game.footfalls != lastFootfalls {
             lastFootfalls = game.footfalls
@@ -107,6 +108,8 @@ final class AudioEngine {
         let sc = game.scene
         let amb = AudioSpace.ambient(at: p, ground: { sc.groundHeight(x: $0, z: $1) })
         synth.windGain = amb.windGain
+        synth.windShelter = AudioSpace.windShelter(at: p, ground: { sc.groundHeight(x: $0, z: $1) })
+        treeCover = AudioSpace.treeCover(at: p, colliders: sc.colliders.cylinders)
         let space = AudioSpace.read(listener: p, yaw: game.player.yaw, ground: { sc.groundHeight(x: $0, z: $1) })
         synth.reverbSeconds = AudioSpace.reverbTime(openness: space.openness)
         synth.surfPan = space.surfPan; synth.surfOcclusion = space.surfOcclusion

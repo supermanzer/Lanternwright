@@ -50,7 +50,8 @@ extension SelfTestRunner {
         let totalP = FootstepAnalysis.mean(specs0.map { FootstepAnalysis.band($0, 20, 9000) })
         let lowShare = FootstepAnalysis.mean(specs0.map { FootstepAnalysis.band($0, 20, 300) }) / max(totalP, 1e-12)
         let highShare = FootstepAnalysis.mean(specs0.map { FootstepAnalysis.band($0, 2000, 9000) }) / max(totalP, 1e-12)
-        check(lowShare > 0.6 && highShare < 0.003, "the wind is a low rush: below 300 Hz holds \(String(format: "%.0f", lowShare * 100)) % of its power (at least 60 %) and above 2 kHz \(String(format: "%.3f", highShare * 100)) % (at most 0.3 %) with no grass underfoot")
+        // F09.4 (#91) replaces the F03 spectrum rule (89 % under 300 Hz was a hum a laptop distorts): see `windvoice` for the new one. What stays from F03 is the level and that the top is quiet.
+        check(lowShare < 0.6 && highShare < 0.05, "the wind is a rush, not a hum: below 300 Hz holds \(String(format: "%.0f", lowShare * 100)) % of its power (under 60 %; it was 89 % before F09.4) and above 2 kHz \(String(format: "%.2f", highShare * 100)) % (at most 5 %) with no grass underfoot")
         // Rustle only where there is something to rustle: with no vegetation the high band is absent, with grass underfoot it appears in a gust.
         func rustleBand(_ veg: Float) -> Float {
             let x = Self.renderWind(at: summit, seconds: 40, sampleRate: sr, vegetation: veg)
@@ -70,7 +71,7 @@ extension SelfTestRunner {
             var sxy: Float = 0, sxx: Float = 0, syy: Float = 0
             for k in 0..<rus.count { sxy += (rus[k] - mr) * (ws[k] - mw); sxx += (rus[k] - mr) * (rus[k] - mr); syy += (ws[k] - mw) * (ws[k] - mw) }
             let cor = sxy / max((sxx * syy).squareRoot(), 1e-12)
-            check(hiShare < 0.03 && cor > 0.5, "with grass underfoot the only sound above 2 kHz is a faint rustle (\(String(format: "%.2f", hiShare * 100)) % of the power, at most 3 %) that follows the gust the grass bends with (correlation \(String(format: "%.2f", cor)), at least 0.5)")
+            check(hiShare < 0.35 && cor > 0.5, "with grass underfoot the only sound above 2 kHz is a faint rustle (\(String(format: "%.2f", hiShare * 100)) % of the power, at most 35 % of a body that is now much quieter; its absolute level is the F03 one) that follows the gust the grass bends with (correlation \(String(format: "%.2f", cor)), at least 0.5)")
         }
         check(grassy > bare * 1.5, "the wind rustles only where there is grass or leaf underfoot (power at 1.2-3.5 kHz: bare \(String(format: "%.2e", bare)), grass \(String(format: "%.2e", grassy)))")
 
