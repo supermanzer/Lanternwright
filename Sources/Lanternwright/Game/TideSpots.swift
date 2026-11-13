@@ -26,6 +26,8 @@ enum TideSpots {
     static func tableauLight(_ side: PageAuthor) -> SIMD3<Float> { ArchiveLayout.tableauLantern[side == .ilse ? 0 : 1] + SIMD3(0, 1.45, 0) }
     /// The ring on each quay that takes the player back to Varrow (the lamp end for Ilse's, the open end for Oren's).
     static func quayReturn(_ side: PageAuthor) -> SIMD3<Float> { (side == .oren ? ArchiveLayout.openEnd : ArchiveLayout.lampEnd) + SIMD3(side == .oren ? 3.5 : -3.5, 1.6, -3) }
+    /// The gallery's door: the opening in its west wall where the route's ramp goes in (the guide light parks just outside it once the water is down, F09.2).
+    static var galleryDoor: SIMD2<Float> { let g = ArchiveTerrain.gallery; return SIMD2(g.centre.x - g.half.x - 2.5, ArchiveLayout.greatLedger.z) }
     static let returnIDs = ["ta_return_ilse", "ta_return_oren"]
 
     /// The floor underfoot: brass grating inside a sluice room, wet slate elsewhere.

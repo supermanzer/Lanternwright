@@ -487,13 +487,46 @@ final class Game {
     /// Oren's lantern on Ilse's route (nil on the other), and Ilse's lamps on Oren's (which are lit), as positions on the ground.
     private(set) var guideLantern: SIMD2<Float>?
     private(set) var guideLamps: [(position: SIMD2<Float>, lit: Bool)] = []
-    private func syncGuides() {
+    /// F09.2: the guide light's state in the Archive: the objective it is lit toward (a key and a place) and the light itself.
+    private var guideLight: GuideLight?
+    private var guideKey: String?
+    var guideLightParked: Bool { guideLight?.parked ?? false }
+    var guideLightKey: String? { guideKey }
+    /// What the guide light points at now (Archive): Ilse's way, the first sluice not yet open; once the gallery has drained, its door, then (page 15 taken) the quay's lens back. Oren's way has Ilse's lamps until then.
+    private func guideObjective(_ route: PageAuthor) -> (key: String, at: SIMD2<Float>)? {
+        guard routeWorld == .tideArchive, let t = tideArchive else { return nil }
+        if !routeSolved {
+            guard route == .ilse else { return nil }
+            let k = min(t.opened, 2); let g = TideSpots.gate(k)
+            return ("gate\(k)", SIMD2(g.x, g.z))
+        }
+        if !state.has("page_15") { let d = TideSpots.galleryDoor; return ("gallery", SIMD2(d.x, d.y)) }
+        let q = TideSpots.quayReturn(route)
+        return ("quay", SIMD2(q.x, q.z))
+    }
+    private func syncGuides(dt: Float = 0) {
         guard tideArchive != nil, let sc = scenes[routeWorld] else { return }
         if routeSolved, scenes[.tideArchive] != nil, !state.has("page_15") { setInteractable("page_15", enabled: true) }          // the Great Ledger page on the gallery floor, once the water is down
-        let on = world == routeWorld && chosenPath != nil && !routeSolved
+        let here = world == routeWorld && chosenPath != nil
+        let on = here && !routeSolved
         let path = on ? routeGuidePath() : nil
         guideLantern = nil; guideLamps = []
-        if let path, let route = chosenPath, path.length > 1 {
+        let me = SIMD2(player.position.x, player.position.z)
+        if routeWorld == .tideArchive {
+            // F09.2: one light, objective by objective: it leads while the player approaches, parks at the target and stays.
+            if here, let route = chosenPath, let obj = guideObjective(route), let net = Layout.Navigation.active(for: routeWorld) {
+                if guideKey != obj.key {
+                    let from = guideLight?.position ?? me
+                    guideLight = GuideLight(path: GuidePath(net.route(from: from, to: obj.at) + [obj.at]), player: me); guideKey = obj.key
+                }
+                guideLight?.step(dt: dt, player: me)
+                guideLantern = guideLight?.position
+            } else { guideLight = nil; guideKey = nil }
+            if on, let path, let route = chosenPath, route == .oren, path.length > 1 {
+                let prog = path.progress(of: me)
+                guideLamps = (0..<GuideLanterns.lampCount(pathLength: path.length)).map { k in (path.point(at: GuideLanterns.lampDistance(k)), GuideLanterns.lampLit(k, playerProgress: prog)) }
+            }
+        } else if let path, let route = chosenPath, path.length > 1 {
             let prog = path.progress(of: SIMD2(player.position.x, player.position.z))
             if route == .ilse { guideLantern = path.point(at: GuideLanterns.lanternDistance(playerProgress: prog, pathLength: path.length)) }
             else { guideLamps = (0..<GuideLanterns.lampCount(pathLength: path.length)).map { k in (path.point(at: GuideLanterns.lampDistance(k)), GuideLanterns.lampLit(k, playerProgress: prog)) } }
@@ -758,7 +791,7 @@ final class Game {
         setInteractable(Game.portalStepName, enabled: exitLightsOn && lensPortal.isOpen)
         syncNextLens()
         syncTideInteractables()
-        syncGuides()
+        syncGuides(dt: dt)
         journal.route = chosenPath ?? .ilse; journal.archiveShown = chosenPath != nil          // S04.7: the voice of pages 10-15, and the Archive's slots
         syncInterior()
         syncSeals()

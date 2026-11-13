@@ -47,6 +47,34 @@ struct GuidePath {
     }
 }
 
+/// F09.2 (#94, #98: "The floating light follows me away from this location if I turn around... it should stay at its final location once the player has followed it"). The guide light LEADS only while the player
+/// approaches its target: it keeps `ahead` metres in front of the player along the route to the objective, never moves back (turning round does not draw it after the player), and when the player comes within
+/// `settleRange` of the target it goes there and STAYS (steady glow) until the next objective relights it toward that one. Pure: a path and the player's position in, a position out.
+struct GuideLight {
+    static let ahead: Float = 14, settleRange: Float = 6, speed: Float = 7, settleSpeed: Float = 14
+    let path: GuidePath
+    /// Metres along `path` where the light is. Only ever grows.
+    private(set) var s: Float
+    private(set) var parked = false
+    var position: SIMD2<Float> { path.point(at: s) }
+    var target: SIMD2<Float> { path.points.last ?? .zero }
+
+    /// A light for a new objective: `path` runs from where the light is to the objective; it appears `ahead` of a player standing on the path's start.
+    init(path: GuidePath, player: SIMD2<Float>) {
+        self.path = path
+        s = min(path.progress(of: player) + GuideLight.ahead, path.length)
+        if simd_length(player - (path.points.last ?? .zero)) < GuideLight.settleRange { s = path.length; parked = true }
+    }
+
+    mutating func step(dt: Float, player: SIMD2<Float>) {
+        guard !parked else { return }
+        let near = simd_length(player - target) < GuideLight.settleRange
+        let desired = near ? path.length : min(path.progress(of: player) + GuideLight.ahead, path.length)
+        s = max(s, min(desired, s + (near ? GuideLight.settleSpeed : GuideLight.speed) * dt))          // forward only, at a walking light's pace (quicker when it is going to its post)
+        if s >= path.length - 0.01 { s = path.length; parked = true }
+    }
+}
+
 enum GuideLanterns {
     /// Oren's lantern stays this far ahead of the player along the path (Ilse's route), and never reaches the path's end before the player does.
     static let ahead: Float = 14
