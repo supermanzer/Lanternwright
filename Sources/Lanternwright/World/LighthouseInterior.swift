@@ -111,7 +111,7 @@ struct LighthouseInterior {
 
     /// The ring of cylinders that replaces the tower's solid core while the door is open: the wall from `innerR` outward (in bands of 3 m, each as thin as the shaft is at the band's top),
     /// the stair's inner rail, and a door gap at the foot (the gap is 1.3 m clear between cylinders, for a player 0.7 m across and a door 1.1 m wide). Bands overlap the floor by one metre so nothing leaks.
-    func wallColliders() -> [CylinderCollider] {
+    func wallColliders(legacyDoorGap: Bool = false) -> [CylinderCollider] {
         var out: [CylinderCollider] = []
         let cylR: Float = 0.55
         var y0 = LighthouseInterior.floorY - 1
@@ -123,7 +123,7 @@ struct LighthouseInterior {
             for i in 0..<n {
                 let a = 2 * .pi * Float(i) / Float(n)
                 let c = SIMD2(cos(a), sin(a)) * ringR
-                if y0 < LighthouseInterior.floorY + 3.2 && c.y > 0 && abs(c.x) < 1.2 { continue }      // the door, on the south side (+Z)
+                if (legacyDoorGap ? y0 < LighthouseInterior.floorY + 3.2 : y1 <= LighthouseInterior.floorY + 3.2) && c.y > 0 && abs(c.x) < 1.2 { continue }      // the door, on the south side (+Z)
                 out.append(CylinderCollider(center: origin + c, radius: cylR, minY: baseY + y0, maxY: baseY + y1 + 0.2))
             }
             y0 = y1
@@ -203,8 +203,16 @@ struct LighthouseInterior {
         // the gallery deck begin at 2.62 m, so a ring 52 cm wide stood open down to the ground. A floor ring closes it: from under the floor's edge out to the deck, its inner top 2 mm under the floor's (hidden by it),
         // flush at the floor's height out to r 2.45 and then a kerb up to the deck's level where the iron base stands on it.
         let ringTop = lensFloorY - 0.002
-        shell.lathe(profile: [SIMD2(2.08, ringTop - 0.25), SIMD2(2.66, ringTop - 0.25), SIMD2(2.66, Lighthouse.topY + 0.33), SIMD2(2.45, Lighthouse.topY + 0.33), SIMD2(2.45, ringTop), SIMD2(2.08, ringTop)],
+        shell.lathe(profile: [SIMD2(2.08, ringTop - 0.25), SIMD2(2.66, ringTop - 0.25), SIMD2(2.66, Lighthouse.topY + 0.33), SIMD2(2.45, Lighthouse.topY + 0.33), SIMD2(2.45, ringTop), SIMD2(2.08, ringTop), SIMD2(2.08, ringTop - 0.25)],        // F09.5: closed with an inner face (at the hatch, where no floor sector covers it, the slab's open edge showed a 25 cm slot)
                     segments: 48, smooth: false, surface: woodDark, transform: place)
+        // F09.5 (#93: "a gap between the top floor of the lighthouse and the lower wall is still present"): the lantern's iron base (r 2.62, from the kerb at 24.93 to 25.4) and the copper roof are drawn as
+        // one-sided skins that face OUT, so from inside the lens room (and from the stair looking up through the hatch) a 47 cm band between the floor and the glass, and the whole dome, were not there:
+        // the outside showed through. Their inside faces are drawn here (profiles reversed so the normals face the room), in the same iron and copper.
+        let ironIn = Surface(color: SIMD3(0.05, 0.055, 0.07), roughness: 0.5, material: .iron)
+        let copperIn = Surface(color: SIMD3(0.5, 0.4, 0.3), roughness: 0.5, material: .copper)
+        shell.lathe(profile: [SIMD2(2.62, Lighthouse.topY + 0.92), SIMD2(2.62, Lighthouse.topY + 0.33)], segments: 48, smooth: true, surface: ironIn, transform: place)
+        shell.lathe(profile: [SIMD2(2.0, 25.47), SIMD2(2.62, 25.47)], segments: 48, smooth: true, surface: ironIn, transform: place)
+        shell.lathe(profile: Lighthouse.roofProfile.reversed().map { SIMD2($0.x - 0.01, $0.y - 0.02) }, segments: 48, smooth: true, surface: copperIn, transform: place)
         // Flags on the ground room's floor.
         shell.cylinder(radiusTop: innerR(floorY), radiusBottom: innerR(floorY), height: 0.02, segments: 48, smooth: false, surface: stone, transform: place * translation(SIMD3(0, floorY - 0.01, 0)))
         // The lens room's floor: a disc less the hatch the stair comes up through, in six sectors (a disc over the well and the part outside the hatch).

@@ -54,6 +54,16 @@ enum Lighthouse {
         return out
     }
 
+    /// The copper roof's profile (radius, height), bottom to top: the outside of the ogee dome. F09.5 draws its inside too (`LighthouseInterior`), since the roof alone is a one-sided skin.
+    static var roofProfile: [SIMD2<Float>] {
+        var roof: [SIMD2<Float>] = [SIMD2(2.62, 28.55), SIMD2(2.74, 28.62), SIMD2(2.66, 28.76)]
+        for k in 1...10 {
+            let t = Float(k) / 10
+            roof.append(SIMD2(2.55 * (1 - pow(t, 1.35)) + 0.42 * (1 - t), 28.76 + 1.9 * t + 0.25 * sin(.pi * t)))
+        }
+        return roof
+    }
+
     static func build(into scene: Scene, device: MTLDevice) {
         let granite = Surface(color: SIMD3(0.47, 0.44, 0.41), roughness: 0.9, material: .masonry)
         let graniteDark = Surface(color: SIMD3(0.36, 0.34, 0.32), roughness: 0.9, material: .masonry)
@@ -228,11 +238,7 @@ enum Lighthouse {
         b.torus(major: 2.2, minor: 0.07, segments: 64, sides: 8, surface: iron, transform: translation(SIMD3(0, 28.6, 0)))
 
         // ---- Copper roof: an ogee dome with twelve ribs, a ventilator cowl, a weathervane and a lightning rod.
-        var roof: [SIMD2<Float>] = [SIMD2(2.62, 28.55), SIMD2(2.74, 28.62), SIMD2(2.66, 28.76)]
-        for k in 1...10 {
-            let t = Float(k) / 10
-            roof.append(SIMD2(2.55 * (1 - pow(t, 1.35)) + 0.42 * (1 - t), 28.76 + 1.9 * t + 0.25 * sin(.pi * t)))
-        }
+        let roof = roofProfile
         b.lathe(profile: roof, segments: seg, surface: copper)
         for i in 0..<12 {
             let a = Float(i) / 12 * 2 * .pi
