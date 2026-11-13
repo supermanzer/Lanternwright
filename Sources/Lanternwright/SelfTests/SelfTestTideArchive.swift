@@ -54,7 +54,9 @@ extension SelfTestRunner {
         let a = routeGame(.ilse), tideA = a.tideArchive!
         check(a.world == a.routeWorld && tideA.hasFork && !tideA.hasLens, "archive: Ilse's route comes with the tuning fork and not the lens")
         frame(a)
-        check(a.interactables.first { $0.id == T.ringName }?.enabled == false && a.interactables.first { $0.id == T.findLensName }?.enabled == true && a.interactables.first { $0.id == T.findForkName }?.enabled == false, "archive: the ring waits for the lens, the lens lies there to be found, the fork is already in hand")
+        check(a.interactables.first { $0.id == T.ringName }?.enabled == true && a.interactables.first { $0.id == T.findLensName }?.enabled == true && a.interactables.first { $0.id == T.findForkName }?.enabled == false, "archive: the ring is always touchable (F09.1), the lens lies there to be found, the fork is already in hand")
+        a.activate(T.ringName)
+        check(tideA.ringAngle == T.initialRing && a.banner?.contains("empty") == true, "archive: without a lens the ring does not turn and says it is empty (F09.1, #96)")
 
         // Ilse's way, the right way: tide gate at low water, wind at mid, stone at high, each tone held.
         up(a, 0); tideA.touchSluice(0); to(a, a.time + hold)

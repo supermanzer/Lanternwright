@@ -25,6 +25,7 @@ enum ArchiveStory {
         addChainMap(scene, device: device)
         addTableau(scene, device: device)
         addFinds(scene, device: device)
+        addReturns(scene, device: device)
         addGallery(scene, device: device)
     }
 
@@ -152,6 +153,33 @@ enum ArchiveStory {
             let x = w.x + (f.x - 0.5) * (hw * 2 - 0.8) + 0.12 * ShadowTableaux.shift(time)
             let h = f.height * (wallHeight - 0.4) / 1.0
             scene.update(figureName(f.posture, i)) { $0.hidden = false; $0.uniforms.model = translation(SIMD3(x, base + 0.15, w.z + 0.23)) * scaling(SIMD3(h, h, 1)) }
+        }
+    }
+
+    // MARK: The way back (F09.1)
+
+    /// The lens on each quay that takes the player back to Varrow (#107, #115: the prompt "Return through the lens" showed with nothing there). A pale-stone post with a brass collar holds a lens ring
+    /// upright (the lens-portal look of Varrow's lens room and the Glass Wood: a glass torus, a luminous disc, a soft core), at the spot of `TideSpots.quayReturn`; the box sits on the ring.
+    static func addReturns(_ scene: Scene, device: MTLDevice) {
+        for side in [PageAuthor.ilse, .oren] {
+            let c = TideSpots.quayReturn(side)
+            let name = side == .oren ? "oren" : "ilse"
+            var post = MeshBuilder()
+            let base = scene.groundHeight(x: c.x, z: c.z), h = c.y - base
+            // The plinth stops under the ring (the ring's lowest point is 1.07 m below its centre): nothing stands in front of the lens.
+            let top = c.y - 1.1, ph = max(top - base, 0.3)
+            post.chamferBox(size: SIMD3(0.6, ph + 0.3, 0.6), chamfer: 0.03, surface: ArchiveProps.slateLight, transform: translation(SIMD3(c.x, top - ph / 2 - 0.15 + 0.15 - 0.15 + 0.15, c.z)))
+            post.chamferBox(size: SIMD3(0.8, 0.1, 0.8), chamfer: 0.02, surface: ArchiveProps.brass, transform: translation(SIMD3(c.x, top + 0.05, c.z)))
+            scene.colliders.addCylinder(center: SIMD2(c.x, c.z), radius: 0.4, minY: base - 1, maxY: c.y + 1)
+            scene.add("ta_return_post_\(name)", mesh: post.build(device: device, label: "return post"), uniforms: ObjectUniforms(model: matrix_identity_float4x4))
+            var ring = MeshBuilder()
+            ring.torus(major: 0.95, minor: 0.12, segments: 36, sides: 10, surface: Surface(color: SIMD3(0.8, 0.95, 1.0), roughness: 0.1, material: .emissiveGlass), transform: rotationX(.pi / 2))
+            scene.add("ta_return_ring_\(name)", mesh: ring.build(device: device, label: "return ring"),
+                      uniforms: ObjectUniforms(model: translation(c), tint: SIMD4(1, 1, 1, 1), emissive: SIMD4(side == .oren ? 0.6 : 1.0, 0.8, side == .oren ? 1.0 : 0.5, 2.2)))
+            var core = MeshBuilder()
+            core.sphere(radius: 0.25, segments: 14, surface: Surface(color: SIMD3(1, 1, 1), roughness: 0.2))
+            scene.add("ta_return_core_\(name)", mesh: core.build(device: device, label: "return core"),
+                      uniforms: ObjectUniforms(model: translation(c), tint: SIMD4(1, 1, 1, 1), emissive: SIMD4(1.0, 0.9, 0.7, 5)))
         }
     }
 

@@ -289,6 +289,7 @@ final class Game {
     static let portalStepName = "lh_portal_step"
     var hoverPrompt: String? {
         guard let h = hovered else { return nil }
+        if h.id == TideArchivePuzzle.ringName, tideArchive?.hasLens != true { return "The ring is empty" }        // F09.1 (#96): the prism's ring is in plain view; say why it does not turn yet
         guard exitLightsOn else { return h.id == Game.portalStepName ? nil : h.prompt }
         switch h.id {
         case Game.lampLensName: return "Ilse\u{2019}s way: touch the lens"
@@ -314,7 +315,11 @@ final class Game {
 
     func activate(_ id: String) {
         if id == "lens_ring" { lensPortal.turn(ringClickSteps()); return }              // before the puzzle's own handler, which would always turn it one way
-        if id == TideArchivePuzzle.ringName { tideArchive?.turn(ringClickSteps(for: id)); return }
+        if id == TideArchivePuzzle.ringName {
+            if tideArchive?.hasLens == true { tideArchive?.turn(ringClickSteps(for: id)) }
+            else { showBanner("The ring is empty. Something like a lens belongs in its cradle.") }
+            return
+        }
         if let owner = puzzles.first(where: { $0.handles(id) }) {
             owner.activate(id)
         } else if id.hasPrefix("page_"), let n = Int(id.dropFirst(5)) {
@@ -458,7 +463,7 @@ final class Game {
     /// The ring answers once the lens is in hand; a tool lying in the world is there until it is taken.
     private func syncTideInteractables() {
         guard let t = tideArchive else { return }
-        setInteractable(TideArchivePuzzle.ringName, enabled: t.hasLens)
+        setInteractable(TideArchivePuzzle.ringName, enabled: true)          // F09.1 (#96): always touchable; without a lens it says it is empty (`hoverPrompt`)
         setInteractable(TideArchivePuzzle.findForkName, enabled: !t.hasFork)
         setInteractable(TideArchivePuzzle.findLensName, enabled: !t.hasLens)
         for side in [PageAuthor.ilse, .oren] { setInteractable(TideArchivePuzzle.tableauLightName(side), enabled: t.tableauSideAvailable(side, route: chosenPath)) }       // S04 optional: the tableau's two lanterns

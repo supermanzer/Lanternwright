@@ -220,12 +220,27 @@ enum ArchiveLayout {
     static let sluices: [SIMD3<Float>] = zip(sluiceSites, sluiceFloors).map { SIMD3($0.x, $1, $0.y) }      // not read from the terrain: the terrain is sunk to these heights
     /// S04.3 follow-up: where builder B's interactables stand (the Pending-A items): the six pages (10-15) in the order the route meets them, the chain map's plinth, the shadow-play wall and the lantern at
     /// each side of it (`tableauLantern[0]` Ilse's side, west; `[1]` Oren's, east), the two tools lying in the world, and the prism ring (the prism's own position).
-    static let pageSpots: [SIMD3<Float>] = [point(9, 98), point(stacks.x - 11.2, stacks.z + 1.0), point(sluiceSites[1].x, sluiceSites[1].y - 18), point(greatLedgerXZ.x - 28, greatLedgerXZ.y + 4),
-                                           point(dome.x + 4.6, dome.z + 10.6), point(prismChamber.x + 2.3, prismChamber.z + 1.5)]
-    static let chainMap = point(-31, -52)
-    static let tableauWall = point(-20, -32), tableauHalfWidth: Float = 4.0
-    static let tableauLantern: [SIMD3<Float>] = [point(-20 - 5.6, -30), point(-20 + 5.6, -30)]
-    static let findFork = point(-52, 14), findLens = point(sluiceSites[0].x, sluiceSites[0].y + 17)
+    /// F09.1: every spot is ON the guided route (within ~3 m of its centreline) and in story order: 10 landing, 11 lectern at the stacks, 12 the Roll of Keepers' desk on the way to the gallery, 13 outside the prism chamber,
+    /// 14 under the dome, 15 on the Great Ledger gallery's floor (appears once the water is down). `TideSpots` derives the interaction boxes from these, so a prop and its box cannot drift apart again.
+    static let pageSpots: [SIMD3<Float>] = [besideRoute(9, 98), besideRoute(-54, 27), besideRoute(35, -23), besideRoute(3, -120), besideRoute(-3, -91), point(greatLedgerXZ.x - 4, greatLedgerXZ.y)]
+    /// The spot on the route's graded strip nearest (x, z), then `offset` m across it from the centreline (towards the original spot): grass does not grow within 1.2 m of the route (`Terrain.pathWeight`), so a page lying
+    /// there has no blade through it (#95), and the player passes it at arm's length.
+    static func besideRoute(_ x: Float, _ z: Float, offset: Float = 0.8) -> SIMD3<Float> {
+        let p = SIMD2<Float>(x, z)
+        var best = (d: Float.infinity, q: p)
+        for k in 0..<(path.count - 1) {
+            let a = SIMD2(path[k].x, path[k].z), b = SIMD2(path[k + 1].x, path[k + 1].z), ab = b - a
+            let t = min(max(simd_dot(p - a, ab) / max(simd_dot(ab, ab), 1e-6), 0), 1), q = a + ab * t
+            if simd_length(p - q) < best.d { best = (simd_length(p - q), q) }
+        }
+        let away = p - best.q, d = simd_length(away)
+        let q = d > 1e-3 ? best.q + away / d * offset : best.q + SIMD2(offset, 0)
+        return point(q.x, q.y)
+    }
+    static let chainMap = point(8, -96)
+    static let tableauWall = point(44, -44), tableauHalfWidth: Float = 4.0
+    static let tableauLantern: [SIMD3<Float>] = [point(44 - 5.6, -42), point(44 + 5.6, -42)]
+    static let findFork = point(-42, 43), findLens = point(-27, -62)
     static let prismRing = prismChamber + SIMD3(0, 1.75, 0)
     /// The third terrace's lamp stand and the way up to the dome.
     static let upperLamp = point(-36, -56)

@@ -79,6 +79,7 @@ if options.parallax {
 }
 
 if options.freeRoam { Player.guidance = .free }
+if options.auditInteractables { exit(InteractableAudit.main(device: device, out: options.auditInteractablesOut) ? 0 : 1) }
 if options.navAudit { exit(NavigationAudit.main(device: device, out: options.navAuditOut) ? 0 : 1) }
 
 if let path = options.navOverlayPath {

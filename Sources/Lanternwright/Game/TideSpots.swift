@@ -12,26 +12,18 @@ enum TideSpots {
     }
     /// The prism's ring: on the brass pedestal under the prism.
     static let prismRing = ArchiveProps.prismPosition + SIMD3(0, -0.55, 0)
-    /// The two tools lying in the world: the tuning fork among Ilse's ledgers (the stacks), the lens near the upper lamp on the way to the dome.
-    static let fork = ArchiveLayout.point(-52, 34) + SIMD3(0, 0.95, 0)
-    static let lens = ArchiveLayout.point(-30, -62) + SIMD3(0, 0.95, 0)
-    /// The chain map: a stand beside the dome's door.
-    static let chainMap = ArchiveLayout.point(7, -96) + SIMD3(0, 1.2, 0)
-    /// The pages (S04.7), each by its landmark; 15 lies on the Great Ledger gallery's floor and is only there once the water has been drained.
+    /// The two tools lying in the world, the chain map and the pages: the boxes sit on A's props (`ArchiveLayout`), which stand on the guided route (F09.1).
+    static let fork = ArchiveLayout.findFork + SIMD3(0, 0.95, 0)
+    static let lens = ArchiveLayout.findLens + SIMD3(0, 0.95, 0)
+    static let chainMap = ArchiveLayout.chainMap + SIMD3(0, 1.2, 0)
+    /// The pages (S04.7); 15 lies on the Great Ledger gallery's floor and is only offered once the water has been drained.
     static func page(_ n: Int) -> SIMD3<Float> {
-        switch n {
-        case 10: return ArchiveLayout.point(3, 88) + SIMD3(0, 0.4, 0)                     // the landing, above the quays
-        case 11: return ArchiveLayout.point(-54, 27) + SIMD3(0, 0.55, 0)                  // a lectern at the stacks
-        case 12: return ArchiveLayout.point(52, -22) + SIMD3(0, 0.55, 0)                  // the Roll of Keepers' desk, on the way to the gallery
-        case 13: return ArchiveLayout.point(3, -120) + SIMD3(0, 0.4, 0)                   // outside the prism chamber's doorway
-        case 14: return ArchiveLayout.point(-5, -96) + SIMD3(0, 0.4, 0)                   // under the dome
-        default: return SIMD3(ArchiveLayout.greatLedgerXZ.x - 4, ArchiveTerrain.gallery.floor + 0.3, ArchiveLayout.greatLedgerXZ.y)
-        }
+        if n == 15 { return SIMD3(ArchiveLayout.pageSpots[5].x, ArchiveTerrain.gallery.floor + 0.3, ArchiveLayout.pageSpots[5].z) }
+        let i = max(0, min(4, n - 10))
+        return ArchiveLayout.pageSpots[i] + SIMD3(0, 0.2, 0)
     }
-    /// The tableau's two lanterns, at the gallery's west wall (north for Ilse's side, south for Oren's).
-    static func tableauLight(_ side: PageAuthor) -> SIMD3<Float> {
-        SIMD3(ArchiveLayout.greatLedgerXZ.x - 17, ArchiveTerrain.gallery.floor + 1.0, ArchiveLayout.greatLedgerXZ.y + (side == .ilse ? -8 : 8))
-    }
+    /// The tableau's two lanterns, at the shadow-play wall (west for Ilse's side, east for Oren's): the lamp item sits 1.2 m above its stand's ground.
+    static func tableauLight(_ side: PageAuthor) -> SIMD3<Float> { ArchiveLayout.tableauLantern[side == .ilse ? 0 : 1] + SIMD3(0, 1.45, 0) }
     /// The ring on each quay that takes the player back to Varrow (the lamp end for Ilse's, the open end for Oren's).
     static func quayReturn(_ side: PageAuthor) -> SIMD3<Float> { (side == .oren ? ArchiveLayout.openEnd : ArchiveLayout.lampEnd) + SIMD3(side == .oren ? 3.5 : -3.5, 1.6, -3) }
     static let returnIDs = ["ta_return_ilse", "ta_return_oren"]
@@ -47,7 +39,7 @@ enum TideSpots {
         }
         var list: [Interactable] = []
         for k in 0..<3 { list.append(box(TideArchivePuzzle.sluiceNames[k], gate(k), "Touch the gate", half: 0.9)) }
-        list.append(box(TideArchivePuzzle.ringName, prismRing, "Turn the ring  \u{2039} \u{203A}", half: 0.9, enabled: false))
+        list.append(box(TideArchivePuzzle.ringName, prismRing, "Turn the ring  \u{2039} \u{203A}", half: 0.9))
         list.append(box(TideArchivePuzzle.findForkName, fork, "Take the fork"))
         list.append(box(TideArchivePuzzle.findLensName, lens, "Take the lens"))
         list.append(box(ChainMap.interactableName, chainMap, "Read the map"))

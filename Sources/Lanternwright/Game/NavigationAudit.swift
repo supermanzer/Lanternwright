@@ -81,7 +81,7 @@ enum NavigationAudit {
 
     /// A place to stand for an interactable: the nearest spot to it (searched outward in 1 m rings) that is inside a corridor connected to the spawn (at least half a metre in),
     /// clear of every collider (the player's own radius included: the centre of a standing stone is not a place to stand), on ground that is dry enough and not steeper than the walking limit, with the eye within its reach of the box.
-    static func standingPlace(for it: Interactable, scene: Scene, net: NavNetwork) -> (point: SIMD2<Float>, sd: Float, eyeDistance: Float)? {
+    static func standingPlace(for it: Interactable, scene: Scene, net: NavNetwork, eyeOK: ((SIMD3<Float>) -> Bool)? = nil) -> (point: SIMD2<Float>, sd: Float, eyeDistance: Float)? {
         let centre = SIMD2((it.min.x + it.max.x) / 2, (it.min.z + it.max.z) / 2)
         // S03.5: an interactable high inside the lighthouse (the lens ring) is stood at on the interior's floor with the open interior's walls, not the hill's ground and the solid core.
         let interior = LighthouseInterior()
@@ -109,10 +109,10 @@ enum NavigationAudit {
                 guard cylinders.allSatisfy({ simd_length(s - $0.center) >= $0.radius + Player.radius || ground >= $0.maxY || ground + Player.eyeHeight <= $0.minY }) else { continue }
                 let eye = SIMD3(s.x, ground + Player.eyeHeight, s.y)
                 let d = simd_length(eye - simd_clamp(eye, it.min, it.max))
-                if d <= it.reach - 0.3, best == nil || sd < best!.1 { best = (s, sd, d) }
+                if d <= it.reach - 0.3, best == nil || sd < best!.1, eyeOK?(eye) ?? true { best = (s, sd, d) }
             }
             if let b = best { return (point: b.0, sd: b.1, eyeDistance: b.2) }          // the nearest ring that has one; the deepest inside on that ring
-            radius += 1
+            radius += 0.5          // F09.1: half-metre rings (the lens room has floor only 1.4-1.6 m from the axis; whole-metre rings jumped over it)
         }
         return nil
     }

@@ -48,6 +48,8 @@ struct LaunchOptions {
     var listPages = false
     var navOverlayPath: String?
     var navAudit = false
+    var auditInteractables = false
+    var auditInteractablesOut: String?
     var freeRoam = false
     var navAuditOut: String?
     var parallax = false
@@ -107,6 +109,7 @@ struct LaunchOptions {
       --freeroam                   Ignore the navigation corridors (free roam), whatever the saved Guidance setting says (M10.7)
       --nav-audit [out.txt]        Check that every interactable, page and vantage is reachable and visible inside the navigation corridors; print the region numbers (M10.6)
       --nav-overlay <path.png>     Write a top-down map of each world's navigation corridors to <path>-varrow.png and <path>-glasswood.png (M10.3)
+      --audit-interactables [out.txt]  F09.1: every interactable of every world: its prop, whether the reticle ray hits it from the corridor, PASS/FAIL
       --audit-props [out.md]       List every scene item with its materials and flag large props drawn flat (docs/PROPS.md)
       --controls-md                Print the README controls table, generated from App/Controls.swift
       --feedback                   Print all saved player feedback and exit
@@ -178,6 +181,7 @@ struct LaunchOptions {
             case "--list-pages": o.listPages = true
             case "--nav-overlay": o.navOverlayPath = next()
             case "--freeroam": o.freeRoam = true
+            case "--audit-interactables": o.auditInteractables = true; if i + 1 < args.count, !args[i + 1].hasPrefix("--") { o.auditInteractablesOut = next() }
             case "--nav-audit": o.navAudit = true; if i + 1 < args.count, !args[i + 1].hasPrefix("--") { o.navAuditOut = next() }
             case "--parallax": o.parallax = true
             case "--taa": o.taa = true
