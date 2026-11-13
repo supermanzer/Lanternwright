@@ -372,7 +372,7 @@ extension SelfTestRunner {
                 check(dominant(mixAt(w.x, w.y)) == .wetSand && dominant(mixAt(d.x, d.y)) == .drySand, "surface mix: wet sand at the waterline, dry sand above it")
             } else { check(false, "surface mix: found wet and dry sand sample points") }
             let pathMid = (Layout.tideStone + Layout.windStone) * 0.5
-            check(dominant(mixAt(pathMid.x, pathMid.z)) == .earth || mixAt(pathMid.x, pathMid.z)[StepMaterial.earth.rawValue] > 0.4, "surface mix: the lantern path is packed earth")
+            check(dominant(mixAt(pathMid.x, pathMid.z)) == .shingle || mixAt(pathMid.x, pathMid.z)[StepMaterial.shingle.rawValue] > 0.4, "surface mix: the lantern path is shingle (F09.4)")
             check(dominant(mixAt(Layout.summitStone.x + 12, Layout.summitStone.z + 30)) != .wood, "surface mix: the hillside is not planks")
             // Stone: the lighthouse plinth and doorstep, and the Glass Wood's inlaid plate.
             let doorStep = Layout.lighthouse + SIMD3(0, 0, Lighthouse.wallR(2.0) + 1.5)
@@ -383,7 +383,7 @@ extension SelfTestRunner {
             var worstSum: Float = 1
             for k in 0..<600 {
                 let x = -250 + Float(k % 30) * 17, z = -300 + Float(k / 30) * 28
-                let m = mixAt(x, z); let s = (0..<7).map { m[$0] }.reduce(0, +)
+                let m = mixAt(x, z); let s = (0..<8).map { m[$0] }.reduce(0, +)
                 if abs(s - 1) > abs(worstSum - 1) { worstSum = s }
             }
             check(abs(worstSum - 1) < 0.02, "surface mix: the weights add up to 1 wherever you stand (worst \(worstSum))")

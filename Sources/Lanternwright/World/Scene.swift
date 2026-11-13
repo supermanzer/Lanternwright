@@ -198,7 +198,7 @@ final class Scene {
         mix[StepMaterial.grass.rawValue] = grass * keep
         mix[StepMaterial.drySand.rawValue] = sand * (1 - wet) * keep
         mix[StepMaterial.wetSand.rawValue] = sand * wet * keep
-        mix[StepMaterial.earth.rawValue] = earth * keep
+        mix[StepMaterial.shingle.rawValue] = earth * keep                      // F09.4 (#90): the lantern path is shingle underfoot (the `earth` voice stays for the ground under planks)
         mix[StepMaterial.rock.rawValue] = rock * keep
         mix[StepMaterial.stone.rawValue] = stone
         mix[StepMaterial.wood.rawValue] = wood

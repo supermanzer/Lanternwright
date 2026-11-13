@@ -12,6 +12,8 @@ import Foundation
 /// Heel then toe (toe at 40 % level, half the grains, a brighter shorter body); running is one harder, shorter contact.
 enum StepMaterial: Int, CaseIterable {
     case grass = 0, drySand, wetSand, earth, rock, stone, wood
+    /// F09.4 (#90): the lantern path as the user hears and sees it: shingle, many small hard stones (the eighth lane of `StepMix`).
+    case shingle
 }
 
 /// Weights over `StepMaterial` (index = rawValue); the eighth lane is unused. Surfaces blend by weight, not by switching.
@@ -33,6 +35,7 @@ struct FootstepRecipe {
     var grainSweep: Float = 0.7                       // end/start centre frequency over a grain's life
     var grainSwish: Float = 0                         // 0 flat, 1 a level bump across the window (sand settling)
     var grainCrunch: Float = 0                        // 0 even levels, 1 a few much louder grains (small stones giving way)
+    var grainDecaying = false                         // true: each grain is a CLICK (a 0.1 ms attack and an exponential decay, a struck stone's ring) instead of a symmetric Hann puff
     var pebbleBoost: Float = 0                        // extra grains per unit of pebble level
     // Character
     var creakChance: Float = 0
@@ -88,6 +91,13 @@ struct FootstepRecipe {
         FootstepRecipe(impactAttack: 0.002, impactDecay: 0.012, impactCutoff: 3200, impactGain: 0.14,
                        modes: [Mode(hz: 125, decay: 0.10, gain: 0.24, cavity: true), Mode(hz: 190, decay: 0.024, gain: 0.38), Mode(hz: 340, decay: 0.020, gain: 0.30), Mode(hz: 900, decay: 0.02, gain: 0.14)],
                        creakChance: 1.0 / 12.0, perPlank: true, reverbSend: 0.08),
+        // shingle (F09.4, #90: "like you have muddy boots on"): a path of small hard stones, not soft ground. NO low thump and nothing wet (the old path voice was a 95 Hz mode and a 2.2 kHz low-passed
+        // thud: earth under a boot, which reads as mud). Physically: the foot shifts many small stones against each other. Each contact is a CLICK: a 1-3 ms decaying resonance of a small hard stone
+        // (2-6 kHz, its own pitch and level, a few much louder: the stones that give way), 15-40 of them over about 90 ms for the heel; under them a low CRUNCH, band-passed noise (450 Hz-1.8 kHz,
+        // about 50 ms) of the bed of stones settling. Toe: half the clicks, brighter, shorter (the engine's usual 0.075 s later).
+        FootstepRecipe(impactAttack: 0.004, impactDecay: 0.045, impactCutoff: 1800, impactGain: 0.40, impactHighpass: 450,
+                       grainMin: 15, grainMax: 40, grainWindow: 0.09, grainFreqLo: 2000, grainFreqHi: 6000, grainLenLo: 0.001, grainLenHi: 0.003,
+                       grainGain: 0.26, grainSweep: 0.95, grainSwish: 0.25, grainCrunch: 0.9, grainDecaying: true, pebbleBoost: 0.8, reverbSend: 0.05),
     ]
 
     static func material(for kind: SurfaceKind) -> StepMaterial {
@@ -110,7 +120,7 @@ final class Footsteps {
     private struct Mode { var delay: Float; var age: Float = 0; var hz: Float; var glide: Float; var attack: Float; var decay: Float; var gain: Float; var phase: Float = 0
                           var pan: Float; var send: Float }
     private struct Grain { var delay: Float; var age: Float = 0; var len: Float; var gain: Float; var f0: Float; var f1: Float
-                           var ic1: Float = 0, ic2: Float = 0; var a1: Float = 0, a2: Float = 0, a3: Float = 0; var seed: UInt32; var pan: Float; var send: Float }
+                           var ic1: Float = 0, ic2: Float = 0; var a1: Float = 0, a2: Float = 0, a3: Float = 0; var seed: UInt32; var pan: Float; var send: Float; var click = false }
     private var impacts: [Impact] = [], modes: [Mode] = [], grains: [Grain] = []
     private static let maxGrains = 640
     private let sr: Float
@@ -213,7 +223,7 @@ final class Footsteps {
             let f0 = lerp(r.grainFreqLo, r.grainFreqHi, rnd()) * bright * (run ? 1.25 : 1)
             let len = lerp(r.grainLenLo, r.grainLenHi, rnd()) * (run ? 0.7 : 1)
             let gseed = UInt32(truncatingIfNeeded: Int(rnd() * 1e7) &+ 1)
-            grains.append(Grain(delay: delay + t * window, len: len, gain: r.grainGain * g * bump * crunch * (run ? 1.4 : 1), f0: f0, f1: f0 * r.grainSweep, seed: gseed, pan: pan, send: r.reverbSend))
+            grains.append(Grain(delay: delay + t * window, len: len, gain: r.grainGain * g * bump * crunch * (run ? 1.4 : 1), f0: f0, f1: f0 * r.grainSweep, seed: gseed, pan: pan, send: r.reverbSend, click: r.grainDecaying))
         }
     }
 
@@ -265,7 +275,8 @@ final class Footsteps {
             let v2 = v.ic2 + v.a2 * v.ic1 + v.a3 * v3
             v.ic1 = 2 * v1 - v.ic1; v.ic2 = 2 * v2 - v.ic2
             let w = v.age / v.len
-            let hann = w < 1 ? 0.5 - 0.5 * cos(2 * .pi * w) : 0
+            // A click rings down (0.1 ms attack, -35 dB by the grain's end); the other grains are symmetric puffs.
+            let hann: Float = v.click ? (w < 1 ? (1 - exp(-v.age / 0.0001)) * exp(-4 * w) : 0) : (w < 1 ? 0.5 - 0.5 * cos(2 * .pi * w) : 0)
             add(v1 * v.gain * hann * 1.5, v.pan, v.send)
             v.age += dt
             grains[k] = v
