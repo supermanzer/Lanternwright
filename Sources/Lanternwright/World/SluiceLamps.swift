@@ -10,8 +10,8 @@ enum SluiceLamps {
     static let bodyName = "ta_sluice_lamp_bodies"
     /// Emissive strengths: lit by nothing in particular (a dim pilot), the component resting on this gate, the gate open.
     static let idle: Float = 0.8, aimed: Float = 7, open: Float = 4
-    /// Where lamp k stands: across the room from the gate's wheel (the wheel is 3.5 m east of the gate's centre).
-    static func position(_ k: Int) -> SIMD3<Float> { ArchiveLayout.sluices[k] + SIMD3(-3.5, 0, 1.2) }
+    /// Where lamp k stands: across the room from the gate's wheel (the wheel is 3.5 m east of the gate's centre). F09.6: 2.4 m in front of the cross wall, not 1.2 (the wall's collision cylinders reach 1.1 m out and the lamp's footprint 0.28: at 1.2 it stood in them).
+    static func position(_ k: Int) -> SIMD3<Float> { ArchiveLayout.sluices[k] + SIMD3(-3.5, 0, 2.4) }
 
     static func build(into scene: Scene, device: MTLDevice) {
         let (bodyProto, coreProto) = Props.stoneLantern()

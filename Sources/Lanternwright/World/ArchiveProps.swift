@@ -344,13 +344,45 @@ enum ArchiveProps {
 
     // MARK: Lanterns
 
-    /// Stone lanterns along the route every 20 m, alternating sides, each on its own footing (the same body as Varrow's: `Props.stoneLantern`), with a lamp core that is light only.
-    static func addLanterns(_ scene: Scene, device: MTLDevice) {
-        let (bodyProto, coreProto) = Props.stoneLantern()
-        var body = MeshBuilder(), core = MeshBuilder()
+    /// Where one route lantern stands: its ground point, its upright transform (pivot at the highest ground under its footing) and how deep its footing goes.
+    struct LanternSite { var centre: SIMD2<Float>; var transform: float4x4; var depth: Float }
+
+    /// F09.6 (#97: "the lantern appears to sit inside this wall": it stood at 9.47 m from the dome's axis, inside its 9.65 m drum and plinth): the lamp body, as rings of points in the lantern's own frame (height above its footing, radius): the shaft above the base, the cage, the cap, the
+    /// roof's cone at its widest (0.46 m) and its tip. The base and the footing are meant to be sunk into a slope; nothing here is.
+    static let lampBodyRings: [(y: Float, r: Float)] = [(0.30, 0.13), (0.75, 0.13), (1.15, 0.13), (1.25, 0.22), (1.42, 0.22), (1.59, 0.22), (1.66, 0.46), (1.80, 0.26), (1.95, 0.06)]
+    /// How many of the lamp body's sample points (nine rings of eight and the axis) are inside the ground, or inside one of the `solids` (the Archive's cylinder colliders: the dome's drum, the stacks, the sluice
+    /// rooms' walls, ...), for a lantern standing at `transform`.
+    static func lampIntrusion(terrain: Terrain, transform t: float4x4, solids: [CylinderCollider] = []) -> Int {
+        var n = 0
+        for ring in lampBodyRings {
+            for k in 0..<9 {
+                let a = Float(k) * .pi / 4, local = k == 8 ? SIMD3<Float>(0, ring.y, 0) : SIMD3(cos(a) * ring.r, ring.y, sin(a) * ring.r)
+                let w = t * SIMD4(local, 1)
+                if w.y < terrain.sampleHeight(x: w.x, z: w.z) - 0.02 { n += 1; continue }
+                if solids.contains(where: { w.y > $0.minY && w.y < $0.maxY && simd_length(SIMD2(w.x, w.z) - $0.center) < $0.radius }) { n += 1 }
+            }
+        }
+        return n
+    }
+
+    /// The route lanterns' places: every 20 m of the path, alternating sides 2.6 m out, on ground above 1.2 m and outside the gallery's court. A place whose lamp body would be inside the ground (a steep terrace
+    /// face: the footing stands at the highest ground under 0.36 m, the roof reaches 0.46 m out and 1.7 m up) or inside another solid (a collider: the dome's drum) is moved: to the path's other side, then along the path in steps of 1 m to 4 m either way, then
+    /// out to 3.4 m, taking the first that is clear. Deterministic: the same terrain gives the same sites.
+    static func lanternSites(terrain: Terrain, solids: [CylinderCollider] = [], relocate: Bool = true) -> [LanternSite] {
+        var sites: [LanternSite] = []
         var side: Float = 1
         let pts = ArchiveLayout.path.map { SIMD2($0.x, $0.z) }
         var carried: Float = 10
+        let g = ArchiveTerrain.gallery
+        func usable(_ c: SIMD2<Float>) -> Bool {
+            let inCourt = simd_abs(c - g.centre).x < g.half.x + 1.5 && simd_abs(c - g.centre).y < g.half.y + 1.5
+            return terrain.sampleHeight(x: c.x, z: c.y) > 1.2 && !inCourt
+        }
+        func site(_ c: SIMD2<Float>) -> LanternSite {
+            let yaw = Island.noise.unit(Int32(c.x), Int32(c.y)) * 2 * .pi
+            let up = Placement.upright(terrain: terrain, x: c.x, z: c.y, radius: 0.36, yaw: yaw)
+            return LanternSite(centre: c, transform: up.transform, depth: up.depth)
+        }
         for k in 0..<(pts.count - 1) {
             let a = pts[k], b = pts[k + 1]
             let dir = simd_normalize(b - a), nrm = SIMD2(-dir.y, dir.x)
@@ -358,23 +390,38 @@ enum ArchiveProps {
             var s = carried
             while s < len {
                 let c = a + dir * s + nrm * 2.6 * side
+                let wanted = side
                 side = -side
-                let g = ArchiveTerrain.gallery, inCourt = simd_abs(c - g.centre).x < g.half.x + 1.5 && simd_abs(c - g.centre).y < g.half.y + 1.5
-                if scene.terrain.sampleHeight(x: c.x, z: c.y) > 1.2 && !inCourt {
-                    let yaw = Island.noise.unit(Int32(c.x), Int32(c.y)) * 2 * .pi
-                    let up = Placement.upright(terrain: scene.terrain, x: c.x, z: c.y, radius: 0.36, yaw: yaw)
-                    body.append(bodyProto, transform: up.transform)
-                    core.append(coreProto, transform: up.transform)
-                    var foot = MeshBuilder()
-                    let drop = up.depth + 0.3
-                    foot.chamferBox(size: SIMD3(0.55, drop + 0.12, 0.55), chamfer: 0.025, surface: Surface(color: SIMD3(0.40, 0.43, 0.43), roughness: 0.85, material: .dressed), transform: translation(SIMD3(0, 0.06 - drop / 2, 0)))
-                    body.append(foot, transform: up.transform)
-                    scene.placed.append(Placement.record(kind: "ta_lantern", mesh: foot, transform: up.transform))
-                    scene.colliders.addCylinder(center: c, radius: 0.3, minY: up.transform.columns.3.y - 1, maxY: up.transform.columns.3.y + 2)
+                if usable(c) {
+                    var chosen = site(c)
+                    if relocate && lampIntrusion(terrain: terrain, transform: chosen.transform, solids: solids) > 0 {
+                        var candidates: [SIMD2<Float>] = [a + dir * s - nrm * 2.6 * wanted]
+                        for d: Float in [1, -1, 2, -2, 3, -3, 4, -4] { candidates.append(a + dir * (s + d) + nrm * 2.6 * wanted); candidates.append(a + dir * (s + d) - nrm * 2.6 * wanted) }
+                        for d: Float in [0, 1, -1, 2, -2] { candidates.append(a + dir * (s + d) + nrm * 3.4 * wanted); candidates.append(a + dir * (s + d) - nrm * 3.4 * wanted) }
+                        if let ok = candidates.first(where: { usable($0) && lampIntrusion(terrain: terrain, transform: site($0).transform, solids: solids) == 0 }) { chosen = site(ok) }
+                    }
+                    sites.append(chosen)
                 }
                 s += 20
             }
             carried = s - len
+        }
+        return sites
+    }
+
+    /// Stone lanterns along the route every 20 m, alternating sides, each on its own footing (the same body as Varrow's: `Props.stoneLantern`), with a lamp core that is light only.
+    static func addLanterns(_ scene: Scene, device: MTLDevice) {
+        let (bodyProto, coreProto) = Props.stoneLantern()
+        var body = MeshBuilder(), core = MeshBuilder()
+        for st in lanternSites(terrain: scene.terrain, solids: scene.colliders.cylinders) {
+            body.append(bodyProto, transform: st.transform)
+            core.append(coreProto, transform: st.transform)
+            var foot = MeshBuilder()
+            let drop = st.depth + 0.3
+            foot.chamferBox(size: SIMD3(0.55, drop + 0.12, 0.55), chamfer: 0.025, surface: Surface(color: SIMD3(0.40, 0.43, 0.43), roughness: 0.85, material: .dressed), transform: translation(SIMD3(0, 0.06 - drop / 2, 0)))
+            body.append(foot, transform: st.transform)
+            scene.placed.append(Placement.record(kind: "ta_lantern", mesh: foot, transform: st.transform))
+            scene.colliders.addCylinder(center: st.centre, radius: 0.3, minY: st.transform.columns.3.y - 1, maxY: st.transform.columns.3.y + 2)
         }
         scene.add("ta_lanterns", mesh: body.build(device: device, label: "archive lanterns"))
         scene.add("ta_lantern_cores", mesh: core.build(device: device, label: "archive lantern cores"), uniforms: ObjectUniforms(model: matrix_identity_float4x4, tint: SIMD4(1, 1, 1, 1), emissive: SIMD4(1.0, 0.66, 0.30, 6)))
