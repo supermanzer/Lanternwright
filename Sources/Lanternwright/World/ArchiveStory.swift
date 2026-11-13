@@ -220,6 +220,16 @@ enum ArchiveStory {
         scene.add(waterName, mesh: w.build(device: device, label: "gallery water"), uniforms: ObjectUniforms(model: matrix_identity_float4x4), refractive: true)
     }
 
+    /// F09.4 (#108: "I am standing at least partway in the water but my footsteps sound like dry sand"): metres of water over the ground at `p` (x, z) inside the Great Ledger gallery's court, the same surface
+    /// the water pass draws and the wading limit uses (`Player.galleryWater`: where the court is and how high the water stands now); 0 outside the court or on dry ground. The gallery's water is a body of its
+    /// own, higher than the sea the Tide moves in the channels: `Game.archiveWaterDepth` takes the larger of the two.
+    static func galleryDepth(at p: SIMD2<Float>, ground: Float) -> Float {
+        guard let g = Player.galleryWater else { return 0 }
+        let d = simd_abs(p - g.centre)
+        guard d.x < g.half.x && d.y < g.half.y else { return 0 }
+        return max(0, g.level - ground)
+    }
+
     /// The gallery water's surface height now: its full level, lowered by the drain (B moves its model down), raised a little by the tide while it is held. For the wading limit (`Player`).
     static func waterLevel(_ scene: Scene, clock: Float) -> Float {
         let y = scene.items.first { $0.name == waterName }?.uniforms.model.columns.3.y ?? 0

@@ -73,6 +73,13 @@ final class AudioEngine {
         synth.slideGravel = 1 - 0.85 * grass
     }
 
+    /// F09.4 (#108): how much splash a footfall carries. In the Archive it is decided by the DEPTH of water at the foot first, whatever the floor is (ankle = a splash joining the stone's step, shin = a full wade):
+    /// 0 dry, about half at 4 cm, all of it from 8 cm. Elsewhere it is the scene's own ground against the waterline, as before.
+    static func stepSplash(game: Game) -> Float {
+        game.archiveActive ? stepSplash(depth: game.archiveWaterDepth) : smoothstep(0.08, -0.25, game.waterGroundHeight)
+    }
+    static func stepSplash(depth: Float) -> Float { smoothstep(0.005, 0.08, depth) }
+
     /// Water contact every frame (F02 A5): events once per entry and exit, and the wash and lap levels. Static so the selftests drive what the engine drives.
     static func feedWater(_ water: inout WaterContact, into synth: AmbienceSynth, game: Game) {
         let p = game.player.position
@@ -94,7 +101,7 @@ final class AudioEngine {
             synth.stepSurface = game.currentSurface
             let under = game.surfaceMix
             synth.stepMix = under.mix; synth.stepPebble = under.pebble; synth.stepPlank = game.currentPlank; synth.stepHollow = game.currentHollowness
-            synth.stepSplash = smoothstep(0.08, -0.25, game.waterGroundHeight)
+            synth.stepSplash = AudioEngine.stepSplash(game: game)
             if game.archiveActive && game.archiveFloor == .grating { archive.handle(.grate(run: game.lastFootWasRun)) }          // S04.4b: the brass grating rings under the boot
             synth.stepRun = game.lastFootWasRun
             synth.stepPan = game.footfalls % 2 == 0 ? -0.3 : 0.3      // alternate feet

@@ -183,7 +183,9 @@ final class Game {
     var archiveFloor: ArchiveFloor { realArchive ? TideSpots.floor(at: player.position) : TideStandIn.floor(at: player.position) }
     /// Metres of water over the floor at the player's feet (0 dry), from the same tide the gates and the water use.
     var archiveWaterDepth: Float {
-        realArchive ? Tide.depth(ground: scene.groundHeight(x: player.position.x, z: player.position.z), time: time)
+        realArchive ? { let ground = scene.groundHeight(x: player.position.x, z: player.position.z)
+                        // F09.4 (#108): the sea's tide in the channels, or the Great Ledger gallery's own water, whichever stands deeper at the feet.
+                        return max(Tide.depth(ground: ground, time: time), ArchiveStory.galleryDepth(at: SIMD2(player.position.x, player.position.z), ground: ground)) }()
                     : TideStandIn.waterDepth(tide: Tide.level(time), at: player.position)
     }
     /// How wet the floor is for the step's sound: 0 dry ... 1 wet at about 8 cm of water.
@@ -195,7 +197,7 @@ final class Game {
             var m = StepMix(repeating: 0)
             let wet = archiveWetness
             switch archiveFloor {
-            case .slate: m[StepMaterial.stone.rawValue] = 1 - 0.55 * wet; m[StepMaterial.wetSand.rawValue] = 0.55 * wet           // wet slate: the stone's click with a damp, soft body
+            case .slate: m[StepMaterial.stone.rawValue] = 1                                                                                                  // F09.4 (#108): stone stays stone (the wet-sand grains under it read as dry sand); the water's own splash (`stepSplash`, from the depth) does the wet
             case .grating: m[StepMaterial.wood.rawValue] = 0.45 * (1 - 0.3 * wet); m[StepMaterial.stone.rawValue] = 0.55 + 0.45 * 0.3 * wet     // brass grating: a hollow board and the stone beneath
             }
             return (m, 0)
