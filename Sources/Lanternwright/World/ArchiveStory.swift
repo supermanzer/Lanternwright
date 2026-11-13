@@ -14,6 +14,9 @@ enum ArchiveStory {
     static let galleryTide: Float = 0.45
     static func galleryTideRise(clock: Float) -> Float { galleryTide * (2 * Tide.level(clock) - 1) }
     static let waterName = "ti_gallery_water"
+    static let ledgerLampName = "ti_ledger_lamp"
+    /// The Great Ledger's stand: beside page 15, on the court's floor (x, z; the height is the floor's).
+    static var ledgerLamp: SIMD3<Float> { let p = TideSpots.page(15); return SIMD3(p.x - 1.6, galleryFloor, p.z + 1.8) }
     static func pageName(_ n: Int) -> String { "ti_page_\(n)" }
     static let wallName = "ti_tableau_wall", glowName = "ta_tableau_glow"
     static func lanternName(_ side: PageAuthor) -> String { "ti_tableau_lantern_\(side == .oren ? "oren" : "ilse")" }
@@ -237,6 +240,16 @@ enum ArchiveStory {
         wall(from: SIMD2(c.x - hx, c.y - hz), to: SIMD2(c.x - hx, ramp - open)); wall(from: SIMD2(c.x - hx, ramp + open), to: SIMD2(c.x - hx, c.y + hz))
         // The floor: dark slate slabs (one dressed slab, a darker joint grid of boxes).
         b.chamferBox(size: SIMD3(hx * 2, 0.12, hz * 2), chamfer: 0.02, surface: Surface(color: SIMD3(0.20, 0.23, 0.24), roughness: 0.85, material: .slab), transform: translation(SIMD3(c.x, floorY - 0.04, c.y)))
+        // F09.7 (#101): what the water was hiding. The lamp on its stand beside the Great Ledger ("At the stand beside it a lamp is burning", page 15): the stand is part of the court, the lamp is an item that
+        // `TideArchivePuzzle` lights as the water goes down (cold while the court is flooded), so the gain of opening the gates is a light you can see on the revealed floor.
+        let ledger = ledgerLamp
+        b.chamferBox(size: SIMD3(0.5, 1.1, 0.5), chamfer: 0.03, surface: ArchiveProps.slateLight, transform: translation(SIMD3(ledger.x, floorY + 0.5, ledger.z)))
+        b.chamferBox(size: SIMD3(0.7, 0.1, 0.7), chamfer: 0.02, surface: ArchiveProps.slate, transform: translation(SIMD3(ledger.x, floorY + 1.1, ledger.z)))
+        scene.colliders.addCylinder(center: SIMD2(ledger.x, ledger.z), radius: 0.4, minY: floorY - 1, maxY: floorY + 2)
+        var lamp = MeshBuilder()
+        lamp.box(size: SIMD3(0.34, 0.46, 0.34), surface: Surface(color: SIMD3(0.9, 0.78, 0.5), roughness: 0.3, material: .emissiveGlass), transform: translation(SIMD3(0, 0.23, 0)))
+        lamp.cone(radius: 0.26, height: 0.18, segments: 4, smooth: false, surface: ArchiveProps.iron, transform: translation(SIMD3(0, 0.46, 0)) * rotationY(Float.pi / 4))
+        scene.add(ledgerLampName, mesh: lamp.build(device: device, label: "ledger lamp"), uniforms: ObjectUniforms(model: translation(SIMD3(ledger.x, floorY + 1.2, ledger.z)), tint: SIMD4(1, 1, 1, 1), emissive: SIMD4(1.0, 0.72, 0.3, 0)))
         scene.add("ta_court", mesh: b.build(device: device, label: "gallery court"), uniforms: ObjectUniforms(model: matrix_identity_float4x4))
         // The water: a flat grid over the court at its full level; B lowers it by moving the model down (`drainDepth`); the water pass draws it as a calm pool and lifts it a little with the tide.
         var w = MeshBuilder()

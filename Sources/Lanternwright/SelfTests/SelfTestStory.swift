@@ -8,10 +8,10 @@ extension SelfTestRunner {
     func runStory() {
         guard name == "all" || name == "story" else { return }
         func sha(_ s: String) -> String { SHA256.hash(data: Data(s.utf8)).map { String(format: "%02x", $0) }.joined().prefix(16).description }
-        let pinned: [Int: String] = [1: "8d22e0f2dc14b25f", 2: "86f87e928ada0630", 3: "2243ff480bc14b15", 4: "561cfbc8deb2ffb8",
+        let pinned: [Int: String] = [1: "8d22e0f2dc14b25f", 2: "bb6a6d7373f13e92", 3: "2243ff480bc14b15", 4: "561cfbc8deb2ffb8",
                                      5: "86e5c27c6f0cf494", 6: "1ab3060595cf8ae5", 7: "602ddb09393e0d31", 8: "87ac886b7d441cbe", 9: "8944080ea1c4554e"]
         let drifted = StoryPages.all.filter { pinned[$0.id] != sha($0.text) }.map(\.id)
-        check(StoryPages.all.map(\.id) == Array(1...9) && drifted.isEmpty, "story: the nine pages are in order and every text is byte-identical to its pin: 1, 2, 3, 6, 7, 8 as on main at the start of S03.1, 4, 5 and 9 as revised in S03.10 (changed: \(drifted))")
+        check(StoryPages.all.map(\.id) == Array(1...9) && drifted.isEmpty, "story: the nine pages are in order and every text is byte-identical to its pin: 1, 3, 6, 7, 8 as on main at the start of S03.1, 2 reworded in F09.8 (#113: the stones are hinted, not named), 4, 5 and 9 as revised in S03.10 (changed: \(drifted))")
         check(JournalContent.pages.map(\.number) == StoryPages.all.map(\.id) && JournalContent.pages.map(\.text) == StoryPages.all.map(\.text), "story: the journal's pages are the story data, number for number and word for word")
         check(StoryPages.ids(by: .ilse) == [1, 2, 3, 4, 9] && StoryPages.ids(by: .oren) == [5, 6, 7, 8] && StoryPages.ids(by: .neutral).isEmpty && StoryPages.varrowIDs == [1, 2, 3, 4, 9] && StoryPages.glassIDs == [5, 6, 7, 8], "story: Ilse wrote the five Varrow pages (page 9 on the dock), Oren the four Glass Wood pages")
         check(Set(StoryPages.all.map(\.location)).count == 9 && StoryPages.all.allSatisfy { !$0.location.isEmpty && $0.glyphLevel == 0 }, "story: every page has its own location key and no page has margin lines yet")

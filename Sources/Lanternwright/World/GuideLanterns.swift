@@ -90,6 +90,19 @@ enum GuideLanterns {
     /// A lamp is lit while the player is nearer than `litRange` to it, or has passed it: it never goes out behind them.
     static func lampLit(_ k: Int, playerProgress: Float) -> Bool { playerProgress >= lampDistance(k) - litRange }
 
+    /// F09.8 (#114): Varrow's own guide light (the lens, once the quay is up): the same floating lantern, hidden until the game shows it.
+    static func buildLantern(into scene: Scene, device: MTLDevice) {
+        let iron = Surface(color: SIMD3(0.05, 0.055, 0.07), roughness: 0.5, material: .iron)
+        let glass = Surface(color: SIMD3(1.0, 0.82, 0.5), roughness: 0.3, material: .emissiveGlass)
+        var m = MeshBuilder()
+        m.box(size: SIMD3(0.2, 0.03, 0.2), surface: iron, transform: translation(SIMD3(0, -0.13, 0)))
+        m.box(size: SIMD3(0.2, 0.03, 0.2), surface: iron, transform: translation(SIMD3(0, 0.13, 0)))
+        for sx: Float in [-1, 1] { for sz: Float in [-1, 1] { m.box(size: SIMD3(0.02, 0.26, 0.02), surface: iron, transform: translation(SIMD3(sx * 0.09, 0, sz * 0.09))) } }
+        m.sphere(radius: 0.07, segments: 10, surface: glass, transform: translation(SIMD3(0, 0, 0)))
+        var u = ObjectUniforms(model: matrix_identity_float4x4); u.emissive = SIMD4(1.0, 0.72, 0.3, 2.4)
+        scene.add(lanternName, mesh: m.build(device: device, label: "guide lantern"), uniforms: u, hidden: true)
+    }
+
     /// The items: one lantern and `maxLamps` lamps, hidden until the game shows them. A small post with a cage and a core that is the light.
     static func build(into scene: Scene, device: MTLDevice, chainMap: Bool = true) {
         let hidden = true                                                  // `Game` shows what it needs: the guides while a route is on (syncGuides), the stand-in's map only when the Glass Wood stands in for the Archive

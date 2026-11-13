@@ -20,6 +20,7 @@ extension SelfTestRunner {
         bot.closeJournal()
         check(!g.journal.isOpen, "bot: closes the journal with J")
         check(bot.walk(to: path[0], within: 2.5), "bot: back to the shore")
+        g.state.set(Game.quaySeenFlag)                                  // F09.8: the stones wake once the quay has been seen; this bot starts after that (the quay-first order is tested in `varrow-opening`)
         var struck = true
         for (i, id) in LighthousePuzzle.order.enumerated() {
             struck = struck && bot.walk(to: path[i + 1], within: 2.2)

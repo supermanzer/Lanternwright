@@ -47,6 +47,12 @@ final class LighthousePuzzle: WorldPuzzle {
 
     // MARK: Interaction
 
+    /// F09.8: a stone that is not awake yet: it rings and the Notebook hears it, nothing else.
+    func hear(_ id: StoneID) {
+        state.set(Notebook.struckFlag(id)); state.set(Notebook.seenFlag(id))
+        emit(.chime(chimeFor(id)))
+    }
+
     func strike(_ id: StoneID) {
         state.set(Notebook.struckFlag(id)); state.set(Notebook.seenFlag(id))      // heard it: it goes in the notebook
         emit(.chime(chimeFor(id)))
@@ -140,7 +146,7 @@ final class LighthousePuzzle: WorldPuzzle {
     // MARK: WorldPuzzle
 
     var world: WorldKind { .varrow }
-    var persistentFlags: [String] { ["solved", "lighthouseLit", "causewayUp"] + Notebook.flags }
+    var persistentFlags: [String] { ["solved", "lighthouseLit", "causewayUp", Game.quaySeenFlag] + Notebook.flags }
     func handles(_ id: String) -> Bool { StoneID.allCases.contains { "stone_\($0.name)" == id } }
     func activate(_ id: String) { if let stone = StoneID.allCases.first(where: { "stone_\($0.name)" == id }) { strike(stone) } }
     func restore(from flags: Set<String>) {

@@ -62,6 +62,8 @@ enum Layout {
     static let isletRadius: Float = 42
     static let isletPeak: Float = 7
     static let seaFloor: Float = -24
+    /// F09.8: how much the seabed of the strait between the north shore and the lens islet is lowered (see `TerrainSpec.varrow`).
+    static let strait: Float = 2.2
 }
 
 // MARK: Navigation (M10.3, builder B)

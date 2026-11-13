@@ -19,7 +19,7 @@ enum StoryPages {
     static let all: [StoryPage] = [
         // Varrow: Ilse's journal.
         StoryPage(id: 1, author: .ilse, text: "Day one of the last season. The lamp in the lighthouse has gone quiet again. Oren says I fuss over it like a child. Perhaps. But a lighthouse that does not answer is only a tower.", location: "varrow.dock", glyphLevel: 0),
-        StoryPage(id: 2, author: .ilse, text: "The stones remember the sea best. I strike the tide-stone first, always: everything on this island begins at the water. The lamp in the lighthouse listens for the stones, and for nothing else.", location: "varrow.tide-stone", glyphLevel: 0),
+        StoryPage(id: 2, author: .ilse, text: "The old standing things on this island remember the sea best. I wake the one the tide reaches first, always: everything here begins at the water. The lamp in the lighthouse listens to them, and to nothing else.", location: "varrow.tide-stone", glyphLevel: 0),
         StoryPage(id: 3, author: .ilse, text: "I tune the lamp each evening the way I first climbed this island: from the water, through the wind, to the stone. Out of order, they only argue.", location: "varrow.wind-stone", glyphLevel: 0),  // F04 T1 (#56): restored exactly as first written (the 2026-10-23 reword told the order outright; the world already carries it in its rank notches)
         StoryPage(id: 4, author: .ilse, text: "Oren has asked again for the lens of the lighthouse lamp. He says light that can fold can also carry. Carry what, brother? He did not answer, and I did not like the silence. I told him the lens room is not a place for the impatient, which is not what he asked.", location: "varrow.lighthouse-door", glyphLevel: 0),
         // The Glass Wood: Oren's journal.

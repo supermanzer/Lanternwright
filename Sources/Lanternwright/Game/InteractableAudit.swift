@@ -231,6 +231,17 @@ enum InteractableAudit {
                 let s = row.stand.map { String(format: "stand (%.1f, %.1f)", $0.x, $0.y) } ?? "no stand"
                 out.append("  \(row.verdict ? "PASS" : "FAIL")  \(row.id)\(row.enabled ? "" : " [dormant]")  box \(c)  nearest mesh \(row.nearest) \(String(format: "%.2f", row.nearestDistance)) m  reach \(row.reachable ? "ok" : "NO")  ray \(row.seen ? "hits \(row.hit)" : "NO PROP IN VIEW (centre ray meets \(row.hit))")  \(s)\(row.eye.map { String(format: " eye %.2f,%.2f,%.2f", $0.x, $0.y, $0.z) } ?? "")")
             }
+            // F09.7 (#104): "no way out of this world": the exit back, and what the player's first visible goal is.
+            let exits: [String] = kind == .glassWood ? ["gw_return"] : (kind == .tideArchive ? TideSpots.returnIDs : [])
+            if exits.isEmpty { out.append("  exit to the previous world: none (the first world)") }
+            else { out.append("  exit to the previous world: " + exits.map { id in "\(id) \(r.rows.first { $0.id == id }?.verdict == true ? "PASS" : "FAIL")" }.joined(separator: ", ")) }
+            switch kind {
+            case .varrow: out.append("  first visible goal: the lantern path to the stones (S03-player-path A4); after the lighthouse is lit, the note at its door and the guide light at Oren's lens (F09.8)")
+            case .glassWood: out.append("  first visible goal: the mirror court's beam and the chimes (S03-player-path B); the ring at the arrival pad is the way back")
+            case .tideArchive:
+                let g = TideSpots.gate(0)
+                out.append(String(format: "  first visible goal: Ilse: the guide light leads to the first gate at (%.0f, %.0f), then the next, the gallery door %@, the quay's lens; Oren: Ilse's lamps up the route to the prism ring at (%.0f, %.0f)", g.x, g.z, "(\(Int(TideSpots.galleryDoor.x)), \(Int(TideSpots.galleryDoor.y)))", TideSpots.prismRing.x, TideSpots.prismRing.z))
+            }
             for o in r.orphans { out.append(String(format: "  FAIL  unboxed prop '%@' at (%.1f, %.1f, %.1f): nearest box '%@' %.1f m", o.item, o.centre.x, o.centre.y, o.centre.z, o.nearestBox, o.distance)) }
             out.append("")
         }

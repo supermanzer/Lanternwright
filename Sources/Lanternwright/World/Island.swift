@@ -7,6 +7,8 @@ enum Island {
 
     static func populate(_ scene: Scene, device: MTLDevice) {
         Landmarks.populate(scene, device: device)
+        QuayMarker.build(into: scene, device: device)               // F09.8: the unfinished quay's dark lamp
+        GuideLanterns.buildLantern(into: scene, device: device)     // F09.8: Varrow's guide light (to the lens once the quay is up), hidden until the game shows it
         PuzzleProps.populate(scene, device: device)
         Birds.populate(scene, device: device)
         addLanterns(scene, device: device)

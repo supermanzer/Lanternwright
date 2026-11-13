@@ -182,6 +182,7 @@ final class TideArchivePuzzle: WorldPuzzle {
             self.state.set(Game.routeSolvedFlag)
             self.state.set(TideArchivePuzzle.drainedFlag)
             self.animator.tween(duration: Timing.drainDuration, ease: .inOutCubic) { [weak self] t in self?.syncVisuals(drain: t) }
+            self.animator.after(Timing.drainDuration) { [weak self] in self?.emit(.chime(.lens)) }                                  // F09.7: the floor is clear, and something says so
             self.busy = false
         }
     }
@@ -195,11 +196,14 @@ final class TideArchivePuzzle: WorldPuzzle {
             let snap = snapGates                                                                                                  // A's gate eases toward its emissive (open = 1) and moves its collider; a load puts the pose there at once
             sc.update(ArchiveProps.gateName(k)) { $0.uniforms.emissive.w = open ? 1 : 0; if snap { $0.uniforms.model = ArchiveProps.sluiceGateModel(k, open: open ? 1 : 0) } }
             sc.update(ArchiveProps.wheelName(k)) { $0.uniforms.model = ArchiveProps.sluiceWheelModel(k, turns: self.wheelTurns[k]) }
-            let lamp = open ? SluiceLamps.open : (aimedSluice == k ? SluiceLamps.aimed : SluiceLamps.idle)          // the room's lamp: its beam's colour, bright while the beam rests on this gate, steady once it is open
+            let lamp = open ? SluiceLamps.open : (aimedSluice == k ? SluiceLamps.aimed : (k == opened && opened > 0 ? SluiceLamps.next : SluiceLamps.idle))          // the room's lamp: its beam's colour, bright while the beam rests on this gate, steady once it is open
             sc.update(SluiceLamps.name(k)) { $0.uniforms.emissive.w = lamp }
-            sc.update(ArchiveProps.beamOutName(k)) { $0.uniforms.emissive.w = TideArchivePuzzle.beamStrength * (open || aimedSluice == k ? 1.6 : 1.0) }          // the dispersed beam of the sluice the ring rests on, or has opened, brightens from A's own strength
+            sc.update(ArchiveProps.beamOutName(k)) { $0.uniforms.emissive.w = TideArchivePuzzle.beamStrength * (open || aimedSluice == k ? 1.6 : (k == opened && opened > 0 ? 1.25 : 1.0)) }          // the dispersed beam of the sluice the ring rests on, or has opened, brightens from A's own strength
         }
         for side in [PageAuthor.ilse, .oren] { sc.update(ShadowTableaux.archive.lanternItems[side]!) { $0.uniforms.emissive = self.tableauShown == side ? SIMD4(1.0, 0.72, 0.3, 2.2) : SIMD4(0, 0, 0, 0) } }
         if let d = drain { sc.update("ti_gallery_water") { $0.uniforms.model = translation(SIMD3(0, -3.5 * d, 0)) } }
+        // F09.7 (#101): the ledger's lamp on the revealed floor comes on as the water leaves it (and stays on in a loaded game that has drained).
+        let drained = drain ?? (state.has(TideArchivePuzzle.drainedFlag) ? 1 : 0)
+        sc.update(ArchiveStory.ledgerLampName) { $0.uniforms.emissive.w = 2.4 * min(1, max(0, (drained - 0.6) / 0.4)) }
     }
 }

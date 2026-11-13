@@ -7,6 +7,10 @@ import Foundation
 /// and is NOT a page (it is logged in the Notebook and does not count for the gate). Its text is `Story.doorNote`.
 enum DoorNote {
     static let itemName = "door_note"
+    /// F09.8 (#114): the first note, nailed on the door's other side, shown until the player has come back through the lens (`Game.syncDoorNote`).
+    static let firstItemName = "door_note_first"
+    static let firstLocal = SIMD3<Float>(-0.30, Lighthouse.baseY + 0.70, Lighthouse.wallR(2.0) + 0.083)          // between the lower and middle straps (the return note is between the middle and upper)
+    static var firstWorldCenter: SIMD3<Float> { Layout.lighthouse + firstLocal }
     /// Where the sheet's centre is, in the tower's frame (the door faces +Z; the planks' face is at wallR + 0.08 and the iron straps stand proud of it at + 0.095): between the lower
     /// and the middle strap, left of the keyhole, a little off true.
     static let local = SIMD3<Float>(-0.17, Lighthouse.baseY + 1.40, Lighthouse.wallR(2.0) + 0.083)
@@ -16,7 +20,7 @@ enum DoorNote {
     /// Debug: `LW_DOOR_NOTE=1` in the environment draws it from the start, so a frame tool can show it without playing (the game itself hides it until it is earned).
     static let shownForTools = ProcessInfo.processInfo.environment["LW_DOOR_NOTE"] == "1"
 
-    static func mesh() -> MeshBuilder {
+    static func mesh(at local: SIMD3<Float> = DoorNote.local, tilt: Float = 0.07) -> MeshBuilder {
         let nx = 8, ny = 10
         let w = size.x, h = size.y
         // The bottom-right corner has come away from the wood and curls toward the viewer; the rest lies flat with a slight sag between the nails.
@@ -49,7 +53,7 @@ enum DoorNote {
         let iron = Surface(color: SIMD3(0.05, 0.055, 0.07), roughness: 0.5, material: .iron)
         var m = MeshBuilder()
         // Tilted four degrees, as if nailed in a hurry; the whole sheet in the door's frame, centred on `local`.
-        let place = translation(local) * rotationZ(0.07)
+        let place = translation(local) * rotationZ(tilt)
         m.addIndexed(positions: pos, indices: idx, smoothNormals: nrm, surface: paper, transform: place)
         for sx: Float in [-1, 1] {                                                       // the two nail heads, near the top edge
             m.sphere(radius: 0.0125, segments: 8, surface: iron, transform: place * translation(SIMD3(sx * w * 0.30, h * 0.40, 0.012)) * scaling(SIMD3(1, 1, 0.5)))
@@ -59,5 +63,6 @@ enum DoorNote {
 
     static func build(into scene: Scene, device: MTLDevice) {
         scene.add(itemName, mesh: mesh().build(device: device, label: "door note"), uniforms: ObjectUniforms(model: translation(Layout.lighthouse)), hidden: !shownForTools)
+        scene.add(firstItemName, mesh: mesh(at: firstLocal, tilt: -0.05).build(device: device, label: "first door note"), uniforms: ObjectUniforms(model: translation(Layout.lighthouse)), hidden: false)
     }
 }

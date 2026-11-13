@@ -12,8 +12,10 @@ enum Story {
     static let ilseAccount = "Ilse: \"He took the lens and went through before the lamp was lit. I have kept it burning for him since.\""
     static let orenAccount = "Oren: \"She would not follow, so I went ahead, and I have waited here since.\""
     static let doorNote = "Whoever reads this: the lamp is waiting at the top. Bring what you have heard."
+    /// F09.8 (#114): the FIRST note on the door, before anyone has been through the lens: Ilse, two lines. It says the door will not open yet and where to go, and names no stone. (Wording for the user to edit: docs/plans/F09-seventh-playtest.md, F09.8 done note.)
+    static let doorNoteFirst = "The door will not open for me alone.\nOren's lens is down the hill, where the quay meets the water. That is where I left him."
 
     /// Notebook lines by id (what `StoryState.notes` holds), in the order they would be shown.
-    static let notes: [(id: String, text: String)] = [("door_note", doorNote)]
+    static let notes: [(id: String, text: String)] = [("door_note_first", doorNoteFirst), ("door_note", doorNote)]
     static func noteText(_ id: String) -> String? { notes.first { $0.id == id }?.text }
 }

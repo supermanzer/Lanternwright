@@ -854,6 +854,7 @@ extension SelfTestRunner {
             g = freshGame()
             g.player = Player(position: SIMD3(stand.x, id.position.y, stand.y), yaw: atan2(look.x, -look.y)); g.player.pitch = 0.05
             var click = InputState(); click.click = true
+            g.state.set(Game.quaySeenFlag)                                                     // (F09.8: the stones answer once the quay has been seen)
             g.advance(now: 100, input: InputState()); g.advance(now: 100.02, input: click)
             check(g.state.has("lit_tide"), "a click on the hovered stone strikes it")
 

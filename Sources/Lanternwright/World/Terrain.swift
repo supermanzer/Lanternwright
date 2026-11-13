@@ -231,6 +231,14 @@ extension TerrainSpec {
         let islet: Float = di < Layout.isletRadius
             ? Layout.isletPeak * pow(1 - smoothstep(0, Layout.isletRadius, di), 0.9)
             : sea * smoothstep(Layout.isletRadius, Layout.isletRadius + 80, di)
-        return max(hill, max(shelf, islet))
+        let h0 = max(hill, max(shelf, islet))
+        // F09.8 (#112: "I should easily be able to walk through this small amount of water or damp sand"): the strait between the north shore and the islet was a sand shoal (down to 0.9 m under the sea at its
+        // deepest, and in places only 0.3 m). It is now a CHANNEL: the seabed between the two shores is lowered by up to `strait` m (so at least 1.4 m of water at the centre, past the 0.4 m a player may wade) and
+        // the shores fall away steeply into it; the land is untouched (the lowering fades out above the waterline), so the causeway is the only way over.
+        let from = SIMD2(Layout.causewayStart.x, Layout.causewayStart.z), to = SIMD2(Layout.isletCenter.x, Layout.isletCenter.z)
+        let axis = normalize(to - from), rel = p - from
+        let u = dot(rel, axis), lat = abs(rel.x * axis.y - rel.y * axis.x)
+        let w = smoothstep(12, 26, u) * (1 - smoothstep(48, 62, u)) * (1 - smoothstep(55, 110, lat))
+        return h0 - Layout.strait * w * (1 - smoothstep(0.4, 1.8, h0))
     }
 }

@@ -52,9 +52,16 @@ extension SelfTestRunner {
             bot.tick()
             bot.wait(Tide.wait(for: k, from: ig.time) + 0.5)
             _ = bot.click(TideArchivePuzzle.sluiceNames[k]); bot.wait(TideArchivePuzzle.Timing.toneHold + 0.3)
+            if k == 0 {
+                func lamp(_ n: String) -> Float { archive.items.first { $0.name == n }?.uniforms.emissive.w ?? -1 }
+                check(lamp(SluiceLamps.name(1)) == SluiceLamps.next && lamp(SluiceLamps.name(2)) == SluiceLamps.idle && lamp(ArchiveStory.ledgerLampName) == 0,
+                      "tide wire (F09.7, #111): with the first gate open the NEXT gate's lamp brightens (\(lamp(SluiceLamps.name(1)))), the last stays dim (\(lamp(SluiceLamps.name(2)))), and the ledger's lamp is still cold")
+            }
         }
         bot.wait(TideArchivePuzzle.Timing.drainDelay + 0.5)
         check(ig.routeSolved && ig.tideArchive?.opened == 3, "tide wire: Ilse, by clicks on the three gates in A's rooms, drains the gallery")
+        bot.wait(TideArchivePuzzle.Timing.drainDuration + 0.5)
+        check((archive.items.first { $0.name == ArchiveStory.ledgerLampName }?.uniforms.emissive.w ?? 0) > 2, "tide wire (F09.7, #101): the water down, the lamp beside the Great Ledger on the revealed floor is lit")
         let gate0 = archive.items.first { $0.name == ArchiveProps.gateName(0) }?.uniforms.model
         check(gate0 != nil && abs(gate0!.columns.3.y - ArchiveProps.sluiceGateModel(0, open: 1).columns.3.y) < 1e-4, "tide wire: A's gate 0 has lifted when its sluice opened")
         check(ig.interactables.first { $0.id == "page_15" }?.enabled == true, "tide wire: the Great Ledger page is on offer once the water is drained")
@@ -117,7 +124,7 @@ extension SelfTestRunner {
         let mr = world3(); mr.restore(ms); mr.simulate(seconds: 0.3)
         let gy = { (k: Int) -> Float in archive.items.first { $0.name == ArchiveProps.gateName(k) }?.uniforms.model.columns.3.y ?? 0 }
         check(mr.tideArchive?.opened == 2 && !mr.routeSolved && mr.chosenPath == .ilse && mr.world == .tideArchive, "tide wire: a save mid-puzzle restores in the Archive with two gates open")
-        check(gy(0) > ArchiveLayout.sluices[0].y + 1 && gy(1) > ArchiveLayout.sluices[1].y + 1 && gy(2) < ArchiveLayout.sluices[2].y + 0.01 && lamp(0).w == SluiceLamps.open && lamp(2).w == SluiceLamps.idle, "tide wire: and its open gates are up, the third down, the open rooms' lamps steady")
+        check(gy(0) > ArchiveLayout.sluices[0].y + 1 && gy(1) > ArchiveLayout.sluices[1].y + 1 && gy(2) < ArchiveLayout.sluices[2].y + 0.01 && lamp(0).w == SluiceLamps.open && lamp(2).w == SluiceLamps.next, "tide wire: and its open gates are up, the third down, the open rooms' lamps steady and the third's brightened as the next to try (F09.7)")
         // Without the Archive built (two scenes) and the flag on, the route still leads to the Glass Wood stand-in and nothing of the Archive's spots is registered.
         let two = Game(scenes: [.varrow: Scene.makeWorld(device: device), .glassWood: GlassWood.build(device: device)])
         for n in [1, 2, 3, 5, 6, 7] { two.restorePage(n) }

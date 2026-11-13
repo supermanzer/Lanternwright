@@ -246,6 +246,11 @@ final class Game {
         let dn = DoorNote.worldCenter, dns = DoorNote.size
         list.append(Interactable(id: DoorNote.itemName, min: SIMD3(dn.x - dns.x / 2 - 0.05, dn.y - dns.y / 2 - 0.05, dn.z - 0.05), max: SIMD3(dn.x + dns.x / 2 + 0.05, dn.y + dns.y / 2 + 0.05, dn.z + 0.08),
                                  prompt: "Read the note", reach: 3.4, enabled: false))
+        // F09.8 (#114): the first note, on the door from the start until the player has been through the lens and come back (then the return note takes over).
+        let fn = DoorNote.firstWorldCenter, fns = DoorNote.size
+        list.append(Interactable(id: DoorNote.firstItemName, min: SIMD3(fn.x - fns.x / 2 - 0.05, fn.y - fns.y / 2 - 0.05, fn.z - 0.05), max: SIMD3(fn.x + fns.x / 2 + 0.05, fn.y + fns.y / 2 + 0.05, fn.z + 0.08),
+                                 prompt: "Read the note", reach: 3.4, enabled: true))
+        list.append(QuayMarker.interactable(scene: varrow))          // F09.8: the unfinished quay's dark lamp
         // S03.7: the lens ring in the lens room (enabled while the lighthouse is open: `syncInterior`).
         let ringC = Layout.lighthouse + SIMD3(0, LensPortalProps.ringY, 0), rr = LighthouseInterior.ringOuter + 0.15
         list.append(Interactable(id: "lens_ring", min: ringC - SIMD3(rr, 0.3, rr), max: ringC + SIMD3(rr, 0.3, rr), prompt: "Turn the ring  \u{2039} \u{203A}", reach: 3.4, enabled: false))
@@ -320,12 +325,19 @@ final class Game {
             else { showBanner("The ring is empty. Something like a lens belongs in its cradle.") }
             return
         }
+        if Game.stonesWaitForQuay, id.hasPrefix("stone_"), !state.has(Game.quaySeenFlag), !puzzle.isSolved, let stone = StoneID.allCases.first(where: { "stone_\($0.name)" == id }) {
+            puzzle.hear(stone)                                                                 // F09.8: the stone rings and goes into the Notebook; it does not wake yet
+            return
+        }
         if let owner = puzzles.first(where: { $0.handles(id) }) {
             owner.activate(id)
         } else if id.hasPrefix("page_"), let n = Int(id.dropFirst(5)) {
             collectPage(n)
-        } else if id == DoorNote.itemName {
+        } else if id == DoorNote.itemName || id == DoorNote.firstItemName {
             readNote(id)
+        } else if id == QuayMarker.interactableName {
+            state.set(Game.quaySeenFlag)
+            showBanner("Nothing answers. Whatever raises the quay is somewhere else on the island.")
         } else if id == ChainMap.interactableName {
             readMap()
         } else if id == Game.lampLensName {
@@ -349,6 +361,10 @@ final class Game {
 
     /// Set when the lighthouse door is open (S03.6's tone plates set it; a test hook can too). Saved with the game's own flags.
     static let doorOpenFlag = "door_open", portalOpenFlag = "portal_open"
+    /// F09.8 (#113): set once the player has stood at the unfinished quay. Until then the three stones only ring (they are not yet awake: the order is quay, "it does not rise", then the search for what raises it).
+    static let quaySeenFlag = "quay_seen"
+    /// Debug/revert switch: false makes the stones answer from the start, as before F09.8.
+    nonisolated(unsafe) static var stonesWaitForQuay = true
     /// The inside: its floors (feet-aware) and wall colliders, used only while `door_open` is set.
     let interior = LighthouseInterior()
     private(set) var interiorApplied = false
@@ -594,7 +610,48 @@ final class Game {
     }
 
     /// Show the note on the door (and let it be read) exactly while the player has returned; hide it again in the Glass Wood.
-    private func syncDoorNote() {
+    private var firstNoteShown = true
+    private var quayLampLit: Float = -1
+    /// F09.8: the first note stays on the door until the player is back through the lens; the quay's lamp is dark until the causeway is up; standing at the quay is what wakes the stones.
+    private var varrowLight: GuideLight?
+    private var varrowKey: String?
+    private(set) var varrowGuide: SIMD2<Float>?
+    /// F09.8 (#114): once the stones have raised the quay, a guide light leads down the hill and across to Oren's lens and parks there until the player has touched it (same rule as the Archive's: `GuideLight`).
+    private func syncVarrowGuide(dt: Float, _ sc: Scene) {
+        let key: String? = world == .varrow && state.has("causewayUp") && !state.has("lensTouched") ? "lens" : nil
+        guard let key, let net = Layout.Navigation.active(for: .varrow) else { varrowLight = nil; varrowKey = nil; varrowGuide = nil; sc.update(GuideLanterns.lanternName) { $0.hidden = true }; return }
+        let me = SIMD2(player.position.x, player.position.z)
+        if varrowKey != key {
+            let lens = SIMD2(PuzzleProps.lensRestPosition.x, PuzzleProps.lensRestPosition.z + 2.5)          // the islet's lens (Oren's), the light waits just south of it
+            varrowLight = GuideLight(path: GuidePath(net.route(from: me, to: lens) + [lens]), player: me); varrowKey = key
+        }
+        varrowLight?.step(dt: dt, player: me)
+        varrowGuide = varrowLight?.position
+        sc.update(GuideLanterns.lanternName) { item in
+            item.hidden = self.varrowGuide == nil
+            if let p = self.varrowGuide { item.uniforms.model = translation(SIMD3(p.x, sc.groundHeight(x: p.x, z: p.y) + 1.5 + 0.08 * sin(self.time * 1.3), p.y)); item.uniforms.emissive.w = 2.4 * (0.85 + 0.15 * sin(self.time * 5.3)) }
+        }
+    }
+    private func syncQuay(dt: Float = 0) {
+        guard let sc = scenes[.varrow] else { return }
+        syncVarrowGuide(dt: dt, sc)
+        let firstOn = !hasReturned && !state.has(Game.doorOpenFlag) && !state.has("gw_end")
+        if firstOn != firstNoteShown {
+            firstNoteShown = firstOn
+            sc.update(DoorNote.firstItemName) { $0.hidden = !firstOn }
+        }
+        setInteractable(DoorNote.firstItemName, enabled: firstOn)
+        let up = state.has("causewayUp")
+        setInteractable(QuayMarker.interactableName, enabled: !up)
+        let want: Float = up ? QuayMarker.lit : 0
+        if want != quayLampLit { quayLampLit = want; sc.update(QuayMarker.lampName) { $0.uniforms.emissive.w = want } }
+        if world == .varrow, !state.has(Game.quaySeenFlag) {
+            let d = simd_length(SIMD2(player.position.x - Layout.causewayStart.x, player.position.z - Layout.causewayStart.z))
+            if d < 9 { state.set(Game.quaySeenFlag) }
+        }
+    }
+    private func syncDoorNote(dt: Float = 0) {
+        syncQuay(dt: dt)
         let on = hasReturned && !state.has(Game.doorOpenFlag)                  // the note goes with the door when it opens
         guard on != doorNoteShown else { return }
         doorNoteShown = on
@@ -783,7 +840,7 @@ final class Game {
         else if !journal.isOpen && input.pageFlip != 0 && hovered?.id == "lens_ring" { lensPortal.turn(input.pageFlip) }
         else if !journal.isOpen && input.pageFlip != 0 && hovered?.id == TideArchivePuzzle.ringName { tideArchive?.turn(input.pageFlip) }       // the arrow keys turn the ring while it is under the crosshair
         journal.markShown()
-        syncDoorNote()
+        syncDoorNote(dt: dt)
         syncLanternChain()
         syncReturnCue()
         syncPlateGlint()

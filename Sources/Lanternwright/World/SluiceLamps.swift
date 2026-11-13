@@ -10,6 +10,8 @@ enum SluiceLamps {
     static let bodyName = "ta_sluice_lamp_bodies"
     /// Emissive strengths: lit by nothing in particular (a dim pilot), the component resting on this gate, the gate open.
     static let idle: Float = 0.8, aimed: Float = 7, open: Float = 4
+    /// F09.7 (#111): the gate to try next, once the one before it is open: its lamp brightens (above the dim pilot, below the beam resting on it).
+    static let next: Float = 2.6
     /// Where lamp k stands: across the room from the gate's wheel (the wheel is 3.5 m east of the gate's centre). F09.6: 2.4 m in front of the cross wall, not 1.2 (the wall's collision cylinders reach 1.1 m out and the lamp's footprint 0.28: at 1.2 it stood in them).
     static func position(_ k: Int) -> SIMD3<Float> { ArchiveLayout.sluices[k] + SIMD3(-3.5, 0, 2.4) }
 
