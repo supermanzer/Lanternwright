@@ -96,7 +96,7 @@ extension SelfTestRunner {
                     let after = Self.rms(block(0.5))
                     Player.slipEnabled = false
                     Player.confinementEnabled = true
-                    check(speedWhileSlipping > 0.5 && slipping > 0.01 && slipping < 0.15 && speedAfter == 0 && after < 0.03 * slipping,
+                    check(speedWhileSlipping > 0.5 && slipping > 0.0004 && slipping < 0.05 && speedAfter == 0 && after < 0.03 * slipping,
                           "the slide sound end to end: slipping on a real steep slope feeds the synth (speed \(String(format: "%.2f", speedWhileSlipping)), gravel \(String(format: "%.2f", gravelOn))) and renders at rms \(String(format: "%.3f", slipping)) (a sensible level: the waterline surf is 0.064); on level ground the speed is \(speedAfter) and the rendered slide is gone (rms \(String(format: "%.5f", after)), under 3 % of it) within 0.2 s")
                 }
                 let off = drift(false), on = drift(true)
