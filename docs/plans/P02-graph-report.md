@@ -53,13 +53,13 @@ Kinds: puzzle (counted), story (a beat with no datum), transit (moving between w
 
 | id | world | kind | verb / channel | answer | man. | needs | sets | clues (distance from machine) |
 |---|---|---|---|---|---|---|---|---|
-| stones | varrow | puzzle | strike / hear | tide, wind, stone | 3 | quay_seen | solved | page 2 (3 m); page 3 (3 m) |
+| stones | varrow | puzzle | strike / hear | tide, wind, stone | 3 | quay_seen | solved | page 2 (3 m); page 3 (3 m); the stones' altitude order (74 m) |
 | to-glass-wood | varrow | transit | touch / touch | - | - | solved | lensTouched | none |
 | mirror-court | glassWood | puzzle | turn+change / aim | wind, stone, tide | 6 | lensTouched | gw_mirrors | page 5 (141 m); the stones' order (another world) |
 | chime-pool | glassWood | puzzle | strike / hear | tide, wind, stone | 3 | lensTouched | gw_chimes | the stones' tones (another world) |
 | altar | glassWood | story | touch / touch | - | 2 | gw_mirrors, gw_chimes | gw_end | none |
 | return | glassWood | transit | touch / touch | - | - | gw_end | returned | none |
-| door-plates | varrow | puzzle | strike / hear | tide, wind, stone | 3 | returned, gate_pages | door_open | the stones' order (35 m); page 3 (126 m); page 5 (another world); page 6 (another world) |
+| door-plates | varrow | puzzle | strike / watch | stone, tide, wind | 3 | returned, gate_pages | door_open | the beam rhythm (329 m); the stones' altitude order (300 m) |
 | lens-ring (opt) | varrow | puzzle | turn / aim | angle:-45 | 3 | door_open | portal_open | none |
 | enter-archive | varrow | transit | touch / touch | - | - | door_open | route_begun | none |
 | archive-gates-tone [archive-gates] | tideArchive | puzzle | touch+hold / hear | tide, wind, stone | 3 | route_begun | route_solved | the stones' order (another world); page 13 (240 m) |
@@ -90,9 +90,9 @@ Kinds: puzzle (counted), story (a beat with no datum), transit (moving between w
 
 | page | world | consumers (puzzles that list it as a clue) |
 |---|---|---|
-| 3 | varrow | stones, door-plates |
-| 5 | glassWood | mirror-court, door-plates, contradiction |
-| 6 | glassWood | door-plates |
+| 3 | varrow | stones |
+| 5 | glassWood | mirror-court, contradiction |
+| 6 | glassWood | **none** |
 | 13 | tideArchive | archive-gates-tone, archive-gates-beam |
 
 ### Keys: what the player carries between places (P02 section 3.2; `built` = both ends exist in the game, `planted` = an unflagged datum no page states)
@@ -102,8 +102,8 @@ Kinds: puzzle (counted), story (a beat with no datum), transit (moving between w
 | stones-tones | hear | stones (varrow) | chime-pool | built | tide D4, wind A4, stone D5: the three of the pool's five chimes that are not decoys |
 | three-heights | see | chime-pool (glassWood) | archive-gates-tone (**does not list it**), archive-gates-beam (**does not list it**) | planned: the gates' water marks (builder A, Q76): until they exist nothing at the gates uses it, so the gates do not list it as a clue | the non-decoy chimes hang in the order of the sluice rooms' floors (tide highest): an ORDER today, not a scale, and the gates carry no mark for it yet (Q76) |
 | lantern-count | count | dock-lanterns (varrow) | archive-gates-beam | built, planted | 6 of the first 8 dock lanterns are lit = 6 steps to the prism ring's first mark (Oren's way; Ilse's fork has no counterpart yet, Q75) |
-| stones-order | see | the island-profile diagram page (varrow) | stones (**does not list it**) | planned: B3 (P02.2): the Notebook diagram; needs the user's page wording | low to high, as glyphs on a drawn profile |
-| beam-rhythm | watch | the lighthouse beam at dusk (varrow) | door-plates (**does not list it**) | planned: A2 (the beam pattern) then B3 (P02.3, the plate rule) | three groups of flashes, long = stone, middle = wind, short = tide |
+| stones-order | see | the island-profile diagram on page 1 (varrow) | stones, door-plates | built, planted | a drawn profile of the climb with a mark at each stone's real height (tide < wind < stone); a mark shows its rubbing once the stone has been looked at closely (Q51); the plates use it to name a flash's length (short = low = tide) |
+| beam-rhythm | watch | the lighthouse beam at dusk, from the dock (varrow) | door-plates | built, planted | three groups of flashes of 2.6, 0.7, 1.5 s, read by RANK (short = tide, middle = wind, long = stone): the plates are struck in the order flashed, stone, tide, wind |
 | map-shape | see | the chain map (Archive) (tideArchive) | - | planned: the Salt Flats' first lamp (not built) | the shape of the last ring |
 
 ### What is open when the player chooses (a player who always takes the first open puzzle)
@@ -116,28 +116,25 @@ Kinds: puzzle (counted), story (a beat with no datum), transit (moving between w
 | 4 | door-plates | varrow | door-plates | **only 1** |
 | 5 | archive-gates-tone | tideArchive | archive-gates | first of its world (exempt) |
 
-### Rule breaks (18)
+### Rule breaks (15)
 
 | rule | what it asks | subject | found |
 |---|---|---|---|
+| G3 | every page that states an answer is a clue of some puzzle | page 6 | page 6 states the order and no puzzle lists it as a clue: a clue with no consumer, or an answer given away for nothing |
 | G4 | every clue is 40 m or a world away from its machine | stones page 2 | page 2 is 3 m from the machine (the rule is 40 m or another world) |
 | G4 | every clue is 40 m or a world away from its machine | stones page 3 | page 3 is 3 m from the machine (the rule is 40 m or another world) |
-| G4 | every clue is 40 m or a world away from its machine | door-plates the stones' order | the stones' order is 35 m from the machine (the rule is 40 m or another world) |
-| G5 | no two puzzles share an answer | archive-gates+chime-pool+door-plates+stones | 4 puzzles are all answered by "tide wind stone" |
+| G5 | no two puzzles share an answer | archive-gates+chime-pool+stones | 3 puzzles are all answered by "tide wind stone" |
 | G6 | at least two puzzles are open when a player chooses (after the first of a world) | chime-pool | when chime-pool is chosen only ["chime-pool"] is open: a chain, not a web |
 | G6 | at least two puzzles are open when a player chooses (after the first of a world) | door-plates | when door-plates is chosen only ["door-plates"] is open: a chain, not a web |
 | G7 | every machine answers with progress, on two senses, within 1 s | door-plates senses | within 1.0 s it answers on ["sound"] and not on two senses |
 | G7 | every machine answers with progress, on two senses, within 1 s | lens-ring senses | within 1.0 s it answers on ["sight"] and not on two senses |
-| G8 | 3 to 6 manipulations; 1 to 2 clue sources | door-plates clues | 4 clue sources (budget 1...2) |
+| G8 | 3 to 6 manipulations; 1 to 2 clue sources | stones clues | 3 clue sources (budget 1...2) |
 | G8 | 3 to 6 manipulations; 1 to 2 clue sources | archive-gates-beam manipulations | 15 manipulations (budget 3...6) |
-| G9 | every puzzle has its own verb and channel | chime-pool+door-plates+stones | 3 puzzles share the verb and channel strike/hear |
+| G9 | every puzzle has its own verb and channel | chime-pool+stones | 2 puzzles share the verb and channel strike/hear |
 | G9 | every puzzle has its own verb and channel | archive-gates+lens-ring | 2 puzzles share the verb and channel turn/aim |
 | G10 | the answer is not handed over as a sentence | stones page 3 | page 3 says the order in words |
-| G10 | the answer is not handed over as a sentence | door-plates page 3 | page 3 says the order in words |
-| G10 | the answer is not handed over as a sentence | door-plates page 5 | page 5 says the order in words |
-| G10 | the answer is not handed over as a sentence | door-plates page 6 | page 6 says the order in words |
 | G10 | the answer is not handed over as a sentence | archive-gates-tone page 13 | page 13 says the order in words |
 | G10 | the answer is not handed over as a sentence | archive-gates-beam page 13 | page 13 says the order in words |
 
-Rules with no break: G1, G2, G3, G11
+Rules with no break: G1, G2, G11
 <!-- graph:end -->

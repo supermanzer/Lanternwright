@@ -72,6 +72,7 @@ final class Game {
                                      sealed: { [weak self] in self?.platesSealed ?? false })
         lensPortal = LensPortalPuzzle(scene: scenes[.varrow]!, state: state, emit: { [weak self] in self?.pending.append($0) }, gate: { [weak self] in self?.gate ?? GateState.evaluate(altarSolved: false, pages: [], resolved: []) }, say: { [weak self] in self?.showBanner($0) },
                                      sealed: { [weak self] in self?.portalSealed ?? false })
+        tonePlates.hint = { [weak self] in self?.logNote("plates_hint") }
         puzzles = [puzzle] + [tonePlates as WorldPuzzle, lensPortal as WorldPuzzle] + (glass.map { [$0] } ?? [])
         if Game.tideArchiveEnabled {
             let t = TideArchivePuzzle(state: state, animator: animator, emit: { [weak self] in self?.pending.append($0) }, level: { [weak self] in Tide.level(self?.time ?? 0) },
@@ -662,6 +663,11 @@ final class Game {
     }
 
     /// Read a notebook line (the door note): it is logged in the Notebook once, and the journal opens on it. Not a page: it is not collected and counts for nothing at the gate.
+    /// P02.3: log a Notebook line without showing a card (the plates' hint): once, with the Notebook tab marked unread.
+    func logNote(_ id: String) {
+        guard Story.noteText(id) != nil, !story.notes.contains(id) else { return }
+        story.notes.append(id); journal.addNotebookEntry()
+    }
     func readNote(_ id: String) {
         guard let text = Story.noteText(id) else { return }
         if !story.notes.contains(id) { story.notes.append(id); journal.addNotebookEntry() }       // logged once; the Notebook only HOLDS it, reading never opens the Notebook (F05 S1)
@@ -771,12 +777,11 @@ final class Game {
         pending.append(.chime([ChimeKind.tide, .wind, .stone][index]))
     }
 
-    /// Walking up to a stone is enough to have seen its glyph.
+    /// P02.2: a stone's glyph is seen (rubbed into the Notebook) when the player looks closer at it (`Notebook.looksAt`). Walking up to it, and striking it, no longer are enough: the carry step is back (Q51).
     private func updateDiscoveries() {
-        guard world == .varrow else { return }
+        guard world == .varrow, !journal.isOpen, !isTraveling else { return }
         for id in StoneID.allCases where !state.has(Notebook.seenFlag(id)) {
-            let d = id.position - player.position
-            if (d.x * d.x + d.z * d.z).squareRoot() < Notebook.seenRadius && abs(d.y) < 6 { state.set(Notebook.seenFlag(id)) }
+            if Notebook.looksAt(id, camera: camera, zoom: zoomAmount) { state.set(Notebook.seenFlag(id)) }
         }
     }
 

@@ -22,9 +22,9 @@ extension SelfTestRunner {
 
         // The right order, with the gate ready: the tones are held, the chord blooms, the lamp answers, the door opens.
         let g = readyGame()
-        strike(g, [0, 1, 2])
+        strike(g, TonePlatePuzzle.order)
         let evs = g.drainEvents()
-        check(chimes(evs) == [.tide, .wind, .stone] && evs.contains(.droneBloom) && evs.contains(.drone(0, true)) && evs.contains(.drone(1, true)) && evs.contains(.drone(2, true)), "plates: tide, wind, stone in order: each rings and is held, and the chord blooms")
+        check(chimes(evs) == TonePlatePuzzle.order.map { [ChimeKind.tide, .wind, .stone][$0] } && evs.contains(.droneBloom) && evs.contains(.drone(0, true)) && evs.contains(.drone(1, true)) && evs.contains(.drone(2, true)), "plates: the beam's order (stone, tide, wind) in order: each rings and is held, and the chord blooms")
         check(!g.state.has(Game.doorOpenFlag), "plates: the door is not open at the third strike: the lamp has yet to answer")
         g.simulate(seconds: TonePlatePuzzle.Timing.answerDelay + 0.3)
         check(chimes(g.drainEvents()).contains(.lens) && !g.state.has(Game.doorOpenFlag), "plates: then the lamp answers (the lens's chime), and the door is not yet open")
@@ -57,7 +57,7 @@ extension SelfTestRunner {
         u.activate(DoorNote.itemName); u.player.position += SIMD3(0, 0, 4)
         u.advance(now: 5000.3, input: InputState())
         check(u.reading == nil, "plates: and so does walking away from it")
-        strike(u, [0, 1, 2]); u.simulate(seconds: TonePlatePuzzle.Timing.answerDelay + TonePlatePuzzle.Timing.openDelay + 1)
+        strike(u, TonePlatePuzzle.order); u.simulate(seconds: TonePlatePuzzle.Timing.answerDelay + TonePlatePuzzle.Timing.openDelay + 1)
         check(u.state.has(Game.doorOpenFlag), "plates: and from that save the plates answer and the door opens (nothing else is asked for)")
         // The same state with the gate asking for a contradiction again (the constant turned back on) is NOT ready: the test above would then fail, so the waiver is what lets this player in.
         check(!GateState.evaluate(altarSolved: true, pages: [1, 2, 3, 4, 6, 7, 8, 9], resolved: [], waived: false).ready, "plates: only the waiver lets that save in (with the constant off it is not ready)")
@@ -75,7 +75,7 @@ extension SelfTestRunner {
         check(glint(thin) == 0, "plates: with the altar solved but the gate not ready they do not glint (too little read)")
         let sealed = twoWorlds(); for n in [1, 2, 3, 5, 6, 7] { sealed.restorePage(n) }; sealed.state.set("gw_end"); sealed.state.set(Game.pathOrenFlag); for _ in 0..<40 { step(sealed) }
         check(glint(sealed) == 0, "plates: after Oren's route (the plates sealed) they do not glint")
-        gl.simulate(seconds: 0.2); strike(gl, [0, 1, 2]); gl.simulate(seconds: 6); step(gl)
+        gl.simulate(seconds: 0.2); strike(gl, TonePlatePuzzle.order); gl.simulate(seconds: 6); step(gl)
         check(gl.state.has(Game.doorOpenFlag) && glint(gl) == 0, "plates: once the door is open the glint is gone")
         let lk = twoWorlds(); lk.state.set("gw_end"); step(lk)
         lk.activate("lh_door"); check(lk.banner == Story.doorLockedReturned, "plates: back with the altar solved the locked door says the stones beside it are listening (\(lk.banner ?? "-"))")
@@ -110,23 +110,23 @@ extension SelfTestRunner {
         strike(w, [0])
         check(w.tonePlates.sequence.isEmpty, "plates: while the reset is under way a strike only rings")
         w.simulate(seconds: TonePlatePuzzle.Timing.wrongResetDelay + 0.2)
-        strike(w, [0, 1, 2]); w.simulate(seconds: 5)
+        strike(w, TonePlatePuzzle.order); w.simulate(seconds: 5)
         check(w.state.has(Game.doorOpenFlag), "plates: after the reset the right order opens the door")
         // Out of order half way.
         let h = readyGame()
-        strike(h, [0, 2]); h.simulate(seconds: 1.2)
-        strike(h, [0, 1, 2]); h.simulate(seconds: 5)
+        strike(h, [TonePlatePuzzle.order[0], TonePlatePuzzle.order[2]]); h.simulate(seconds: 1.2)
+        strike(h, TonePlatePuzzle.order); h.simulate(seconds: 5)
         check(h.state.has(Game.doorOpenFlag), "plates: tide then stone is wrong half way; after the reset the order is whole again")
 
         // A partial set stays (no time limit), and completes later.
         let p = readyGame()
-        strike(p, [0, 1]); p.simulate(seconds: 30)
-        check(p.tonePlates.sequence == [0, 1] && !p.state.has(Game.doorOpenFlag), "plates: two plates struck and left for 30 s: still two, no door")
-        strike(p, [2]); p.simulate(seconds: 5)
+        strike(p, Array(TonePlatePuzzle.order.prefix(2))); p.simulate(seconds: 30)
+        check(p.tonePlates.sequence == Array(TonePlatePuzzle.order.prefix(2)) && !p.state.has(Game.doorOpenFlag), "plates: two plates struck and left for 30 s: still two, no door")
+        strike(p, [TonePlatePuzzle.order[2]]); p.simulate(seconds: 5)
         check(p.state.has(Game.doorOpenFlag), "plates: the third, much later, completes it")
         // Repeating a plate is a wrong strike.
         let r = readyGame()
-        strike(r, [0, 0])
+        strike(r, [TonePlatePuzzle.order[0], TonePlatePuzzle.order[0]])
         check(chimes(r.drainEvents()).contains(.fail), "plates: the same plate twice is wrong (a soft fail)")
         r.simulate(seconds: TonePlatePuzzle.Timing.wrongResetDelay + 0.2)
         check(r.tonePlates.sequence.isEmpty, "plates: and the set starts again")
@@ -135,7 +135,7 @@ extension SelfTestRunner {
         let n = twoWorlds()
         n.state.set("gw_end"); n.restorePage(1); n.restorePage(5)
         _ = n.drainEvents()
-        strike(n, [0, 1, 2])
+        strike(n, TonePlatePuzzle.order)
         let nevs = n.drainEvents()
         check(nevs.contains(.droneBloom), "plates: with too little read, the right order still blooms the chord")
         n.simulate(seconds: TonePlatePuzzle.Timing.answerDelay + 0.3)
@@ -144,17 +144,17 @@ extension SelfTestRunner {
         check(n.tonePlates.sequence.isEmpty && !n.state.has(Game.doorOpenFlag), "plates: unanswered, they reset")
         for k in [2, 3, 6, 7] { n.restorePage(k) }
         n.story.contradictionsResolved = ["who-left"]
-        strike(n, [0, 1, 2]); n.simulate(seconds: 5)
+        strike(n, TonePlatePuzzle.order); n.simulate(seconds: 5)
         check(n.state.has(Game.doorOpenFlag), "plates: once the gate is ready the same order opens the door")
         let early = twoWorlds()                                                          // before the Glass Wood: no altar, nothing said
-        strike(early, [0, 1, 2]); early.simulate(seconds: 6)
+        strike(early, TonePlatePuzzle.order); early.simulate(seconds: 6)
         check(!early.state.has(Game.doorOpenFlag) && early.banner == nil, "plates: before the Glass Wood the right order does nothing and says nothing")
 
         // The door note goes with the door when it opens.
         let nn = readyGame()
         step(nn)
         check(nn.scene.items.first { $0.name == DoorNote.itemName }?.hidden == false, "plates: the note is on the door while it is shut")
-        strike(nn, [0, 1, 2]); nn.simulate(seconds: 5); step(nn)
+        strike(nn, TonePlatePuzzle.order); nn.simulate(seconds: 5); step(nn)
         check(nn.scene.items.first { $0.name == DoorNote.itemName }?.hidden == true, "plates: and gone when the door is open")
 
         // The door swings: shut before, swinging after (the leaf's own model turns about its hinge), wide open at the end; a game loaded with it open shows it open at once.
@@ -162,7 +162,7 @@ extension SelfTestRunner {
         func leafModel(_ g: Game) -> float4x4? { g.scene.items.first { $0.name == "lh_door_leaf" }?.uniforms.model }
         func same(_ a: float4x4?, _ b: float4x4) -> Bool { a.map { m in simd_length(m.columns.0 - b.columns.0) < 1e-4 && simd_length(m.columns.1 - b.columns.1) < 1e-4 && simd_length(m.columns.2 - b.columns.2) < 1e-4 && simd_length(m.columns.3 - b.columns.3) < 1e-4 } ?? false }
         check(same(leafModel(sw), Lighthouse.doorLeafModel(open: 0)) && sw.doorAngle == 0, "plates: the door leaf is shut while the door is")
-        strike(sw, [0, 1, 2]); sw.simulate(seconds: TonePlatePuzzle.Timing.answerDelay + TonePlatePuzzle.Timing.openDelay + 0.3)
+        strike(sw, TonePlatePuzzle.order); sw.simulate(seconds: TonePlatePuzzle.Timing.answerDelay + TonePlatePuzzle.Timing.openDelay + 0.3)
         step(sw); sw.simulate(seconds: Game.doorSwingSeconds / 2)
         let mid = sw.doorAngle
         check(sw.state.has(Game.doorOpenFlag) && mid > 0.1 && mid < Game.doorSwing - 0.1, "plates: when the door opens the leaf starts to swing (\(mid) of \(Game.doorSwing) rad)")
@@ -197,9 +197,9 @@ extension SelfTestRunner {
         b.player = Player(position: SIMD3(lh.x + 2.1, lh.y + 0.9, lh.z + 9), yaw: .pi)
         b.player.position.y = b.scene.groundHeight(x: b.player.position.x, z: b.player.position.z)
         var ok = bot.walk(to: SIMD3(lh.x + 2.1, 0, lh.z + 5.4), within: 0.7, straight: true)
-        for k in 0..<3 { ok = ok && bot.click(names[k]); bot.wait(0.4) }
+        for k in TonePlatePuzzle.order { ok = ok && bot.click(names[k]); bot.wait(0.4) }
         bot.wait(TonePlatePuzzle.Timing.answerDelay + TonePlatePuzzle.Timing.openDelay + 1)
-        check(ok && b.state.has(Game.doorOpenFlag), "plates: a bot walks up, touches tide, wind, stone with real clicks, and the door opens")
+        check(ok && b.state.has(Game.doorOpenFlag), "plates: a bot walks up, touches the plates in the beam's order with real clicks, and the door opens")
         let bw = readyGame()
         let bbot = PlaythroughBot(bw)
         bw.player = Player(position: SIMD3(lh.x + 2.1, lh.y + 0.9, lh.z + 9), yaw: .pi)
@@ -208,5 +208,40 @@ extension SelfTestRunner {
         for k in [1, 0, 1, 2] { _ = bbot.click(names[k]); bbot.wait(0.4) }
         bbot.wait(6)
         check(!bw.state.has(Game.doorOpenFlag), "plates: a bot touching them wrongly (wind, tide, wind, stone) does not open the door")
+
+        // P02.3 (Q50, Q78): the answer is the beam's rhythm, read by RANK from the flash lengths A's SignalPattern sets (long = stone, middle = wind, short = tide), in the order flashed.
+        let pat = Layout.Navigation.SignalPattern.groupSeconds
+        check(TonePlatePuzzle.order == [2, 0, 1] && TonePlatePuzzle.order == Layout.Navigation.SignalPattern.ranks && Set(TonePlatePuzzle.order) == [0, 1, 2], "plates: the answer is data read from the beam: stone, tide, wind (\(TonePlatePuzzle.order))")
+        check(TonePlatePuzzle.order != TonePlatePuzzle.legacyOrder && TonePlatePuzzle.order != TonePlatePuzzle.legacyOrder.reversed(), "plates: and it is neither the stones' order (the old answer, now the Notebook's hint) nor its reverse")
+        // What a player (or a bot) reads from the beam itself: sample the real signal, take each lit stretch's length, and rank them. The ramps trim each flash by ~0.15 s; the ranks do not move.
+        var lit: [Float] = [], run: Float = 0
+        let dt: Float = 1.0 / 120
+        var t: Float = 0
+        while t < BeamSignal.period * 2 {
+            let on = BeamSignal.pose(clock: t).flash && BeamSignal.pose(clock: t).intensity > 1.2         // bright, at the door: a flash a viewer reads as ON
+            if on { run += dt } else if run > 0 { lit.append(run); run = 0 }
+            t += dt
+        }
+        let oneCycle = Array(lit.prefix(3))
+        check(lit.count == 6 && oneCycle.count == 3, "plates: the beam shows three lit stretches a cycle (\(lit.count) in two cycles)")
+        check(zip(oneCycle, pat).allSatisfy { $0 < $1 && $0 > $1 - 0.4 }, "plates: the ramps trim each lit stretch by a few tenths of a second (read \(oneCycle.map { String(format: "%.2f", $0) }), set \(pat))")
+        check(TonePlatePuzzle.order(fromGroupSeconds: oneCycle) == TonePlatePuzzle.order, "plates: ranking what the beam is seen to do gives the same order as the constants (rank, not exact seconds)")
+        check(TonePlatePuzzle.order(fromGroupSeconds: [1, 2, 3]) == [0, 1, 2] && TonePlatePuzzle.order(fromGroupSeconds: [3, 1, 2]) == [2, 0, 1] && TonePlatePuzzle.order(fromGroupSeconds: [2.0, 2.0, 0.5]) == [1, 1, 0], "plates: the ranking itself (a tie is not a pattern: it names the same plate twice)")
+        // The old order no longer opens the door; the beam's does.
+        let oldO = readyGame(); strike(oldO, TonePlatePuzzle.legacyOrder); oldO.simulate(seconds: 6)
+        check(!oldO.state.has(Game.doorOpenFlag), "plates: the stones' old order (tide, wind, stone) no longer opens the door")
+        // The Notebook's fallback hint: after three wrong strikes, once, never the answer, and it keeps the old order as its words.
+        let hn = readyGame()
+        func wrong(_ g: Game) { strike(g, [TonePlatePuzzle.order[1]]); g.simulate(seconds: TonePlatePuzzle.Timing.wrongResetDelay + 0.2) }
+        wrong(hn); wrong(hn)
+        check(!hn.story.notes.contains("plates_hint") && !hn.journal.notebookUnread, "plates: two wrong strikes leave the Notebook alone")
+        wrong(hn)
+        check(hn.story.notes == ["plates_hint"] && hn.journal.notebookUnread && hn.tonePlates.wrongStrikes == 3, "plates: the third wrong strike logs the hint in the Notebook (marked unread)")
+        wrong(hn); wrong(hn)
+        check(hn.story.notes == ["plates_hint"], "plates: and only once")
+        let hint = Story.noteText("plates_hint") ?? ""
+        check(hint.contains("water, wind, stone") && !hint.contains("stone, tide") && !hint.lowercased().contains("longest") && !hint.lowercased().contains("shortest"), "plates: the hint keeps the old order in its words and does not state the new answer (\(hint))")
+        strike(hn, TonePlatePuzzle.order); hn.simulate(seconds: 6)
+        check(hn.state.has(Game.doorOpenFlag), "plates: a player who needed the hint can still open the door (nothing was blocked)")
     }
 }

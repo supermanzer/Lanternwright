@@ -77,7 +77,7 @@ extension SelfTestRunner {
         let q = twoWorlds()
         for n in [1, 2, 3, 5, 6, 7] { q.restorePage(n) }
         q.state.set("gw_end"); q.state.set(Game.pathOrenFlag); step(q)
-        for k in [0, 1, 2] { q.activate(TonePlates.names[k]) }
+        for k in TonePlatePuzzle.order { q.activate(TonePlates.names[k]) }
         wait(q, 6)
         check(!q.state.has(Game.doorOpenFlag) && q.tonePlates.sequence.isEmpty && tint(q, "tone_plates") < 0.5, "fork: after Oren's route the plates only ring: the door stays shut and the plates are dimmed")
         check(!q.beginRoute(.ilse) && q.chosenPath == .oren, "fork: and Ilse's route cannot be begun")

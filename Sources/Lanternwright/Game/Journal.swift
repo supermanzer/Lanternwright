@@ -1,4 +1,5 @@
 import Foundation
+import simd
 
 struct JournalPage {
     let number: Int
@@ -44,6 +45,18 @@ enum Notebook {
     static let flags: [String] = StoneID.allCases.flatMap { [seenFlag($0), struckFlag($0)] }
     /// How close you must come before a stone's glyph counts as seen (it is carved at eye height on the arrival face).
     static let seenRadius: Float = 9
+    /// P02.2 (Q51, Q78): walking up is no longer enough. A stone's glyph is entered in the Notebook once the player LOOKS CLOSER at it (`LookCloser`, the zoom held): zoomed in at least `minZoom`,
+    /// within `lookRadius` metres of it, and the glyph within `aimDegrees` of the middle of the view. The zoom magnifies about 2.9x, so 24 m through it reads like 8 m by eye.
+    static let minZoom: Float = 0.7, lookRadius: Float = 24, aimDegrees: Float = 6
+    /// Where the glyph is: carved at eye height on the stone's face.
+    static func glyphPoint(_ id: StoneID) -> SIMD3<Float> { id.position + SIMD3(0, 0.5 * StoneID.height, 0) }
+    /// Is the player, with this camera and zoom amount, looking closely at that stone's glyph?
+    static func looksAt(_ id: StoneID, camera: Camera, zoom: Float) -> Bool {
+        guard zoom >= minZoom else { return false }
+        let d = glyphPoint(id) - camera.position, dist = simd_length(d)
+        guard dist <= lookRadius, dist > 0.5 else { return false }
+        return simd_dot(d / dist, camera.forward) >= cos(aimDegrees * .pi / 180)
+    }
 }
 
 struct JournalState {

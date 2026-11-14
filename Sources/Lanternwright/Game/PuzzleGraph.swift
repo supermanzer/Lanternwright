@@ -384,10 +384,10 @@ extension PuzzleGraph {
                       value: "the non-decoy chimes hang in the order of the sluice rooms' floors (tide highest): an ORDER today, not a scale, and the gates carry no mark for it yet (Q76)"),
             PuzzleKey(id: "lantern-count", title: "the lit-lantern count", channel: .count, learnedAt: "dock-lanterns", learnedWorld: .varrow, learnedPosition: dockLantern, usedAt: ["archive-gates-beam"], planted: true,
                       value: "\(PlantedClues.litCount) of the first \(PlantedClues.lanternSpan) dock lanterns are lit = \(PlantedClues.firstRingMarkSteps) steps to the prism ring's first mark (Oren's way; Ilse's fork has no counterpart yet, Q75)"),
-            PuzzleKey(id: "stones-order", title: "the stones' altitude order", channel: .see, learnedAt: "the island-profile diagram page", learnedWorld: .varrow, learnedPosition: nil, usedAt: ["stones"],
-                      status: .planned("B3 (P02.2): the Notebook diagram; needs the user's page wording"), value: "low to high, as glyphs on a drawn profile"),
-            PuzzleKey(id: "beam-rhythm", title: "the beam rhythm", channel: .watch, learnedAt: "the lighthouse beam at dusk", learnedWorld: .varrow, learnedPosition: nil, usedAt: ["door-plates"],
-                      status: .planned("A2 (the beam pattern) then B3 (P02.3, the plate rule)"), value: "three groups of flashes, long = stone, middle = wind, short = tide"),
+            PuzzleKey(id: "stones-order", title: "the stones' altitude order", channel: .see, learnedAt: "the island-profile diagram on page \(PageArt.islandProfilePage)", learnedWorld: .varrow, learnedPosition: pages.first { $0.id == PageArt.islandProfilePage }?.position, usedAt: ["stones", "door-plates"], planted: true,
+                      value: "a drawn profile of the climb with a mark at each stone's real height (\(PageArt.stonesByAltitude.map(\.name).joined(separator: " < "))); a mark shows its rubbing once the stone has been looked at closely (Q51); the plates use it to name a flash's length (short = low = tide)"),
+            PuzzleKey(id: "beam-rhythm", title: "the beam rhythm", channel: .watch, learnedAt: "the lighthouse beam at dusk, from the dock", learnedWorld: .varrow, learnedPosition: Layout.dockEnd, usedAt: ["door-plates"], planted: true,
+                      value: "three groups of flashes of \(Layout.Navigation.SignalPattern.groupSeconds.map { String(format: "%.1f", $0) }.joined(separator: ", ")) s, read by RANK (short = tide, middle = wind, long = stone): the plates are struck in the order flashed, \(TonePlatePuzzle.order.map { stoneTokens[$0] }.joined(separator: ", "))"),
             PuzzleKey(id: "map-shape", title: "the map's empty last ring", channel: .see, learnedAt: "the chain map (Archive)", learnedWorld: .tideArchive, learnedPosition: nil, usedAt: [],
                       status: .planned("the Salt Flats' first lamp (not built)"), value: "the shape of the last ring"),
         ]
@@ -400,7 +400,7 @@ extension PuzzleGraph {
         nodes.append(PuzzleNode(
             id: "stones", title: "the three resonance stones (Varrow)", world: .varrow, verb: "strike", channel: .hear, answer: stonesAnswer, manipulations: LighthousePuzzle.order.count,
             requires: [Game.quaySeenFlag], sets: "solved", machine: centres(StoneID.allCases.map { "stone_\($0.name)" }, .varrow), machineIDs: StoneID.allCases.map { "stone_\($0.name)" },
-            clues: [pageClue(2), pageClue(3)],
+            clues: [pageClue(2), pageClue(3), keyClue("stones-order")],
             feedback: [sight(.progress, LighthousePuzzle.Timing.litFade, "each right stone lights and stays lit; a wrong one dims all three"), sound(.progress, 0.0, "each strike rings and the right ones hold their drone")]))
         nodes.append(PuzzleNode(id: "to-glass-wood", title: "touch the islet's lens", world: .varrow, kind: .transit, verb: "touch", channel: .touch, requires: ["solved"], sets: "lensTouched",
                                 machine: centres(["lens"], .varrow), machineIDs: ["lens"]))
@@ -419,9 +419,9 @@ extension PuzzleGraph {
         nodes.append(PuzzleNode(id: "return", title: "return through the lens", world: .glassWood, kind: .transit, verb: "touch", channel: .touch, requires: ["gw_end"], sets: "returned",
                                 machine: centres(["gw_return"], .glassWood), machineIDs: ["gw_return"]))
         nodes.append(PuzzleNode(
-            id: "door-plates", title: "the lighthouse door plates (Varrow)", world: .varrow, verb: "strike", channel: .hear, answer: platesAnswer, manipulations: TonePlatePuzzle.order.count,
+            id: "door-plates", title: "the lighthouse door plates (Varrow)", world: .varrow, verb: "strike", channel: .watch, answer: platesAnswer, manipulations: TonePlatePuzzle.order.count,
             requires: ["returned", "gate_pages"], sets: Game.doorOpenFlag, machine: centres(TonePlates.names, .varrow), machineIDs: TonePlates.names,
-            clues: [memory("stones", .varrow, "the stones' order"), pageClue(3), pageClue(5), pageClue(6)],
+            clues: [keyClue("beam-rhythm"), keyClue("stones-order")],
             feedback: [sight(.binary, 0.0, "the plates glint only while they would be answered"), sound(.progress, 0.0, "a right strike holds its tone; a wrong one sours and resets")]))
         nodes.append(PuzzleNode(
             id: "lens-ring", title: "the lens-room ring and receiver (Oren's exit)", world: .varrow, optional: true, verb: "turn", channel: .aim, answer: ["angle:\(Int((LensPortalProps.receiverAngle * 180 / .pi).rounded()))"],

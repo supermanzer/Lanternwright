@@ -231,6 +231,7 @@ final class OverlayView: NSView {
             text(journalTab.heading, font: serif(15), color: faded, in: NSRect(x: p.minX + 48, y: p.minY + 46, width: p.width - 96, height: 22), align: .center)
             text("page \(toRoman(page.number))", font: .systemFont(ofSize: 12, weight: .medium), color: faded, in: NSRect(x: p.minX + 48, y: p.minY + 72, width: p.width - 96, height: 18), align: .center)
             text(page.text, font: serif(page.text.count > 400 ? 19 : (page.text.count > 330 ? 21 : 24)), color: ink, in: NSRect(x: p.minX + 56, y: p.minY + 110, width: p.width - 112, height: p.height - 210), spacing: 9)       // S04.7: the longer Archive pages are set a little smaller so they fit
+            if let art = PageArt.kind(forPage: page.number) { drawPageArt(art, in: NSRect(x: p.minX + 90, y: p.minY + 292, width: p.width - 180, height: 140), ink: ink, faded: faded) }
             // Page dots + arrows.
             let dotsY = p.maxY - 50
             let totalW = CGFloat(pages.count) * 16
@@ -323,6 +324,48 @@ final class OverlayView: NSView {
             text(notebookNotes.joined(separator: "\n"), serif(15), ink, NSRect(x: p.minX + 56, y: p.minY + (claimCards.isEmpty ? 270 : 604), width: p.width - 112, height: 30), .left, 2)
         }
         text("Tab  next tab     Esc or J  close", .systemFont(ofSize: 11), faded, NSRect(x: p.minX, y: p.maxY - 26, width: p.width, height: 16), .center, 0)
+    }
+
+    /// P02.2: the island profile (page 3): the sea, the land's height along the climb as a soft line, and a mark at each stone's real altitude: its rubbing once the Notebook holds it, else a bare ring.
+    private func drawPageArt(_ kind: PageArt.Kind, in r: NSRect, ink: NSColor, faded: NSColor) {
+        switch kind {
+        case .islandProfile:
+            let top = CGFloat(PageArt.maxAltitude) * 1.12, base = r.maxY - 8, h = r.height - 22, left = r.minX + 10, w = r.width - 20
+            func pt(_ along: Float, _ alt: Float) -> NSPoint { NSPoint(x: left + CGFloat(along) * w, y: base - CGFloat(max(alt, 0)) / top * h) }
+            // The sea: a faint level line under everything.
+            faded.withAlphaComponent(0.5).setStroke()
+            let sea = NSBezierPath(); sea.move(to: NSPoint(x: r.minX, y: base)); sea.line(to: NSPoint(x: r.maxX, y: base)); sea.lineWidth = 1; sea.stroke()
+            // The hill: a smooth line through the stations (Catmull-Rom as cubic Beziers), filled faintly to the sea.
+            let pts = PageArt.stations.map { pt($0.along, $0.altitude) }
+            let hill = NSBezierPath(); hill.move(to: pts[0])
+            for i in 0..<(pts.count - 1) {
+                let p0 = pts[max(i - 1, 0)], p1 = pts[i], p2 = pts[i + 1], p3 = pts[min(i + 2, pts.count - 1)]
+                hill.curve(to: p2, controlPoint1: NSPoint(x: p1.x + (p2.x - p0.x) / 6, y: p1.y + (p2.y - p0.y) / 6), controlPoint2: NSPoint(x: p2.x - (p3.x - p1.x) / 6, y: p2.y - (p3.y - p1.y) / 6))
+            }
+            let fill = hill.copy() as! NSBezierPath
+            fill.line(to: NSPoint(x: pts.last!.x, y: base)); fill.line(to: NSPoint(x: pts[0].x, y: base)); fill.close()
+            ink.withAlphaComponent(0.07).setFill(); fill.fill()
+            ink.withAlphaComponent(0.7).setStroke(); hill.lineWidth = 1.6; hill.stroke()
+            // The lamp at the top of the climb: a small tick, no label.
+            let lamp = pts.last!; ink.withAlphaComponent(0.7).setStroke()
+            let tick = NSBezierPath(); tick.move(to: lamp); tick.line(to: NSPoint(x: lamp.x, y: lamp.y - 16)); tick.lineWidth = 1.4; tick.stroke()
+            // A mark per stone, at its altitude: a dotted drop to the sea, then its rubbing (small) or a ring.
+            for id in StoneID.allCases {
+                let m = PageArt.mark(id), c = pt(m.along, m.altitude), i = id.rawValue
+                faded.setStroke(); let drop = NSBezierPath(); drop.move(to: c); drop.line(to: NSPoint(x: c.x, y: base)); drop.lineWidth = 1; drop.setLineDash([2, 3], count: 2, phase: 0); drop.stroke()
+                let badge = NSRect(x: c.x - 15, y: c.y - 40, width: 30, height: 30)
+                NSColor(calibratedRed: 0.88, green: 0.82, blue: 0.68, alpha: 1).setFill(); NSBezierPath(ovalIn: badge.insetBy(dx: -3, dy: -3)).fill()
+                ink.withAlphaComponent(0.5).setStroke(); let ring = NSBezierPath(ovalIn: badge.insetBy(dx: -3, dy: -3)); ring.lineWidth = 1; ring.stroke()
+                if i < notebookSeen.count, notebookSeen[i] {
+                    NSGraphicsContext.saveGraphicsState()
+                    let t = NSAffineTransform(); t.translateX(by: badge.midX, yBy: badge.midY); t.scale(by: 0.2); t.concat()
+                    drawRubbing(i, at: .zero, color: ink.withAlphaComponent(0.85))
+                    NSGraphicsContext.restoreGraphicsState()
+                } else {
+                    ("?" as NSString).draw(in: NSRect(x: badge.minX, y: badge.minY + 4, width: badge.width, height: 20), withAttributes: [.font: serif(16), .foregroundColor: faded, .paragraphStyle: { let q = NSMutableParagraphStyle(); q.alignment = .center; return q }()])
+                }
+            }
+        }
     }
 
     /// A graphite-rubbing look of each glyph: the stone's carved shape, drawn with a rough stroke.
@@ -669,6 +712,12 @@ enum OverlayDump {
         let tabs = { (ilse: Bool, oren: Bool, notebook: Bool) in [OverlayView.TabItem(tab: .ilse, title: "Ilse", unread: ilse), OverlayView.TabItem(tab: .oren, title: "Oren", unread: oren), OverlayView.TabItem(tab: .notebook, title: "Notebook", unread: notebook)] }
         v = make(); v.journalOpen = true; v.pages = JournalContent.pages.filter { $0.number <= 4 }; v.pageIndex = 2; v.tabItems = tabs(false, true, false)       // S03.2: Oren's tab has a page not read yet
         try v.snapshot(to: base + "-journal.png")
+        v = make(); v.journalOpen = true; v.pages = JournalContent.pages.filter { $0.number <= 4 }; v.pageIndex = 2; v.tabItems = tabs(false, false, false)      // P02.2: page 3 and its profile, no rubbing yet
+        try v.snapshot(to: base + "-profile0.png")
+        v.notebookSeen = [true, false, true]
+        try v.snapshot(to: base + "-profile2.png")
+        v.notebookSeen = [true, true, true]
+        try v.snapshot(to: base + "-profile3.png")
         v = make(); v.journalOpen = true; v.journalTab = .oren; v.pages = JournalContent.pages.filter { $0.number >= 5 }; v.pageIndex = 0; v.tabItems = tabs(true, false, true)
         try v.snapshot(to: base + "-journal-oren.png")
         v = make(); v.journalOpen = true

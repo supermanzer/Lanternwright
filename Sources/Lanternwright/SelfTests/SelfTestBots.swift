@@ -145,7 +145,7 @@ extension SelfTestRunner {
         check(g.reading == nil, "bot: a click puts the card away")
         check(bot.click("lh_door") && !g.state.has(Game.doorOpenFlag) && g.banner == Story.doorLockedReturned, "bot: the door itself is locked, and back with the altar solved its line says the stones beside it are listening")
         var plates = true
-        for k in [0, 1, 2] {
+        for k in TonePlatePuzzle.order {
             let c = bot.interactable(TonePlates.names[k]).map { ($0.min + $0.max) * 0.5 } ?? lh
             // A player stands in front of a plate, looking at it square on: 1.6 m straight out from the tower's wall (from the side the plates in the row hide each other).
             let out = simd_normalize(SIMD2(c.x - lh.x, c.z - lh.z)), stand = SIMD3(c.x + out.x * 1.6, 0, c.z + out.y * 1.6)
@@ -153,7 +153,7 @@ extension SelfTestRunner {
             plates = plates && w && cl
         }
         bot.wait(TonePlatePuzzle.Timing.answerDelay + TonePlatePuzzle.Timing.openDelay + 1.5)
-        check(plates && g.state.has(Game.doorOpenFlag), "bot: strikes the plates tide, wind, stone by real clicks: the lamp answers and the door opens (no contradiction was ever set: it does not gate)")
+        check(plates && g.state.has(Game.doorOpenFlag), "bot: strikes the plates in the beam's order by real clicks: the lamp answers and the door opens (no contradiction was ever set: it does not gate)")
         var climbed = bot.walk(to: SIMD3(lh.x, 0, lh.z + 5), within: 0.5, straight: true) && bot.walk(to: SIMD3(lh.x, 0, lh.z + 3.0), within: 0.5, straight: true) && bot.walk(to: SIMD3(lh.x - 0.9, 0, lh.z + 2.3), within: 0.5, straight: true)
         var phi = I.startAngle
         while climbed && phi < I.endAngle + 0.5 { let q = pt(phi, band(min(phi, I.endAngle))); climbed = bot.walk(to: SIMD3(q.x, 0, q.z), within: 0.55, straight: true); phi += 0.3 }

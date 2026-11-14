@@ -49,12 +49,12 @@ final class LighthousePuzzle: WorldPuzzle {
 
     /// F09.8: a stone that is not awake yet: it rings and the Notebook hears it, nothing else.
     func hear(_ id: StoneID) {
-        state.set(Notebook.struckFlag(id)); state.set(Notebook.seenFlag(id))
+        state.set(Notebook.struckFlag(id))
         emit(.chime(chimeFor(id)))
     }
 
     func strike(_ id: StoneID) {
-        state.set(Notebook.struckFlag(id)); state.set(Notebook.seenFlag(id))      // heard it: it goes in the notebook
+        state.set(Notebook.struckFlag(id))      // heard it: the tone is kept; the rubbing needs a close look (P02.2)
         emit(.chime(chimeFor(id)))
         guard !isSolved, !resetting else { return }              // after solving, stones just ring
         if id == LighthousePuzzle.order[sequence.count] {

@@ -15,7 +15,11 @@ enum Story {
     /// F09.8 (#114): the FIRST note on the door, before anyone has been through the lens: Ilse, two lines. It says the door will not open yet and where to go, and names no stone. (Wording for the user to edit: docs/plans/F09-seventh-playtest.md, F09.8 done note.)
     static let doorNoteFirst = "The door will not open for me alone.\nOren's lens is down the hill, where the quay meets the water. That is where I left him."
 
+    /// P02.3 (Q78): the Notebook's fallback hint for a player who keeps missing the plates. It keeps the order the stones were met in (the old answer) and says the lamp keeps its own time, without
+    /// stating the new answer. Draft wording for the user to edit (docs/plans/P02-page-drafts.md).
+    static let platesHint = "I learned the stones as water, wind, stone. The lamp does not keep that order: it flashes in three lengths, and the plates may want to be struck by them."
+
     /// Notebook lines by id (what `StoryState.notes` holds), in the order they would be shown.
-    static let notes: [(id: String, text: String)] = [("door_note_first", doorNoteFirst), ("door_note", doorNote)]
+    static let notes: [(id: String, text: String)] = [("door_note_first", doorNoteFirst), ("door_note", doorNote), ("plates_hint", platesHint)]
     static func noteText(_ id: String) -> String? { notes.first { $0.id == id }?.text }
 }

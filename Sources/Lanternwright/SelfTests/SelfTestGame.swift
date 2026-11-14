@@ -82,18 +82,44 @@ extension SelfTestRunner {
             let droneRms = rmsOf(zip(bOn, bOff).map { $0 - $1 })     // the synth noise is seeded, so the difference is the drone alone
             check(droneRms > 0.02 && (bOn.map { abs($0) }.max() ?? 2) < 1.0, "the drone is clearly audible and the mix never clips (drone rms \(String(format: "%.4f", droneRms)) over a bed of \(String(format: "%.4f", rmsOf(bOff))))")
 
-            // 3c. The notebook: stones are *seen* by walking up to them, *struck* by striking, and only struck ones can be tapped to hear.
+            // 3c. The notebook (P02.2, Q51): a stone's glyph is *seen* by LOOKING CLOSER at it (zoom held, near, aimed), not by walking up; *struck* by striking; only struck ones can be tapped to hear.
             g = freshGame()
             check(Notebook.flags.allSatisfy { !g.state.has($0) }, "a new game has an empty notebook")
-            g.player = Player(position: StoneID.wind.position + SIMD3(0, 0, 5), yaw: 0)
-            g.simulate(seconds: 0.2)
-            check(g.state.has("seen_wind") && !g.state.has("seen_tide") && !g.state.has("struck_wind"), "walking up to the wind stone notes its glyph as seen (not struck)")
+            var nbClock = 90.0
+            func faceStone(_ id: StoneID, from dist: Float, away: Float = 0) {
+                let at = id.position + SIMD3(0, 0, dist)
+                g.player = Player(position: at, yaw: 0)
+                let d = Notebook.glyphPoint(id) - g.camera.position
+                g.player.yaw = atan2(d.x, -d.z) + away; g.player.pitch = asin(d.y / simd_length(d))
+            }
+            func nbFrames(zoom: Bool, _ n: Int) { var i = InputState(); i.zoom = zoom; for _ in 0..<n { nbClock += 0.1; g.advance(now: nbClock, input: i) } }
+            faceStone(.wind, from: 5); nbFrames(zoom: false, 20)
+            check(!g.state.has("seen_wind"), "walking up to the wind stone and facing it is NOT enough to note its glyph (P02.2: the carry step is back)")
+            nbFrames(zoom: true, 1)
+            check(g.zoomAmount < Notebook.minZoom && !g.state.has("seen_wind"), "a zoom only just begun (\(String(format: "%.2f", g.zoomAmount))) is not a close look")
+            nbFrames(zoom: true, 20)
+            check(g.state.has("seen_wind") && !g.state.has("seen_tide") && !g.state.has("struck_wind"), "zoomed in on the wind stone's glyph it is noted as seen (not struck, and no other stone)")
             _ = g.drainEvents(); g.playNotebookTone(1)
             check(g.drainEvents().isEmpty, "a seen-but-unstruck glyph makes no sound when tapped")
+            faceStone(.tide, from: 5, away: 0.6); nbFrames(zoom: true, 20)
+            check(!g.state.has("seen_tide"), "zoomed in with the tide stone 34 degrees off the middle of the view: not looked at")
+            faceStone(.tide, from: 60); nbFrames(zoom: true, 20)
+            check(!g.state.has("seen_tide"), "zoomed in and aimed at the tide stone from 60 m: too far to read its glyph")
+            g.journal.isOpen = true; faceStone(.tide, from: 5); nbFrames(zoom: true, 20); g.journal.isOpen = false
+            check(!g.state.has("seen_tide"), "with the journal open the zoom does not notice anything")
             g.puzzle.strike(.tide)
-            check(g.state.has("struck_tide") && g.state.has("seen_tide"), "striking a stone enters it in the notebook")
+            check(g.state.has("struck_tide") && !g.state.has("seen_tide"), "striking a stone records its tone but not its rubbing: that needs the close look")
+            faceStone(.tide, from: 20); nbFrames(zoom: true, 20)
+            check(g.state.has("seen_tide"), "and from 20 m zoomed and aimed the tide stone's glyph is read (the zoom makes 20 m like 7)")
             _ = g.drainEvents(); g.playNotebookTone(0)
             check(chimes(g.drainEvents()) == [.tide], "tapping a struck glyph plays that stone's tone")
+            // The pure rule, at its edges (a mutation of any bound is caught here).
+            let cam = Camera(position: StoneID.summit.position + SIMD3(0, 0.5 * StoneID.height, 10), yaw: 0, pitch: 0)
+            check(Notebook.looksAt(.summit, camera: cam, zoom: 1) && !Notebook.looksAt(.summit, camera: cam, zoom: Notebook.minZoom - 0.05) && Notebook.looksAt(.summit, camera: cam, zoom: Notebook.minZoom + 0.01), "looksAt: the zoom threshold")
+            var wide = cam; wide.yaw = (Notebook.aimDegrees + 1) * .pi / 180; var narrow = cam; narrow.yaw = (Notebook.aimDegrees - 1) * .pi / 180
+            check(!Notebook.looksAt(.summit, camera: wide, zoom: 1) && Notebook.looksAt(.summit, camera: narrow, zoom: 1), "looksAt: the aim cone (\(Notebook.aimDegrees) degrees)")
+            var far = cam; far.position.z = StoneID.summit.position.z + Notebook.lookRadius + 1; var near = cam; near.position.z = StoneID.summit.position.z + Notebook.lookRadius - 1
+            check(!Notebook.looksAt(.summit, camera: far, zoom: 1) && Notebook.looksAt(.summit, camera: near, zoom: 1), "looksAt: the distance (\(Notebook.lookRadius) m)")
             var tabIn = InputState(); tabIn.tabPressed = true
             g.journal.isOpen = true
             g.advance(now: 100, input: tabIn)
