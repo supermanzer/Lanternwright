@@ -329,6 +329,11 @@ Measured at 2560x1440 (`--bench 60 --taa`), hiding all trees changes the frame b
 *What changes if the answer differs:* the pinned list `SelfTestRunner.pinnedPuzzleBreaks` and the report change with the rule; no game code does.
 *Status:* open.
 
+### Q90 (2026-11-14, reviewer, S05): the Archive's two sites and their puzzles
+*Default taken (docs/plans/S05-divergent-routes.md, user approved the direction in Q40):* each route spends most of its time at its own site: Ilse the stacks and sluice-room bell pipes (listen, read, tune), Oren the dome's tide-orrery and the prism ring (watch, aim). Shared: the tide marks at the entry (COUNT) and the gallery and chain map (SEE). The other sibling's machines are visible across the water, dark and unreachable. Nothing tells the player to replay. Pages for the new sites are drafted only (P02-page-drafts.md), never applied. Built after P02 phases; Archive first, later worlds only after you have played both routes.
+*What changes if the answer differs:* the puzzle table in S05 section 3 (bell pipes could be a different instrument, the orrery a different motion); the work packages S05.1 to S05.4 change with it.
+*Status:* open.
+
 ## Answered
 - 2026-10-28 S03 Oren's exit location: both exits at the original lighthouse; Oren's is a lens portal in the lens room, the dock arch is not an exit.
 - 2026-10-28 Page gate: 3 pages of each sibling.
