@@ -353,3 +353,8 @@ Nothing here has been played by a person; the numbers and frames are in `shots/f
 - **Lanterns on the dock path (P02.5, Q75):** two of the first eight lanterns (the 3rd and 6th) are unlit embers. Nothing points at them. Look for: whether the two dark ones read as part of the place or as broken lamps (`shots/b2-lanterns.png`, daylight; check at dusk too). Six lit = the six clicks to the Archive prism ring's first mark.
 - **Chime heights (P02.5, Q76):** no visible change; the three real chimes hang in the order of the Archive's three sluice rooms' floors. The key is data and a test only (planned in the graph): the gates carry no mark for it yet.
 - **For the reviewer:** `--puzzle-graph` now prints a Keys table; the graph is at 18 rule breaks (was 21: the mirror court no longer appears in G5, G7, G8 or G10; G5 still holds for the other puzzles that share the answer).
+
+## B3 (p02-b2): the Notebook close look, the island profile, the plates on the beam
+- **Look:** zoom (right mouse / Z) on a stone's glyph within about 24 m, centred: its rubbing appears in the Notebook. Walking up and striking do not. Open the journal on page 1: the profile of the climb, three rings that become rubbings as you look. `shots/b3/o-profile0/2/3.png` are the overlay frames.
+- **Watch and strike:** after the altar and the sweeps, the beam at the door flashes three lengths; strike the plates stone (longest), tide (shortest), wind (middle), in the order flashed. The old order tide, wind, stone no longer opens the door. Miss three times and the Notebook gains a line.
+- **Listen:** nothing new to hear; the held tones are as before.

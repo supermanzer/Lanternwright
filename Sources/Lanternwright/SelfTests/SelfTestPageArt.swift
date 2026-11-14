@@ -50,7 +50,7 @@ extension SelfTestRunner {
         }
         guard let none = render(seen: [false, false, false], page: PageArt.islandProfilePage), let one = render(seen: [true, false, false], page: PageArt.islandProfilePage), let all = render(seen: [true, true, true], page: PageArt.islandProfilePage),
               let plain = render(seen: [false, false, false], page: 9) else { check(false, "pageart: the overlay renders"); return }
-        let band = 492..<632                                   // the panel (640 x 500, centred on 1600 x 900) starts at y 200; the art sits 292 to 432 below that
+        let band = 458..<582                                   // the panel (640 x 500, centred on 1600 x 900) starts at y 200; the art sits 258 to 382 below that, above the page-slot squares
         check(ink(none, rows: band) > 400 && ink(plain, rows: band) < 60, "pageart: page 1 has a drawing under its words and a page with no art has none there (ink \(ink(none, rows: band)) vs \(ink(plain, rows: band)))")
         let d1 = diff(none, one), d3 = diff(none, all)
         check(d1.count > 30 && d3.count > d1.count && d3.count > 150, "pageart: a stone's rubbing changes the drawing (one: \(d1.count) pixels, all three: \(d3.count))")

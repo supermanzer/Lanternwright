@@ -231,7 +231,7 @@ final class OverlayView: NSView {
             text(journalTab.heading, font: serif(15), color: faded, in: NSRect(x: p.minX + 48, y: p.minY + 46, width: p.width - 96, height: 22), align: .center)
             text("page \(toRoman(page.number))", font: .systemFont(ofSize: 12, weight: .medium), color: faded, in: NSRect(x: p.minX + 48, y: p.minY + 72, width: p.width - 96, height: 18), align: .center)
             text(page.text, font: serif(page.text.count > 400 ? 19 : (page.text.count > 330 ? 21 : 24)), color: ink, in: NSRect(x: p.minX + 56, y: p.minY + 110, width: p.width - 112, height: p.height - 210), spacing: 9)       // S04.7: the longer Archive pages are set a little smaller so they fit
-            if let art = PageArt.kind(forPage: page.number) { drawPageArt(art, in: NSRect(x: p.minX + 90, y: p.minY + 292, width: p.width - 180, height: 140), ink: ink, faded: faded) }
+            if let art = PageArt.kind(forPage: page.number) { drawPageArt(art, in: NSRect(x: p.minX + 90, y: p.minY + 258, width: p.width - 180, height: 124), ink: ink, faded: faded) }
             // Page dots + arrows.
             let dotsY = p.maxY - 50
             let totalW = CGFloat(pages.count) * 16
@@ -712,7 +712,7 @@ enum OverlayDump {
         let tabs = { (ilse: Bool, oren: Bool, notebook: Bool) in [OverlayView.TabItem(tab: .ilse, title: "Ilse", unread: ilse), OverlayView.TabItem(tab: .oren, title: "Oren", unread: oren), OverlayView.TabItem(tab: .notebook, title: "Notebook", unread: notebook)] }
         v = make(); v.journalOpen = true; v.pages = JournalContent.pages.filter { $0.number <= 4 }; v.pageIndex = 2; v.tabItems = tabs(false, true, false)       // S03.2: Oren's tab has a page not read yet
         try v.snapshot(to: base + "-journal.png")
-        v = make(); v.journalOpen = true; v.pages = JournalContent.pages.filter { $0.number <= 4 }; v.pageIndex = 2; v.tabItems = tabs(false, false, false)      // P02.2: page 3 and its profile, no rubbing yet
+        v = make(); v.journalOpen = true; v.pages = JournalContent.pages.filter { $0.number <= 4 }; v.pageIndex = 0; v.tabItems = tabs(false, false, false)      // P02.2: page 1 and its profile, no rubbing yet
         try v.snapshot(to: base + "-profile0.png")
         v.notebookSeen = [true, false, true]
         try v.snapshot(to: base + "-profile2.png")
