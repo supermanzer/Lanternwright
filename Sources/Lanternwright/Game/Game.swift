@@ -25,6 +25,8 @@ final class Game {
     var pendingEntry: PageAuthor?
     private var worldInteractables: [WorldKind: [Interactable]] = [:]
     var interactables: [Interactable] { worldInteractables[world] ?? [] }
+    /// P02.0: the boxes of a world other than the one the player is in (the puzzle graph reads where machines and pages stand from them).
+    func interactables(in kind: WorldKind) -> [Interactable] { worldInteractables[kind] ?? [] }
     private(set) var hovered: Interactable?
     var journal = JournalState()
     /// The story beyond the flags (S03.1): glyphs understood, contradictions resolved. The route flags are in `state`.
@@ -533,7 +535,7 @@ final class Game {
             if here, let route = chosenPath, let obj = guideObjective(route), let net = Layout.Navigation.active(for: routeWorld) {
                 if guideKey != obj.key {
                     let from = guideLight?.position ?? me
-                    guideLight = GuideLight(path: GuidePath(net.route(from: from, to: obj.at) + [obj.at]), player: me); guideKey = obj.key
+                    guideLight = GuideLight(path: GuidePath(GuideLanterns.avoidClosedGates(net.route(from: from, to: obj.at) + [obj.at], closed: GuideLanterns.closedGates(opened: tideArchive?.opened ?? 0))), player: me); guideKey = obj.key
                 }
                 guideLight?.step(dt: dt, player: me)
                 guideLantern = guideLight?.position

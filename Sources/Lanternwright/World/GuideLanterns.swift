@@ -76,6 +76,34 @@ struct GuideLight {
 }
 
 enum GuideLanterns {
+    /// F10 (A's flag): a guide light must never hang inside a CLOSED sluice gate. The Archive's sluice walk has a vertex at each room's centre, which is where the gate stands, so a route that follows the
+    /// walk runs through a shut gate's collider. This takes a route and the closed gates' colliders and returns a route that keeps `clearance` metres off each: a vertex that lies too near a gate is dropped
+    /// (the route's last point, where the light is going, is kept; its first is only the corridor node nearest where the light starts, which is often a gate's centre: `NavNetwork.route` returns nodes, never the start itself), and a leg that still passes too near gets a waypoint on the side it was nearer to. Pure.
+    static func avoidClosedGates(_ route: [SIMD2<Float>], closed: [(center: SIMD2<Float>, radius: Float)], clearance: Float = 0.8) -> [SIMD2<Float>] {
+        guard route.count > 1, !closed.isEmpty else { return route }
+        var out = route.enumerated().filter { i, p in i == route.count - 1 || !closed.contains { simd_length(p - $0.center) < $0.radius + clearance } }.map(\.element)
+        var i = 0
+        while i + 1 < out.count, out.count < route.count + 4 * closed.count + 8 {          // (a cap: two shut gates closer than their reach could otherwise chase each other's detours for ever)
+            let a = out[i], b = out[i + 1], ab = b - a
+            let len2 = max(simd_dot(ab, ab), 1e-6)
+            var detour: SIMD2<Float>?
+            for g in closed {
+                let reach = g.radius + clearance
+                let t = min(max(simd_dot(g.center - a, ab) / len2, 0), 1), nearest = a + ab * t
+                guard simd_length(nearest - g.center) < reach else { continue }
+                var side = nearest - g.center
+                if simd_length(side) < 0.05 { side = SIMD2(-ab.y, ab.x) }                       // straight through the centre: go round on the leg's left
+                detour = g.center + simd_normalize(side) * (reach + 0.2)
+                break
+            }
+            if let d = detour, simd_length(d - a) > 0.05, simd_length(d - b) > 0.05 { out.insert(d, at: i + 1) }
+            i += 1
+        }
+        return out
+    }
+    /// The colliders of the Archive's gates that are shut now: the gates open in order, so those from `opened` on.
+    static func closedGates(opened: Int) -> [(center: SIMD2<Float>, radius: Float)] { (0..<3).filter { $0 >= opened }.map { ArchiveProps.gateCollider($0) } }
+
     /// Oren's lantern stays this far ahead of the player along the path (Ilse's route), and never reaches the path's end before the player does.
     static let ahead: Float = 14
     /// Ilse's lamps: one at every `spacing` m of path, lit when the player is within `litRange` m of it along the path, and kept lit once lit.

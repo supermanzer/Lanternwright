@@ -297,6 +297,38 @@ Measured at 2560x1440 (`--bench 60 --taa`), hiding all trees changes the frame b
 *What changes if the answers differ:* which P02 package is built; pages 2, 3, 6, 7, 13 are NOT edited by builders either way (the user's wording), only drafted.
 *Status:* open.
 
+### Q70 (2026-11-14, builder B, P02.0 / F10): the two rings, and the prism ring's 15 clicks
+*Found (by `--puzzle-graph`):* the lens-room ring (Oren's exit) and the Archive's prism ring both have the verb "turn" and the channel AIM (rule G9), and the prism ring takes 15 clicks of 15 degrees to turn through the three marks in order (6 + 4 + 5; budget 3 to 6, rule G8). P02 section 3 keeps both rings on purpose.
+*Default taken:* nothing changed; both are reported and pinned as known breaks in `SelfTestRunner.pinnedPuzzleBreaks`. A coarser ring step (one constant, `TideArchivePuzzle.ringStep`) would cut the prism ring's clicks but moves the marks builder A painted on the chamber floor, so it is not done alone.
+*Where it lives:* `docs/plans/P02-graph-report.md`, `TideArchivePuzzle.beamTargets` / `ringStep`, `LensPortalProps.ringStep`.
+*What changes if the answer differs:* a step of 30 degrees makes the prism ring 8 clicks and the marks fall on every second old mark (A repaints three marks); or the lens ring's verb becomes "aim at the receiver" and the prism's "dial a mark", a naming change only.
+*Status:* open.
+
+### Q71 (2026-11-14, builder B, F10 item 4): the sluice rooms' "push" is the gates and the wading limit, not the pits
+*Found:* F09.3 measured up to 0.45 m/s sideways on the Archive's sluice walk off its centre line. With each source switched off in turn and the sea at the real tide levels (`SelfTestSluicePit`, `SLUICE_TABLE=1` prints it): the pits' ground is gentle (steepest gradient 0.44, limit 0.84); at low water, with no colliders, nothing pushes at all (0.000 m/s on every line). What moves a walker is (1) the closed gate and its piers standing ON the trail's centre line (a visible solid: up to 1.07 m/s) and (2) the wading limit (a player may not wade deeper than 0.4 m, so a room the tide has flooded deeper is a pool whose edge you slide along, as on any shore: 0.1 to 0.33 m/s at mid and high water). The earlier figure was taken with the sea fixed at 0 m, which keeps the stone room (floor -0.9 m) flooded.
+*Default taken:* no fix: both are visible and by design, and the puzzle asks for low water. The F09.3 "found, not yet fixed" note in `SelfTestDrift` stays accurate; `SelfTestSluicePit` now states the cause.
+*Where it lives:* `Player.minGround` / `canMove`, `ArchiveProps.gateCollider`, `ArchiveLayout.sluiceWalk` (the trail runs through each gate).
+*What changes if the answer differs:* if walking into a flooded room should simply stop (not slide), the slide-along-the-edge fallback in `Player.step` is a three-line change for the wading rule only; if the sluice walk should not run through the gates, its polyline needs a point either side of each gate (the trail is builder A's layout; the walk's corridor is wide enough either way).
+*Status:* open.
+
+### Q72 (2026-11-14, builder B, F10 item 2 = F09 #111): turning the lens-room ring back does not dim an opened gate
+*Decision (the plan's default):* **keep as is.** A gate that has opened stays open and lit when the ring is turned away (an opened gate is not taken back; the player can turn the ring freely and it never locks). The alternative the plan allowed, dimming only the prism's own component and never the gate, is not done: a gate that was answered is a solved step, not a held state. Today a gate that is NOT yet open has its component dim when the ring leaves its mark; once it is open its component, its room's lamp and the gate itself all stay lit.
+*Where it lives:* `TideArchivePuzzle.syncVisuals` (a component is bright while `open || aimedSluice == k`; the gate and the room's lamp follow the gate's flag), `SelfTestTideWire` (F09.1 #111: with a gate open the ring is still picked, still turns by click and by arrow key, and the opened gate's lamp stays steady; the dispersed beam staying lit rests on reading `syncVisuals`, no test).
+*What changes if the answer differs:* in `syncVisuals` the component's strength for an open gate would follow `aimedSluice == k` (one expression); the gate and its lamp stay as they are.
+*Status:* open.
+
+### Q73 (2026-11-14, builder B, F10 item 3, A's flag): the guide lantern goes round a shut sluice gate, not through it
+*Found:* the Archive's sluice walk has a vertex at the centre of each sluice room, which is where the gate stands, so every route the guide lantern flew to or between the gates ran through a shut gate's collider (0.9 m inside it) and doubled back to the wheel. The lamps (Oren's route) were never affected (21 m clear). *Default taken:* `GuideLanterns.avoidClosedGates` drops route points near a shut gate and puts one waypoint on the side the route was nearer to; the gate-by-gate objective is unchanged and the light parks on the wheel as before.
+*Known limit (review):* the function is capped in its iterations; for a single gate about 6 of 20,000 random routes still clip the collider by up to 0.63 m (the leg to the inserted waypoint is not rechecked); no real route does (tested). *Where it lives:* `GuideLanterns.avoidClosedGates`, `Game.syncGuides`, `SelfTestGuideGates` (also walks the real game and checks the lantern against the gates still shut).
+*What changes if the answer differs:* none to the player beyond the light's flight path; nothing in A's files changed.
+*Status:* open.
+
+### Q74 (2026-11-14, builder B, P02.0): how the graph scores the puzzles
+*Defaults taken* (all in `PuzzleRules`, `Game/PuzzleGraph.swift`; change a constant and regenerate the report): the 40 m clue distance and "another world is infinitely far"; manipulations 3 to 6 and 1 to 2 clue sources (P01 section 4, Q37); G6 counts the puzzles open just before each choice for a player who always takes the first open one, exempting the first puzzle of each world and the last of the game; AIM puzzles are exempt from the clue rules (their target is in sight and the beam is the feedback) but not from the sentence rule; a story beat and a transit are never scored; the contradiction card is a story beat; Oren's exit ring is scored but never counted as "open". The feedback table is declared from the code's events, not measured.
+*Where it lives:* `docs/plans/P02-graph-report.md` (what the graph does not see).
+*What changes if the answer differs:* the pinned list `SelfTestRunner.pinnedPuzzleBreaks` and the report change with the rule; no game code does.
+*Status:* open.
+
 ## Answered
 - 2026-10-28 S03 Oren's exit location: both exits at the original lighthouse; Oren's is a lens portal in the lens room, the dock arch is not an exit.
 - 2026-10-28 Page gate: 3 pages of each sibling.
