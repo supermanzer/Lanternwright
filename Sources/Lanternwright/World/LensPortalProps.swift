@@ -56,6 +56,8 @@ enum LensPortalProps {
         rec.cylinder(radiusTop: 0.05, radiusBottom: 0.06, height: 0.03, segments: 20, smooth: true, surface: iron, transform: f * translation(SIMD3(0, top, 0.04)) * rotationX(.pi / 2))
         scene.add(receiverName, mesh: rec.build(device: device, label: "lens receiver"), uniforms: ObjectUniforms(model: matrix_identity_float4x4), hidden: !tools)
 
+        ChargeMeter.addReceiver(to: scene, device: device, plate: f, plateY: top)          // F10.3: the charge meter on the receiver's eye (hidden until `ChargeMeter.set`)
+
         // The three gate lamps above the plate: the altar, Ilse's pages, Oren's pages. Dark until what they stand for is true.
         for (k, name) in lampNames.enumerated() {
             var lamp = MeshBuilder()

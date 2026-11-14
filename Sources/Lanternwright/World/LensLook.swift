@@ -9,7 +9,7 @@ enum LensLook {
     /// Resting emissive strengths (the old values were 2.2 and 5).
     static let ringBase: Float = 0.75, discBase: Float = 2.0
     /// The lit state of the Glass Wood's return lens after the altar (the old 6 and 11).
-    static let ringLit: Float = 1.8, discLit: Float = 3.0
+    static let ringLit: Float = 1.8, discLit: Float = 3.6
     static let ringMajor: Float = 0.95, ringMinor: Float = 0.12
 
     static let brass = Surface(color: SIMD3(0.58, 0.46, 0.22), roughness: 0.28, material: .paleMetal)

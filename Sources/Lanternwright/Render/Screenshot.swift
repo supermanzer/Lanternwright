@@ -34,6 +34,9 @@ enum Screenshot {
         case "chimes": g.glass?.forceChimesSolved()
         case "both": g.glass?.forceMirrorsSolved(); g.glass?.forceChimesSolved(); g.glass?.forceAltar()
         case "mirrorswrong": g.glass?.setArrangement(mirrors: MirrorCourt.solutionMirrors, panes: [1, 2, 0])
+        case let s where s.hasPrefix("charge"):          // F10.3: every charge meter of the world at a level (`charge` = 60 %, `charge25`, `charge100`, ...)
+            let pct = Float(s.dropFirst(6)).map { $0 / 100 } ?? 0.6
+            for sc in scenesForState.values { for n in ChargeMeter.allNames { ChargeMeter.set(sc, n, level: pct) } }
         case "tide": g.puzzle.strike(.tide)
         case "tidewind": g.puzzle.strike(.tide); g.simulate(seconds: 0.7); g.puzzle.strike(.wind)
         case "fork", "forkoren":            // F08.1: the lens room at the fork (the altar solved, the gate ready, the door open); forkoren: the ring turned onto the receiver and the doorway of light open

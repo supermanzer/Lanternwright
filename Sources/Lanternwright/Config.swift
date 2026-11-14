@@ -476,6 +476,12 @@ enum Viewpoints {
         case "ta-sluice":   return Self.lookFrom(ArchiveLayout.sluices[0] + SIMD3(0, 6.5, 17), at: ArchiveLayout.sluices[0] + SIMD3(0, 0.8, 0))
         case "ta-dome":     return Self.lookFrom(ArchiveLayout.upperLamp + SIMD3(30, 3.0, 24), at: ArchiveLayout.dome + SIMD3(0, 5, 0))
         case "ta-prism":    return Self.lookFrom(ArchiveProps.prismPosition + SIMD3(1.0, 0.2, 5.4), at: ArchiveProps.prismPosition + SIMD3(0.3, 0, 0))
+        case "ta-mark0", "ta-mark1", "ta-mark2":          // F10.3: the prism chamber's mark k seen from inside, for the charge meter frames
+            let k = Int(name.dropFirst(7)) ?? 0, a = ArchiveProps.markAngle(k), d = SIMD3<Float>(cos(a), 0, sin(a))
+            return Self.lookFrom(ArchiveProps.prismPosition + d * 3.2, at: ArchiveProps.prismPosition + d * 6.4)
+        case "lh-receiver":          // F10.3: the lens room's receiver plate from a metre away (use with LW_LIGHTHOUSE_OPEN=1)
+            let a = LensPortalProps.receiverAngle, y = Layout.lighthouse.y + LensPortalProps.ringY
+            return Self.lookFrom(SIMD3(Layout.lighthouse.x + cos(a) * 0.9, y, Layout.lighthouse.z + sin(a) * 0.9), at: SIMD3(Layout.lighthouse.x + cos(a) * 1.92, y, Layout.lighthouse.z + sin(a) * 1.92))
         case "ta-tableau":  return Self.lookFrom(ArchiveLayout.tableauWall + SIMD3(0, 3.2, 12), at: ArchiveLayout.tableauWall + SIMD3(0, 1.7, 0))
         case "ta-pages":    return Self.lookFrom(ArchiveLayout.pageSpots[1] + SIMD3(0.4, 2.6, 2.2), at: ArchiveLayout.pageSpots[1])
         case "ta-map":      return Self.lookFrom(ArchiveLayout.chainMap + SIMD3(0, 1.9, 2.4), at: ArchiveLayout.chainMap + SIMD3(0, 1.05, 0))

@@ -310,7 +310,9 @@ enum ArchiveProps {
             m.chamferBox(size: SIMD3(0.7, 1.0, 0.1), chamfer: 0.02, surface: brass, transform: .init(diagonal: SIMD4(1, 1, 1, 1)))
             m.box(size: SIMD3(0.5, 0.8, 0.04), surface: Surface(color: beamColours[k] * 0.8, roughness: 0.4, material: .emissiveGlass), transform: translation(SIMD3(0, 0, 0.05)))
             let at = SIMD3(cos(a) * (r - wall - 0.04), prismPosition.y - c.y, sin(a) * (r - wall - 0.04))
-            scene.add(markName(k), mesh: m.build(device: device, label: "prism mark \(k)"), uniforms: ObjectUniforms(model: translation(c + at) * rotationY(atan2(-cos(a), -sin(a)))))
+            let markModel = translation(c + at) * rotationY(atan2(-cos(a), -sin(a)))
+            scene.add(markName(k), mesh: m.build(device: device, label: "prism mark \(k)"), uniforms: ObjectUniforms(model: markModel))
+            ChargeMeter.addPrismMark(k, to: scene, device: device, markModel: markModel)          // F10.3: the charge meter on the mark (hidden until `ChargeMeter.set`)
         }
         // The ring round the prism's pedestal: brass, with a notch every ring step (15 degrees) and a pointer; it turns with the ring (`updatePrism`).
         var ring = MeshBuilder()

@@ -309,6 +309,14 @@ M10 (guided movement, `docs/plans/M10-guided-movement.md`; tasks in `docs/TASKS-
 | needs-inspection | #97 | The lantern beside the dome no longer stands half inside its wall (it moved 5 m along the route); the sluice rooms' lamps stand 1.2 m further from their wall | Archive, walk the route to the dome at (0, -104); look at the lamp in each sluice room | Each lantern stands clear of stone with its shadow on the ground |
 | inspected-by-numbers | #103 | Nothing changed: reduced detail away from the corridor was measured and does not help (Q43) | `--selftest corridorlod`, `--bench 60 --taa` | Nothing to see |
 
+## F10 builder A: the strait, the lens rings, the charge meters (frames in `shots/f10/`; nothing here has been seen by a person)
+
+| Status | Note | What changed | How to see it | What to look for |
+|---|---|---|---|---|
+| needs-inspection | #112 | The sea now darkens with depth (Beer-Lambert on the water column): the strait is a dark green-blue channel between two pale shelves, the shore shelf stays pale, the bed is lost past about 2 m. The open sea and the Archive's sea are darker too (Q54) | From the north shore of Varrow look at the strait: `--view shore --camera -35,9,-232,0,-0.45`; the dock (`--view dock`) | The strait should read as water you cannot wade, the rim by the beach as water you can. The open sea should still look like sea, not ink |
+| needs-inspection | F09 frames | The return lenses (Archive quays, Glass Wood, the islet lens) are a brass ring lit from within with a smooth glowing disc: no white blow-out, no polygon (Q55) | `--view ta-quay --camera -49.5,3.3,131,0,0` (Ilse), `49.5` (Oren); `--view islet --camera -44,7.4,-313,0.35,0` | Brass rim and a gradient in the disc; at the quay distance still easy to spot. The disc hides what is behind the ring |
+| needs-inspection | P02.4 | Charge meters exist (a disc that grows on the lens-room receiver and on each prism mark) but nothing drives them yet: builder B wires the hold logic (Q56). Frames with the meter forced on: `--state charge25` / `charge` / `charge100` | `LW_LIGHTHOUSE_OPEN=1 --view lh-receiver --state charge`; `--view ta-mark0 --state charge` | Spark to full lens; at level 0 nothing |
+
 ## F09 (builder B): interaction contract, guide light, Archive readability, Varrow opening (a person must confirm)
 Nothing here has been played by a person; the numbers and frames are in `shots/f09/` and `docs/plans/F09-seventh-playtest.md`.
 - **Prompts and props (F09.1):** in the Archive walk the route and look at each page, the fork, the lens, the chain map, the tableau's two lanterns and both quay lenses: each prompt should appear only while the thing is in the crosshair. `.build/release/Lanternwright --audit-interactables` prints the table (all PASS). The quay lens is a plain glowing ring on a plinth: say if it reads as "a way back".
