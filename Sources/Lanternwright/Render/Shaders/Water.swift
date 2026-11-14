@@ -172,11 +172,17 @@ fragment float4 water_fragment(WaterOut in [[stage_in]],
     if (!calmPool) thick = min(thick, max(filmDepth, 0.0) / max(V.y, 0.1));          // a thin film over sand is thin, however the mesh above it lies
 
     // Beer-Lambert: transmitted fraction falls off exponentially with distance, red fastest.
-    float3 absorb = float3(0.45, 0.09, 0.06);
-    float3 transmit = exp(-thick * absorb);
+    // F10.1 (#112 again: the channel was physically deep but the same light teal as the shelf): the look follows the WATER COLUMN under the pixel (sea level minus seabed, `filmDepth`; the
+    // Glass Wood's calm pool is left as it was). The coefficients and the scattered colour move from the shelf's pale teal to a dark green-blue between 0.3 m and 2.2 m of column (red
+    // goes first, then green), and the bed itself is lost between 1.4 m and 2.6 m, so a 2 m channel reads as deep and the shelf by the shore stays pale. The numbers are mirrored in
+    // `World/SeaDepthLook.swift` (the selftest pins them): change both together.
+    float colDepth = calmPool ? 0.0 : max(filmDepth, 0.0);
+    float dk = smoothstep(0.3, 2.2, colDepth);
+    float3 absorb = mix(float3(0.45, 0.09, 0.06), float3(1.05, 0.36, 0.27), dk);
+    float3 transmit = exp(-thick * absorb) * (1.0 - smoothstep(1.4, 2.6, colDepth));
     float3 sunDir = normalize(frame.sunDir.xyz);
     float3 lightUp = skyLUT.sample(skySampler, float2(0.5, 0.0), level(5)).rgb + frame.sunColor.rgb * frame.sunColor.w / M_PI_F * max(sunDir.y, 0.0) * 0.25;
-    float3 deep = float3(0.02, 0.10, 0.12) * lightUp * 1.5;       // light scattered back up out of the water
+    float3 deep = mix(float3(0.02, 0.10, 0.12), float3(0.004, 0.028, 0.042), dk) * lightUp * 1.5;       // light scattered back up out of the water (F10.1: darker with the column)
     // Shallow-water caustics (F02 G3): where the bed is within a few metres, a slow net of bright lines on it (two noise layers' crossings), fading out with depth.
     // F03 G1 (#33: "the lines in the water are too pronounced"): the net was a crisp pattern of 1 m loops at 13 % of the bed's brightness, which on a thin film of water over
     // sand read as drawn contour lines. Now a broad, soft, faint network (cells about 2 m, wide soft lines) that fades out in the first half metre of water: a hint of
