@@ -9,10 +9,10 @@ import simd
 ///   - `color` is the light that arrived: `GlassPuzzleProps.color(segmentColor)` (moonlight if no pane was met), so the crystal shows the colour the pane gave the beam;
 ///   - `blaze: true` is the solved state: every crystal white-warm and brighter than any single hit.
 /// `cells` is the ONE place the crystals' court cells live: B's trace should end a beam on `cells[k]` for receiver k (change a cell here and the crystal moves with it; the cell must not be a mirror,
-/// pane or the prism cell). Nothing here touches the court logic; the old single orb `gw_receiver` is untouched until B retires it.
+/// pane or the prism cell). Nothing here touches the court logic; the old single orb `gw_receiver` is retired (B2).
 enum ReceiverGlow {
-    /// The three crystals' court cells: the east column, clear of every mirror, pane and the prism (checked by the `receiverglow` selftest).
-    static let cells: [MirrorCourt.Cell] = [(4, 0), (4, 2), (4, 4)]
+    /// The three crystals' court cells: the court's own receivers (`MirrorCourt.receivers`, the one source of truth since B2 / P02.1: the beam passes through them and each lights for its own colour).
+    static let cells: [MirrorCourt.Cell] = MirrorCourt.receivers
     static let count = 3
     static func name(_ k: Int) -> String { "gw_crystal_\(k)" }
     static func ringName(_ k: Int) -> String { "gw_crystal_ring_\(k)" }

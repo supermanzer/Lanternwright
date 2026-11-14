@@ -31,8 +31,6 @@ enum GlassPuzzleProps {
     /// Which way a pane faces: panes stand across the beam, so a pane on an east-west beam is turned a quarter.
     static let paneYaw: [Float] = [.pi / 2, 0, .pi / 2]
 
-    /// The scene item of receiving crystal k (the first keeps its old name).
-    static func receiverName(_ k: Int) -> String { k == 0 ? "gw_receiver" : "gw_receiver_\(k)" }
     static func mirrorPosition(_ k: Int) -> SIMD3<Float> { MirrorCourt.world(MirrorCourt.mirrorCells[k]) }
     static func panePosition(_ k: Int) -> SIMD3<Float> { MirrorCourt.world(MirrorCourt.paneCells[k]) }
 
@@ -95,12 +93,6 @@ enum GlassPuzzleProps {
             }
         }
         // Receiver pedestal: stepped, with an inlaid ring.
-        for cell in MirrorCourt.receivers {                       // P02.1: three receiving crystals, one pedestal each
-            let rp = MirrorCourt.world(cell) - GlassLayout.mirrorCourt
-            fixed.lathe(profile: [SIMD2(0.95, 0), SIMD2(0.95, 0.14), SIMD2(0.80, 0.14), SIMD2(0.80, 0.24), SIMD2(0.52, 0.34), SIMD2(0.46, 0.95), SIMD2(0.60, 0.95), SIMD2(0.60, 1.02), SIMD2(0, 1.02)],
-                        segments: 16, smooth: false, surface: stone, transform: translation(rp))
-            fixed.torus(major: 0.70, minor: 0.02, segments: 24, sides: 6, surface: pale, transform: translation(rp + SIMD3(0, 0.245, 0)))
-        }
         // F07 (review of A-page2): the slabs stand 3.5 cm (their half thickness) above the court's origin height, which is all `groundHeight` knew: a page on them (page 6, by the receiver) was set 3.5 cm too low
         // and lay buried in the floor. The court floor is a platform at the slabs' height (the player steps up 3.5 cm onto it; the 3 mm joints' lift is below what a page or a foot can tell).
         scene.platforms.append(Scene.Platform(center: SIMD2(GlassLayout.mirrorCourt.x, GlassLayout.mirrorCourt.z), halfSize: SIMD2(half, half), top: GlassLayout.mirrorCourt.y + 0.035 + 0.003))
@@ -152,12 +144,6 @@ enum GlassPuzzleProps {
         // The receiver orb, and the column of light it releases when the puzzle is solved.
         var orb = MeshBuilder()
         orb.sphere(radius: 0.42, segments: 16, surface: Surface(color: SIMD3(1, 1, 1), roughness: 0.05, material: .emissiveGlass))
-        let orbMesh = orb.build(device: device, label: "receiver")
-        for (k, cell) in MirrorCourt.receivers.enumerated() {      // dark at rest, but tinted with the colour each is tuned to
-            let tune = color(MirrorCourt.receiverColors[k])
-            scene.add(receiverName(k), mesh: orbMesh,
-                      uniforms: ObjectUniforms(model: translation(MirrorCourt.world(cell) + SIMD3(0, 1.45, 0)) * scaling(SIMD3(repeating: 0.7)), tint: SIMD4(tune * 0.3 + 0.1, 1), emissive: SIMD4(tune, 0.12)))
-        }
         var column = MeshBuilder()
         column.cylinder(radiusTop: 0.28, radiusBottom: 0.5, height: 1, segments: 10, smooth: true, caps: false, surface: Surface(color: SIMD3(1, 1, 1), roughness: 0.5))
         scene.add("gw_column", mesh: column.build(device: device, label: "column"),

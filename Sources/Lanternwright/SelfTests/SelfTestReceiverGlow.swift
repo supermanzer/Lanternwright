@@ -6,8 +6,8 @@ import simd
 extension SelfTestRunner {
     func runReceiverGlow() {
         guard name == "all" || name == "receiverglow" else { return }
-        // The cells: three distinct, inside the court, clear of every mirror, pane, the prism and the old orb.
-        let taken = MirrorCourt.mirrorCells + MirrorCourt.paneCells + [MirrorCourt.source, MirrorCourt.receiver]
+        // The cells: three distinct, inside the court, clear of every mirror, pane and the prism (B2: the cells are MirrorCourt.receivers).
+        let taken = MirrorCourt.mirrorCells + MirrorCourt.paneCells + [MirrorCourt.source]
         let cells = ReceiverGlow.cells
         check(cells.count == 3 && Set(cells.map { $0.c * 10 + $0.r }).count == 3 && cells.allSatisfy { cell in (0..<MirrorCourt.size).contains(cell.c) && (0..<MirrorCourt.size).contains(cell.r) && !taken.contains(where: { $0 == cell }) }, "receiverglow: three distinct crystal cells \(cells), inside the court and clear of the mirrors, panes, prism and old orb")
         // The curve: dormant is dim, the level lifts it smoothly to the lit strength, blaze beats a single hit, the colour follows the pane.

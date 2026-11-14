@@ -1,5 +1,5 @@
-dock ef3dc5d6e5fb51c3
-overview a9224b4a919ab79b
+dock 075c032f923b91e6
+overview 12be9d44b8f3a346
 shore ae3bdff969a3e227
 summit 2de04c58e2a53715
 islet 130bf0236c798931
@@ -10,13 +10,13 @@ ground-grass-5m bb27018866b02ab8
 ground-sand-1m c0b1218d52fb82fc
 dock-top 8931fd3b1ed9c543
 gw-arrival 7907a46321bcb6aa
-gw-overview 623246f031bd4104
-gw-court 445255134398b121
+gw-overview 89e20f1bfb19e01f
+gw-court cc159ab8c054dc6e
 gw-altar 111562b7e87a488d
-gw-mirrors 5d5c1e580d0a6665
-dock-taa 30466cc894ac272b
+gw-mirrors 016d94636b27baf9
+dock-taa 7e5616feef085999
 shore-taa 0f25c914c331ea95
-gw-court-taa d5919210d64fc336
+gw-court-taa 9e2b4074e3ad8665
 summit-beams b91fc6a0c8218b8a
 dbg-depth 067009bf7befb0d6
 dbg-albedo d266b6021e965cd1

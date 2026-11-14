@@ -24,7 +24,7 @@ final class GlassWoodLogic: WorldPuzzle {
     private var mirrorTarget = MirrorCourt.initialMirrors.map { Float($0) }
     private var columnGrowth: Float = 0
     private var trace = MirrorCourt.trace(mirrors: MirrorCourt.initialMirrors, panes: MirrorCourt.initialPanes)
-    /// How lit each receiving crystal looks (0...1, eased toward the trace each tick). P02.1 stub for builder A's per-receiver glow uniform (A2): until it lands the level drives the orb's own emissive; A replaces `applyReceiverGlow`.
+    /// How lit each receiving crystal looks (0...1, eased toward the trace each tick); drives A's `ReceiverGlow`.
     private var receiverGlow = [Float](repeating: 0, count: MirrorCourt.receivers.count)
     /// Receivers lit by the court as it stands (the live reading the tests and the graph use).
     var receiversLit: [Bool] { (0..<MirrorCourt.receivers.count).map(trace.lit) }
@@ -301,25 +301,14 @@ final class GlassWoodLogic: WorldPuzzle {
 
     // MARK: Visuals (every tick)
 
-    /// P02.1 STUB for builder A's glow uniform (A2): until then the crystal's emissive carries the level. Dark is the tuned colour dimmed; lit is the colour blazing; solved is white-gold.
+    /// Drives builder A's three receiving crystals (`ReceiverGlow`): dormant, flickering with the colour that arrived if it is the wrong one, lit in its own colour, all blazing when solved.
     private func applyReceiverGlow(_ k: Int, time: Float) {
-        let tune = GlassPuzzleProps.color(MirrorCourt.receiverColors[k]), level = receiverGlow[k]
-        let arrived = trace.arrivals[k].last
-        let base = MirrorCourt.world(MirrorCourt.receivers[k]) + SIMD3(0, 1.45, 0)
-        let size: Float = 0.7 + 0.4 * (mirrorsSolved ? 1 : level)           // a lit crystal swells
-        scene.update(GlassPuzzleProps.receiverName(k)) {
-            $0.uniforms.model = translation(base) * scaling(SIMD3(repeating: size))
-            if self.mirrorsSolved {
-                $0.uniforms.tint = SIMD4(1.0, 0.95, 0.8, 1); $0.uniforms.emissive = SIMD4(1.0, 0.95, 0.8, 9)
-            } else if level > 0.02 {
-                $0.uniforms.tint = SIMD4(tune, 1); $0.uniforms.emissive = SIMD4(tune, 0.5 + 1.6 * level)
-            } else if let a = arrived {                        // reached by the wrong colour: a dull, uneven flutter of what arrived
-                let c = GlassPuzzleProps.color(a)
-                $0.uniforms.tint = SIMD4(c * 0.4, 1); $0.uniforms.emissive = SIMD4(c, 0.5 + 0.3 * sin(time * 9))
-            } else {                                           // dark: a dim crystal of the colour it is tuned to
-                $0.uniforms.tint = SIMD4(tune * 0.3 + 0.1, 1); $0.uniforms.emissive = SIMD4(tune, 0.12)
-            }
-        }
+        let level = receiverGlow[k]
+        if mirrorsSolved { ReceiverGlow.set(scene, k, level: 1, blaze: true); return }
+        if level > 0.02 { ReceiverGlow.set(scene, k, level: level, color: GlassPuzzleProps.color(MirrorCourt.receiverColors[k])); return }
+        if let a = trace.arrivals[k].last {                    // reached by the wrong colour: a dull, uneven flutter of what arrived
+            ReceiverGlow.set(scene, k, level: 0.22 + 0.08 * sin(time * 9), color: GlassPuzzleProps.color(a))
+        } else { ReceiverGlow.set(scene, k, level: 0) }
     }
 
     func updateVisuals(time: Float) {
