@@ -207,7 +207,7 @@ extension SelfTestRunner {
 }
 
 extension SelfTestRunner {
-    /// S03.4a: the lighthouse signal pattern is a pure function of the clock with a 20 s period.
+    /// S03.4a: the lighthouse signal pattern is a pure function of the clock with a period of `BeamSignal.period` (27 s: sweeps, rest, three groups).
     func runBeamSignal() {
         guard name == "all" || name == "beamsignal" else { return }
         let trail = BeamSignal.trailHeading, door = BeamSignal.doorHeading
@@ -219,8 +219,9 @@ extension SelfTestRunner {
         check(abs(abs(wrap(door)) - .pi) < 0.2 || abs(wrap(door)) > 2.5, "beamsignal: the door heading points south (about 180 degrees): \(String(format: "%.1f", door * 180 / .pi))")
         // Period: any clock and clock + 20 give the same pose.
         var same = true
-        for c in stride(from: Float(0), to: 20, by: 0.37) { let a = BeamSignal.pose(clock: c), b = BeamSignal.pose(clock: c + 20), d = BeamSignal.pose(clock: c + 200); if abs(wrap(a.heading - b.heading)) > 1e-3 || abs(a.intensity - b.intensity) > 1e-3 || abs(wrap(a.heading - d.heading)) > 1e-3 { same = false } }
-        check(same, "beamsignal: the pattern repeats every 20 s")
+        let per = BeamSignal.period
+        for c in stride(from: Float(0), to: per, by: 0.37) { let a = BeamSignal.pose(clock: c), b = BeamSignal.pose(clock: c + per), d = BeamSignal.pose(clock: c + 10 * per); if abs(wrap(a.heading - b.heading)) > 1e-3 || abs(a.intensity - b.intensity) > 1e-3 || abs(wrap(a.heading - d.heading)) > 1e-3 { same = false } }
+        check(same, "beamsignal: the pattern repeats every \(per) s")
         // The first sweep starts at clock 0 mod 20 and turns; both sweeps turn the same way.
         let h0 = BeamSignal.pose(clock: 0.5).heading, h1 = BeamSignal.pose(clock: 2.5).heading, h2 = BeamSignal.pose(clock: 7.5).heading
         check(abs(wrap(h1 - h0)) > 0.3 && abs(wrap(h2 - BeamSignal.pose(clock: 5.5).heading)) > 0.3 && BeamSignal.pose(clock: 3).opposite, "beamsignal: at clock 0 the first sweep starts and the second follows at 5 s, two opposite beams turning (\(String(format: "%.2f", h1 - h0)) rad in 2 s)")
@@ -228,10 +229,22 @@ extension SelfTestRunner {
         var restOK = true
         for c in stride(from: Float(11), to: 15.9, by: 0.25) { let p = BeamSignal.pose(clock: c); if abs(wrap(p.heading - trail)) > 1e-4 || p.opposite || p.intensity < 0.5 { restOK = false } }
         check(restOK, "beamsignal: from 11 s to 16 s the beam stands still on the trail heading, a single beam")
-        // The flash: about 1 s, on the door, brighter than anything else.
-        let flash = BeamSignal.pose(clock: 16.5), steady = BeamSignal.pose(clock: 3)
-        check(flash.flash && abs(wrap(flash.heading - door)) < 1e-4 && flash.intensity > 1.8 * steady.intensity && !BeamSignal.pose(clock: 18.5).flash && BeamSignal.pose(clock: 18.5).intensity < 0.2,
-              "beamsignal: the flash at 16-17 s points at the door at \(String(format: "%.1f", flash.intensity)) x the sweep's brightness, then the beam is dark (\(String(format: "%.2f", BeamSignal.pose(clock: 18.5).intensity)))")
+        // P02.3: three groups on the door, each lit for its constant, long / short / middle, dark between, then dark to the end of the period; the plates read these lengths.
+        let pat = Layout.Navigation.SignalPattern.self, steady = BeamSignal.pose(clock: 3)
+        var lit = [Float](), gaps = [Float](), run: Float = 0, dark: Float = 0, onDoor = true, brightest: Float = 0, seenFirst = false
+        let dt: Float = 0.01
+        for k in 0..<Int((BeamSignal.period - 16) / dt) {
+            let c = Float(k) * dt + 16, p = BeamSignal.pose(clock: c)
+            let on = p.intensity > 1.8 * steady.intensity
+            if on { if dark > 0 && seenFirst { gaps.append(dark) }; dark = 0; run += dt; seenFirst = true; brightest = max(brightest, p.intensity); if abs(wrap(p.heading - door)) > 1e-4 { onDoor = false } }
+            else { if run > 0 { lit.append(run) }; run = 0; if seenFirst { dark += dt } }
+        }
+        if run > 0 { lit.append(run) }
+        let want = pat.groupSeconds
+        check(lit.count == 3 && zip(lit, want).allSatisfy { abs($0 - $1) < 0.4 }, "beamsignal: three groups at the door, lit for \(lit.map { String(format: "%.2f", $0) }) s (constants \(want))")
+        check(Set(pat.ranks).count == 3 && lit.map { l in lit.filter { $0 < l }.count } == pat.ranks, "beamsignal: the groups are distinct in length and rank by length as the constants say (\(pat.ranks))")
+        check(onDoor && gaps.count == 2 && gaps.allSatisfy { $0 > pat.gapSeconds - 0.4 } && brightest > 1.8 * steady.intensity, "beamsignal: the groups point at the door, are \(String(format: "%.1f", brightest / steady.intensity)) x the sweep, and are parted by dark gaps of \(gaps.map { String(format: "%.2f", $0) }) s")
+        check(BeamSignal.groupWindows.count == 3 && abs(BeamSignal.period - (BeamSignal.groupWindows[2].end + pat.tailSeconds)) < 1e-4 && BeamSignal.pose(clock: BeamSignal.period - 1).intensity < 0.2, "beamsignal: the period \(BeamSignal.period) s closes with \(pat.tailSeconds) s of dark")
         // The end of the second sweep meets the rest without a jump.
         check(abs(wrap(BeamSignal.pose(clock: 9.99).heading - BeamSignal.pose(clock: 10.01).heading)) < 0.02, "beamsignal: the second sweep ends on the trail heading where the rest begins")
     }

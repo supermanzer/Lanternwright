@@ -489,6 +489,8 @@ enum Viewpoints {
         case "gw-arrival":  return Camera(position: GlassLayout.arrival + SIMD3(0, Player.eyeHeight, 4), yaw: 0, pitch: 0.06)
         case "gw-overview": return Camera(position: SIMD3(0, 70, 330), yaw: 0, pitch: -0.2)
         case "gw-court":    return Camera(position: GlassLayout.mirrorCourt + SIMD3(26, 3.0, 30), yaw: -0.8, pitch: -0.05)
+        case "gw-crystals": return Camera(position: GlassLayout.mirrorCourt + SIMD3(2, 3.2, 17), yaw: 1.1, pitch: -0.12)        // F10 A2: the three receiving crystals along the court's east side
+        case "gw-crystal0": return Camera(position: ReceiverGlow.position(0) + SIMD3(-4.5, 2.2, 4.5), yaw: 0.785, pitch: -0.12)         // one crystal from 6 m
         case "gw-court-high": return Camera(position: GlassLayout.mirrorCourt + SIMD3(0, 22, 20), yaw: 0.0, pitch: -1.05)
         case "gw-mirrors":  return Camera(position: GlassPuzzleProps.mirrorPosition(1) + SIMD3(4.0, 1.4, 4.5), yaw: -0.727, pitch: -0.04)   // a mirror stand from 6 m (R06)
         case "gw-chimes":   return Camera(position: GlassLayout.chimeRing + SIMD3(-22, 3.0, -24), yaw: 2.4, pitch: -0.02)

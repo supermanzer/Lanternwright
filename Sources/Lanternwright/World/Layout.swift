@@ -103,6 +103,17 @@ extension Layout {
         /// S03.4a: where the lighthouse signal points once the altar is solved (builder A draws it from these, so nothing is spelled out twice): along the way the player comes up from the
         /// lens islet (the causeway's start), and at the door (its south face).
         static var signalTrailPoint: SIMD3<Float> { causewayStart }
+        /// P02.3 (the plates' answer): after the sweeps and the rest, the beam flashes THREE GROUPS of distinct lengths at the door heading, read from the dock approach at dusk. The durations
+        /// are here and nowhere else (builder B maps them to plates by RANK: the longest group = stone, the middle = wind, the shortest = tide; the order they are flashed in is the order the plates are struck).
+        /// `BeamSignal.groupWindows` gives the exact clock windows; the whole cycle repeats every `BeamSignal.period`.
+        enum SignalPattern {
+            /// Seconds each group is lit, in the order flashed: long, short, middle (so the answer is stone, tide, wind, not the old tide, wind, stone).
+            static let groupSeconds: [Float] = [2.6, 0.7, 1.5]
+            /// Dark between groups (long enough that two groups never read as one), dark before the first group (after the rest), and dark after the last before the sweeps begin again.
+            static let gapSeconds: Float = 1.4, leadSeconds: Float = 0.8, tailSeconds: Float = 2.6
+            /// The ranks of the groups by length (0 = shortest): the plates read lengths, not positions.
+            static var ranks: [Int] { groupSeconds.map { g in groupSeconds.filter { $0 < g }.count } }
+        }
         static var signalDoorPoint: SIMD3<Float> { lighthouse + SIMD3(0, 0, Lighthouse.wallR(2.0) + 1) }
 
         /// Varrow: dock -> beach -> shore path -> tide stone -> ridge -> wind stone -> summit route -> lighthouse -> north descent -> causeway -> islet.

@@ -156,6 +156,8 @@ enum GlassPuzzleProps {
                   uniforms: ObjectUniforms(model: translation(MirrorCourt.world(MirrorCourt.receiver)) * scaling(SIMD3(1, 0.001, 1)), tint: SIMD4(1, 1, 1, 1), emissive: SIMD4(0.9, 0.95, 1.0, 7)),
                   hidden: true)
 
+        ReceiverGlow.add(to: scene, device: device)         // P02.1: the three receiving crystals (dark until B's court logic drives them)
+
         // Beam segments (reused each time the arrangement changes).
         var beam = MeshBuilder()
         beam.cylinder(radiusTop: 0.07, radiusBottom: 0.07, height: 1, segments: 8, smooth: true, caps: false, surface: Surface(color: SIMD3(1, 1, 1), roughness: 0.5))

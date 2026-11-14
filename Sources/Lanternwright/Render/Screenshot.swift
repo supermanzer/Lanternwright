@@ -37,6 +37,12 @@ enum Screenshot {
         case let s where s.hasPrefix("charge"):          // F10.3: every charge meter of the world at a level (`charge` = 60 %, `charge25`, `charge100`, ...)
             let pct = Float(s.dropFirst(6)).map { $0 / 100 } ?? 0.6
             for sc in scenesForState.values { for n in ChargeMeter.allNames { ChargeMeter.set(sc, n, level: pct) } }
+        case "crystals", "crystals1", "crystals2", "crystalswrong", "crystalsblaze":          // F10 A2: the three receiving crystals: all lit (the pane colours), one or two lit, or solved (blazing)
+            let n = name == "crystals1" ? 1 : (name == "crystals2" ? 2 : 3)
+            for sc in scenesForState.values { for k in 0..<ReceiverGlow.count {
+                let col = name == "crystalswrong" ? GlassPuzzleProps.color(-1) : GlassPuzzleProps.color(k)
+                ReceiverGlow.set(sc, k, level: k < n ? 1 : 0, color: col, blaze: name == "crystalsblaze")
+            } }
         case "tide": g.puzzle.strike(.tide)
         case "tidewind": g.puzzle.strike(.tide); g.simulate(seconds: 0.7); g.puzzle.strike(.wind)
         case "fork", "forkoren":            // F08.1: the lens room at the fork (the altar solved, the gate ready, the door open); forkoren: the ring turned onto the receiver and the doorway of light open

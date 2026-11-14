@@ -12,7 +12,10 @@ enum LensLook {
     static let ringLit: Float = 1.8, discLit: Float = 3.6
     static let ringMajor: Float = 0.95, ringMinor: Float = 0.12
 
-    static let brass = Surface(color: SIMD3(0.58, 0.46, 0.22), roughness: 0.28, material: .paleMetal)
+    static let brass = Surface(color: SIMD3(0.62, 0.43, 0.17), roughness: 0.28, material: .paleMetal)
+    /// The ring's own light is always brass-warm whatever colour the disc carries (A2, a review note on A1: a cool tint made the ring read pale cream, not brass, at 6 m).
+    static let ringGlow = SIMD3<Float>(1.0, 0.66, 0.30)
+    static func ringLight(_ tint: SIMD3<Float>) -> SIMD3<Float> { ringGlow * 0.75 + tint * 0.25 }
 
     static func ringMesh() -> MeshBuilder {
         var m = MeshBuilder()
@@ -27,7 +30,7 @@ enum LensLook {
     }
     /// Adds `ringName` and `coreName` at `model`. `tint` is the light's colour (warm for Ilse, cool for Oren and the islet).
     static func add(to scene: Scene, device: MTLDevice, ringName: String, coreName: String, model: float4x4, tint: SIMD3<Float>, discRadius: Float = 0.86) {
-        scene.add(ringName, mesh: ringMesh().build(device: device, label: ringName), uniforms: ObjectUniforms(model: model, tint: SIMD4(1, 1, 1, 1), emissive: SIMD4(tint, ringBase)))
+        scene.add(ringName, mesh: ringMesh().build(device: device, label: ringName), uniforms: ObjectUniforms(model: model, tint: SIMD4(1, 1, 1, 1), emissive: SIMD4(ringLight(tint), ringBase)))
         scene.add(coreName, mesh: discMesh(radius: discRadius).build(device: device, label: coreName), uniforms: ObjectUniforms(model: model, tint: SIMD4(1, 1, 1, 1), emissive: SIMD4(tint, discBase)))
     }
 }
