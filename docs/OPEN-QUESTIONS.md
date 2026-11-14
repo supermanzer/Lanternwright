@@ -288,6 +288,15 @@ The note was on the hilltop path (-60.8, 10.7, 61.0), surface "earth", where the
 ### Q43 (2026-11-12, builder A, F09.9, note #103): reduced detail away from the corridor: not landed, is that right?
 Measured at 2560x1440 (`--bench 60 --taa`), hiding all trees changes the frame by 0.1-0.6 ms of 8-10 ms (dock 8.57 -> 8.33, overview 7.90 -> 7.78, shore 8.53 -> 8.36, summit 10.12 -> 9.56), needles and grass by about 0.0-0.1, and the terrain by 2.5-4.5 ms (dock 2.54, overview 3.17, shore 3.93, summit 4.51; fragment shading, already faded by camera distance). These are whole-frame milliseconds with one class hidden, not per-pass timings, and because nothing landed the plan's before/after table is before = after: the hidden-class numbers are the ceilings. They differ from the G10.3.6 figures in docs/TASKS.md (dock 9.31 -> 9.11) only because they come from a different run and build. A detail level chosen from the camera's distance already gives up every level the camera is too far from to need, and the corridor can only say the camera is AT LEAST some distance away, so a corridor rule can never remove work the camera rule keeps: `--selftest corridorlod` proves it over 839 eye positions and 46 tree cells (0 violations). What the corridor could save is static: 18 cells never need level 0 (2.16 M of 6.39 M tree triangles, 129 of 372 MB), and only while Guided (Loose and Free would need a rebuild on a settings change). *Default taken:* nothing landed, frames byte-identical, `ReachableRegion` stays ready. *What changes if the answer differs:* if memory or load time on a smaller Mac matters, building those levels only for the reachable region is a known 129 MB; say so and it becomes a task (with a rebuild when the guidance setting changes). *Status:* open.
 
+### Q49-Q53 (2026-11-14, reviewer, P02: restructuring the puzzles to the Myst principles; plan in `docs/plans/P02-puzzle-restructure.md`)
+- **Q49 mirror court:** the beam's order stops mattering; three receiving crystals light as hit; solved when all three are lit at once. *Default taken, not built.*
+- **Q50 door plates:** answer the lighthouse beam's rhythm (watched from outside at dusk), not the stones' order again (Q38 with the mechanism). *Default taken, not built.*
+- **Q51 Notebook:** rubbings and tones are recorded only after the player looks closely at the thing. *Default taken, not built.*
+- **Q52 keys:** six designed keys between worlds (P02 section 3.2), planted clues unflagged. *Default taken.*
+- **Q53 scope:** apply the same rules to the unbuilt worlds before they are built. *Default yes.*
+*What changes if the answers differ:* which P02 package is built; pages 2, 3, 6, 7, 13 are NOT edited by builders either way (the user's wording), only drafted.
+*Status:* open.
+
 ## Answered
 - 2026-10-28 S03 Oren's exit location: both exits at the original lighthouse; Oren's is a lens portal in the lens room, the dock arch is not an exit.
 - 2026-10-28 Page gate: 3 pages of each sibling.
