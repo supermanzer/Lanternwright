@@ -128,7 +128,7 @@ fragment LitFragOut lit_fragment(LitOut in [[stage_in]],
     }
 
     float3 emissive = (mid == 14 || mid == 20) ? glyphGlow : (mid == 16 ? float3(0.0) : obj.emissive.rgb * obj.emissive.w * (mid == 15 ? 0.35 : 1.0));
-    if (softDisc) emissive = obj.emissive.rgb * obj.emissive.w * (0.22 + 0.78 * exp(-softR * softR * 2.8)) + float3(1.0, 0.96, 0.88) * obj.emissive.w * 0.45 * exp(-softR * softR * 11.0);          // a gradient: the dim tint at the rim, a warm-white heart   // paper: the hover pulse is a hint, not a lamp
+    if (softDisc) emissive = obj.emissive.rgb * obj.emissive.w * (0.22 + 0.78 * exp(-softR * softR * 2.8)) + float3(1.0, 0.96, 0.88) * obj.emissive.w * 0.45 * exp(-softR * softR * 11.0);          // a gradient: the dim tint at the rim, a warm-white heart
     float3 col = diffuse + specular + ambient + emissive;
     col = apply_fog(col, in.worldPos, frame, skyLUT);
     // Debug views (--debug shadow|albedo|ambient).

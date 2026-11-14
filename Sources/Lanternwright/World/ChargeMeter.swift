@@ -6,7 +6,7 @@ import simd
 ///
 /// The contract with the hold logic (builder B): call `ChargeMeter.set(scene, name, level: x)` every frame with `x` in 0...1 (the held time over the hold time while it runs, then eased back
 /// to 0 once broken; 0 hides the meter). That is the whole interface: the meter is one item per site, named below, a `softDisc` (material 26) whose size AND strength follow `level`, so a
-/// level near 0 is a tiny bright spark, never a dark patch (the disc is opaque, so it is hidden at 0 rather than faded). `level` 1 is a full, bright lens.
+/// NOTE: `set` does not follow the interior open/closed state: drive it to 0 when the hold ends or the lens room closes (or add `receiverName` to the hide list in `Game.syncInterior`). A level near 0 is a tiny bright spark, never a dark patch (the disc is opaque, so it is hidden at 0 rather than faded). `level` 1 is a full, bright lens.
 enum ChargeMeter {
     /// The lens room's receiver (the eye of the brass plate on the lighthouse's lens-room glass).
     static let receiverName = "lh_charge_receiver"
