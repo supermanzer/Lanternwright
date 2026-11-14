@@ -275,3 +275,25 @@ enum ArchiveLayout {
         Layout.Pad(center: dome, radius: 18), Layout.Pad(center: prismChamber, radius: 12),
     ] + sluices.map { Layout.Pad(center: $0, radius: sluiceFlat, blend: sluiceBlend) }
 }
+
+/// S05.1 (builder A): Ilse's site in the Tide Archive, the landmarks the props and builder B's interaction boxes both read (nothing is spelled out twice). The SHELF BAYS are the five units of the
+/// stacks' first row (the row that faces the route: `ArchiveProps.addStacks` puts row 0 at `stacks.x - 9`, five units `stackSpacing` apart); the LEDGER ROOM is a small walled room off the route
+/// on the stacks' pad north-west of the bays, where the ground is flat and clear of the walked route, its door in the south wall (towards the bays and the route); the three PIPES stand in the sluice rooms, in front of the gate and clear of the wheel, the lamp and the walking line.
+extension ArchiveLayout {
+    static let bayCount = 5
+    static let stackSpacing: Float = 2.6
+    /// Bay k's unit centre on the ground (x, z); the unit faces east (toward the route).
+    static func bayXZ(_ k: Int) -> SIMD2<Float> { SIMD2(stacks.x - 9, stacks.z + (Float(k) - Float(bayCount - 1) / 2) * stackSpacing) }
+    static func bay(_ k: Int) -> SIMD3<Float> { let p = bayXZ(k); return point(p.x, p.y) }
+    /// The ledger room: centre of its floor, half sizes (x, z), the door's half width. The door is in the south wall (+z).
+    static let ledgerRoom = point(-63, 16)
+    static let ledgerHalf = SIMD2<Float>(2.6, 2.1)
+    static let ledgerDoorHalf: Float = 0.9
+    /// The middle of the door's opening on the floor, and the two things inside: the page on its desk and the sluice-room key's stand.
+    static var ledgerDoor: SIMD3<Float> { ledgerRoom + SIMD3(0, 0, ledgerHalf.y) }
+    static var ledgerPage: SIMD3<Float> { ledgerRoom + SIMD3(0, 1.0, -1.2) }
+    static var ledgerKey: SIMD3<Float> { ledgerRoom + SIMD3(1.2, 0.95, -1.3) }
+    /// Where pipe k stands in its sluice room (the gate faces south; the wheel is east, the lamp west, so the pipe is in front of the gate's west side).
+    static let pipeOffset = SIMD3<Float>(-1.9, 0, 3.2)
+    static func pipe(_ k: Int) -> SIMD3<Float> { sluices[k] + pipeOffset }
+}

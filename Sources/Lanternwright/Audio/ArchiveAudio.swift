@@ -28,10 +28,13 @@ final class ArchiveAudio {
         var tideRate: Float = 0
         /// Metres from the listener to the nearest water the tide moves (the galleries' surface): the wash is loud near it and gone far from it.
         var waterDistance: Float = 60
+        /// S05.1: the bell pipe's tone while the fork is held at a pipe (nil: silent). `hz` from `IlseTones.pipeHz`, `gain` 0...1 from `IlseTones.pipeGain`. The beats are this against the fork's tone.
+        var pipe: Pipe? = nil
     }
+    struct Pipe: Equatable { var hz: Float; var gain: Float }
 
     /// An event the game sends: a sluice gate opening or closing, the tuning fork's tone held or let go.
-    enum Event: Equatable { case sluice(Int, opening: Bool), fork(Int, on: Bool), grate(run: Bool) }
+    enum Event: Equatable { case sluice(Int, opening: Bool), fork(Int, on: Bool), grate(run: Bool), bell(Int, sour: Bool) }
 
     let sampleRate: Float
     private let lock = NSLock()
@@ -58,6 +61,10 @@ final class ArchiveAudio {
     private struct Voice { var buf: [Float]; var pos = 0; var gain: Float; var pan: Float }
     private var voices: [Voice] = []
     private var footSwitch = 0
+    // S05.1: struck bells (live: a few partials each) and the bell pipe's voice
+    private struct BellVoice { var k: Int; var sour: Bool; var age: Float = 0 }
+    private var bells: [BellVoice] = []
+    private var pipeGain: Float = 0, pipeHz: Float = 0, pipePhase: Double = 0
     private let openBuf: [Float], closeBuf: [Float], grateBufs: [[Float]]
     private var reverb: ArchiveReverb
     /// How much of the layers goes through the gallery reverb (`ArchiveFoley.reverbWet`; the selftests set it to 0 to hear the dry layers).
@@ -88,6 +95,8 @@ final class ArchiveAudio {
             case .sluice(_, let opening): if voices.count < 4 { voices.append(Voice(buf: opening ? openBuf : closeBuf, gain: ArchiveFoley.sluiceGain, pan: 0.15 * noise.next())) }
             case .fork(let k, let on) where (0..<3).contains(k): forkTarget[k] = on ? 1 : 0; if on { forkStruck[k] = 1 }
             case .fork: break
+            case .bell(let k, let sour) where (0..<ToneTable.glassHz.count).contains(k): if bells.count < 6 { bells.append(BellVoice(k: k, sour: sour)) }
+            case .bell: break
             case .grate(let run): if voices.count < 6 { footSwitch = (footSwitch + 1) % 4; voices.append(Voice(buf: grateBufs[footSwitch], gain: ArchiveFoley.grateGain * (run ? 1 : 0.7), pan: footSwitch % 2 == 0 ? -0.2 : 0.2)) }
             }
         }
@@ -170,6 +179,30 @@ final class ArchiveAudio {
                 let s = x * forkLevel[k] * ArchiveFoley.forkGain
                 l += s * 0.9; r += s * 0.9
             }
+            // --- S05.1: struck bells (the shelf bays): a few decaying partials, the sour one flat, stretched, beating and short
+            for j in bells.indices {
+                let a = bells[j].age, sour = bells[j].sour
+                let f0 = IlseTones.bellHz(bells[j].k) * (sour ? pow(2, IlseTones.sourCents / 1200) : 1)
+                let ratios = sour ? IlseTones.sourRatios : IlseTones.bellRatios, amps = sour ? IlseTones.sourAmps : IlseTones.bellAmps
+                var x: Float = 0
+                for p in 0..<ratios.count {
+                    let tau = IlseTones.bellDecays[p] * (sour ? IlseTones.sourDecayScale : 1)
+                    x += amps[p] * exp(-a / tau) * Float(sin(2 * Double.pi * Double(f0 * ratios[p]) * Double(a)))
+                }
+                if sour { x += 0.8 * exp(-a / (IlseTones.bellDecays[0] * IlseTones.sourDecayScale)) * Float(sin(2 * Double.pi * Double(f0 + IlseTones.sourTwinHz) * Double(a))) }
+                x *= min(1, a / 0.001) * IlseTones.bellGain
+                l += x; r += x
+                bells[j].age += dt
+            }
+            // --- S05.1: the bell pipe's tone (a plain pipe: its prime with a soft octave and twelfth), present while the fork is held at it
+            let pTarget: Float = inp.pipe?.gain ?? 0
+            pipeGain += (pTarget - pipeGain) * dt / 0.08
+            if let p = inp.pipe { pipeHz = pipeHz == 0 ? p.hz : pipeHz + (p.hz - pipeHz) * dt / 0.06 }
+            if pipeGain > 1e-4 {
+                pipePhase += 2 * Double.pi * Double(pipeHz) * Double(dt); if pipePhase > 2 * Double.pi { pipePhase -= 2 * Double.pi }
+                let x = Float(sin(pipePhase) + 0.45 * sin(2 * pipePhase + 0.3) + 0.2 * sin(3 * pipePhase + 0.9)) * 0.6 * pipeGain * IlseTones.pipeGainScale
+                l += x; r += x
+            }
             // --- the sluice gates
             for k in voices.indices where voices[k].pos < voices[k].buf.count {
                 let x = voices[k].buf[voices[k].pos] * voices[k].gain
@@ -185,6 +218,7 @@ final class ArchiveAudio {
             left[i] += l * master; right[i] += r * master
         }
         voices.removeAll { $0.pos >= $0.buf.count }
+        bells.removeAll { $0.age > 3.5 }
     }
 }
 

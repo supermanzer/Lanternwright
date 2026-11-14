@@ -47,6 +47,17 @@ enum Screenshot {
                 let col = name == "crystalswrong" ? GlassPuzzleProps.color(-1) : GlassPuzzleProps.color(k)
                 ReceiverGlow.set(sc, k, level: k < n ? 1 : 0, color: col, blaze: name == "crystalsblaze")
             } }
+        case "bays", "bayssour", "baysmixed":          // S05.1: the shelf bays all warm, all sour, or a mix (0 warm and swinging, 1 sour, 2 warm, 3 and 4 dormant)
+            for sc in scenesForState.values { for k in 0..<ShelfBays.count {
+                let look: ShelfBays.Look = name == "bays" ? .warm : (name == "bayssour" ? .sour : [.warm, .sour, .warm, .dormant, .dormant][k])
+                ShelfBays.set(sc, k, look: look, swing: name == "baysmixed" && k == 0 ? 0.8 : 0)
+            } }
+        case "ledger": for sc in scenesForState.values { LedgerRoom.setDoor(sc, open: 1) }          // S05.1: the ledger room's door open (sunk into the floor)
+        case "pipesagree":                   // S05.1: every pipe at its gate's level, agreeing with the fork (crowns lit)
+            for sc in scenesForState.values { for k in 0..<BellPipes.count { BellPipes.set(sc, k, level: IlseTones.matchLevel(k), agree: 1) } }
+        case let s where s.hasPrefix("pipes"):          // `pipes` = every pipe's water at 60 %, `pipes25`, `pipes100`, ...
+            let pct = Float(s.dropFirst(5)).map { $0 / 100 } ?? 0.6
+            for sc in scenesForState.values { for k in 0..<BellPipes.count { BellPipes.set(sc, k, level: pct) } }
         case "tide": g.puzzle.strike(.tide)
         case "tidewind": g.puzzle.strike(.tide); g.simulate(seconds: 0.7); g.puzzle.strike(.wind)
         case "fork", "forkoren":            // F08.1: the lens room at the fork (the altar solved, the gate ready, the door open); forkoren: the ring turned onto the receiver and the doorway of light open

@@ -317,6 +317,16 @@ M10 (guided movement, `docs/plans/M10-guided-movement.md`; tasks in `docs/TASKS-
 | needs-inspection | F09 frames | The return lenses (Archive quays, Glass Wood, the islet lens) are a brass ring lit from within with a smooth glowing disc: no white blow-out, no polygon (Q55) | `--view ta-quay --camera -49.5,3.3,131,0,0` (Ilse), `49.5` (Oren); `--view islet --camera -44,7.4,-313,0.35,0` | Brass rim and a gradient in the disc; at the quay distance still easy to spot. The disc hides what is behind the ring |
 | needs-inspection | P02.4 | Charge meters exist (a disc that grows on the lens-room receiver and on each prism mark) but nothing drives them yet: builder B wires the hold logic (Q56). Frames with the meter forced on: `--state charge25` / `charge` / `charge100` | `LW_LIGHTHOUSE_OPEN=1 --view lh-receiver --state charge`; `--view ta-mark0 --state charge` | Spark to full lens; at level 0 nothing |
 
+## S05.1 (builder A): Ilse's site in the Tide Archive: the shelf bays, the ledger room, the bell pipes (frames in `shots/s05/`; nothing here has been seen or heard by a person)
+
+| Status | Note | What changed | How to see it | What to look for |
+|---|---|---|---|---|
+| needs-inspection | I1 | Five shelf bays on the stacks' first row: a glyph board and a hanging bell each. Dormant they are dull; B drives them (`ShelfBays.set`, Q61) | `--view ta-bays` (from the route), `--view ta-bay1` (3.5 m), with `--state bays` (all warm), `bayssour`, `baysmixed` | Five glyphs readable from the route, no two alike; warm reads amber, sour green, dormant dark; the bells hang clear of the shelves |
+| needs-inspection | I1 | The ledger room NW of the bays, its door shut; open (`--state ledger`) the door has sunk and the desk, the key's rod and the lamp show (Q62) | `--view ta-ledger` (from the bays' side), `--view ta-ledger-in --state ledger` | A shut door reads as a door; the open room reads as somewhere to read; the grass through the floor is known |
+| needs-inspection | I2 | A bell pipe in each sluice room with a water column and the gate's window painted behind it; the crown ring lights as the fork agrees (Q63) | `--view ta-pipe0` / `ta-pipe2` with `--state pipes10`, `pipes60`, `pipesagree` and `--clock 0` | The column's height reads as a level; the painted band reads as "the water must stand here"; the pipe does not block the gate's approach |
+| needs-listening | I1 | A struck bell (each bay its own pitch), and a sour strike (Q61, Q65) | the hook is `ArchiveAudio.handle(.bell(k, sour:))` once B wires it; `--selftest ilsesite` prints the numbers | Five distinct bells; the sour one sounds WRONG (flat, beating, short), not pretty |
+| needs-listening | I2 | The pipe's tone against the fork: the beats slow as the water reaches the gate's level (Q64) | `ArchiveAudio.Inputs.pipe` once B wires it | Slow beats you can follow on a laptop speaker; they nearly stop (0.6 Hz floor) when the pitches agree |
+
 ## F10 A2 (builder A): the court's receiving crystals, the beam's three groups, a warmer lens ring (frames in `shots/p02/`; nothing here has been seen by a person)
 
 | Status | Note | What changed | How to see it | What to look for |

@@ -32,6 +32,7 @@ enum ArchiveProps {
         var gate = [Float](repeating: 0, count: 3)
         var gateCollider = [Bool](repeating: true, count: 3)                    // closed gates block the gap from the start (`addSluice` adds the colliders)
         var lastTime: Float?
+        var ledgerBlocking = true                                                 // S05.1: the ledger room's door collider is in (`LedgerRoom.setDoor` takes it out when the door is open)
     }
     static func gateCollider(_ k: Int) -> (center: SIMD2<Float>, radius: Float) { (SIMD2(ArchiveLayout.sluices[k].x, ArchiveLayout.sluices[k].z), 0.9) }
 
@@ -81,6 +82,7 @@ enum ArchiveProps {
         addPrismChamber(scene, device: device)
         addLanterns(scene, device: device)
         ArchiveStory.populate(scene, device: device)
+        IlseSite.populate(scene, device: device)                                     // S05.1: the shelf bays, the ledger room, the bell pipes
     }
 
     // MARK: Placement helpers
@@ -98,7 +100,7 @@ enum ArchiveProps {
     // MARK: The stacks
 
     /// One shelving unit in its own frame (x along its width, z its depth toward the aisle, y up): oak frame, five shelves, a back panel, and the ledgers.
-    private static func shelfUnit(seed: Int32, width: Float = 2.4, height: Float = 2.3, depth: Float = 0.55) -> MeshBuilder {
+    static func shelfUnit(seed: Int32, width: Float = 2.4, height: Float = 2.3, depth: Float = 0.55) -> MeshBuilder {
         var b = MeshBuilder()
         let n = Island.noise
         for sx: Float in [-1, 1] { b.box(size: SIMD3(0.07, height, depth), surface: oak, transform: translation(SIMD3(sx * (width / 2 - 0.035), height / 2, 0))) }

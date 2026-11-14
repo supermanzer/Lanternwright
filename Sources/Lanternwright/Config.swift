@@ -78,7 +78,7 @@ struct LaunchOptions {
 
     Usage: Lanternwright [options]
       --screenshot <path.png>      Render headless to a PNG and exit (no window)
-      --view <name>                Viewpoint: dock overview summit shore islet; ta-overview ta-quay ta-terraces ta-stacks ta-gallery ta-sluice ta-dome ta-chamber ta-prism (the Tide Archive); gw-arrival gw-overview gw-court gw-court-high gw-chimes gw-altar
+      --view <name>                Viewpoint: dock overview summit shore islet; ta-overview ta-quay ta-terraces ta-stacks ta-gallery ta-sluice ta-dome ta-chamber ta-prism ta-bays ta-bay1 ta-ledger ta-ledger-in ta-pipe0 ta-pipe2 (the Tide Archive); gw-arrival gw-overview gw-court gw-court-high gw-chimes gw-altar
       --camera x,y,z,yaw,pitch     Explicit camera (radians for yaw/pitch)
       --size WxH                   Output size for --screenshot (default 1600x900)
       --auto-exposure              Let screenshots adapt their exposure to the scene (default: fixed)
@@ -475,6 +475,13 @@ enum Viewpoints {
         case "ta-overview": return Self.lookFrom(SIMD3(60, 42, 300), at: SIMD3(0, 6, -20))
         case "ta-quay":     return Self.lookFrom(ArchiveLayout.lampEnd + SIMD3(5, Player.eyeHeight, 8), at: ArchiveLayout.landing + SIMD3(0, 2.5, 0))
         case "ta-terraces": return Self.lookFrom(ArchiveLayout.landing + SIMD3(26, 3.2, 26), at: ArchiveLayout.stacks + SIMD3(0, 4, 0))
+        // S05.1: Ilse's site at walking distance: the shelf bays from the route, one bay and its bell close, the ledger room's door from the route and its desk from inside, a sluice room's pipe.
+        case "ta-bays":     return Self.lookFrom(ArchiveLayout.bay(2) + SIMD3(7.0, 1.7 + 0.3, 1.2), at: ArchiveLayout.bay(2) + SIMD3(0, 2.7, -0.4))
+        case "ta-bay1":     return Self.lookFrom(ArchiveLayout.bay(1) + SIMD3(3.4, 1.7 + 0.3, 0.6), at: ArchiveLayout.bay(1) + SIMD3(0, 2.6, -0.5))
+        case "ta-ledger":   return Self.lookFrom(ArchiveLayout.ledgerDoor + SIMD3(-1.5, 1.7, 6.5), at: ArchiveLayout.ledgerDoor + SIMD3(0, 1.4, 0))
+        case "ta-ledger-in": return Self.lookFrom(ArchiveLayout.ledgerRoom + SIMD3(0.5, 1.7, 1.5), at: ArchiveLayout.ledgerPage + SIMD3(0, -0.1, 0))
+        case "ta-pipe0":    return Self.lookFrom(BellPipes.holdPoint(0) + SIMD3(2.0, 0.1, 3.4), at: BellPipes.holdPoint(0))
+        case "ta-pipe2":    return Self.lookFrom(BellPipes.holdPoint(2) + SIMD3(2.0, 0.1, 3.4), at: BellPipes.holdPoint(2))
         case "ta-stacks":   return Self.lookFrom(ArchiveLayout.stacks + SIMD3(-3.0, 1.7, 7.5), at: ArchiveLayout.stacks + SIMD3(-9.5, 1.2, -3.0))
         case "ta-gallery":  return Self.lookFrom(ArchiveLayout.greatLedger + SIMD3(-27, 17, 9), at: ArchiveLayout.greatLedger + SIMD3(0, -1, 0))
         case "ta-sluice":   return Self.lookFrom(ArchiveLayout.sluices[0] + SIMD3(0, 6.5, 17), at: ArchiveLayout.sluices[0] + SIMD3(0, 0.8, 0))
