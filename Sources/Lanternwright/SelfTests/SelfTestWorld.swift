@@ -579,27 +579,31 @@ extension SelfTestRunner {
             check(m.world == .varrow, "a save without a world field (from before the second world) resumes in Varrow")
         }
         if name == "all" || name == "mirrors" {
+            // P02.1 (Q49): three receiving crystals, each tuned to a colour, lit live as the beam reaches them in that colour; solved when all three are lit at once.
             let sol = MirrorCourt.trace(mirrors: MirrorCourt.solutionMirrors, panes: MirrorCourt.solutionPanes)
-            check(sol.solved && sol.panesMet == [0, 1, 2], "the intended arrangement solves it (panes met \(sol.panesMet))")
+            check(sol.solved && sol.litCount == 3, "the intended arrangement lights all three receivers (\(sol.litCount) lit, panes met \(sol.panesMet))")
             let start = MirrorCourt.trace(mirrors: MirrorCourt.initialMirrors, panes: MirrorCourt.initialPanes)
-            check(!start.solved && !start.reachedReceiver, "the starting arrangement is not solved and the beam misses the receiver")
+            check(!start.solved && start.litCount == 1 && start.arrivals.filter { !$0.isEmpty }.count == 2, "the starting arrangement is not solved: one receiver already lit, a second reached by the wrong colour (\(start.litCount) lit, arrivals \(start.arrivals))")
             check(sol.points.count >= 6 && sol.segmentColor.count == sol.points.count - 1, "a trace has one colour per segment (\(sol.points.count) points)")
-            check(sol.segmentColor.first == -1 && sol.segmentColor.last == 2, "the light starts as plain moonlight and ends amber (the last pane is stone)")
+            let occupied = MirrorCourt.mirrorCells + MirrorCourt.paneCells + [MirrorCourt.source]
+            check(MirrorCourt.receivers.count == 3 && Set(MirrorCourt.receiverColors) == [0, 1, 2] && MirrorCourt.receivers.allSatisfy { r in !occupied.contains { $0 == r } } && Set(MirrorCourt.receivers.map { "\($0.c),\($0.r)" }).count == 3,
+                  "three receivers, one tuned to each colour, on cells of their own (not a mirror, a pane or the prism)")
 
-            // Exhaustive: all 4^3 mirror states x 3^3 pane colours terminate, and exactly ONE of the 1728 solves it.
-            var solutions: [([Int], [Int])] = [], reached = 0
+            // Exhaustive: all 4^3 mirror states x 3^3 pane colours terminate, and exactly ONE of the 1728 lights all three, which is not the stones' order of colours.
+            var solutions: [([Int], [Int])] = [], byLit = [0, 0, 0, 0]
             for a in 0..<4 { for b in 0..<4 { for c in 0..<4 {
                 for x in 0..<3 { for y in 0..<3 { for z in 0..<3 {
                     let t = MirrorCourt.trace(mirrors: [a, b, c], panes: [x, y, z])
-                    if t.reachedReceiver { reached += 1 }
+                    byLit[t.litCount] += 1
                     if t.solved { solutions.append(([a, b, c], [x, y, z])) }
                 } } }
             } } }
             check(solutions.count == 1 && solutions[0].0 == MirrorCourt.solutionMirrors && solutions[0].1 == MirrorCourt.solutionPanes,
-                  "exactly one of the 1728 arrangements solves it (\(solutions.count) found); the beam reaches the receiver in \(reached) of them")
-            check(reached > 1 && reached < 400, "reaching the receiver is possible with wrong colours, so the colour order really matters (\(reached) arrangements reach it)")
+                  "exactly one of the 1728 arrangements lights all three (\(solutions.count) found); settings lighting 0, 1, 2, 3 receivers: \(byLit)")
+            check(byLit[1] > 100 && byLit[2] > 5 && byLit[2] < byLit[1], "partial lights are common enough to reason from: a player sees one or two crystals light on the way (\(byLit[1]) settings light one, \(byLit[2]) light two)")
+            check(MirrorCourt.solutionPanes != [0, 1, 2] && MirrorCourt.solutionPanes != [0, 1, 2].reversed(), "the answer is not the stones' order of colours (design rules D1/D4: the court no longer repeats it)")
 
-            // Any single click away from the solution is not solved (so there are no cheap near-misses).
+            // Any single click away from the solution is not solved (so there are no cheap near-misses), and the start is not one click from it either.
             var oneAway = 0
             for k in 0..<3 {
                 var m = MirrorCourt.solutionMirrors; m[k] = (m[k] + 1) % 4
@@ -608,6 +612,17 @@ extension SelfTestRunner {
                 if MirrorCourt.trace(mirrors: MirrorCourt.solutionMirrors, panes: p).solved { oneAway += 1 }
             }
             check(oneAway == 0, "no arrangement one click from the solution also solves it")
+
+            // The GREEDY SOLVER (a player with no plan who always makes the click that lights most, the crystals reached next): its clicks measure how big the puzzle really is.
+            let g = SelfTestRunner.greedyCourt(mirrors: MirrorCourt.initialMirrors, panes: MirrorCourt.initialPanes)
+            let best = SelfTestRunner.cheapestCourt(from: MirrorCourt.initialMirrors, panes: MirrorCourt.initialPanes)
+            check(g.solved && g.clicks >= 4 && g.clicks <= 8 && best >= 4 && best <= 6, "the greedy solver finds the court from where the player starts in \(g.clicks) clicks (the fewest possible: \(best)); the plan asks 4-8")
+            var solvedFrom = 0, worst = 0, total = 0
+            for a in 0..<4 { for b in 0..<4 { for c in 0..<4 { for x in 0..<3 { for y in 0..<3 { for z in 0..<3 {
+                let r = SelfTestRunner.greedyCourt(mirrors: [a, b, c], panes: [x, y, z])
+                if r.solved { solvedFrom += 1; worst = max(worst, r.clicks); total += r.clicks }
+            } } } } } }
+            check(solvedFrom == 1728 && Double(total) / Double(max(solvedFrom, 1)) <= 12, "from every starting setting the greedy solver succeeds in \(solvedFrom) of 1728 (mean \(String(format: "%.1f", Double(total) / Double(max(solvedFrom, 1)))) clicks, worst \(worst)): a careless player from the worst start still gets there; the lights lead, they never trap")
             // Reflection rules.
             check(MirrorCourt.reflect((1, 0), state: 3) == (0, -1) && MirrorCourt.reflect((0, -1), state: 1) == (-1, 0) && MirrorCourt.reflect((-1, 0), state: 3) == (0, 1), "the three solution mirrors turn the beam east->north->west->south")
             check(MirrorCourt.reflect((1, 0), state: 0) == (1, 0) && MirrorCourt.reflect((1, 0), state: 2) == (-1, 0), "an axis mirror passes a parallel beam and bounces a perpendicular one back")
@@ -634,22 +649,27 @@ extension SelfTestRunner {
             check(item(g, "page_6").hidden && item(g, "page_7").hidden && item(g, "page_8").hidden && !item(g, "page_5").hidden, "pages 6-8 are not visible in the world yet")
             check(visibleBeams(g) >= 1, "a beam is already visible in the court at the start (\(visibleBeams(g)) segment(s))")
 
-            // A wrong arrangement that nonetheless reaches the receiver: panes in the wrong order do not solve it.
-            g.glass!.click("gw_mirror_0"); g.glass!.click("gw_mirror_0"); g.glass!.click("gw_mirror_0")     // M1: 0 -> 3
-            for _ in 0..<3 { g.glass!.click("gw_mirror_1") }                                                  // M2: 2 -> 1
-            for _ in 0..<2 { g.glass!.click("gw_mirror_2") }                                                  // M3: 1 -> 3
-            check(g.glass!.mirrors == MirrorCourt.solutionMirrors && !g.state.has("gw_mirrors"), "right mirrors, wrong glass: not solved")
-            check(MirrorCourt.trace(mirrors: g.glass!.mirrors, panes: g.glass!.panes).reachedReceiver, "...but the beam does reach the receiver, which shows the wrong colour instead of the win")
-            g.glass!.click("gw_pane_0")                                                                         // A: 2 -> 0 (tide)
-            check(!g.state.has("gw_mirrors"), "one pane right is still not enough")
-            g.glass!.click("gw_pane_1")                                                                         // B: 0 -> 1 (wind)
-            g.glass!.click("gw_pane_2")                                                                         // C: 1 -> 2 (stone)
-            check(g.state.has("gw_mirrors") && g.glass!.panes == MirrorCourt.solutionPanes, "tide, wind, stone in the right order solves the mirror court")
+            // P02.1: the six clicks of the careful solution, one at a time: the crystals light and go dark live as the beam finds and loses them, each with its own tone; the last one lights the court.
+            func lit(_ g: Game) -> [Bool] { g.glass!.receiversLit }
+            check(lit(g) == [false, true, false], "at the start one crystal (the wind's) is already lit, so the player sees what lighting means")
+            _ = g.drainEvents()
+            g.glass!.click("gw_mirror_1")                                                                       // 0 -> 1: the beam swings away from the wind crystal
+            check(lit(g) == [false, false, false] && !chimes(g.drainEvents()).contains(.wind), "turning a mirror away puts a crystal out, silently (only the tick)")
+            g.glass!.click("gw_mirror_2"); g.glass!.click("gw_mirror_2")                                        // 1 -> 3, passing the setting that relights the wind crystal
+            check(g.glass!.mirrors == MirrorCourt.solutionMirrors && lit(g) == [true, false, false], "the mirrors right: the tide crystal is lit (and the wind one is not, the panes are still wrong)")
+            let evs1 = chimes(g.drainEvents())
+            check(evs1.filter { [.tide, .wind, .stone].contains($0) } == [.wind, .tide], "each crystal rang its own tone the turn it lit: the wind's on the first turn, the tide's on the second (\(evs1.filter { [.tide, .wind, .stone].contains($0) }))")
+            check(!g.state.has("gw_mirrors") && MirrorCourt.trace(mirrors: g.glass!.mirrors, panes: g.glass!.panes).reachedReceiver, "right mirrors, wrong glass: not solved, and the beam does reach crystals")
+            g.glass!.click("gw_pane_0"); g.glass!.click("gw_pane_0")                                            // 2 -> 0 -> 1
+            check(lit(g) == [true, true, false] && !g.state.has("gw_mirrors"), "two crystals lit is still not solved")
+            _ = g.drainEvents()
+            g.glass!.click("gw_pane_1")                                                                         // 1 -> 2
+            check(g.state.has("gw_mirrors") && g.glass!.panes == MirrorCourt.solutionPanes && lit(g) == [true, true, true], "all three lit at once solves the mirror court (six clicks, the fewest possible)")
 
             // The reward plays out over a few seconds.
             check(item(g, "page_6").hidden, "the page does not appear in the same instant")
             g.simulate(seconds: 4)
-            check(chimes(g.drainEvents()).filter { [.tide, .wind, .stone, .ignite].contains($0) }.prefix(4) == [.tide, .wind, .stone, .ignite], "the wood answers with tide, wind, stone, then the chord")
+            check(chimes(g.drainEvents()).filter { [.tide, .wind, .stone, .ignite].contains($0) }.prefix(4) == [.tide, .wind, .stone, .ignite], "the wood answers with tide, wind, stone, then the chord (the last crystal's own tone gives way to it)")
             g.simulate(seconds: PageFold.duration + 0.5)                                                      // F07 A-fold: the folded sheet opens before the page can be read
             check(!item(g, "page_6").hidden && g.interactables.first { $0.id == "page_6" }?.enabled == true, "Oren's page 6 appears at the receiver")
             check(!item(g, "gw_column").hidden && item(g, "gw_column").uniforms.model.columns.1.y > 40, "a tall column of light rises from the receiver (height \(String(format: "%.0f", item(g, "gw_column").uniforms.model.columns.1.y)) m)")
@@ -999,5 +1019,39 @@ extension SelfTestRunner {
             }
             check((distances.max()! - distances.min()!) / distances.max()! < 0.03, "movement is frame-rate independent (30/60/144 fps: \(distances.map { String(format: "%.2f", $0) }) m)")
         }
+    }
+}
+
+extension SelfTestRunner {
+    /// P02.1: the receivers a click would light, by what a player can SEE: crystals lit, then crystals reached at all, then (to break ties) crystals reached by the right pane colour so far unseen is not used.
+    static func courtScore(_ m: [Int], _ p: [Int]) -> (Int, Int) {
+        let t = MirrorCourt.trace(mirrors: m, panes: p)
+        return (t.litCount, t.arrivals.filter { !$0.isEmpty }.count)
+    }
+    /// A player who always makes the single click (turn a mirror one step, change a pane one colour) that scores best on `courtScore`; no setting is visited twice, so it cannot spin.
+    static func greedyCourt(mirrors: [Int], panes: [Int], limit: Int = 30) -> (solved: Bool, clicks: Int) {
+        var m = mirrors, p = panes, seen: Set<[Int]> = [m + p], clicks = 0
+        while !MirrorCourt.trace(mirrors: m, panes: p).solved && clicks < limit {
+            var best: (score: (Int, Int), m: [Int], p: [Int])?
+            for isMirror in [true, false] { for k in 0..<3 {
+                var mm = m, pp = p
+                if isMirror { mm[k] = (mm[k] + 1) % 4 } else { pp[k] = (pp[k] + 1) % 3 }
+                if seen.contains(mm + pp) { continue }
+                let s = courtScore(mm, pp)
+                if best == nil || s > best!.score { best = (s, mm, pp) }
+            } }
+            guard let b = best else { return (false, clicks) }
+            m = b.m; p = b.p; seen.insert(m + p); clicks += 1
+        }
+        return (MirrorCourt.trace(mirrors: m, panes: p).solved, clicks)
+    }
+    /// The fewest clicks from a setting to a solving one (each click moves one mirror or one pane on by one).
+    static func cheapestCourt(from m: [Int], panes p: [Int]) -> Int {
+        var best = Int.max
+        for a in 0..<4 { for b in 0..<4 { for c in 0..<4 { for x in 0..<3 { for y in 0..<3 { for z in 0..<3 {
+            guard MirrorCourt.trace(mirrors: [a, b, c], panes: [x, y, z]).solved else { continue }
+            best = min(best, zip([a, b, c], m).map { ($0 - $1 + 4) % 4 }.reduce(0, +) + zip([x, y, z], p).map { ($0 - $1 + 3) % 3 }.reduce(0, +))
+        } } } } } }
+        return best
     }
 }

@@ -443,6 +443,10 @@ enum Viewpoints {
     static func named(_ name: String) -> Camera? {
         switch name {
         case "dock":     return Camera(position: SIMD3(175, 2.5, 205), yaw: -0.75, pitch: 0.02)
+        // P02.5: the first stretch of the lantern path from just inside the first lantern (the planted lit-lantern count: the 3rd and 6th of the first eight are unlit)
+        case "lantern-count":
+            let a = Layout.route[0], b = Layout.route[1], d = normalize(SIMD2(b.x - a.x, b.z - a.z))
+            return Camera(position: SIMD3(a.x - d.x * 4, a.y + 2.2, a.z - d.y * 4), yaw: atan2(d.x, -d.y), pitch: -0.08)
         // Lighthouse close-ups (R03). The tower stands at Layout.lighthouse with its door on the +Z (south) side; ground y = 68.
         case "lh-door":  return Camera(position: SIMD3(-30, 70.75, -41.0), yaw: 0, pitch: 0.06)        // 2.8 m back from the door, on the approach: the arch, jambs, threshold and steps in frame (R06; the 0.8 m view showed only planks)
         case "lh-arch":  return Camera(position: SIMD3(-30, 69.7, -40.0), yaw: 0, pitch: 0.12)         // 3.8 m back: the whole arched doorway

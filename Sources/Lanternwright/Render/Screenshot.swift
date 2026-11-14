@@ -33,7 +33,11 @@ enum Screenshot {
         case "mirrors": g.glass?.forceMirrorsSolved()
         case "chimes": g.glass?.forceChimesSolved()
         case "both": g.glass?.forceMirrorsSolved(); g.glass?.forceChimesSolved(); g.glass?.forceAltar()
-        case "mirrorswrong": g.glass?.setArrangement(mirrors: MirrorCourt.solutionMirrors, panes: [1, 2, 0])
+        case "mirrorswrong": g.glass?.setArrangement(mirrors: MirrorCourt.solutionMirrors, panes: [2, 0, 1])
+        // P02.1: the court with 0, 1, 2 receiving crystals lit (3 is `mirrors`); the arrangements are the ones the careful six clicks pass through
+        case "court0": g.glass?.setArrangement(mirrors: [3, 1, 1], panes: [2, 1, 0])
+        case "court1": g.glass?.setArrangement(mirrors: MirrorCourt.initialMirrors, panes: MirrorCourt.initialPanes)
+        case "court2": g.glass?.setArrangement(mirrors: [3, 1, 3], panes: [1, 1, 0])
         case let s where s.hasPrefix("charge"):          // F10.3: every charge meter of the world at a level (`charge` = 60 %, `charge25`, `charge100`, ...)
             let pct = Float(s.dropFirst(6)).map { $0 / 100 } ?? 0.6
             for sc in scenesForState.values { for n in ChargeMeter.allNames { ChargeMeter.set(sc, n, level: pct) } }

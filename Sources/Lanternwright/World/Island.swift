@@ -201,7 +201,7 @@ enum Island {
             var core = MeshBuilder()
             core.append(coreProto, transform: m)
             scene.add("\(LanternChain.coreName)\(k)", mesh: core.build(device: device, label: "lantern core"),
-                      uniforms: ObjectUniforms(model: matrix_identity_float4x4, tint: SIMD4(1, 1, 1, 1), emissive: SIMD4(1.0, 0.62, 0.25, LanternChain.baseGlow)))
+                      uniforms: ObjectUniforms(model: matrix_identity_float4x4, tint: SIMD4(1, 1, 1, 1), emissive: SIMD4(1.0, 0.62, 0.25, PlantedClues.baseGlow(lantern: k))))
         }
     }
 

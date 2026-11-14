@@ -36,6 +36,8 @@ enum ClueSource: Equatable {
     case page(Int)
     /// What the player carries from another puzzle's solve (the stones' tones and order).
     case memory(of: String)
+    /// A key of `PuzzleGraph.keys` (P02.5): something learned at one place and carried to this puzzle.
+    case key(String)
 }
 struct PuzzleClue: Equatable {
     var source: ClueSource
@@ -43,6 +45,23 @@ struct PuzzleClue: Equatable {
     /// Where the clue lies (a page's box centre); nil for a memory, whose place is its source puzzle's machine.
     var position: SIMD3<Float>?
     var label: String
+}
+
+/// P02 section 3.2: what a player carries from one place to another, as data. `learnedAt` names a puzzle (the key is what its solve or its machine teaches) or a place (a planted clue, `planted`: no page states
+/// it and nothing flags it). `usedAt` are the puzzles that take it as a clue. A key is `built` when both ends exist in the game today; `planned` ones are listed with who builds them and are not scored.
+struct PuzzleKey: Equatable {
+    enum Status: Equatable { case built, planned(String) }
+    var id: String
+    var title: String
+    var channel: PuzzleChannel
+    var learnedAt: String
+    var learnedWorld: WorldKind
+    var learnedPosition: SIMD3<Float>?
+    var usedAt: [String]
+    var planted = false
+    var status: Status = .built
+    /// The datum in words, for the report (a count, a relation).
+    var value: String
 }
 
 struct PuzzleNode {
@@ -83,6 +102,7 @@ struct PuzzleGraph {
     var pages: [PageFact]
     /// Flags the player's own walking grants (standing near the quay, collecting the gate's pages): no puzzle sets them.
     var external: Set<String>
+    var keys: [PuzzleKey] = []
     func node(_ id: String) -> PuzzleNode? { puzzles.first { $0.id == id } }
 }
 
@@ -114,11 +134,12 @@ enum PuzzleRules {
         ("G8", "3 to 6 manipulations; 1 to 2 clue sources"),
         ("G9", "every puzzle has its own verb and channel"),
         ("G10", "the answer is not handed over as a sentence"),
+        ("G11", "every built key is learned somewhere, used by a puzzle that lists it, and carried across a world or 40 m"),
     ]
 
     /// All rule breaks of a graph, in rule order.
     static func breaks(_ g: PuzzleGraph) -> [PuzzleBreak] {
-        acyclic(g) + flagsProvided(g) + clueConsumers(g) + clueDistance(g) + sharedAnswer(g) + openAtOnce(g) + feedback(g) + budgets(g) + verbChannel(g) + answerAsSentence(g)
+        acyclic(g) + flagsProvided(g) + clueConsumers(g) + clueDistance(g) + sharedAnswer(g) + openAtOnce(g) + feedback(g) + budgets(g) + verbChannel(g) + answerAsSentence(g) + keyRule(g)
     }
 
     /// The puzzles every rule but G6 scores: real puzzles (not story beats or transits), optional ones included (Oren's exit ring is a machine a player works).
@@ -172,6 +193,24 @@ enum PuzzleRules {
         return out
     }
 
+    // MARK: G11: keys (P02.5)
+
+    static func keyRule(_ g: PuzzleGraph) -> [PuzzleBreak] {
+        var out: [PuzzleBreak] = []
+        for k in g.keys {
+            if case .planned = k.status { continue }
+            if k.usedAt.isEmpty { out.append(PuzzleBreak(rule: "G11", subject: "\(k.id) consumer", detail: "the key \(k.id) is learned and never used")) }
+            if g.node(k.learnedAt) == nil && !k.planted { out.append(PuzzleBreak(rule: "G11", subject: "\(k.id) source", detail: "the key \(k.id) says it is learned at \(k.learnedAt), which is no puzzle of the graph")) }
+            for u in k.usedAt {
+                guard let n = g.node(u) else { out.append(PuzzleBreak(rule: "G11", subject: "\(k.id) \(u)", detail: "\(u) is no puzzle of the graph")); continue }
+                guard let c = n.clues.first(where: { $0.source == .key(k.id) }) else { out.append(PuzzleBreak(rule: "G11", subject: "\(k.id) \(u)", detail: "\(u) does not list the key as a clue")); continue }
+                if let d = distance(c, to: n, in: g), d < clueMinDistance { out.append(PuzzleBreak(rule: "G11", subject: "\(k.id) \(u) distance", detail: String(format: "the key is %.0f m from the machine that uses it", d))) }
+            }
+        }
+        for n in g.puzzles { for c in n.clues { if case .key(let id) = c.source, !g.keys.contains(where: { $0.id == id }) { out.append(PuzzleBreak(rule: "G11", subject: "\(n.id) clue \(id)", detail: "the clue names a key that the table does not have")) } } }
+        return out
+    }
+
     // MARK: G4: distance
 
     static func distance(_ clue: PuzzleClue, to n: PuzzleNode, in g: PuzzleGraph) -> Float? {
@@ -180,6 +219,7 @@ enum PuzzleRules {
         switch clue.source {
         case .page: from = clue.position.map { [$0] } ?? []
         case .memory(let of): from = g.node(of)?.machine ?? []
+        case .key: from = clue.position.map { [$0] } ?? []
         }
         guard !from.isEmpty, !n.machine.isEmpty else { return nil }
         return from.flatMap { a in n.machine.map { simd_length($0 - a) } }.min()
@@ -334,6 +374,28 @@ extension PuzzleGraph {
         let sight: (FeedbackKind, Float, String) -> PuzzleFeedback = { PuzzleFeedback(sense: .sight, kind: $0, seconds: $1, note: $2) }
         let sound: (FeedbackKind, Float, String) -> PuzzleFeedback = { PuzzleFeedback(sense: .sound, kind: $0, seconds: $1, note: $2) }
 
+        // P02.5: the keys of plan section 3.2. Positions are the real ones (the stones' machine, the chime ring, the first dock lantern).
+        let dockLantern: SIMD3<Float>? = game.scenes[.varrow]?.placed.first { $0.kind == "lantern" }.map { l in l.low.reduce(SIMD3<Float>.zero, +) / Float(max(l.low.count, 1)) }
+        let keys: [PuzzleKey] = [
+            PuzzleKey(id: "stones-tones", title: "the stones' tones", channel: .hear, learnedAt: "stones", learnedWorld: .varrow, learnedPosition: centre("stone_tide", .varrow), usedAt: ["chime-pool"],
+                      value: "tide D4, wind A4, stone D5: the three of the pool's five chimes that are not decoys"),
+            PuzzleKey(id: "three-heights", title: "the three heights", channel: .see, learnedAt: "chime-pool", learnedWorld: .glassWood, learnedPosition: centre("gw_chime_0", .glassWood), usedAt: ["archive-gates-tone", "archive-gates-beam"], planted: true,
+                      status: .planned("the gates' water marks (builder A, Q76): until they exist nothing at the gates uses it, so the gates do not list it as a clue"),
+                      value: "the non-decoy chimes hang in the order of the sluice rooms' floors (tide highest): an ORDER today, not a scale, and the gates carry no mark for it yet (Q76)"),
+            PuzzleKey(id: "lantern-count", title: "the lit-lantern count", channel: .count, learnedAt: "dock-lanterns", learnedWorld: .varrow, learnedPosition: dockLantern, usedAt: ["archive-gates-beam"], planted: true,
+                      value: "\(PlantedClues.litCount) of the first \(PlantedClues.lanternSpan) dock lanterns are lit = \(PlantedClues.firstRingMarkSteps) steps to the prism ring's first mark (Oren's way; Ilse's fork has no counterpart yet, Q75)"),
+            PuzzleKey(id: "stones-order", title: "the stones' altitude order", channel: .see, learnedAt: "the island-profile diagram page", learnedWorld: .varrow, learnedPosition: nil, usedAt: ["stones"],
+                      status: .planned("B3 (P02.2): the Notebook diagram; needs the user's page wording"), value: "low to high, as glyphs on a drawn profile"),
+            PuzzleKey(id: "beam-rhythm", title: "the beam rhythm", channel: .watch, learnedAt: "the lighthouse beam at dusk", learnedWorld: .varrow, learnedPosition: nil, usedAt: ["door-plates"],
+                      status: .planned("A2 (the beam pattern) then B3 (P02.3, the plate rule)"), value: "three groups of flashes, long = stone, middle = wind, short = tide"),
+            PuzzleKey(id: "map-shape", title: "the map's empty last ring", channel: .see, learnedAt: "the chain map (Archive)", learnedWorld: .tideArchive, learnedPosition: nil, usedAt: [],
+                      status: .planned("the Salt Flats' first lamp (not built)"), value: "the shape of the last ring"),
+        ]
+        func keyClue(_ id: String) -> PuzzleClue {
+            let k = keys.first { $0.id == id }
+            return PuzzleClue(source: .key(id), world: k?.learnedWorld ?? .varrow, position: k?.learnedPosition, label: k?.title ?? id)
+        }
+
         var nodes: [PuzzleNode] = []
         nodes.append(PuzzleNode(
             id: "stones", title: "the three resonance stones (Varrow)", world: .varrow, verb: "strike", channel: .hear, answer: stonesAnswer, manipulations: LighthousePuzzle.order.count,
@@ -346,11 +408,11 @@ extension PuzzleGraph {
             id: "mirror-court", title: "the mirror court (Glass Wood)", world: .glassWood, verb: "turn+change", channel: .aim, answer: mirrorsAnswer, manipulations: mirrors.cheapest,
             requires: ["lensTouched"], sets: "gw_mirrors", machine: centres((0..<3).flatMap { ["gw_mirror_\($0)", "gw_pane_\($0)"] }, .glassWood), machineIDs: (0..<3).flatMap { ["gw_mirror_\($0)", "gw_pane_\($0)"] },
             clues: [pageClue(5), memory("stones", .varrow, "the stones' order")],
-            feedback: [sight(.progress, 0.35, "the beam is retraced on the turn and the receiver shows the colour that arrived, uneven if the order is wrong"), sound(.binary, 0.0, "a glass tick on every turn, the same wherever the beam goes")]))
+            feedback: [sight(.progress, 0.35, "the beam is retraced on the turn; each receiving crystal lights the moment the beam reaches it in its colour and goes dark when it is lost (a wrong colour flutters dully)"), sound(.progress, 0.0, "a glass tick on every turn, and a lit crystal rings its own stone tone")]))
         nodes.append(PuzzleNode(
             id: "chime-pool", title: "the chime pool (Glass Wood)", world: .glassWood, verb: "strike", channel: .hear, answer: chimesAnswer, manipulations: GlassWoodLogic.chimeSolution.count,
             requires: ["lensTouched"], sets: "gw_chimes", machine: centres((0..<GlassPuzzleProps.chimeCount).map { "gw_chime_\($0)" }, .glassWood), machineIDs: (0..<GlassPuzzleProps.chimeCount).map { "gw_chime_\($0)" },
-            clues: [memory("stones", .varrow, "the stones' tones")],
+            clues: [keyClue("stones-tones")],
             feedback: [sight(.progress, 0.3, "a right chime lights and stays lit; a wrong one sours and resets"), sound(.progress, 0.0, "each chime rings its tone; a wrong one sours")]))
         nodes.append(PuzzleNode(id: "altar", title: "the altar of two accounts (Glass Wood)", world: .glassWood, kind: .story, verb: "touch", channel: .touch, manipulations: 2,
                                 requires: ["gw_mirrors", "gw_chimes"], sets: "gw_end", machine: centres(["gw_altar_ilse", "gw_altar_oren"], .glassWood), machineIDs: ["gw_altar_ilse", "gw_altar_oren"]))
@@ -376,14 +438,14 @@ extension PuzzleGraph {
         nodes.append(PuzzleNode(
             id: "archive-gates-beam", title: "the three sluice gates by the prism ring (Archive, Oren's way)", world: .tideArchive, group: "archive-gates", verb: "turn", channel: .aim, answer: gatesAnswer,
             manipulations: beamSteps, requires: ["route_begun"], sets: Game.routeSolvedFlag, machine: centres([TideArchivePuzzle.ringName], .tideArchive), machineIDs: [TideArchivePuzzle.ringName],
-            clues: [pageClue(13)],
+            clues: [pageClue(13), keyClue("lantern-count")],
             feedback: [sight(.progress, 0.0, "the component brightens on its mark and the matching room's lamp lights"), sound(.progress, 0.0, "the held drone")]))
         nodes.append(PuzzleNode(
             id: "contradiction", title: "the Notebook's two accounts (optional)", world: .varrow, kind: .story, optional: true, verb: "set", channel: .see,
             manipulations: Contradictions.groupSize, requires: ["returned"], sets: "contradiction",
             clues: Contradictions.all.first.map { c in c.evidence.map { pageClue($0.page) } } ?? [], feedback: [sight(.binary, 0.0, "a quiet \"Settled.\" or silence")]))
 
-        return PuzzleGraph(puzzles: nodes, pages: pages, external: [Game.quaySeenFlag, "gate_pages"])
+        return PuzzleGraph(puzzles: nodes, pages: pages, external: [Game.quaySeenFlag, "gate_pages"], keys: keys)
     }
 
     /// Every setting of the mirror court (4 turns each, 3 pane colours each), the ones that solve it, and the fewest clicks from where the player finds it (a click moves one mirror or one pane on by one).

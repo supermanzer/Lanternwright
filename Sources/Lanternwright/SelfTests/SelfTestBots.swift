@@ -89,7 +89,7 @@ extension SelfTestRunner {
         }
         check(turned, "bot: turns each mirror and changes each pane with real clicks")
         bot.wait(3 + PageFold.duration)
-        check(g.state.has("gw_mirrors"), "bot: the moonbeam meets tide, wind, stone in order and the court is solved")
+        check(g.state.has("gw_mirrors"), "bot: all three receiving crystals light and the court is solved")
         check(g.scenes[.glassWood]!.items.first { $0.name == "page_6" }.map { !$0.hidden } == true, "bot: Oren's page 6 appears at the orb")
         check(!g.pageWaiting && (g.banner ?? "") != "A page has come loose.", "bot: the live reveal does not announce itself (F03 #43: no banner, no marker): the page is simply there")
         collectGW(6)

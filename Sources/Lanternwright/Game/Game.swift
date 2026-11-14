@@ -444,7 +444,7 @@ final class Game {
         guard let t0 = chainStart, let sc = scenes[.varrow] else { return }
         if chainLanterns == 0 { chainLanterns = sc.items.filter { $0.name.hasPrefix(LanternChain.coreName) }.count }
         let t = time - t0, finished = t > LanternChain.total(count: chainLanterns)
-        for k in 0..<chainLanterns { sc.update("\(LanternChain.coreName)\(k)") { $0.uniforms.emissive.w = finished ? LanternChain.baseGlow : LanternChain.glow(index: k, time: t) } }
+        for k in 0..<chainLanterns { sc.update("\(LanternChain.coreName)\(k)") { $0.uniforms.emissive.w = finished ? PlantedClues.baseGlow(lantern: k) : LanternChain.glow(index: k, time: t) } }
         if finished { chainStart = nil }
     }
 

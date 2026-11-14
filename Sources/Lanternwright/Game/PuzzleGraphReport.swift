@@ -51,6 +51,18 @@ enum PuzzleGraphReport {
         }
 
         o.append("")
+        o.append("### Keys: what the player carries between places (P02 section 3.2; `built` = both ends exist in the game, `planted` = an unflagged datum no page states)")
+        o.append("")
+        o.append("| key | channel | learned at | used at (puzzles that list it as a clue) | built? | the datum |")
+        o.append("|---|---|---|---|---|---|")
+        for k in g.keys {
+            let status: String
+            switch k.status { case .built: status = k.planted ? "built, planted" : "built"; case .planned(let who): status = "planned: \(who)" }
+            let users = k.usedAt.isEmpty ? "-" : k.usedAt.map { u in (g.node(u)?.clues.contains { $0.source == .key(k.id) } ?? false) ? u : "\(u) (**does not list it**)" }.joined(separator: ", ")
+            o.append("| \(k.id) | \(k.channel.rawValue) | \(k.learnedAt) (\(world(k.learnedWorld))) | \(users) | \(status) | \(k.value) |")
+        }
+
+        o.append("")
         o.append("### What is open when the player chooses (a player who always takes the first open puzzle)")
         o.append("")
         o.append("| step | solves | world | open at that moment | verdict |")

@@ -2,7 +2,7 @@ import Foundation
 import simd
 
 /// The Glass Wood's puzzles. Like Varrow's, it talks to the world only through named scene items, flags and events.
-///  - The mirror court: turn mirrors and change panes until the moonbeam meets tide, wind, stone, in that order.
+///  - The mirror court (P02.1): turn mirrors and change panes until all three receiving crystals are lit at once (each lights, with its own tone, the moment the beam reaches it in its own colour; any order).
 ///  - (T5.5) The chimes by the pool.
 final class GlassWoodLogic: WorldPuzzle {
     private let scene: Scene
@@ -24,6 +24,10 @@ final class GlassWoodLogic: WorldPuzzle {
     private var mirrorTarget = MirrorCourt.initialMirrors.map { Float($0) }
     private var columnGrowth: Float = 0
     private var trace = MirrorCourt.trace(mirrors: MirrorCourt.initialMirrors, panes: MirrorCourt.initialPanes)
+    /// How lit each receiving crystal looks (0...1, eased toward the trace each tick). P02.1 stub for builder A's per-receiver glow uniform (A2): until it lands the level drives the orb's own emissive; A replaces `applyReceiverGlow`.
+    private var receiverGlow = [Float](repeating: 0, count: MirrorCourt.receivers.count)
+    /// Receivers lit by the court as it stands (the live reading the tests and the graph use).
+    var receiversLit: [Bool] { (0..<MirrorCourt.receivers.count).map(trace.lit) }
 
     static let columnHeight: Float = 46
 
@@ -98,8 +102,15 @@ final class GlassWoodLogic: WorldPuzzle {
 
     /// Recompute the beam for the current arrangement and check for victory.
     private func retrace() {
+        let before = receiversLit
         trace = MirrorCourt.trace(mirrors: mirrors, panes: panes)
         refreshBeams()
+        // Live feedback (P02.1): a receiver that lights now rings its own tone (the stones' tone for its colour: tide, wind, stone), once, at the turn that lit it.
+        if !mirrorsSolved && !trace.solved {                       // the last one to light is answered by the wood's own chord instead (solveMirrors)
+            for k in 0..<MirrorCourt.receivers.count where trace.lit(k) && !before[k] {
+                emit(.chime([ChimeKind.tide, .wind, .stone][MirrorCourt.receiverColors[k]]))
+            }
+        }
         if trace.solved && !mirrorsSolved { solveMirrors() }
     }
 
@@ -290,6 +301,27 @@ final class GlassWoodLogic: WorldPuzzle {
 
     // MARK: Visuals (every tick)
 
+    /// P02.1 STUB for builder A's glow uniform (A2): until then the crystal's emissive carries the level. Dark is the tuned colour dimmed; lit is the colour blazing; solved is white-gold.
+    private func applyReceiverGlow(_ k: Int, time: Float) {
+        let tune = GlassPuzzleProps.color(MirrorCourt.receiverColors[k]), level = receiverGlow[k]
+        let arrived = trace.arrivals[k].last
+        let base = MirrorCourt.world(MirrorCourt.receivers[k]) + SIMD3(0, 1.45, 0)
+        let size: Float = 0.7 + 0.4 * (mirrorsSolved ? 1 : level)           // a lit crystal swells
+        scene.update(GlassPuzzleProps.receiverName(k)) {
+            $0.uniforms.model = translation(base) * scaling(SIMD3(repeating: size))
+            if self.mirrorsSolved {
+                $0.uniforms.tint = SIMD4(1.0, 0.95, 0.8, 1); $0.uniforms.emissive = SIMD4(1.0, 0.95, 0.8, 9)
+            } else if level > 0.02 {
+                $0.uniforms.tint = SIMD4(tune, 1); $0.uniforms.emissive = SIMD4(tune, 0.5 + 1.6 * level)
+            } else if let a = arrived {                        // reached by the wrong colour: a dull, uneven flutter of what arrived
+                let c = GlassPuzzleProps.color(a)
+                $0.uniforms.tint = SIMD4(c * 0.4, 1); $0.uniforms.emissive = SIMD4(c, 0.5 + 0.3 * sin(time * 9))
+            } else {                                           // dark: a dim crystal of the colour it is tuned to
+                $0.uniforms.tint = SIMD4(tune * 0.3 + 0.1, 1); $0.uniforms.emissive = SIMD4(tune, 0.12)
+            }
+        }
+    }
+
     func updateVisuals(time: Float) {
         if altarRise > 0 {
             for (i, name) in ["ilse", "oren"].enumerated() {
@@ -330,17 +362,12 @@ final class GlassWoodLogic: WorldPuzzle {
             let m = GlassPuzzleProps.mirrorModel(k, turns: mirrorTurns[k])
             scene.update("gw_mirror_\(k)") { $0.uniforms.model = m }
         }
-        // The receiver: dark until light arrives; shows the colour that arrived (pulsing unevenly if it is the wrong order); blazes when solved.
-        let last = trace.segmentColor.last ?? -1
-        scene.update("gw_receiver") {
-            if self.mirrorsSolved {
-                $0.uniforms.emissive = SIMD4(1.0, 0.95, 0.8, 9)
-            } else if self.trace.reachedReceiver {
-                let flutter = 1.6 + 1.2 * sin(time * 9)
-                $0.uniforms.emissive = SIMD4(GlassPuzzleProps.color(last), flutter)
-            } else {
-                $0.uniforms.emissive = SIMD4(0.3, 0.35, 0.45, 0.5)
-            }
+        // The receivers: dark (tinted with the colour each is tuned to) until light arrives; a wrong colour shows a dull flutter of the colour that arrived;
+        // the right colour LIGHTS the crystal in its own colour and holds it for as long as the beam stays; all lit and solved: they blaze.
+        for k in 0..<MirrorCourt.receivers.count {
+            let target: Float = mirrorsSolved || trace.lit(k) ? 1 : 0
+            receiverGlow[k] += (target - receiverGlow[k]) * min(1, 8 * Game.tick)
+            applyReceiverGlow(k, time: time)
         }
         if columnGrowth > 0 {
             let h = max(columnGrowth * GlassWoodLogic.columnHeight, 0.01)

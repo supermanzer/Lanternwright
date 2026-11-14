@@ -409,15 +409,15 @@ extension SelfTestRunner {
         let names = Set(cores.map(\.name))
         check(cores.count >= 10 && (0..<cores.count).allSatisfy { names.contains("\(LanternChain.coreName)\($0)") }, "lanternchain: \(cores.count) lantern cores, numbered without gaps")
         check(cores.count == sc.placed.filter { $0.kind == "lantern" }.count, "lanternchain: one core per placed lantern")
-        check(cores.allSatisfy { $0.uniforms.emissive.w == LanternChain.baseGlow && !$0.castsShadow }, "lanternchain: every core starts at the base glow and casts no shadow")
-        check(LanternChain.glow(index: 0, time: -1) == LanternChain.baseGlow && LanternChain.glow(index: 5, time: 0.5) == LanternChain.baseGlow, "lanternchain: nothing before the return, and lantern 5 waits for its turn")
+        check((0..<cores.count).allSatisfy { k in cores.first { $0.name == "\(LanternChain.coreName)\(k)" }.map { $0.uniforms.emissive.w == PlantedClues.baseGlow(lantern: k) && !$0.castsShadow } ?? false }, "lanternchain: every core starts at its base glow (lit, or one of the unlit planted ones) and casts no shadow")
+        check(LanternChain.glow(index: 0, time: -1) == LanternChain.baseGlow && LanternChain.glow(index: 5, time: 0.5) == PlantedClues.baseGlow(lantern: 5), "lanternchain: nothing before the return, and lantern 5 waits for its turn")
         let peak = (0..<20).map { LanternChain.glow(index: 3, time: 3 * LanternChain.step + Float($0) * 0.08) }.max()!
         check(peak > LanternChain.baseGlow + 0.9 * LanternChain.flareGlow && peak <= LanternChain.baseGlow + LanternChain.flareGlow + 1e-4, "lanternchain: a lantern's flare peaks at \(peak)")
         var order = true
         for k in 0..<8 { if LanternChain.glow(index: k, time: Float(k) * LanternChain.step + 0.25) < LanternChain.glow(index: k + 1, time: Float(k) * LanternChain.step + 0.25) { order = false } }
         check(order, "lanternchain: the lanterns flare in route order")
         let end = LanternChain.total(count: cores.count)
-        check((0..<cores.count).allSatisfy { LanternChain.glow(index: $0, time: end + 0.01) == LanternChain.baseGlow }, "lanternchain: every lantern is back to the base glow after \(end) s")
+        check((0..<cores.count).allSatisfy { LanternChain.glow(index: $0, time: end + 0.01) == PlantedClues.baseGlow(lantern: $0) }, "lanternchain: every lantern is back to its base glow after \(end) s")
     }
 }
 
@@ -845,8 +845,9 @@ extension SelfTestRunner {
         check(zip(xs, xs.dropFirst()).allSatisfy { $1 > $0 } && xs.first! < -0.17 && xs.last! > 0.17, "pagefold: the light runs from beyond one end of the crease to beyond the other as it opens (\(String(format: "%.2f", xs.first!)) to \(String(format: "%.2f", xs.last!)) m)")
         // The live reveal: solve the mirror court; the fold opens for `duration` s and only then is the page there.
         _ = g.drainEvents()
-        for _ in 0..<3 { g.glass!.click("gw_mirror_0") }; for _ in 0..<3 { g.glass!.click("gw_mirror_1") }; for _ in 0..<2 { g.glass!.click("gw_mirror_2") }
-        g.glass!.click("gw_pane_0"); g.glass!.click("gw_pane_1"); g.glass!.click("gw_pane_2")
+        g.glass!.setArrangement(mirrors: MirrorCourt.initialMirrors, panes: MirrorCourt.initialPanes)       // P02.1: the six real clicks from where the court is found
+        g.glass!.click("gw_mirror_1"); g.glass!.click("gw_mirror_2"); g.glass!.click("gw_mirror_2")
+        g.glass!.click("gw_pane_0"); g.glass!.click("gw_pane_0"); g.glass!.click("gw_pane_1")
         check(g.state.has("gw_mirrors"), "pagefold: (the mirror court is solved)")
         g.simulate(seconds: 2.0 + 0.5 * PageFold.duration)                                              // the reward's own delay, then half way through the opening
         let half = item(PageFold.panelNames(6)[0])!, light = item(PageFold.lightName(6))!
