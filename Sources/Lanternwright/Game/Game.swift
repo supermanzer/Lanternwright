@@ -451,13 +451,13 @@ final class Game {
     // MARK: The way back (F05 S3)
 
     /// The Glass Wood's return ring is steadily lit; once the altar is solved it brightens and breathes, and the lamp's line is said once, at that moment (not when a save loads with the altar solved).
-    static let returnRingGlow: (ring: Float, core: Float) = (6.0, 11.0)
+    static let returnRingGlow: (ring: Float, core: Float) = (LensLook.ringLit, LensLook.discLit)
     /// Seconds after the altar is solved before the lamp's line is said: after the second account and the end-of-world line (GlassWoodLogic.touchAltar) have been read.
     static let lampLineDelay: Float = 18
     private var altarSeen: Bool?
     /// The return ring's emissive strength now (the scene's own base glow until the altar is solved).
     func returnGlow(ring: Bool) -> Float {
-        let base: Float = ring ? 2.2 : 5.0
+        let base: Float = ring ? LensLook.ringBase : LensLook.discBase
         guard state.has("gw_end") else { return base }
         let target = ring ? Game.returnRingGlow.ring : Game.returnRingGlow.core
         return target * (0.85 + 0.15 * sin(time * 1.6))

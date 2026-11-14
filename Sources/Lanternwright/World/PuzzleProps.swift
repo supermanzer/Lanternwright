@@ -195,16 +195,8 @@ enum PuzzleProps {
         }
         scene.add("islet", mesh: b.build(device: device, label: "islet"), uniforms: ObjectUniforms(model: translation(c)))
 
-        // The lens: a floating ring of glass around a bright core. Both hover above the pedestal.
-        var ring = MeshBuilder()
-        ring.torus(major: 0.95, minor: 0.12, segments: 36, sides: 10, surface: Surface(color: SIMD3(0.8, 0.95, 1.0), roughness: 0.1, material: .emissiveGlass),
-                   transform: rotationX(.pi / 2))
-        scene.add("lens_ring", mesh: ring.build(device: device, label: "lens_ring"),
-                  uniforms: ObjectUniforms(model: translation(lensRestPosition), tint: SIMD4(1, 1, 1, 1), emissive: SIMD4(0.7, 0.95, 1.0, 2.2)))
-        var core = MeshBuilder()
-        core.sphere(radius: 0.3, segments: 14, surface: Surface(color: SIMD3(1, 1, 1), roughness: 0.2))
-        scene.add("lens_core", mesh: core.build(device: device, label: "lens_core"),
-                  uniforms: ObjectUniforms(model: translation(lensRestPosition), tint: SIMD4(1, 1, 1, 1), emissive: SIMD4(0.8, 0.97, 1.0, 5)))
+        // The lens: a floating brass ring lit from within around a soft glowing disc (F10.2: `LensLook`). Both hover above the pedestal.
+        LensLook.add(to: scene, device: device, ringName: "lens_ring", coreName: "lens_core", model: translation(lensRestPosition), tint: SIMD3(0.7, 0.95, 1.0))
     }
 
     static var lensRestPosition: SIMD3<Float> { Layout.isletCenter + SIMD3(0, 2.3, 0) }

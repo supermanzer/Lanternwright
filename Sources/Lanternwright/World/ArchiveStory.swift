@@ -175,14 +175,7 @@ enum ArchiveStory {
             post.chamferBox(size: SIMD3(0.8, 0.1, 0.8), chamfer: 0.02, surface: ArchiveProps.brass, transform: translation(SIMD3(c.x, top + 0.05, c.z)))
             scene.colliders.addCylinder(center: SIMD2(c.x, c.z), radius: 0.4, minY: base - 1, maxY: c.y + 1)
             scene.add("ta_return_post_\(name)", mesh: post.build(device: device, label: "return post"), uniforms: ObjectUniforms(model: matrix_identity_float4x4))
-            var ring = MeshBuilder()
-            ring.torus(major: 0.95, minor: 0.12, segments: 36, sides: 10, surface: Surface(color: SIMD3(0.8, 0.95, 1.0), roughness: 0.1, material: .emissiveGlass), transform: rotationX(.pi / 2))
-            scene.add("ta_return_ring_\(name)", mesh: ring.build(device: device, label: "return ring"),
-                      uniforms: ObjectUniforms(model: translation(c), tint: SIMD4(1, 1, 1, 1), emissive: SIMD4(side == .oren ? 0.6 : 1.0, 0.8, side == .oren ? 1.0 : 0.5, 2.2)))
-            var core = MeshBuilder()
-            core.sphere(radius: 0.25, segments: 14, surface: Surface(color: SIMD3(1, 1, 1), roughness: 0.2))
-            scene.add("ta_return_core_\(name)", mesh: core.build(device: device, label: "return core"),
-                      uniforms: ObjectUniforms(model: translation(c), tint: SIMD4(1, 1, 1, 1), emissive: SIMD4(1.0, 0.9, 0.7, 5)))
+            LensLook.add(to: scene, device: device, ringName: "ta_return_ring_\(name)", coreName: "ta_return_core_\(name)", model: translation(c), tint: side == .oren ? SIMD3(0.6, 0.8, 1.0) : SIMD3(1.0, 0.8, 0.5))
         }
     }
 

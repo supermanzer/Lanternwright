@@ -115,15 +115,7 @@ enum GlassWood {
         scene.platforms.append(Scene.Platform(center: SIMD2(a.x, a.z), radius: 3.57, top: a.y + top))
         scene.add("gw_arrival_plate", mesh: plate.build(device: device, label: "arrival plate"), uniforms: ObjectUniforms(model: translation(a)))
 
-        var ring = MeshBuilder()
-        ring.torus(major: 0.95, minor: 0.12, segments: 36, sides: 10,
-                   surface: Surface(color: SIMD3(0.8, 0.95, 1.0), roughness: 0.1, material: .emissiveGlass), transform: rotationX(.pi / 2))
-        scene.add("gw_return_ring", mesh: ring.build(device: device, label: "return ring"),
-                  uniforms: ObjectUniforms(model: translation(GlassLayout.returnLens), tint: SIMD4(1, 1, 1, 1), emissive: SIMD4(1.0, 0.8, 0.5, 2.2)))
-        var core = MeshBuilder()
-        core.sphere(radius: 0.3, segments: 14, surface: Surface(color: SIMD3(1, 1, 1), roughness: 0.2))
-        scene.add("gw_return_core", mesh: core.build(device: device, label: "return core"),
-                  uniforms: ObjectUniforms(model: translation(GlassLayout.returnLens), tint: SIMD4(1, 1, 1, 1), emissive: SIMD4(1.0, 0.85, 0.55, 5)))
+        LensLook.add(to: scene, device: device, ringName: "gw_return_ring", coreName: "gw_return_core", model: translation(GlassLayout.returnLens), tint: SIMD3(1.0, 0.82, 0.55))
     }
 
     /// Candidate crystal-tree sites (Poisson disc, clear of the route, the pads and the pool): shared by the forest and the `--approach` targets.

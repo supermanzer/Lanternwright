@@ -35,6 +35,11 @@ fragment LitFragOut lit_fragment(LitOut in [[stage_in]],
     float fpix = max(length(dfdx(in.worldPos)), length(dfdy(in.worldPos)));     // metres per pixel (for band-limited noise)
     float3 albedo = in.color.rgb;
     float rough = in.color.a;
+    // F10.2 soft emissive disc (material 26): colour.r carries the radial position (0 centre .. 1 rim). It is a light, not a surface: no albedo, and its brightness is a radial gradient
+    // (below), so it reads as a glowing lens, not a flat white shape. (A stochastic-discard edge was tried first: the TAA colour clamp rejects it and it stays speckled.)
+    bool softDisc = int(in.material + 0.5) == 26;
+    float softR = in.color.r;
+    if (softDisc) { albedo = float3(0.0); rough = 1.0; }
     if (in.material > 0.5 && in.material < 1.5) {
         float3 Ng = n;
         albedo = terrain_surface(in.worldPos, Ng, in.color.r, in.color.g, in.color.b, frame.worldB.x, fpix, frame.cameraPos.w, frame.worldB.z, frame.worldB.y, n, rough);
@@ -44,7 +49,7 @@ fragment LitFragOut lit_fragment(LitOut in [[stage_in]],
     float metal = 0.0, matAO = 1.0;
     float3 glyphGlow = float3(0.0);
     int mid = int(in.material + 0.5);
-    if (mid >= 5) {
+    if (mid >= 5 && !softDisc) {
         // Position in the object's own frame (origin and orientation of its model matrix: the lighthouse axis, the dock's length, a stone's face).
         float3x3 Rm = float3x3(obj.model.columns[0].xyz, obj.model.columns[1].xyz, obj.model.columns[2].xyz);
         float3 Pl = transpose(Rm) * (in.worldPos - obj.model.columns[3].xyz);
@@ -122,7 +127,8 @@ fragment LitFragOut lit_fragment(LitOut in [[stage_in]],
         }
     }
 
-    float3 emissive = (mid == 14 || mid == 20) ? glyphGlow : (mid == 16 ? float3(0.0) : obj.emissive.rgb * obj.emissive.w * (mid == 15 ? 0.35 : 1.0));   // paper: the hover pulse is a hint, not a lamp
+    float3 emissive = (mid == 14 || mid == 20) ? glyphGlow : (mid == 16 ? float3(0.0) : obj.emissive.rgb * obj.emissive.w * (mid == 15 ? 0.35 : 1.0));
+    if (softDisc) emissive = obj.emissive.rgb * obj.emissive.w * (0.22 + 0.78 * exp(-softR * softR * 2.8)) + float3(1.0, 0.96, 0.88) * obj.emissive.w * 0.45 * exp(-softR * softR * 11.0);          // a gradient: the dim tint at the rim, a warm-white heart   // paper: the hover pulse is a hint, not a lamp
     float3 col = diffuse + specular + ambient + emissive;
     col = apply_fog(col, in.worldPos, frame, skyLUT);
     // Debug views (--debug shadow|albedo|ambient).

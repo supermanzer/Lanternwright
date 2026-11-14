@@ -429,6 +429,25 @@ struct MeshBuilder {
         addIndexed(positions: pos, indices: idx, smoothNormals: smooth ? nrm : nil, surface: surface, transform: transform)
     }
 
+    /// F10.2: a flat disc in the XY plane facing +Z (a lens's glow): `rings` concentric rings of `segments` vertices, 24 x 64 by default so no polygon outline shows. Vertex colour.r is the
+    /// radial position (0 centre, 1 rim) for the soft-disc material, which turns it into a brightness gradient.
+    mutating func softDisc(radius: Float, rings: Int = 24, segments: Int = 64, transform: float4x4 = matrix_identity_float4x4) {
+        let nm = normalMatrix(transform), n = normalize(nm * SIMD3<Float>(0, 0, 1))
+        let base = UInt32(vertices.count), mat = MaterialID.softDisc.rawValue
+        func emit(_ p: SIMD3<Float>, _ r: Float) {
+            let wp = transform * SIMD4(p, 1)
+            vertices.append(Vertex(position: SIMD4(wp.x, wp.y, wp.z, 1), normal: SIMD4(n, mat), color: SIMD4(r, 0, 0, 1)))
+        }
+        emit(.zero, 0)
+        for i in 1...rings { let r = Float(i) / Float(rings); for j in 0..<segments { let a = Float(j) / Float(segments) * 2 * .pi; emit(SIMD3(radius * r * cos(a), radius * r * sin(a), 0), r) } }
+        for j in 0..<segments { indices.append(contentsOf: [base, base + 1 + UInt32(j), base + 1 + UInt32((j + 1) % segments)]) }
+        for i in 1..<rings { for j in 0..<segments {
+            let a = base + 1 + UInt32((i - 1) * segments + j), b = base + 1 + UInt32((i - 1) * segments + (j + 1) % segments)
+            let c = base + 1 + UInt32(i * segments + j), d = base + 1 + UInt32(i * segments + (j + 1) % segments)
+            indices.append(contentsOf: [a, c, b, b, c, d])
+        } }
+    }
+
     /// Flat grid in XZ, normal +Y, `grid` quads per side.
     mutating func plane(width: Float, depth: Float, grid: Int = 1, surface: Surface,
                         transform: float4x4 = matrix_identity_float4x4) {
