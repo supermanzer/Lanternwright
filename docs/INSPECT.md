@@ -337,6 +337,16 @@ M10 (guided movement, `docs/plans/M10-guided-movement.md`; tasks in `docs/TASKS-
 | needs-inspection | S05.4 | From each quay the other site shows as dark machines: the bell mast over the stacks, the dark spire beside the dome that glows with the windows (Q68) | `--view ta-quay-stacks`, `--view ta-quay-dome` with `--state windows` | Silhouettes legible against the sky at that distance; nothing says "play again"; the orrery's arms are NOT readable from a quay (known) |
 | needs-inspection | Q69 | Grass no longer comes up through the ledger room's floor; the room still reads dark | `--view ta-ledger-in --state ledger` | No blade through the floor; the dark floor is known |
 
+## A5 (builder A): plate bars, vantage stations, the dome slit, the ledger floor, the orrery's tick (frames in `shots/s05/a5-*.png`; nothing here has been seen or heard by a person)
+
+| Status | Note | What changed | How to see it | What to look for |
+|---|---|---|---|---|
+| needs-inspection | Q79/Q93 | Each lighthouse door plate has a copper bar (reads teal) under its stone's mark: short (tide), middle (wind), long (stone), in the beam's own proportions | `--view lh-plates` | Short, middle and long read at once; can a player who has watched the beam tell which bar is which flash without a page? |
+| needs-inspection | S05.4/Q91 | Two vantage stations on the walked line, each a stone pedestal with a brass far-glass aimed at the other site: station 0 at the third terrace's rim (the orrery and the dome's windows, 36 m), station 1 on the landing's way up to the stacks (the five bays and the mast, 45 m) | `--view ta-vantage0` and `ta-vantage1` (as walked); `ta-vantage0-zoom` and `ta-vantage1-zoom` (full LookCloser), with `--clock 75 --state windows` | From the stand, the orrery's arms and the three window colours are readable at full zoom; the bays' glyph boards and the mast read; the post is in the picture and not in the way |
+| needs-inspection | Q94 | The dome's dark strip is now a smooth slit up the shell (it was a sawtooth of blocks) | `--view ta-vantage0` (it is on the dome's right side) | One dark curved strip, no steps |
+| needs-inspection | Q95 | The ledger room's floor reads as flagged stone, not dark ground | `--view ta-ledger-in` (before: `a5-ledger-in-before.png`) | Cracks between flags visible; the room is still dim (no point lights) |
+| needs-inspection | Q92 | A short brass tick as each orrery arm passes its window, loud within 8 m of the orrery, gone by 40 m | Play: stand at the orrery and wait (the arms line up at tide clock 58.6, 71.1, 80.6 s of each 90 s) | Is it pleasant, audible on laptop speakers, not a nuisance on the third pass? |
+
 ## F10 A2 (builder A): the court's receiving crystals, the beam's three groups, a warmer lens ring (frames in `shots/p02/`; nothing here has been seen by a person)
 
 | Status | Note | What changed | How to see it | What to look for |

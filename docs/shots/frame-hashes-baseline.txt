@@ -4,7 +4,7 @@ shore ae3bdff969a3e227
 summit 2de04c58e2a53715
 islet 130bf0236c798931
 lh-glass 24f60f34ce83f5de
-lh-door 144bead7040bbc6d
+lh-door b91a63018fa9ee1a
 tree-at-14 ebe23735576d2812
 ground-grass-5m bb27018866b02ab8
 ground-sand-1m c0b1218d52fb82fc
