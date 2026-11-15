@@ -20,6 +20,8 @@ final class OverlayView: NSView {
     var pageSlots: [PageSlotGroup] = []
     /// Notebook: per stone, whether its glyph has been seen / struck.
     var notebookSeen = [false, false, false]
+    /// The route whose voice the pages are in (the catalogue diagram hangs on Ilse's page 10 only).
+    var artRoute: PageAuthor?
     var notebookStruck = [false, false, false]
     var pageIndex = 0
     var whiteout: CGFloat = 0
@@ -231,7 +233,7 @@ final class OverlayView: NSView {
             text(journalTab.heading, font: serif(15), color: faded, in: NSRect(x: p.minX + 48, y: p.minY + 46, width: p.width - 96, height: 22), align: .center)
             text("page \(toRoman(page.number))", font: .systemFont(ofSize: 12, weight: .medium), color: faded, in: NSRect(x: p.minX + 48, y: p.minY + 72, width: p.width - 96, height: 18), align: .center)
             text(page.text, font: serif(page.text.count > 400 ? 19 : (page.text.count > 330 ? 21 : 24)), color: ink, in: NSRect(x: p.minX + 56, y: p.minY + 110, width: p.width - 112, height: p.height - 210), spacing: 9)       // S04.7: the longer Archive pages are set a little smaller so they fit
-            if let art = PageArt.kind(forPage: page.number) { drawPageArt(art, in: NSRect(x: p.minX + 90, y: p.minY + 258, width: p.width - 180, height: 124), ink: ink, faded: faded) }
+            if let art = PageArt.kind(forPage: page.number, route: artRoute) { drawPageArt(art, in: art == .catalogue ? NSRect(x: p.minX + 90, y: p.minY + 296, width: p.width - 180, height: 84) : NSRect(x: p.minX + 90, y: p.minY + 258, width: p.width - 180, height: 124), ink: ink, faded: faded) }
             // Page dots + arrows.
             let dotsY = p.maxY - 50
             let totalW = CGFloat(pages.count) * 16
@@ -329,6 +331,28 @@ final class OverlayView: NSView {
     /// P02.2: the island profile (page 3): the sea, the land's height along the climb as a soft line, and a mark at each stone's real altitude: its rubbing once the Notebook holds it, else a bare ring.
     private func drawPageArt(_ kind: PageArt.Kind, in r: NSRect, ink: NSColor, faded: NSColor) {
         switch kind {
+        case .catalogue:
+            // Three bay glyphs in a row, in the order to ring them, each over a small bell, joined by arrows: the shelf bays' own silhouettes, drawn plainly.
+            let glyphs = PageArt.catalogue, n = glyphs.count, cell = r.width / CGFloat(n), cy = r.midY
+            for (i, gl) in glyphs.enumerated() {
+                let c = NSPoint(x: r.minX + cell * (CGFloat(i) + 0.5), y: r.midY), s: CGFloat = 19, hb: CGFloat = 31
+                NSColor(calibratedRed: 0.88, green: 0.82, blue: 0.68, alpha: 1).setFill(); NSBezierPath(roundedRect: NSRect(x: c.x - hb - 2, y: c.y - hb - 2, width: 2 * hb + 4, height: 2 * hb + 4), xRadius: 6, yRadius: 6).fill()
+                faded.withAlphaComponent(0.5).setStroke(); let frame = NSBezierPath(roundedRect: NSRect(x: c.x - hb - 2, y: c.y - hb - 2, width: 2 * hb + 4, height: 2 * hb + 4), xRadius: 6, yRadius: 6); frame.lineWidth = 1; frame.stroke()
+                ink.withAlphaComponent(0.85).setStroke(); ink.withAlphaComponent(0.85).setFill()
+                let path = NSBezierPath(); path.lineWidth = 3.2; path.lineCapStyle = .round; path.lineJoinStyle = .round
+                switch gl {
+                case .ring: path.appendOval(in: NSRect(x: c.x - s * 0.8, y: c.y - s * 0.8, width: s * 1.6, height: s * 1.6)); path.stroke()
+                case .bars: for dy in [-0.9, 0, 0.9] as [CGFloat] { path.move(to: NSPoint(x: c.x - s, y: c.y + dy * s * 0.7)); path.line(to: NSPoint(x: c.x + s, y: c.y + dy * s * 0.7)) }; path.stroke()
+                case .triangle: path.move(to: NSPoint(x: c.x, y: c.y - s)); path.line(to: NSPoint(x: c.x + s, y: c.y + s * 0.8)); path.line(to: NSPoint(x: c.x - s, y: c.y + s * 0.8)); path.close(); path.stroke()
+                case .diamond: path.move(to: NSPoint(x: c.x, y: c.y - s)); path.line(to: NSPoint(x: c.x + s * 0.8, y: c.y)); path.line(to: NSPoint(x: c.x, y: c.y + s)); path.line(to: NSPoint(x: c.x - s * 0.8, y: c.y)); path.close(); path.stroke()
+                case .cross: path.move(to: NSPoint(x: c.x - s, y: c.y)); path.line(to: NSPoint(x: c.x + s, y: c.y)); path.move(to: NSPoint(x: c.x, y: c.y - s)); path.line(to: NSPoint(x: c.x, y: c.y + s)); path.stroke()
+                }
+                if i < n - 1 {                      // an arrow to the next
+                    let a = NSBezierPath(); a.lineWidth = 1.6; let x0 = c.x + hb + 8, x1 = c.x + cell - hb - 8
+                    a.move(to: NSPoint(x: x0, y: cy)); a.line(to: NSPoint(x: x1, y: cy)); a.move(to: NSPoint(x: x1 - 7, y: cy - 5)); a.line(to: NSPoint(x: x1, y: cy)); a.line(to: NSPoint(x: x1 - 7, y: cy + 5))
+                    ink.withAlphaComponent(0.6).setStroke(); a.stroke()
+                }
+            }
         case .islandProfile:
             let top = CGFloat(PageArt.maxAltitude) * 1.12, base = r.maxY - 8, h = r.height - 22, left = r.minX + 10, w = r.width - 20
             func pt(_ along: Float, _ alt: Float) -> NSPoint { NSPoint(x: left + CGFloat(along) * w, y: base - CGFloat(max(alt, 0)) / top * h) }
@@ -718,6 +742,8 @@ enum OverlayDump {
         try v.snapshot(to: base + "-profile2.png")
         v.notebookSeen = [true, true, true]
         try v.snapshot(to: base + "-profile3.png")
+        v = make(); v.journalOpen = true; v.artRoute = .ilse; v.pages = [JournalPage(number: 10, text: StoryPages.archivePage(10)!.ilse)]; v.pageIndex = 0; v.tabItems = tabs(true, false, false)       // S05.3: page 10 and the catalogue diagram
+        try v.snapshot(to: base + "-catalogue.png")
         v = make(); v.journalOpen = true; v.journalTab = .oren; v.pages = JournalContent.pages.filter { $0.number >= 5 }; v.pageIndex = 0; v.tabItems = tabs(true, false, true)
         try v.snapshot(to: base + "-journal-oren.png")
         v = make(); v.journalOpen = true

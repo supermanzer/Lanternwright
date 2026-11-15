@@ -5,11 +5,21 @@ import simd
 /// the keeper climbed seen from the side, sea level to the lamp, with a mark at each stone's real altitude. A mark shows the stone's rubbing once the Notebook has it (a close look, `Notebook.looksAt`)
 /// and a bare circle until then, so the page says nothing a player has not looked at: the altitude order is SEEN on it, the glyph says which stone stands where. Data only; the drawing is `OverlayView`.
 enum PageArt {
-    enum Kind: Equatable { case islandProfile }
+    enum Kind: Equatable { case islandProfile, catalogue }
     /// The page the profile hangs on: page 1, found on the dock, a long way from every stone (graph rule G11: a key is learned far from where it is used). Page 3 ("the way I first climbed this island")
     /// would suit the words better but lies at the wind stone itself; moving the art there is this one constant (Q78).
     static let islandProfilePage = 1
-    static func kind(forPage n: Int) -> Kind? { n == islandProfilePage ? .islandProfile : nil }
+    static func kind(forPage n: Int, route: PageAuthor? = nil) -> Kind? {
+        if n == islandProfilePage { return .islandProfile }
+        if n == cataloguePage && route == .ilse { return .catalogue }
+        return nil
+    }
+    /// S05.3 (I1): the CATALOGUE diagram, on page 10 (Ilse's voice only: the page that lies at the landing, 90 m from the stacks where the bays stand, G11): the three glyphs of the bays to ring, in order,
+    /// joined by arrows, with a dotted fork under each. No words. The glyphs are the shelf bays' own five silhouettes, in `ShelfBays` order (ring, three bars, triangle, diamond, cross).
+    static let cataloguePage = 10
+    enum BayGlyph: Int { case ring, bars, triangle, diamond, cross }
+    /// The bays of the catalogue, in the order to ring them (`IlseRoute.sequence`).
+    static var catalogue: [BayGlyph] { IlseRoute.sequence.map { BayGlyph(rawValue: $0) ?? .ring } }
 
     /// One station on the climb, as a fraction of its horizontal length (0 = the dock's landing, 1 = the lamp) and a height in metres.
     struct Station: Equatable { var along: Float; var altitude: Float }

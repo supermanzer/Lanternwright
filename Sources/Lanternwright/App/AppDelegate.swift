@@ -290,6 +290,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, MTKViewDelegate {
         })
         set(&overlay.notebookSeen, StoneID.allCases.map { game.state.has(Notebook.seenFlag($0)) })
         set(&overlay.notebookStruck, StoneID.allCases.map { game.state.has(Notebook.struckFlag($0)) })
+        set(&overlay.artRoute, game.chosenPath)
         set(&overlay.whiteout, CGFloat(game.whiteout))
         set(&overlay.whiteoutCaption, game.whiteCaption)
         set(&overlay.bannerText, game.banner)
