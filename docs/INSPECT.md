@@ -462,3 +462,12 @@ Nothing here has been played by a person; the numbers and frames are in `shots/f
 |---|---|
 | Arrival at either quay | A pale stone stele with a glowing brass crossbeam and brass rails out in the sea, impossible to miss (Q125). Does it read as an instrument, not a wall? |
 | The bars over a tide | Dim brass always; they flare when the water crosses them. At high tide the lower bars are under water (the rails and cap still show). |
+
+## A10 (s05-a8, builder A): dormant tick, collar click, near-miss glow, prism floor marks, gauge tune (nothing here has been heard or seen by a person)
+| What | Look for |
+|---|---|
+| Mirror court (needs B to pass `near:`) | A crystal the beam nearly reaches: a pale, cool body and a lit ring, clearly less than a lit crystal (Q128). Views `gw-crystals-live` (from the north), `gw-crystal0|1|2-near`; state `crystalsnear` (0 lit, 2 near, 1 dormant). |
+| Dormant machine pressed (needs B's event) | One dull, quiet knock, never silence, never the chime (Q126). |
+| Orrery collar (needs B's call) | A firm click on the three notches that hold an arm, a soft one elsewhere (Q127). |
+| Prism chamber floor | 24 dark ticks round the pedestal and a tinted band toward each wall mark (Q129). Do the bands point at their marks? Does a coarser ring step (B) still read? |
+| Gauge at the quay | The stele is paler and the brass is yellow not cream (Q130). |

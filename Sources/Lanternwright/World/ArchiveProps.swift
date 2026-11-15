@@ -283,6 +283,8 @@ enum ArchiveProps {
 
     static let chamberRadius: Float = 7.0
     static let floorName = "ta_chamber_floor"
+    /// How many notches the ring and the floor carry: one per ring step round the circle (24 at 15 degrees).
+    static var ringNotches: Int { max(1, Int((2 * Float.pi / TideArchivePuzzle.ringStep).rounded())) }
     /// The prism chamber floor's own light (colour, strength): enough to lift the shaded slab to a pale grey, not so much that the beams stop reading.
     static let floorEmissive = SIMD4<Float>(0.55, 0.58, 0.60, 0.2)
     static let prismPosition: SIMD3<Float> = ArchiveLayout.prismChamber + SIMD3(0, 1.75, 0)
@@ -308,6 +310,12 @@ enum ArchiveProps {
         // a pale dressed slab 4 cm proud of the ground, with a little emissive so the shaded floor reads as stone, not as a hole; the three marks, the ring and the beams then read against it.
         var fl = MeshBuilder()
         fl.cylinder(radiusTop: r - wall, radiusBottom: r - wall, height: 0.3, segments: 40, smooth: false, surface: Surface(color: SIMD3(0.72, 0.74, 0.72), roughness: 0.85, material: .dressed), transform: translation(SIMD3(0, -0.26, 0)))
+        // A10 (Q105): the floor's marks follow the ring: a dark inlaid tick at every ring step (`ringNotches`, from `TideArchivePuzzle.ringStep`, so a coarser ring means fewer, plainer ticks) and, for each gate, a
+        // coloured line in its component's colour from the pedestal to the wall mark it points at (`markAngle`): the player can turn the ring until the beam lies along its line.
+        for n in 0..<ringNotches { let a = Float(n) * TideArchivePuzzle.ringStep
+            fl.box(size: SIMD3(0.5, 0.03, 0.1), surface: iron, transform: translation(SIMD3(cos(a) * 1.5, 0.055, sin(a) * 1.5)) * rotationY(-a)) }
+        for k in 0..<3 { let a = markAngle(k), len = r - wall - 1.4
+            fl.box(size: SIMD3(len, 0.03, 0.34), surface: Surface(color: beamColours[k] * 0.5, roughness: 0.6, material: .paint), transform: translation(SIMD3(cos(a) * (1.2 + len / 2), 0.05, sin(a) * (1.2 + len / 2))) * rotationY(-a)) }
         scene.add(floorName, mesh: fl.build(device: device, label: "prism chamber floor"), uniforms: ObjectUniforms(model: place, emissive: floorEmissive))
         b.cylinder(radiusTop: 0.42, radiusBottom: 0.55, height: 1.15, segments: 16, smooth: true, surface: brass, transform: translation(SIMD3(0, 0, 0)))
         b.torus(major: 0.55, minor: 0.05, segments: 24, sides: 6, surface: brass, transform: translation(SIMD3(0, 1.15, 0)))
@@ -349,10 +357,10 @@ enum ArchiveProps {
             scene.add(markName(k), mesh: m.build(device: device, label: "prism mark \(k)"), uniforms: ObjectUniforms(model: markModel))
             ChargeMeter.addPrismMark(k, to: scene, device: device, markModel: markModel)          // F10.3: the charge meter on the mark (hidden until `ChargeMeter.set`)
         }
-        // The ring round the prism's pedestal: brass, with a notch every ring step (15 degrees) and a pointer; it turns with the ring (`updatePrism`).
+        // The ring round the prism's pedestal: brass, with a notch every ring step (`ringNotches`) and a pointer; it turns with the ring (`updatePrism`).
         var ring = MeshBuilder()
         ring.torus(major: 0.78, minor: 0.05, segments: 36, sides: 6, surface: brass, transform: .init(diagonal: SIMD4(1, 1, 1, 1)))
-        for n in 0..<24 { ring.box(size: SIMD3(0.05, 0.06, 0.12), surface: iron, transform: rotationY(Float(n) / 24 * 2 * Float.pi) * translation(SIMD3(0.8, 0, 0))) }
+        for n in 0..<ringNotches { ring.box(size: SIMD3(0.05, 0.06, 0.12), surface: iron, transform: rotationY(Float(n) / Float(ringNotches) * 2 * Float.pi) * translation(SIMD3(0.8, 0, 0))) }
         ring.box(size: SIMD3(0.3, 0.08, 0.1), surface: brass, transform: translation(SIMD3(0.95, 0, 0)))
         scene.add(ringName, mesh: ring.build(device: device, label: "prism ring"), uniforms: ObjectUniforms(model: translation(c + SIMD3(0, 0.55, 0)) * rotationY(-TideArchivePuzzle.initialRing)))
     }

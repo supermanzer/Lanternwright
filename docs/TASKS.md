@@ -734,6 +734,9 @@ Started 2026-10-27 when F03 closed (main at a9ae0a3, bundle built from it). Orde
 - [x] **A9 closing phase (builder A, 2026-11-14; tag `s05-a7`).** The arrival gauge is a landmark (Q125): pale stele 3.4 m wide and about 7 m from foot, brass rails, cap, bars 8.4 x 0.44 m with a dim brass glow that brightens when crossed. Levels and crossing logic unchanged. Frames `shots/s05/a9-arrive0|1-c20|c58.6|c71.1|c80.6.png`. Selftest tidemarks +1 (bar >= 180 px at the real distance, stele >= 4 m, bars >= 0.4 m, idle glow); four mutations each caught by one FAIL.
   - review: pass (independent reviewer, 2026-11-14, no required changes). Notes: the stele body renders as dark grey brick, not pale, and the bars and rails read cream rather than brass (idle glow 1.1 pushes them near white; about 0.8 would be browner); the size/glow checks read constants, not the built mesh. Full selftest 2105/0, frame hashes match baseline.
 
+- [x] **A10 closing phase (builder A, 2026-11-15; tag `s05-a8`).** (1) Q103 dormant tick `ArchiveAudio.Event.dormant` (`DormantTone`, 400/600/1000 Hz, quiet) and (2) Q104 collar click `Event.collar(armHere:)` (`CollarTone`, 3.3x louder on armed notches): audio events only, B's `GameEvent`/`turnCollar` wiring is B's (Q126, Q127); (3) Q102 `ReceiverGlow.set(near:)` near-miss channel (Q128), views `gw-crystals-live`, `gw-crystal0|1|2-near`, state `crystalsnear`; (4) Q105 ring notches and floor marks follow `TideArchivePuzzle.ringStep` (Q129); (5) gauge idle glow 0.8 and pale stele (Q130). Selftest `a10` (7 checks; full run 2141 PASS / 0 FAIL, frame hashes unchanged); nine mutations each caught. Frames `shots/s05/a10-*.png`.
+  - review: pass (independent reviewer, 2026-11-15, no required changes). Notes: near crystal reads pale and could pass for a weak lit; only two floor bands clearly visible in the frame; a coarser ring step was computed, not seen; stale comment wording fixed.
+
 ## M6+: Full game (outline)
 More Refractions (3–4 total), the ending choice, credits, an app icon, notarization (requires an Apple Developer ID), and a settings persistence and accessibility pass (subtitle captions for chimes, color-blind-safe glyph cues).
 
@@ -742,6 +745,7 @@ More Refractions (3–4 total), the ending choice, credits, an app icon, notariz
 |---|---|---|---|
 | 2026-11-14 | A6 (plate bars, tide gauges, sluice cues) | `s05-a4` | Done; B: `TideMarks.set(scene, k, lit:, site:)` is optional (the marks already light on the crossing); no B file edited. Q96-Q98. |
 | 2026-11-14 | A8 (arrival yaw, dome panel, prism floor, ledger apron, sluice ticks) | `s05-a6` | Done; one constant in B's `Game/Fork.swift` (`arrivalYaw`), announced on ownership. Q120-Q124. Next: the reviewer's own frame review. |
+| 2026-11-15 | A10 (dormant tick, collar click, near glow, prism floor marks, gauge tune) | `s05-a8` | Done; audio events stubbed for B (Q126/Q127), `near:` param for B (Q128), marks follow `ringStep` (Q129). No B file edited. Q126-Q130. |
 | 2026-11-14 | A9 (landmark tide gauge) | `s05-a7` | Done; `TideMarks.swift` only, no B file. Q125. Next: the reviewer's own frame review. |
 | 2026-11-14 | A7 (re-review, flood push, lamp colour) | `s05-a5` | Done; one line in B's `Game.swift` (floodPush `suspended:`), announced on ownership. Q99. |
 | 2026-11-14 | A5 (plate bars, S05.4 vantage stations, dome slit, ledger floor, orrery tick) | `s05-a3` | Done; B: `Orrery.ticks`/`tickGain` are wired in `Game.fixedStep`; plate rule unchanged. Quay vantage (S05.4b) is the user's call (Q91). |

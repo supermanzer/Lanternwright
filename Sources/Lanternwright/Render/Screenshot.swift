@@ -47,6 +47,10 @@ enum Screenshot {
                 let col = name == "crystalswrong" ? GlassPuzzleProps.color(-1) : GlassPuzzleProps.color(k)
                 ReceiverGlow.set(sc, k, level: k < n ? 1 : 0, color: col, blaze: name == "crystalsblaze")
             } }
+        case "crystalsnear", "crystalsnear2":          // A10 (Q102): crystal 0 lit, crystal 2 near (0.85, or 0.45 in `near2`), crystal 1 dormant: lit, near and dormant side by side
+            for sc in scenesForState.values { for k in 0..<ReceiverGlow.count {
+                ReceiverGlow.set(sc, k, level: k == 0 ? 1 : 0, color: GlassPuzzleProps.color(k), near: k == 2 ? (name == "crystalsnear" ? 0.85 : 0.45) : 0)
+            } }
         case "bays", "bayssour", "baysmixed":          // S05.1: the shelf bays all warm, all sour, or a mix (0 warm and swinging, 1 sour, 2 warm, 3 and 4 dormant)
             for sc in scenesForState.values { for k in 0..<ShelfBays.count {
                 let look: ShelfBays.Look = name == "bays" ? .warm : (name == "bayssour" ? .sour : [.warm, .sour, .warm, .dormant, .dormant][k])

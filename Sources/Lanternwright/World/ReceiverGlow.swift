@@ -37,13 +37,29 @@ enum ReceiverGlow {
         return SIMD4(c, dormantStrength + (litStrength - dormantStrength) * u)
     }
 
-    /// Drives crystal k (the single call builder B makes, once per frame). Unknown k is ignored. The inlaid ring round the pedestal follows the crystal.
-    static func set(_ scene: Scene, _ k: Int, level: Float, color: SIMD3<Float> = GlassPuzzleProps.moonlight, blaze: Bool = false) {
+    /// A10 (Q102): the NEAR channel, a beam that nearly reaches the crystal (`near` 0...1, builder B's per-receiver value). It is a different thing from lit, not a dimmer lit: the crystal body stays dark glass with only a faint
+    /// wash of the arriving colour (at most `nearBody`, about a quarter of lit), and the INLAID RING under it wakes (`nearRing`, brighter than the body: lit does the opposite, its ring is under half its body). A flat, steady glow, no flutter.
+    static let nearBody: Float = 0.9, nearRing: Float = 1.6, nearTintLift: Float = 0.22
+    static func nearEmissive(near: Float, color: SIMD3<Float>) -> (body: SIMD4<Float>, ring: SIMD4<Float>) {
+        let n = min(max(near, 0), 1), u = n * n * (3 - 2 * n), deep = color * color * 1.3
+        let body = SIMD4(dormantColor + (deep * 0.7 - dormantColor) * u, dormantStrength + (nearBody - dormantStrength) * u)
+        let ring = SIMD4(dormantColor + (deep - dormantColor) * u, dormantStrength * 0.45 + (nearRing - dormantStrength * 0.45) * u)
+        return (body, ring)
+    }
+
+    /// Drives crystal k (the single call builder B makes, once per frame). Unknown k is ignored. The inlaid ring round the pedestal follows the crystal. `near` (default 0: frames unchanged) is the near-miss channel; lit and blaze win over it.
+    static func set(_ scene: Scene, _ k: Int, level: Float, color: SIMD3<Float> = GlassPuzzleProps.moonlight, blaze: Bool = false, near: Float = 0) {
         guard (0..<count).contains(k) else { return }
-        let e = emissive(level: level, color: color, blaze: blaze)
+        var e = emissive(level: level, color: color, blaze: blaze)
         let l = min(max(level, 0), 1), u = blaze ? 1 : l * l * (3 - 2 * l)
-        scene.update(name(k)) { $0.uniforms.emissive = e; $0.uniforms.tint = dormantTint + (SIMD4(1, 1, 1, 1) - dormantTint) * u }
-        scene.update(ringName(k)) { $0.uniforms.emissive = SIMD4(e.x, e.y, e.z, blaze ? 3.0 : e.w * 0.45) }
+        var ringE = SIMD4(e.x, e.y, e.z, blaze ? 3.0 : e.w * 0.45), lift = u
+        if near > 0 {
+            let n = nearEmissive(near: near, color: color), nu = min(max(near, 0), 1)
+            if n.body.w > e.w { e = n.body; lift = max(lift, nearTintLift * nu * nu * (3 - 2 * nu)) }
+            if n.ring.w > ringE.w { ringE = n.ring }
+        }
+        scene.update(name(k)) { $0.uniforms.emissive = e; $0.uniforms.tint = dormantTint + (SIMD4(1, 1, 1, 1) - dormantTint) * lift }
+        scene.update(ringName(k)) { $0.uniforms.emissive = ringE }
     }
 
     /// Builds the three pedestals (fixed, one mesh) and the crystals and their rings (one item each, so each can be lit alone). Called from `GlassPuzzleProps.addMirrorCourt`.

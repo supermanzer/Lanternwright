@@ -536,6 +536,12 @@ enum Viewpoints {
         case "gw-arrival":  return Camera(position: GlassLayout.arrival + SIMD3(0, Player.eyeHeight, 4), yaw: 0, pitch: 0.06)
         case "gw-overview": return Camera(position: SIMD3(0, 70, 330), yaw: 0, pitch: -0.2)
         case "gw-court":    return Camera(position: GlassLayout.mirrorCourt + SIMD3(26, 3.0, 30), yaw: -0.8, pitch: -0.05)
+        case "gw-crystals-live":          // A10: the three receiving crystals where B's court puts them (MirrorCourt.receivers), seen from the court's open side
+            let c = (0..<ReceiverGlow.count).map { ReceiverGlow.position($0) }.reduce(SIMD3<Float>(0, 0, 0), +) / Float(ReceiverGlow.count)
+            return Self.lookFrom(c + SIMD3(0, 9, -14), at: c + SIMD3(0, 0.5, 0))
+        case "gw-crystal1-near", "gw-crystal0-near", "gw-crystal2-near":          // A10: one crystal at walking distance (4 m)
+            let k = Int(name.dropFirst(10).prefix(1)) ?? 0, p = ReceiverGlow.position(k)
+            return Self.lookFrom(p + SIMD3(2.5, 1.6, -3.5), at: p + SIMD3(0, 1.6, 0))
         case "gw-crystals": return Camera(position: GlassLayout.mirrorCourt + SIMD3(2, 3.2, 17), yaw: 1.1, pitch: -0.12)        // F10 A2: the three receiving crystals along the court's east side
         case "gw-crystal0": return Camera(position: ReceiverGlow.position(0) + SIMD3(-4.5, 2.2, 4.5), yaw: 0.785, pitch: -0.12)         // one crystal from 6 m
         case "gw-court-high": return Camera(position: GlassLayout.mirrorCourt + SIMD3(0, 22, 20), yaw: 0.0, pitch: -1.05)

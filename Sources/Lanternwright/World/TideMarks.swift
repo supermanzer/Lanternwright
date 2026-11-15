@@ -22,7 +22,9 @@ enum TideMarks {
     static let barWidth: Float = 8.4, barHeight: Float = 0.44, barDepth: Float = 0.2, steleWidth: Float = 3.4, steleDepth: Float = 0.6
     /// How far above the lowest sea the gauge's foot stands, so low water just touches it (m), and how far its stone reaches above the top bar.
     static let footAboveLow: Float = -0.15, topAbove: Float = 5.0
-    static let litEmissive = SIMD3<Float>(1.0, 0.74, 0.28), idleEmissive: Float = 1.1, litStrength: Float = 3.0
+    /// A10: the stele's stone: pale dressed stone (a luminance of at least 0.7; the A9 masonry at 0.62 rendered dark grey).
+    static let steleColor = SIMD3<Float>(0.80, 0.79, 0.73)
+    static let litEmissive = SIMD3<Float>(1.0, 0.74, 0.28), idleEmissive: Float = 0.8, litStrength: Float = 3.0
     /// A pulse after the water crosses a bar: full for `holdSeconds`, then fading over `fadeSeconds`.
     static let holdSeconds: Float = 1.5, fadeSeconds: Float = 2.5
     static func pulse(age: Float) -> Float { age < holdSeconds ? 1 : max(0, 1 - (age - holdSeconds) / fadeSeconds) }
@@ -42,7 +44,7 @@ enum TideMarks {
     }
 
     static func add(to scene: Scene, device: MTLDevice) {
-        let stone = Surface(color: SIMD3(0.62, 0.62, 0.58), roughness: 0.9, material: .masonry)
+        let stone = Surface(color: steleColor, roughness: 0.85, material: .dressed)      // A10: pale dressed stone (the masonry material rendered the stele dark grey)
         let cap = Surface(color: SIMD3(0.86, 0.84, 0.76), roughness: 0.7, material: .dressed)
         let gold = Surface(color: SIMD3(0.95, 0.62, 0.14), roughness: 0.5, material: .dressed)
         let iron = ArchiveProps.iron

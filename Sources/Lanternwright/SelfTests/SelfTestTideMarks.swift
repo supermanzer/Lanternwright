@@ -81,14 +81,14 @@ extension SelfTestRunner {
             return simd_dot(fwd, to)
         }
         check(facing.allSatisfy { $0 > 0.97 }, "tidemarks: both quays' arrival yaw faces the tide gauge (cosines \(facing.map { String(format: "%.3f", $0) }.joined(separator: ", ")))")
-        // A9 (Q125): the gauge is a landmark from the arrival point: the brass bar spans >= 180 px in a 1600x900 frame (60 deg fov) at the actual quay-to-gauge distance, the stele stands >= 4 m over the mean sea, bars >= 0.4 m thick, and the bars and rails glow when idle.
+        // A9 (Q125): the gauge is a landmark from the arrival point: the brass bar spans >= 180 px in a 1600x900 frame (60 deg fov) at the actual quay-to-gauge distance, the stele stands >= 4 m over the mean sea, bars >= 0.4 m thick, and the bars and rails glow when idle (0.6...0.95: above 0.95 the bloom washes the brass to cream, A10).
         let gaugePx = (0..<2).map { site -> Float in
             let e = Game.routeEntry(site == 0 ? .ilse : .oren, in: .tideArchive), f = TideMarks.foot(site, terrain: scene.terrain)
             let d = simd_length(SIMD2(f.x - e.position.x, f.z - e.position.z))
             return 450 / tan(30 * .pi / 180) * TideMarks.barWidth / d
         }
         let railGlow = (0..<2).map { site in scene.items.first { i in i.name == TideMarks.railName(site) }?.uniforms.emissive.w ?? 0 }
-        check(gaugePx.allSatisfy { $0 >= 180 } && TideMarks.height(0) + TideMarks.topAbove >= 4 && TideMarks.barHeight >= 0.4 && TideMarks.idleEmissive >= 0.8 && railGlow.allSatisfy { $0 >= 0.8 },
+        check(gaugePx.allSatisfy { $0 >= 180 } && TideMarks.height(0) + TideMarks.topAbove >= 4 && TideMarks.barHeight >= 0.4 && TideMarks.idleEmissive >= 0.6 && TideMarks.idleEmissive <= 0.95 && railGlow.allSatisfy { $0 >= 0.6 && $0 <= 0.95 },
               "tidemarks: the gauge reads from the quay: bar \(gaugePx.map { String(format: "%.0f", $0) }.joined(separator: ", ")) px wide, stele top \(String(format: "%.1f", TideMarks.height(0) + TideMarks.topAbove)) m, bars \(TideMarks.barHeight) m thick, idle glow \(TideMarks.idleEmissive) (A9)")
         // A8 (Q122): the prism chamber's floor is lit on its own (it stands in the wall's shade).
         check((scene.items.first { $0.name == ArchiveProps.floorName }?.uniforms.emissive.w ?? 0) > 0.1, "tidemarks: the prism chamber's floor is its own item with a light of its own (A8)")

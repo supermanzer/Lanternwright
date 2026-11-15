@@ -34,7 +34,7 @@ final class ArchiveAudio {
     struct Pipe: Equatable { var hz: Float; var gain: Float }
 
     /// An event the game sends: a sluice gate opening or closing, the tuning fork's tone held or let go.
-    enum Event: Equatable { case sluice(Int, opening: Bool), fork(Int, on: Bool), grate(run: Bool), bell(Int, sour: Bool), tick(Int, gain: Float) }
+    enum Event: Equatable { case sluice(Int, opening: Bool), fork(Int, on: Bool), grate(run: Bool), bell(Int, sour: Bool), tick(Int, gain: Float), dormant, collar(armHere: Bool) }
 
     let sampleRate: Float
     private let lock = NSLock()
@@ -66,6 +66,9 @@ final class ArchiveAudio {
     private var bells: [BellVoice] = []
     private struct TickVoice { var k: Int; var gain: Float; var age: Float = 0 }
     private var ticks: [TickVoice] = []
+    /// A10 (Q103/Q104): a dormant machine's dull tick, and the orrery collar's detent click (louder on a notch that has an arm).
+    private struct ClickVoice { var hz: Float; var ratios: [Float]; var amps: [Float]; var decays: [Float]; var gain: Float; var attack: Float; var age: Float = 0 }
+    private var clicks: [ClickVoice] = []
     private var pipeGain: Float = 0, pipeHz: Float = 0, pipePhase: Double = 0
     private let openBuf: [Float], closeBuf: [Float], grateBufs: [[Float]]
     private var reverb: ArchiveReverb
@@ -101,6 +104,8 @@ final class ArchiveAudio {
             case .bell: break
             case .tick(let k, let g) where (0..<3).contains(k): if ticks.count < 4 { ticks.append(TickVoice(k: k, gain: min(max(g, 0), 1))) }
             case .tick: break
+            case .dormant: if clicks.count < 4 { clicks.append(ClickVoice(hz: DormantTone.hz, ratios: DormantTone.ratios, amps: DormantTone.amps, decays: DormantTone.decays, gain: DormantTone.gain, attack: DormantTone.attack)) }
+            case .collar(let armHere): if clicks.count < 4 { clicks.append(ClickVoice(hz: CollarTone.hz, ratios: CollarTone.ratios, amps: CollarTone.amps, decays: CollarTone.decays, gain: armHere ? CollarTone.armGain : CollarTone.plainGain, attack: CollarTone.attack)) }
             case .grate(let run): if voices.count < 6 { footSwitch = (footSwitch + 1) % 4; voices.append(Voice(buf: grateBufs[footSwitch], gain: ArchiveFoley.grateGain * (run ? 1 : 0.7), pan: footSwitch % 2 == 0 ? -0.2 : 0.2)) }
             }
         }
@@ -208,6 +213,15 @@ final class ArchiveAudio {
                 l += x * (0.5 - 0.5 * pan) * 1.4; r += x * (0.5 + 0.5 * pan) * 1.4
                 ticks[j].age += dt
             }
+            // --- A10: the dormant tick and the collar's detent click (dull, rounded, a few hundredths of a second; the same shape with different numbers)
+            for j in clicks.indices {
+                let c = clicks[j], a = c.age
+                var x: Float = 0
+                for p in 0..<c.ratios.count { x += c.amps[p] * exp(-a / c.decays[p]) * Float(sin(2 * Double.pi * Double(c.hz * c.ratios[p]) * Double(a))) }
+                x *= min(1, a / c.attack) * c.gain
+                l += x; r += x
+                clicks[j].age += dt
+            }
             // --- S05.1: the bell pipe's tone (a plain pipe: its prime with a soft octave and twelfth), present while the fork is held at it
             let pTarget: Float = inp.pipe?.gain ?? 0
             pipeGain += (pTarget - pipeGain) * dt / 0.08
@@ -234,6 +248,7 @@ final class ArchiveAudio {
         voices.removeAll { $0.pos >= $0.buf.count }
         bells.removeAll { $0.age > 3.5 }
         ticks.removeAll { $0.age > OrreryTone.length }
+        clicks.removeAll { $0.age > 0.15 }
     }
 }
 
@@ -383,4 +398,19 @@ enum OrreryTone {
     static let ratios: [Float] = [1, 2.4, 4.1], amps: [Float] = [1, 0.5, 0.25], decays: [Float] = [0.05, 0.03, 0.015]
     static let gain: Float = 0.10, length: Float = 0.2
     static func pan(_ k: Int) -> Float { [-0.3, 0, 0.3][min(max(k, 0), 2)] }
+}
+
+/// A10 (Q103): the voice of "not yours": a dormant machine pressed that is not the player's route answers with this one dull, quiet tick and nothing else. Low and rounded (a damped knock on wood, not a click): the partials sit
+/// at 360-1000 Hz (inside the 300-1200 Hz band), a 4 ms attack so it has no edge, gone in about 0.1 s (voice ends at 0.15 s), under a third of the orrery tick's peak.
+enum DormantTone {
+    static let hz: Float = 400, ratios: [Float] = [1, 1.5, 2.5], amps: [Float] = [1, 0.4, 0.15], decays: [Float] = [0.02, 0.014, 0.008]
+    static let gain: Float = 0.04, attack: Float = 0.004
+}
+
+/// A10 (Q104): the orrery collar's detent. A plain notch gives a soft dull click; a notch that has an arm gives a firmer, brighter one, about three times as loud (the arm is there to be caught: the collar says so).
+enum CollarTone {
+    static let hz: Float = 700, ratios: [Float] = [1, 1.6, 2.7], amps: [Float] = [1, 0.5, 0.2], decays: [Float] = [0.025, 0.015, 0.01]
+    static let plainGain: Float = 0.03, armGain: Float = 0.10, attack: Float = 0.002
+    /// True when the notch the collar has just landed on holds an arm (`OrenRoute.arm(atNotch:)`: the notches that catch an arm).
+    static func armHere(notch n: Int) -> Bool { OrenRoute.arm(atNotch: n) != nil }
 }
