@@ -20,17 +20,24 @@ enum TonePlates {
         let z = max(r * r - x * x, 0).squareRoot()
         return (SIMD3(x, y, z), atan2(x, z))
     }
+    /// A5 (Q79, Q91): each plate carries a SIGNAL-LENGTH BAR under its stone's mark: brass, short for the tide's plate, middle for the wind's, long for the stone's, so the beam's three flash lengths can be matched
+    /// without a page. The lengths are the beam's own group seconds sorted (plate k takes the k-th shortest: the stones' altitude order, which is `SignalPattern.ranks`), scaled to the plate; one place, read by the mesh and the test.
+    static let barScale: Float = 0.1             // m of bar per second of flash
+    static let barY: Float = -0.185              // below the plate's centre (the marks above it stay within +-0.15)
+    static func barLength(_ k: Int) -> Float { Layout.Navigation.SignalPattern.groupSeconds.sorted()[k] * barScale }
     static func world(_ k: Int) -> SIMD3<Float> { Layout.lighthouse + local(k).position }
 
     static func build(into scene: Scene, device: MTLDevice) {
         let stone = Surface(color: SIMD3(0.40, 0.38, 0.35), roughness: 0.9, material: .dressed)
         let iron = Surface(color: SIMD3(0.05, 0.055, 0.07), roughness: 0.5, material: .iron)
+        let brass = Surface(color: SIMD3(0.78, 0.58, 0.22), roughness: 0.4, material: .copper)
         var m = MeshBuilder()
         for k in 0..<3 {
             let l = local(k)
             let frame = translation(Layout.lighthouse + l.position) * rotationY(l.facing)       // local z = out of the wall
             m.chamferBox(size: SIMD3(size.x, size.y, 0.1), chamfer: 0.012, surface: stone, transform: frame * translation(SIMD3(0, 0, -0.01)))
             let face = frame * translation(SIMD3(0, 0, 0.045))
+            m.box(size: SIMD3(barLength(k), 0.034, 0.014), surface: brass, transform: face * translation(SIMD3(0, barY, 0)))      // the signal-length mark (A5)
             switch k {
             case 0:                                                                          // tide: waves, three offset bars
                 for (i, dx) in ([-0.03, 0.03, -0.03] as [Float]).enumerated() { m.box(size: SIMD3(0.2, 0.035, 0.012), surface: iron, transform: face * translation(SIMD3(dx, (Float(i) - 1) * 0.1, 0))) }

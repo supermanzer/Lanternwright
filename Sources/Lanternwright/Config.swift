@@ -448,6 +448,9 @@ enum Viewpoints {
             let a = Layout.route[0], b = Layout.route[1], d = normalize(SIMD2(b.x - a.x, b.z - a.z))
             return Camera(position: SIMD3(a.x - d.x * 4, a.y + 2.2, a.z - d.y * 4), yaw: atan2(d.x, -d.y), pitch: -0.08)
         // Lighthouse close-ups (R03). The tower stands at Layout.lighthouse with its door on the +Z (south) side; ground y = 68.
+        case "lh-plates":    // A5: the three door plates with their signal-length bars, from 1.5 m out
+            let c = TonePlates.world(1), out = simd_normalize(SIMD3(c.x - Layout.lighthouse.x, 0, c.z - Layout.lighthouse.z))
+            return Self.lookFrom(c + out * 1.5 + SIMD3(0, 0.05, 0), at: c)
         case "lh-door":  return Camera(position: SIMD3(-30, 70.75, -41.0), yaw: 0, pitch: 0.06)        // 2.8 m back from the door, on the approach: the arch, jambs, threshold and steps in frame (R06; the 0.8 m view showed only planks)
         case "lh-arch":  return Camera(position: SIMD3(-30, 69.7, -40.0), yaw: 0, pitch: 0.12)         // 3.8 m back: the whole arched doorway
         case "lh-base":  return Camera(position: SIMD3(-25.85, 69.4, -43.85), yaw: -0.38, pitch: 0.05)
@@ -489,6 +492,11 @@ enum Viewpoints {
         case "ta-windows":  return Self.lookFrom(ArchiveLayout.orrery + SIMD3(-1.5, 1.7, 2.0), at: ArchiveLayout.dome + SIMD3(0, 4.0, ArchiveLayout.domeDrum))
         case "ta-prism-inputs": return Self.lookFrom(ArchiveProps.prismPosition + SIMD3(-1.6, 0.4, 5.6), at: ArchiveProps.prismPosition + SIMD3(1.8, 0, 0))
         // S05.4 (start): what each route sees of the other's site from its own quay: from the east (Oren's) quay the stacks, from the west (Ilse's) quay the dome and orrery, both at eye height on the quay.
+        case "ta-vantage0", "ta-vantage0-zoom", "ta-vantage1", "ta-vantage1-zoom":     // A5: what each station looks at, as the player sees it (the -zoom views at full LookCloser)
+            let k = name.hasPrefix("ta-vantage0") ? 0 : 1
+            var cam = Self.lookFrom(Vantage.eye(k), at: ArchiveLayout.vantageAim[k])
+            if name.hasSuffix("-zoom") { cam.fovY = LookCloser.fov(zoom: 1) }
+            return cam
         case "ta-quay-stacks": return Self.lookFrom(ArchiveLayout.openEnd + SIMD3(-4, Player.eyeHeight, -6), at: ArchiveLayout.bellMast + SIMD3(0, 8, 0))
         case "ta-quay-dome":   return Self.lookFrom(ArchiveLayout.lampEnd + SIMD3(4, Player.eyeHeight, -6), at: ArchiveLayout.dome + SIMD3(8, 6, 0))
         case "ta-stacks":   return Self.lookFrom(ArchiveLayout.stacks + SIMD3(-3.0, 1.7, 7.5), at: ArchiveLayout.stacks + SIMD3(-9.5, 1.2, -3.0))

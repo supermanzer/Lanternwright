@@ -160,6 +160,18 @@ enum ArchiveProps {
 
     // MARK: The dome
 
+    /// The dome's shell: its profile point k (0 at the drum's rim ... 14 at the crown), `inset` m inside the drum's radius; (r, y) in the dome's frame. The one place the shape is written (the mesh, the slit and the test read it).
+    static let domeDrum: Float = 9.2, domeDrumH: Float = 4.6
+    static func domePoint(_ k: Int, _ inset: Float) -> SIMD2<Float> {
+        let a = Float(k) / 14 * Float.pi / 2 * 0.93
+        return SIMD2((domeDrum - inset) * cos(a), domeDrumH + 0.4 + (domeDrum - 0.4) * 0.82 * sin(a))
+    }
+    /// A5 (the dark blocky streak up the dome, a4-windows.png): the slit's bar k, laid along the shell between profile points k and k+1: its middle (z, y), its length, and the turn about X that points its long
+    /// (y) axis along the shell. `rotationX(t)` sends y to (0, cos t, sin t), so the turn is pi/2 - pitch; with the opposite sign every bar leaned the wrong way and the strip read as a sawtooth of black blocks.
+    static func slitBar(_ k: Int) -> (mid: SIMD2<Float>, length: Float, turn: Float) {
+        let p0 = domePoint(k, 0.35), p1 = domePoint(k + 1, 0.35)
+        return ((p0 + p1) / 2, simd_length(p1 - p0) + 0.02, Float.pi / 2 - atan2(p1.y - p0.y, p1.x - p0.x))
+    }
     static func addDome(_ scene: Scene, device: MTLDevice) {
         let c = ArchiveLayout.dome
         var b = MeshBuilder()
@@ -172,12 +184,7 @@ enum ArchiveProps {
         ]
         b.lathe(profile: drumProfile, segments: 48, smooth: true, surface: slate)
         // The brass dome: a shallow ogive, twelve ribs, a door-wide slit facing the sky to the south, a ring at its crown.
-        func domeAngle(_ k: Int) -> Float { Float(k) / 14 * Float.pi / 2 * 0.93 }
-        func domePoint(_ k: Int, _ inset: Float) -> SIMD2<Float> {
-            let a = domeAngle(k)
-            let r = drum - inset
-            return SIMD2(r * cos(a), drumH + 0.4 + (drum - 0.4) * 0.82 * sin(a))
-        }
+        func domePoint(_ k: Int, _ inset: Float) -> SIMD2<Float> { ArchiveProps.domePoint(k, inset) }
         var profile: [SIMD2<Float>] = []
         for k in 0...14 { profile.append(domePoint(k, 0.4)) }
         b.lathe(profile: profile, segments: 48, smooth: true, surface: brass)
@@ -191,10 +198,8 @@ enum ArchiveProps {
         b.torus(major: top.x + 0.2, minor: 0.12, segments: 24, sides: 6, surface: brass, transform: translation(SIMD3(0, top.y, 0)))
         // The slit: a dark strip up the south side of the dome (in the plane x = 0, on the +z side), in twelve short bars following the dome's curve.
         for k in 0..<12 {
-            let p0 = domePoint(k, 0.35), p1 = domePoint(k + 1, 0.35)
-            let mid = (p0 + p1) / 2
-            let pitch = atan2(p1.y - p0.y, p1.x - p0.x)                                   // the bar's direction in the (z, y) plane
-            b.box(size: SIMD3(1.1, simd_length(p1 - p0) + 0.02, 0.08), surface: iron, transform: translation(SIMD3(0, mid.y, mid.x)) * rotationX(-(Float.pi / 2 - pitch)))
+            let bar = ArchiveProps.slitBar(k)
+            b.box(size: SIMD3(1.1, bar.length, 0.08), surface: iron, transform: translation(SIMD3(0, bar.mid.y, bar.mid.x)) * rotationX(bar.turn))
         }
         // The door on the south: a recess in an arch of dressed stone.
         b.box(size: SIMD3(2.0, 2.8, 0.5), surface: iron, transform: translation(SIMD3(0, 1.4, drum + 0.1)))

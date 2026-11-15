@@ -24,6 +24,8 @@ enum GameEvent: Equatable {
     case forkTone(Int, Bool)
     /// S05.3: a shelf bay's bell struck on the Ilse route (bay, sour).
     case bell(Int, Bool)
+    /// S05.4 / A5: orrery arm k passes its dome window (Q92); the gain 0...1 is already scaled by the listener's distance (`Orrery.tickGain`).
+    case orreryTick(Int, Float)
 }
 
 /// The world's memory: named flags (a "blackboard"). Puzzles read and write these, and rendering reads them,

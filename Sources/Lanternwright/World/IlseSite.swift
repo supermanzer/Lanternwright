@@ -147,7 +147,7 @@ enum LedgerRoom {
         for sx: Float in [-1, 1] { b.box(size: SIMD3(t + 0.2, 0.16, 2 * half.y + t + 0.2), surface: ArchiveProps.slateLight, transform: translation(SIMD3(sx * half.x, h + 0.08, 0))) }
         for sz: Float in [-1, 1] { b.box(size: SIMD3(2 * half.x + t + 0.2, 0.16, t + 0.2), surface: ArchiveProps.slateLight, transform: translation(SIMD3(0, h + 0.08, sz * half.y))) }
         // The floor: a dressed slab; the page's desk (a slate block with a sloped brass-edged top) and the key's stand; ledger shelves along the two side walls.
-        b.chamferBox(size: SIMD3(2 * half.x - 0.1, 0.14, 2 * half.y - 0.1), chamfer: 0.03, surface: ArchiveProps.slateLight, transform: translation(SIMD3(0, 0.0, 0)))
+        b.chamferBox(size: SIMD3(2 * half.x - 0.1, 0.14, 2 * half.y - 0.1), chamfer: 0.03, surface: Surface(color: SIMD3(1.0, 0.86, 0.66), roughness: 0.85, material: .slab), transform: translation(SIMD3(0, 0.0, 0)))
         b.chamferBox(size: SIMD3(1.1, 0.8, 0.7), chamfer: 0.03, surface: ArchiveProps.slate, transform: translation(SIMD3(0, 0.4, -1.2)))
         b.box(size: SIMD3(1.2, 0.05, 0.8), surface: ArchiveProps.oak, transform: translation(SIMD3(0, 0.84, -1.2)) * rotationX(-0.18))
         b.box(size: SIMD3(1.24, 0.03, 0.04), surface: ArchiveProps.brass, transform: translation(SIMD3(0, 0.78, -0.82)))

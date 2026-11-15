@@ -15,6 +15,7 @@ enum OrenSite {
         Orrery.add(to: scene, device: device)
         DomeWindows.add(to: scene, device: device)
         DormantViews.add(to: scene, device: device)
+        Vantage.add(to: scene, device: device)       // S05.4 (A5): the two vantage stations
     }
 }
 
@@ -60,6 +61,18 @@ enum Orrery {
     /// Signed shortest difference between two angles (radians, -pi ... pi).
     static func wrap(_ a: Float) -> Float { var d = a.truncatingRemainder(dividingBy: 2 * .pi); if d > .pi { d -= 2 * .pi }; if d < -.pi { d += 2 * .pi }; return d }
     /// True when arm k, at that clock, points at its window to within `tolerance`.
+    /// A5 (Q92): the brass TICK as arm k passes its window: true if the arm's alignment moment (`alignmentClock(k)` plus whole cycles) falls in (t0, t1]. Pure, so the tick is a number a test can check
+    /// (one per arm per cycle) and the game only has to ask it each step. A held arm (`hold`) is not moving, so `ticks` skips it.
+    static func tickCrossed(_ k: Int, from t0: Float, to t1: Float) -> Bool {
+        let a = alignmentClock(k), P = Tide.period
+        return floor((t1 - a) / P) > floor((t0 - a) / P)
+    }
+    /// The arms that tick between two clock times (nil-held ones only).
+    static func ticks(_ scene: Scene, from t0: Float, to t1: Float) -> [Int] {
+        (0..<armCount).filter { scene.archive.armStops[$0] == nil && tickCrossed($0, from: t0, to: t1) }
+    }
+    /// How loud the tick is at `distance` m from the orrery: full inside 8 m, gone by 40 m (it is a small brass sound: heard from the dome's pad, not from the stacks).
+    static func tickGain(distance d: Float) -> Float { let t = min(max((40 - d) / 32, 0), 1); return t * t * (3 - 2 * t) }
     static func aligned(_ k: Int, clock: Float, tolerance: Float = alignTolerance) -> Bool { abs(wrap(armAngle(k, clock: clock) - bearing(k))) <= tolerance }
     /// The tip of arm k in the world at that clock (what a player aims their eye at).
     static func armTip(_ k: Int, clock: Float) -> SIMD3<Float> {

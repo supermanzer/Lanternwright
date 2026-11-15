@@ -320,3 +320,30 @@ extension ArchiveLayout {
     /// Grass-free discs beyond the pads' own (`Renderer`'s terrain texture reads them): the ledger room's floor (S05.2: grass came up through the slab, Q62) with a short soft edge.
     static var bareDiscs: [(center: SIMD2<Float>, radius: Float)] { [(SIMD2(ledgerRoom.x, ledgerRoom.z), simd_length(ledgerHalf) + 0.6)] }
 }
+
+/// S05.4 (A5, builder A): the two VANTAGE STATIONS, one for each route, where the other route's site can be read across the island's terraces (Q91). Station 0 is Ilse's: where the way to the dome climbs onto the third terrace's rim,
+/// the first place on the walked line from which the WHOLE orrery (its dial's edge, the highest arm's tip) and the dome's three windows clear the rim by 0.3 m, 30 m off (from the plain below, the orrery's hub is in sight at 80 m but the machine is hidden by the rim); station 1 is Oren's: on the landing's way up to the stacks,
+/// where the five shelf bays and the bell mast are in line of sight (about 45 m off). `vantageStand` is the walked line; the post (a stone pedestal with a brass far-glass aimed at the target) stands `vantageSide` m
+/// to the side that faces the target. Both numbers are checked by a terrain ray test in the selftest (`vantage`), so a change to the terraces cannot silently close a view.
+extension ArchiveLayout {
+    static let vantageStand: [SIMD3<Float>] = [point(-21.3, -70.7), point(-34, 55.7)]
+    static let vantageSide: Float = 2.3, vantageAhead: Float = 3.0       // beside the walked line and a little ahead along the sight line, so the post is in the picture when the player looks at the target
+    /// What station k looks at: the orrery's arms, and the middle of the five bays.
+    static var vantageAim: [SIMD3<Float>] {
+        return [SIMD3(orrery.x, orrery.y + 1.3, orrery.z), bay(2) + SIMD3(0, 2.0, 0)]
+    }
+    /// The post's centre on the ground: `vantageSide` m from the stand, at right angles to the walked line there, on the side that faces the target (so the glass points across the post, not back over the path).
+    static func vantagePost(_ k: Int) -> SIMD3<Float> {
+        let s = vantageStand[k], p = SIMD2(s.x, s.z), a = vantageAim[k]
+        var best = (d: Float.infinity, dir: SIMD2<Float>(1, 0))
+        for i in 0..<(path.count - 1) {
+            let u = SIMD2(path[i].x, path[i].z), v = SIMD2(path[i + 1].x, path[i + 1].z), uv = v - u
+            let t = min(max(simd_dot(p - u, uv) / max(simd_dot(uv, uv), 1e-6), 0), 1), d = simd_length(p - (u + uv * t))
+            if d < best.d { best = (d, simd_normalize(uv)) }
+        }
+        var perp = SIMD2<Float>(-best.dir.y, best.dir.x)
+        if simd_dot(perp, SIMD2(a.x, a.z) - p) < 0 { perp = -perp }
+        let sight = simd_normalize(SIMD2(a.x, a.z) - p)
+        return point(p.x + perp.x * vantageSide + sight.x * vantageAhead, p.y + perp.y * vantageSide + sight.y * vantageAhead)
+    }
+}

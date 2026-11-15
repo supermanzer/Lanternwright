@@ -34,7 +34,7 @@ final class ArchiveAudio {
     struct Pipe: Equatable { var hz: Float; var gain: Float }
 
     /// An event the game sends: a sluice gate opening or closing, the tuning fork's tone held or let go.
-    enum Event: Equatable { case sluice(Int, opening: Bool), fork(Int, on: Bool), grate(run: Bool), bell(Int, sour: Bool) }
+    enum Event: Equatable { case sluice(Int, opening: Bool), fork(Int, on: Bool), grate(run: Bool), bell(Int, sour: Bool), tick(Int, gain: Float) }
 
     let sampleRate: Float
     private let lock = NSLock()
@@ -64,6 +64,8 @@ final class ArchiveAudio {
     // S05.1: struck bells (live: a few partials each) and the bell pipe's voice
     private struct BellVoice { var k: Int; var sour: Bool; var age: Float = 0 }
     private var bells: [BellVoice] = []
+    private struct TickVoice { var k: Int; var gain: Float; var age: Float = 0 }
+    private var ticks: [TickVoice] = []
     private var pipeGain: Float = 0, pipeHz: Float = 0, pipePhase: Double = 0
     private let openBuf: [Float], closeBuf: [Float], grateBufs: [[Float]]
     private var reverb: ArchiveReverb
@@ -97,6 +99,8 @@ final class ArchiveAudio {
             case .fork: break
             case .bell(let k, let sour) where (0..<ToneTable.glassHz.count).contains(k): if bells.count < 6 { bells.append(BellVoice(k: k, sour: sour)) }
             case .bell: break
+            case .tick(let k, let g) where (0..<3).contains(k): if ticks.count < 4 { ticks.append(TickVoice(k: k, gain: min(max(g, 0), 1))) }
+            case .tick: break
             case .grate(let run): if voices.count < 6 { footSwitch = (footSwitch + 1) % 4; voices.append(Voice(buf: grateBufs[footSwitch], gain: ArchiveFoley.grateGain * (run ? 1 : 0.7), pan: footSwitch % 2 == 0 ? -0.2 : 0.2)) }
             }
         }
@@ -194,6 +198,16 @@ final class ArchiveAudio {
                 l += x; r += x
                 bells[j].age += dt
             }
+            // --- A5: the orrery's brass tick (a short, dry, bright click: three inharmonic partials, each gone in a few hundredths of a second), panned a little by arm
+            for j in ticks.indices {
+                let a = ticks[j].age, f0 = OrreryTone.hz(ticks[j].k)
+                var x: Float = 0
+                for p in 0..<OrreryTone.ratios.count { x += OrreryTone.amps[p] * exp(-a / OrreryTone.decays[p]) * Float(sin(2 * Double.pi * Double(f0 * OrreryTone.ratios[p]) * Double(a))) }
+                x *= min(1, a / 0.0006) * OrreryTone.gain * ticks[j].gain
+                let pan = OrreryTone.pan(ticks[j].k)
+                l += x * (0.5 - 0.5 * pan) * 1.4; r += x * (0.5 + 0.5 * pan) * 1.4
+                ticks[j].age += dt
+            }
             // --- S05.1: the bell pipe's tone (a plain pipe: its prime with a soft octave and twelfth), present while the fork is held at it
             let pTarget: Float = inp.pipe?.gain ?? 0
             pipeGain += (pTarget - pipeGain) * dt / 0.08
@@ -219,6 +233,7 @@ final class ArchiveAudio {
         }
         voices.removeAll { $0.pos >= $0.buf.count }
         bells.removeAll { $0.age > 3.5 }
+        ticks.removeAll { $0.age > OrreryTone.length }
     }
 }
 
@@ -360,4 +375,12 @@ struct ArchiveReverb {
         return ((out[0] + out[2]) * 0.5, (out[1] + out[3]) * 0.5)
     }
     var isSilent: Bool { buffers.allSatisfy { b in !b.contains { abs($0) > 1e-6 } } }
+}
+
+/// A5 (builder A): the orrery's brass tick as numbers (Q92). One per arm, a little higher for the longer arm, all between 1 and 3.3 kHz so a laptop speaker plays it; it lasts 0.15 s.
+enum OrreryTone {
+    static func hz(_ k: Int) -> Float { 1000 * [1, 1.26, 1.5][min(max(k, 0), 2)] }
+    static let ratios: [Float] = [1, 2.4, 4.1], amps: [Float] = [1, 0.5, 0.25], decays: [Float] = [0.05, 0.03, 0.015]
+    static let gain: Float = 0.10, length: Float = 0.2
+    static func pan(_ k: Int) -> Float { [-0.3, 0, 0.3][min(max(k, 0), 2)] }
 }
