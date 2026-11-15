@@ -76,7 +76,7 @@ final class IlseRoute: WorldPuzzle {
         looks = [ShelfBays.Look](repeating: catalogueDone ? .warm : .dormant, count: ShelfBays.count)
         swings = [Float](repeating: 0, count: ShelfBays.count)
         doorOpen = catalogueDone ? 1 : 0
-        syncBays(); syncDoor(); syncRod()
+        syncBays(); syncDoor(); syncRod(); syncMast()
     }
     func handles(_ id: String) -> Bool { Self.bayNames.contains(id) || Self.pipeNames.contains(id) || id == Self.keyName }
     func activate(_ id: String) {
@@ -108,7 +108,7 @@ final class IlseRoute: WorldPuzzle {
     private func openCatalogue() {
         state.set(Self.catalogueFlag)
         animator.after(0.6) { [weak self] in self?.emit(.chime(.lens)) }
-        animator.tween(duration: 3.0, ease: .inOutCubic) { [weak self] t in self?.doorOpen = t; self?.syncDoor() }
+        animator.tween(duration: 3.0, ease: .inOutCubic) { [weak self] t in self?.doorOpen = t; self?.syncDoor(); self?.syncMast() }
     }
     private func swing(_ k: Int) {
         animator.tween(duration: Self.swingSeconds, ease: .outCubic) { [weak self] t in
@@ -176,5 +176,7 @@ final class IlseRoute: WorldPuzzle {
         for k in (only.map { [$0] } ?? Array(0..<ShelfBays.count)) { ShelfBays.set(sc, k, look: looks[k], swing: swings[k]) }
     }
     private func syncDoor() { if let sc = scene() { LedgerRoom.setDoor(sc, open: doorOpen) } }
+    /// The bell mast Oren sees from his quay (A's S05.4 start, Q68) lights with the catalogue: what he did not do, from across the water.
+    private func syncMast() { if let sc = scene() { DormantViews.setMast(sc, lit: catalogueDone ? doorOpen : 0) } }
     private func syncRod() { scene()?.update(LedgerRoom.keyName) { $0.hidden = self.hasRod } }
 }

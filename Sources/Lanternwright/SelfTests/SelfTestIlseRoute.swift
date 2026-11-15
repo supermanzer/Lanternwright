@@ -106,10 +106,13 @@ extension SelfTestRunner {
         check(route.catalogueDone && g.state.has(R.catalogueFlag), "ilseroute: I1: ringing the three in the catalogue's order sets it done")
         let door = g.scenes[.tideArchive]?.items.first { $0.name == LedgerRoom.doorName }
         check(door != nil && (door?.uniforms.model.columns.3.y ?? 0) < ArchiveLayout.ledgerRoom.y - 1, "ilseroute: the ledger room's door has sunk into the floor")
+        let mastGlow = { (g: Game) in g.scenes[.tideArchive]?.items.first { $0.name == DormantViews.mastLampName }?.uniforms.emissive.w ?? -1 }
+        check(abs(mastGlow(g) - DormantViews.warmLamp.w) < 0.05, "ilseroute: Oren's bell mast, seen from his quay, is lit once Ilse's catalogue is done (\(mastGlow(g)))")
         // A save here, loaded into a fresh game: the catalogue is still done and the room open.
         let saved = g.makeSave()
         if let (g3, _) = arrive() {
             g3.restore(saved)
+            check(abs(mastGlow(g3) - DormantViews.warmLamp.w) < 0.05, "ilseroute: and the mast is lit in the loaded game")
             check(g3.ilseRoute?.catalogueDone == true && g3.ilseRoute?.marksDone == true, "ilseroute: a save after the catalogue loads with the marks counted and the catalogue done")
         }
 
