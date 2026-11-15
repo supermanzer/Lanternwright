@@ -32,6 +32,9 @@ final class IlseRoute: WorldPuzzle {
     /// The chime a mark gives: the stones' own tones, the highest level (the tide room's gate) first.
     static func markChime(_ k: Int) -> ChimeKind { k == 0 ? .tide : (k == 1 ? .wind : .stone) }
 
+    /// Ilse\'s route takes the wheel-touch hold away (the pipes replace it). The tests of the OLD held-tone machinery (`TideArchivePuzzle` on its own) switch this off.
+    nonisolated(unsafe) static var pipesReplaceTouch = true
+
     var world: WorldKind { .tideArchive }
     private let state: PuzzleState
     private let animator: Animator

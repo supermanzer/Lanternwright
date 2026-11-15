@@ -83,8 +83,8 @@ final class Game {
                               route: { [weak self] in self?.chosenPath }, level: { [weak self] in Tide.level(self?.time ?? 0) }, player: { [weak self] in self?.player.position ?? .zero },
                               inArchive: { [weak self] in self.map { $0.realArchive && $0.chosenPath != nil } ?? false })
             ilseRoute = r
-            t.touchHolds = { [weak self] in self?.chosenPath != .ilse }
-            t.ringWorks = { [weak self] in self?.chosenPath != .ilse }
+            t.touchHolds = { [weak self] in !(IlseRoute.pipesReplaceTouch && self?.chosenPath == .ilse) }
+            t.ringWorks = { [weak self] in !(IlseRoute.pipesReplaceTouch && self?.chosenPath == .ilse) }
             puzzles.append(r)
         }
         if tideArchive != nil, scenes[.tideArchive] == nil { scenes[.glassWood]?.update(ChainMap.interactableName) { $0.hidden = false } }          // S04.9: with no Archive built the Glass Wood's own chain map stands in

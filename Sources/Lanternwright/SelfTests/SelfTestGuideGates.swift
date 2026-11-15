@@ -87,16 +87,18 @@ extension SelfTestRunner {
         var clock = 40_000.0
         func frames(_ n: Int) { for _ in 0..<n { clock += 1.0 / 60; g.advance(now: clock, input: InputState()) } }
         func put(_ p: SIMD2<Float>) { g.player.position = SIMD3(p.x, g.scene.groundHeight(x: p.x, z: p.y), p.y) }
+        for f in IlseRoute.markFlags + [IlseRoute.marksFlag, IlseRoute.catalogueFlag, IlseRoute.keyFlag] { g.state.set(f) }          // S05.3: Ilse's light leads to each gate's PIPE once the marks, the catalogue and the rod are done
+        let pipes = (0..<3).map { k -> SIMD2<Float> in let p = ArchiveLayout.pipe(k); return SIMD2(p.x, p.z) }
         frames(30)
         for k in 0..<3 {
             var seen: [SIMD2<Float>] = []
-            let route = net.route(from: SIMD2(g.player.position.x, g.player.position.z), to: wheels[k])
+            let route = net.route(from: SIMD2(g.player.position.x, g.player.position.z), to: pipes[k])
             for p in route { put(p); frames(20); if let l = g.guideLantern { seen.append(l) } }
-            put(wheels[k] + SIMD2(3, 0)); frames(600)
+            put(pipes[k] + SIMD2(3, 0)); frames(600)
             if let l = g.guideLantern { seen.append(l) }
             let shut = Array(k..<3), worst = Self.gateClearance(seen, gates: shut)
             check(seen.count > 10 && (worst?.clearance ?? -1) >= clearance, "guidegates: in the game, walking to gate \(k) the lantern stays \(clearance) m clear of the gates still shut (\(seen.count) places; nearest \(say(worst)))")
-            check(g.guideLightParked && g.guideLightKey == "gate\(k)" && simd_length((g.guideLantern ?? .zero) - wheels[k]) < 0.5, "guidegates: in the game the light for gate \(k) parks on the wheel beside it (key \(g.guideLightKey ?? "-"), \(String(format: "%.2f", simd_length((g.guideLantern ?? .zero) - wheels[k]))) m)")
+            check(g.guideLightParked && g.guideLightKey == "pipe\(k)" && simd_length((g.guideLantern ?? .zero) - pipes[k]) < 0.5, "guidegates: in the game the light for gate \(k) parks on its pipe (key \(g.guideLightKey ?? "-"), \(String(format: "%.2f", simd_length((g.guideLantern ?? .zero) - pipes[k]))) m)")
             g.state.set(TideArchivePuzzle.sluiceFlags[k]); frames(30)
         }
     }

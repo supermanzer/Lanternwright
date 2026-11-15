@@ -47,19 +47,8 @@ extension SelfTestRunner {
                 while !(Tide.inWindow(k, level: Tide.level(game.time)) && Tide.inWindow(k, level: Tide.level(game.time + 5))) && guardTicks < 4 * 200 { gbot.wait(0.25); guardTicks += 1 }
             }
             func answer(_ k: Int) -> Bool {
-                if route == .ilse {
-                    // The first gate is walked to from the lamp end's quay. The bot's walker does not navigate the shore between the rooms (it stops against a room's wall), so the second and third are reached from a
-                    // point 8 m outside each room (nav-audit proves every one reachable from the spawn); the last metres into the room are walked.
-                    if k > 0 {
-                        let r = ArchiveLayout.sluiceSites[k] + SIMD2(k == 1 ? -4 : 4, 9)
-                        game.player = Player(position: SIMD3(r.x, game.scene.groundHeight(x: r.x, z: r.y), r.y), yaw: 0)
-                        gbot.wait(0.2)
-                    } else { _ = gbot.follow([SIMD3(ArchiveLayout.lampEnd.x, 0, ArchiveLayout.lampEnd.z)], within: 3) }
-                    if k == 2 { untilReady(k) }                                                   // the stone room is only wadeable near low water: wait at its edge, then walk in
-                    guard stand(gbot, TideSpots.gate(k), "gate \(k)") else { return false }
-                    untilReady(k)
-                    _ = gbot.click(T.sluiceNames[k]); gbot.wait(T.Timing.toneHold + 0.4)
-                } else {
+                if route == .ilse { return ilsePipe(k, game, gbot) }                              // S05.3: Ilse's gates answer to the bell pipes: walked to, no teleport
+                do {
                     guard stand(gbot, TideSpots.prismRing, "the prism ring") else { return false }
                     untilReady(k)
                     let steps = Int(((T.beamTargets[k] - gp.ringAngle) / T.ringStep).rounded())
@@ -68,6 +57,7 @@ extension SelfTestRunner {
                 if gp.opened <= k { print("\(label): gate \(k) did not answer: feet \(gbot.feet), tide \(Tide.level(game.time)), window \(Tide.inWindow(k, level: Tide.level(game.time))), hovered \(game.hovered?.id ?? "-")") }
                 return gp.opened > k
             }
+            if route == .ilse { check(ilsePrerequisites(game, gbot), "\(label): Ilse counts the marks, rings the catalogue and takes the rod, by walking from the quay") }
             check(answer(0) && gp.opened == 1, "\(label): the first gate (the tide's) answers")
             // A save taken here, loaded, and the rest played from it.
             let saved = game.makeSave()
@@ -81,21 +71,20 @@ extension SelfTestRunner {
             gbot.wait(T.Timing.drainDuration + 1)
             // Page 15 lies on the gallery floor once the water is down.
             let p15 = TideSpots.page(15)
-            check(gbot.interactable("page_15")?.enabled == true, "\(label): page 15 is on offer")
-            if route == .ilse {                                                                   // (the bot's walker cannot find its way out of the third room along the shore: it starts the long walk from the landing, as above)
-                let l = ArchiveLayout.landing
-                game.player = Player(position: SIMD3(l.x, game.scene.groundHeight(x: l.x, z: l.z), l.z), yaw: 0)
-                gbot.wait(0.2)
+            /// The tide that let the player into a room floods the shore when it comes back: a player turned back by water deeper than the wading limit waits and tries again.
+            func patient(_ to: SIMD3<Float>, within r: Float) -> Bool {
+                for _ in 0..<10 { if gbot.walk(to: to, within: r, timeout: 200) { return true }; gbot.wait(12) }
+                return false
             }
             let door = ArchiveLayout.path.firstIndex { simd_length(SIMD2($0.x, $0.z) - SIMD2(ArchiveLayout.greatLedger.x, ArchiveLayout.greatLedger.z)) < 0.1 }.map { Array(ArchiveLayout.path[($0 - 2)...$0]) } ?? []
             _ = gbot.follow(door.map { SIMD3($0.x, 0, $0.z) }, within: 3)                  // in by the court's way, as the path goes
-            let walked = gbot.walk(to: SIMD3(p15.x, 0, p15.z), within: 1.2, timeout: 600)
+            let walked = patient(SIMD3(p15.x, 0, p15.z), within: 1.2)
             if !walked { print("\(label): could not walk to page 15: ended at \(gbot.feet) for \(p15)") }
             _ = gbot.click("page_15"); gbot.wait(0.5); gbot.closeJournal()
             check(walked && game.state.has("page_15") && game.journal.collectedPages.contains { $0.number == 15 }, "\(label): the bot walks to page 15 on the Great Ledger's floor and takes it")
             // Back through the quay's ring.
             let ret = TideSpots.quayReturn(route)
-            let back = gbot.walk(to: SIMD3(ret.x, 0, ret.z + 1.5), within: 2.5, timeout: 600)
+            let back = patient(SIMD3(ret.x, 0, ret.z + 1.5), within: 2.5)
             if !back { print("\(label): could not walk back to the quay ring: ended at \(gbot.feet) for \(ret)") }
             _ = gbot.click(TideSpots.returnIDs[route == .oren ? 1 : 0]); gbot.wait(fade)
             check(back && game.world == .varrow, "\(label): the bot walks back to the quay's ring and returns to Varrow")

@@ -5,6 +5,39 @@ import simd
 /// S05.3 (builder B): Ilse's route through the Archive: A0 the tide marks, I1 the catalogue, I2 the bell pipes (Game/IlseRoute.swift). Rules on the data, then a bot that arrives at the lamp quay from a fresh
 /// game's end state and plays the route by real walking and clicks (no teleport), with a save and a load in the middle.
 extension SelfTestRunner {
+    /// A0, I1 and the rod by real walking and clicks, from the lamp quay (the player has just arrived): the bot waits at the quay for the marks, rings the catalogue and takes the rod. Returns whether the rod is in hand.
+    func ilsePrerequisites(_ g: Game, _ bot: PlaythroughBot) -> Bool {
+        guard let r = g.ilseRoute else { return false }
+        var w: Float = 0
+        while !r.marksDone && w < 100 { bot.wait(1); w += 1 }
+        for k in IlseRoute.sequence {
+            let b = ShelfBays.bellPoint(g.scene, k)
+            _ = bot.walk(to: SIMD3(b.x + 2.6, 0, b.z), within: 1.0, timeout: 200); _ = bot.click(IlseRoute.bayNames[k]); bot.wait(0.4)
+        }
+        bot.wait(4)
+        let door = ArchiveLayout.ledgerDoor, rod = ArchiveLayout.ledgerKey
+        _ = bot.walk(to: SIMD3(door.x, 0, door.z + 2.5), within: 1.0, timeout: 100, straight: true); _ = bot.walk(to: SIMD3(door.x, 0, door.z - 0.8), within: 0.8, timeout: 30, straight: true)
+        _ = bot.walk(to: SIMD3(rod.x, 0, rod.z + 1.4), within: 1.0, timeout: 30, straight: true); _ = bot.click(IlseRoute.keyName); bot.wait(0.3)
+        _ = bot.walk(to: SIMD3(door.x, 0, door.z - 0.8), within: 0.8, timeout: 30, straight: true); _ = bot.walk(to: SIMD3(door.x, 0, door.z + 2.5), within: 1.0, timeout: 30, straight: true)
+        return r.hasRod
+    }
+    /// Pipe k: walk to its room (the stone room's edge first, then in when the water allows), hold the fork to it and wait for the gate. Returns whether the gate answered.
+    func ilsePipe(_ k: Int, _ g: Game, _ bot: PlaythroughBot) -> Bool {
+        guard let r = g.ilseRoute, let t = g.tideArchive else { return false }
+        let p = ArchiveLayout.pipe(k)
+        if k == 2 {
+            _ = bot.walk(to: SIMD3(p.x + 3, 0, p.z + 10), within: 2, timeout: 300)
+            var w: Float = 0; while !(Tide.inWindow(2, level: Tide.level(g.time)) && Tide.inWindow(2, level: Tide.level(g.time + 8))) && w < 100 { bot.wait(0.5); w += 0.5 }
+        }
+        // The shore between the rooms runs through the stone room's pit, which the high tide floods: a player who is turned back waits and tries again.
+        var walked = false
+        for _ in 0..<8 where !walked { walked = bot.walk(to: SIMD3(p.x, 0, p.z + 2.2), within: 1.6, timeout: 200); if !walked { bot.wait(12) } }
+        let clicked = walked && bot.click(IlseRoute.pipeNames[k])
+        guard walked, clicked, r.holding == k else { print("ilsePipe \(k): walked \(walked) clicked \(clicked) holding \(String(describing: r.holding)) rod \(r.hasRod) feet \(bot.feet) pipe \(p) tide \(Tide.level(g.time))"); return false }
+        var s: Float = 0
+        while t.opened <= k && s < 120 { bot.wait(0.25); s += 0.25 }
+        return t.opened > k
+    }
     func runIlseRoute() {
         guard name == "all" || name == "ilseroute" else { return }
         typealias R = IlseRoute

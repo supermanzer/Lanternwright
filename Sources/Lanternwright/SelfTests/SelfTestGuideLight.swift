@@ -42,8 +42,15 @@ extension SelfTestRunner {
         func put(_ p: SIMD2<Float>) { g.player.position = SIMD3(p.x, g.scene.groundHeight(x: p.x, z: p.y), p.y) }
         let net = Layout.Navigation.active(for: .tideArchive)!
         frames(30)
-        check(g.world == .tideArchive && g.guideLantern != nil && g.guideLightKey == "gate0", "guidelight: on arrival the light is lit toward the first gate (key \(g.guideLightKey ?? "-"))")
-        let gate0 = TideSpots.gate(0), g0 = SIMD2(gate0.x, gate0.z)
+        check(g.world == .tideArchive && g.guideLantern != nil && g.guideLightKey == "marks", "guidelight: on arrival the light is lit toward the quay's marks, Ilse's first puzzle (key \(g.guideLightKey ?? "-"))")
+        // S05.3: the marks counted, the light goes to the stacks; the catalogue done, to the ledger room's rod; the rod taken, to the first pipe.
+        for f in IlseRoute.markFlags + [IlseRoute.marksFlag] { g.state.set(f) }; frames(30)
+        check(g.guideLightKey == "bays", "guidelight: the marks counted, the light leads to the shelf bays (key \(g.guideLightKey ?? "-"))")
+        g.state.set(IlseRoute.catalogueFlag); frames(30)
+        check(g.guideLightKey == "rod", "guidelight: the catalogue done, the light leads to the ledger room's rod (key \(g.guideLightKey ?? "-"))")
+        g.state.set(IlseRoute.keyFlag); frames(30)
+        let gate0 = ArchiveLayout.pipe(0), g0 = SIMD2(gate0.x, gate0.z)
+        check(g.guideLightKey == "pipe0", "guidelight: the rod in hand, the light leads to the first gate's pipe (key \(g.guideLightKey ?? "-"))")
         let route = net.route(from: SIMD2(g.player.position.x, g.player.position.z), to: g0)
         let along = GuidePath(route)
         var prev = along.progress(of: g.guideLantern!), monotone = true
@@ -57,7 +64,7 @@ extension SelfTestRunner {
         check(drift < 0.1, "guidelight: the player turns round, walks off and comes back for 20 s: the light stays within 0.1 m of the gate (\(String(format: "%.3f", drift)) m)")
         // The next objective relights it toward the next gate; solving the world sends it to the gallery door, then page 15's taking to the quay.
         g.state.set(TideArchivePuzzle.sluiceFlags[0]); put(g0 + SIMD2(3, 0)); frames(30)
-        check(g.guideLightKey == "gate1" && !g.guideLightParked, "guidelight: gate 1 is next: the light relights toward it (key \(g.guideLightKey ?? "-"))")
+        check(g.guideLightKey == "pipe1" && !g.guideLightParked, "guidelight: gate 1 is next: the light relights toward it (key \(g.guideLightKey ?? "-"))")
         g.state.set(Game.routeSolvedFlag); frames(30)
         check(g.guideLightKey == "gallery", "guidelight: the water down, the light points at the gallery's door (key \(g.guideLightKey ?? "-"))")
         let d = TideSpots.galleryDoor

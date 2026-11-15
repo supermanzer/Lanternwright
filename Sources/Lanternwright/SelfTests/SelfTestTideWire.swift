@@ -6,6 +6,7 @@ import simd
 extension SelfTestRunner {
     func runTideWire() {
         guard name == "all" || name == "tidewire" || name == "tidearchive" else { return }
+        let pipesWere = IlseRoute.pipesReplaceTouch; IlseRoute.pipesReplaceTouch = false; defer { IlseRoute.pipesReplaceTouch = pipesWere }          // these test the old held-tone machinery on its own
         let flagWas = Game.tideArchiveEnabled
         Game.tideArchiveEnabled = true
         defer { Game.tideArchiveEnabled = flagWas }

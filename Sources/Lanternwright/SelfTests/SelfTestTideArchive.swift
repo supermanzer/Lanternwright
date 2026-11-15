@@ -8,6 +8,7 @@ import simd
 extension SelfTestRunner {
     func runTideArchive() {
         guard name == "all" || name == "tidearchive" || name == "story" else { return }
+        let pipesWere = IlseRoute.pipesReplaceTouch; IlseRoute.pipesReplaceTouch = false; defer { IlseRoute.pipesReplaceTouch = pipesWere }          // these test the old held-tone machinery on its own
         typealias T = TideArchivePuzzle
         let lh = Layout.lighthouse
         let flagWas = Game.tideArchiveEnabled
