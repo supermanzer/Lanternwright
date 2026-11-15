@@ -12,11 +12,11 @@ extension SelfTestRunner {
         "G3 page 6",
         "G4 stones page 2", "G4 stones page 3",
         "G5 archive-gates+chime-pool+stones",
-        "G6 chime-pool", "G6 door-plates",
-        "G7 door-plates senses", "G7 lens-ring senses",
-        "G8 archive-gates-beam manipulations", "G8 stones clues",
+        "G6 chime-pool", "G6 door-plates", "G6 archive-catalogue", "G6 archive-orrery",
+        "G7 door-plates senses", "G7 lens-ring senses", "G7 archive-marks senses",
+        "G8 archive-gates-beam manipulations", "G8 stones clues", "G8 archive-marks clues",
         "G9 archive-gates+lens-ring", "G9 chime-pool+stones",
-        "G10 archive-gates-beam page 13", "G10 archive-gates-tone page 13", "G10 stones page 3",
+        "G10 archive-gates-beam page 13", "G10 archive-pipes page 13", "G10 stones page 3",
     ].sorted()
 
     // MARK: Synthetic graphs
@@ -77,6 +77,17 @@ extension SelfTestRunner {
                              $0.puzzles[idx($0, "C")].verb = "other"; $0.puzzles[idx($0, "C")].channel = .see }
         check(!rules(altOK).contains("G5") && !rules(altOK).contains("G9"), "puzzlegraph G5: two ways of one machine (a group) may share an answer")
         let chain = broken { $0.puzzles[idx($0, "B")].requires = ["a"]; $0.puzzles[idx($0, "C")].requires = ["b"]; $0.puzzles[idx($0, "D")].requires = ["c"] }          // A, then B, then C, then D: one at a time
+        // S05: G6 is judged per route. Two puzzles that are open together but belong to different siblings are NOT open together to anyone: without the route filter this graph would pass.
+        func rn(_ id: String, _ needs: [String], _ sets: String, _ route: PageAuthor?, _ world: WorldKind, _ verb: String, _ ch: PuzzleChannel, _ answer: [String]) -> PuzzleNode {
+            PuzzleNode(id: id, title: id, world: world, route: route, verb: verb, channel: ch, answer: answer, manipulations: 4, requires: needs, sets: sets, machine: [SIMD3(0, 0, 0)],
+                       clues: [PuzzleClue(source: .page(1), world: .tideArchive, position: SIMD3(500, 0, 0), label: "page 1")],
+                       feedback: [PuzzleFeedback(sense: .sight, kind: .progress, seconds: 0.3, note: "x"), PuzzleFeedback(sense: .sound, kind: .progress, seconds: 0.2, note: "y")])
+        }
+        let routed = PuzzleGraph(puzzles: [rn("F0", ["go"], "f", nil, .varrow, "a", .see, ["1"]), rn("P", ["f"], "p", .ilse, .glassWood, "b", .hear, ["2"]), rn("P2", ["p"], "p2", .ilse, .glassWood, "c", .count, ["3"]), rn("P3", ["p2"], "p3", .ilse, .glassWood, "d", .watch, ["4"]),
+                                           rn("Q", ["f"], "q", .oren, .glassWood, "e", .aim, ["5"]), rn("Q2", ["q"], "q2", .oren, .glassWood, "f", .touch, ["6"]), rn("Q3", ["q2"], "q3", .oren, .glassWood, "g", .see, ["7"])],
+                                pages: [PageFact(id: 1, world: .tideArchive, position: SIMD3(500, 0, 0), states: [])], external: ["go"])
+        check(R.timeline(routed).dropFirst().first.map { $0.open.count } == 2, "puzzlegraph G6 route: unfiltered, the two siblings' first puzzles look open together")
+        check(R.openAtOnce(routed).map(\.subject) == ["P2", "Q2"], "puzzlegraph G6 route: judged per route, each sibling's second puzzle is a chain and is flagged (\(R.openAtOnce(routed).map(\.subject)))")
         check(rules(chain) == ["G6"], "puzzlegraph G6: a chain (one open at each choice) is flagged (\(rules(chain)), steps \(R.timeline(chain).map { $0.open.count }))")
         let noFeedback = broken { $0.puzzles[idx($0, "B")].feedback = [] }
         check(rules(noFeedback) == ["G7"] && R.feedback(noFeedback).count == 2, "puzzlegraph G7: no feedback fails both progress and two senses (\(R.feedback(noFeedback).map(\.subject)))")
@@ -127,9 +138,9 @@ extension SelfTestRunner {
 
         // The graph is the game's, not a copy: every machine is a real box, every flag is one the game sets, the answers are the puzzles' own constants.
         let missing = g.puzzles.flatMap { n in n.machineIDs.filter { id in !game.interactables(in: n.world).contains { $0.id == id } }.map { "\(n.id): \($0)" } }
-        check(missing.isEmpty && g.puzzles.allSatisfy { $0.machine.count == $0.machineIDs.count }, "puzzlegraph: every machine of the graph is an interactable of its world (\(missing))")
-        let gameFlags = Set(game.puzzle.persistentFlags + (game.glass?.persistentFlags ?? []) + (game.tideArchive?.persistentFlags ?? []) + Game.ownFlags)
-        let graphOnly: Set<String> = ["returned", "route_begun", "gate_pages", "contradiction"]
+        check(missing.isEmpty && g.puzzles.allSatisfy { $0.planned != nil || $0.machineIDs.isEmpty || $0.machine.count == $0.machineIDs.count }, "puzzlegraph: every machine of the graph is an interactable of its world (\(missing))")
+        let gameFlags = Set(game.puzzle.persistentFlags + (game.glass?.persistentFlags ?? []) + (game.tideArchive?.persistentFlags ?? []) + (game.ilseRoute?.persistentFlags ?? []) + Game.ownFlags)
+        let graphOnly: Set<String> = ["returned", "route_begun", "gate_pages", "contradiction", "ti_windows"]          // ti_windows: O1's consequence (planned)
         let strange = g.puzzles.flatMap { n in (n.requires + (n.sets.map { [$0] } ?? [])).filter { !gameFlags.contains($0) && !graphOnly.contains($0) }.map { "\(n.id): \($0)" } }
         check(strange.isEmpty, "puzzlegraph: every flag a puzzle needs or sets is a flag the game keeps, or one of the graph's own markers (\(strange))")
         check(g.external.subtracting(gameFlags).subtracting(graphOnly).isEmpty, "puzzlegraph: the flags walking grants are real (quay_seen) or the graph's own (gate_pages)")
@@ -138,7 +149,7 @@ extension SelfTestRunner {
         check(answer("door-plates") == TonePlatePuzzle.order.map { StoneID(rawValue: $0)!.name }, "puzzlegraph: the plates' answer is TonePlatePuzzle.order")
         check(answer("mirror-court") == MirrorCourt.solutionPanes.map { StoneID(rawValue: $0)!.name }, "puzzlegraph: the mirror court's answer is its pane colours (P02.1: no longer the stones' order, and no page states it)")
         check(answer("chime-pool") == GlassWoodLogic.chimeSolution.map { StoneID(rawValue: [0, 2, 4].firstIndex(of: $0)!)!.name }, "puzzlegraph: the chimes' answer is the chime indices read as the stones' tones")
-        check(answer("archive-gates-tone") == StoneID.allCases.map(\.name) && answer("archive-gates-beam") == answer("archive-gates-tone"), "puzzlegraph: the gates open tide, wind, stone, by either way")
+        check(answer("archive-pipes") == StoneID.allCases.map(\.name) && answer("archive-gates-beam") == answer("archive-pipes"), "puzzlegraph: the gates open tide, wind, stone, by either way (Ilse's pipes, Oren's ring)")
 
         // Manipulation counts are computed; check them by an independent calculation.
         let search = PuzzleGraph.mirrorSearch()
@@ -146,13 +157,19 @@ extension SelfTestRunner {
         check(search.solutions == 1 && search.cheapest == byHand && g.node("mirror-court")?.manipulations == byHand, "puzzlegraph: the mirror court has exactly 1 of 1728 settings and the fewest clicks from where it is found is \(byHand) (search: \(search))")
         check(g.node("lens-ring")?.manipulations == 3, "puzzlegraph: the lens ring is 3 clicks from where it starts to the receiver")
         check(g.node("archive-gates-beam")?.manipulations == 15, "puzzlegraph: the prism ring is 15 clicks through the three marks in order (6 + 4 + 5)")
-        check(g.node("stones")?.manipulations == 3 && g.node("door-plates")?.manipulations == 3 && g.node("chime-pool")?.manipulations == 3 && g.node("archive-gates-tone")?.manipulations == 3, "puzzlegraph: three strikes or touches each for the stones, plates, chimes and held-tone gates")
+        check(g.node("stones")?.manipulations == 3 && g.node("door-plates")?.manipulations == 3 && g.node("chime-pool")?.manipulations == 3 && g.node("archive-pipes")?.manipulations == 3 && g.node("archive-catalogue")?.manipulations == 3 && g.node("archive-marks")?.manipulations == 3, "puzzlegraph: three strikes or touches each for the stones, plates, chimes, pipes, bays and marks")
 
         // What the text says, and where the structure sits.
         check(g.pages.filter(\.statesOrder).map(\.id) == [3, 5, 6, 13], "puzzlegraph: the pages that state the order in words are 3, 5, 6 and 13 (\(g.pages.filter(\.statesOrder).map(\.id)))")
         check(g.pages.count == 15 && g.pages.allSatisfy { $0.position != nil }, "puzzlegraph: every one of the fifteen pages has a place in the world (an interactable box)")
-        let today = R.timeline(g)
-        check(today.map(\.id) == ["stones", "mirror-court", "chime-pool", "door-plates", "archive-gates-tone"] && today.map { $0.open.count } == [1, 2, 1, 1, 1], "puzzlegraph: today a player is offered 1, 2, 1, 1, 1 puzzles (\(today.map { $0.open.count }))")
+        let today = R.timeline(g, route: .ilse), todayOren = R.timeline(g, route: .oren)
+        check(today.map(\.id) == ["stones", "mirror-court", "chime-pool", "door-plates", "archive-marks", "archive-catalogue", "archive-pipes"] && today.map { $0.open.count } == [1, 2, 1, 1, 1, 1, 1], "puzzlegraph: on Ilse's route a player is offered 1, 2, 1, 1, 1, 1, 1 puzzles (\(today.map { $0.open.count }))")
+        check(todayOren.map(\.id) == ["stones", "mirror-court", "chime-pool", "door-plates", "archive-marks", "archive-orrery", "archive-gates-beam"] && todayOren.map { $0.open.count } == [1, 2, 1, 1, 1, 1, 1], "puzzlegraph: on Oren's route 1, 2, 1, 1, 1, 1, 1 (\(todayOren.map { $0.open.count }))")
+        check(g.node("archive-orrery")?.planned != nil && g.puzzles.filter { $0.planned != nil }.map(\.id) == ["archive-orrery"], "puzzlegraph: the orrery is in the graph as DESIGN (planned: A's S05.2 API), and is the only planned puzzle")
+        // The Archive's routes: each puzzle belongs to one sibling or both; the two ends share a group (and so an answer) and the gallery follows both.
+        check(g.node("archive-catalogue")?.route == .ilse && g.node("archive-pipes")?.route == .ilse && g.node("archive-orrery")?.route == .oren && g.node("archive-gates-beam")?.route == .oren && g.node("archive-marks")?.route == nil && g.node("gallery-chain")?.route == nil, "puzzlegraph: S05: A0 and F are shared, I1/I2 are Ilse's, O1/O2 are Oren's")
+        check(g.node("archive-pipes")?.group == g.node("archive-gates-beam")?.group && g.node("archive-pipes")?.sets == Game.routeSolvedFlag && g.node("archive-gates-beam")?.sets == Game.routeSolvedFlag && g.node("gallery-chain")?.requires == [Game.routeSolvedFlag], "puzzlegraph: both routes end in the same consequence (the gallery drains) and F follows it")
+        check(g.node("archive-catalogue")?.answer == IlseRoute.sequence.map { "bay\($0)" } && g.node("archive-marks")?.answer.count == 3, "puzzlegraph: the catalogue's answer is IlseRoute.sequence and A0's three marks are the rooms' levels")
         check(R.acyclic(g).isEmpty && R.flagsProvided(g).isEmpty && R.clueConsumers(g).map(\.subject) == ["page 6"], "puzzlegraph: today's graph has no cycle and no unset flag; the one page that states an answer and informs nobody is page 6 (its order was the plates' clue until P02.3; it comes after the court is solved, so it cannot clue the court; the user's rewrite, drafts A/B, decides) (\(R.clueConsumers(g).map(\.subject)))")
     }
 }

@@ -62,8 +62,12 @@ Kinds: puzzle (counted), story (a beat with no datum), transit (moving between w
 | door-plates | varrow | puzzle | strike / watch | stone, tide, wind | 3 | returned, gate_pages | door_open | the beam rhythm (329 m); the stones' altitude order (300 m) |
 | lens-ring (opt) | varrow | puzzle | turn / aim | angle:-45 | 3 | door_open | portal_open | none |
 | enter-archive | varrow | transit | touch / touch | - | - | door_open | route_begun | none |
-| archive-gates-tone [archive-gates] | tideArchive | puzzle | touch+hold / hear | tide, wind, stone | 3 | route_begun | route_solved | the stones' order (another world); page 13 (240 m) |
-| archive-gates-beam [archive-gates] | tideArchive | puzzle | turn / aim | tide, wind, stone | 15 | route_begun | route_solved | page 13 (12 m); the lit-lantern count (another world) |
+| archive-marks | tideArchive | puzzle | count / count | level:0.79, level:0.38, level:0.10 | 3 | route_begun | ti_marks | none |
+| archive-catalogue <ilse> | tideArchive | puzzle | ring / see | bay3, bay0, bay4 | 3 | ti_marks | ti_rod | the catalogue diagram (89 m) |
+| archive-pipes [archive-gates] <ilse> | tideArchive | puzzle | hold fork / hear | tide, wind, stone | 3 | ti_rod | route_solved | the stones' order (another world); page 13 (242 m) |
+| archive-orrery <oren> **(planned)** | tideArchive | puzzle | stop arm / watch | arm:0, arm:1, arm:2 | 3 | ti_marks | ti_windows | the beam rhythm (another world) |
+| archive-gates-beam [archive-gates] <oren> | tideArchive | puzzle | turn / aim | tide, wind, stone | 15 | ti_windows | route_solved | page 13 (12 m); the lit-lantern count (another world) |
+| gallery-chain | tideArchive | story | read / see | - | 1 | route_solved | - | none |
 | contradiction (opt) | varrow | story | set / see | - | 3 | returned | contradiction | page 4 (no machine position); page 5 (another world); page 8 (another world); page 9 (no machine position); page 12 (another world) |
 
 ### Feedback each machine gives (declared from the code; the cell names the event)
@@ -80,8 +84,14 @@ Kinds: puzzle (counted), story (a beat with no datum), transit (moving between w
 | door-plates | sound | progress | 0.00 s | a right strike holds its tone; a wrong one sours and resets |
 | lens-ring | sight | progress | 0.00 s | a beam preview runs from the ring's pointer, and the receiver takes a light while the gate is ready |
 | lens-ring | sound | binary | 0.00 s | a stone-on-brass grind with a detent click |
-| archive-gates-tone | sight | progress | 0.00 s | the gate lifts and its wheel turns; the water over the room's floor shows whether it can answer |
-| archive-gates-tone | sound | progress | 0.00 s | the held tone, souring if wrong |
+| archive-marks | sound | progress | 0.00 s | each mark chimes in a stone's tone as the water passes it, highest level first (counted from the quay) |
+| archive-marks | sight | binary | 0.00 s | nothing marks the levels on the quay yet (builder A's prop, Q80): the water itself is the only sign |
+| archive-catalogue | sight | progress | 0.00 s | a right bay's glyph glows warm and stays; a wrong one turns sour green and the glyphs go dark |
+| archive-catalogue | sound | progress | 0.00 s | a right bell rings clean; a wrong one is cracked and short |
+| archive-pipes | sound | progress | 0.00 s | the pipe's tone beats against the fork's and the beats slow as the water nears the gate's level |
+| archive-pipes | sight | progress | 0.00 s | the pipe's water column shows the sea and its crown glows as the fork agrees |
+| archive-orrery | sight | progress | 0.00 s | an arm stopped at the right moment lights its window in the dome |
+| archive-orrery | sound | live | 0.00 s | the collar's detent clicks |
 | archive-gates-beam | sight | progress | 0.00 s | the component brightens on its mark and the matching room's lamp lights |
 | archive-gates-beam | sound | progress | 0.00 s | the held drone |
 | contradiction | sight | binary | 0.00 s | a quiet "Settled." or silence |
@@ -93,30 +103,40 @@ Kinds: puzzle (counted), story (a beat with no datum), transit (moving between w
 | 3 | varrow | stones |
 | 5 | glassWood | mirror-court, contradiction |
 | 6 | glassWood | **none** |
-| 13 | tideArchive | archive-gates-tone, archive-gates-beam |
+| 13 | tideArchive | archive-pipes, archive-gates-beam |
 
 ### Keys: what the player carries between places (P02 section 3.2; `built` = both ends exist in the game, `planted` = an unflagged datum no page states)
 
 | key | channel | learned at | used at (puzzles that list it as a clue) | built? | the datum |
 |---|---|---|---|---|---|
 | stones-tones | hear | stones (varrow) | chime-pool | built | tide D4, wind A4, stone D5: the three of the pool's five chimes that are not decoys |
-| three-heights | see | chime-pool (glassWood) | archive-gates-tone (**does not list it**), archive-gates-beam (**does not list it**) | planned: the gates' water marks (builder A, Q76): until they exist nothing at the gates uses it, so the gates do not list it as a clue | the non-decoy chimes hang in the order of the sluice rooms' floors (tide highest): an ORDER today, not a scale, and the gates carry no mark for it yet (Q76) |
+| three-heights | see | chime-pool (glassWood) | archive-pipes (**does not list it**), archive-gates-beam (**does not list it**) | planned: the gates' water marks (builder A, Q76): until they exist nothing at the gates uses it, so the gates do not list it as a clue | the non-decoy chimes hang in the order of the sluice rooms' floors (tide highest): an ORDER today, not a scale, and the gates carry no mark for it yet (Q76) |
 | lantern-count | count | dock-lanterns (varrow) | archive-gates-beam | built, planted | 6 of the first 8 dock lanterns are lit = 6 steps to the prism ring's first mark (Oren's way; Ilse's fork has no counterpart yet, Q75) |
 | stones-order | see | the island-profile diagram on page 1 (varrow) | stones, door-plates | built, planted | a drawn profile of the climb with a mark at each stone's real height (tide < wind < stone); a mark shows its rubbing once the stone has been looked at closely (Q51); the plates use it to name a flash's length (short = low = tide) |
-| beam-rhythm | watch | the lighthouse beam at dusk, from the dock (varrow) | door-plates | built, planted | three groups of flashes of 2.6, 0.7, 1.5 s, read by RANK (short = tide, middle = wind, long = stone): the plates are struck in the order flashed, stone, tide, wind |
+| beam-rhythm | watch | the lighthouse beam at dusk, from the dock (varrow) | door-plates, archive-orrery | built, planted | three groups of flashes of 2.6, 0.7, 1.5 s, read by RANK (short = tide, middle = wind, long = stone): the plates are struck in the order flashed, stone, tide, wind |
+| catalogue-diagram | see | the catalogue diagram on page 10 (Ilse's voice) (tideArchive) | archive-catalogue | built, planted | three glyphs joined by arrows: the shelf bays to ring, in order (bay 3, bay 0, bay 4); drawn by the overlay, no words |
 | map-shape | see | the chain map (Archive) (tideArchive) | - | planned: the Salt Flats' first lamp (not built) | the shape of the last ring |
 
-### What is open when the player chooses (a player who always takes the first open puzzle)
+### What is open when the player chooses (a player who always takes the first open puzzle; the Archive once per route: `<ilse>` / `<oren>` mark a puzzle that is one sibling's)
 
-| step | solves | world | open at that moment | verdict |
-|---|---|---|---|---|
-| 1 | stones | varrow | stones | first of its world (exempt) |
-| 2 | mirror-court | glassWood | chime-pool, mirror-court | first of its world (exempt) |
-| 3 | chime-pool | glassWood | chime-pool | **only 1** |
-| 4 | door-plates | varrow | door-plates | **only 1** |
-| 5 | archive-gates-tone | tideArchive | archive-gates | first of its world (exempt) |
+| route | step | solves | world | open at that moment | verdict |
+|---|---|---|---|---|---|
+| ilse | 1 | stones | varrow | stones | first of its world (exempt) |
+| ilse | 2 | mirror-court | glassWood | chime-pool, mirror-court | first of its world (exempt) |
+| ilse | 3 | chime-pool | glassWood | chime-pool | **only 1** |
+| ilse | 4 | door-plates | varrow | door-plates | **only 1** |
+| ilse | 5 | archive-marks | tideArchive | archive-marks | first of its world (exempt) |
+| ilse | 6 | archive-catalogue | tideArchive | archive-catalogue | **only 1** |
+| ilse | 7 | archive-pipes | tideArchive | archive-gates | the last puzzle (exempt) |
+| oren | 1 | stones | varrow | stones | first of its world (exempt) |
+| oren | 2 | mirror-court | glassWood | chime-pool, mirror-court | first of its world (exempt) |
+| oren | 3 | chime-pool | glassWood | chime-pool | **only 1** |
+| oren | 4 | door-plates | varrow | door-plates | **only 1** |
+| oren | 5 | archive-marks | tideArchive | archive-marks | first of its world (exempt) |
+| oren | 6 | archive-orrery | tideArchive | archive-orrery | **only 1** |
+| oren | 7 | archive-gates-beam | tideArchive | archive-gates | the last puzzle (exempt) |
 
-### Rule breaks (15)
+### Rule breaks (19)
 
 | rule | what it asks | subject | found |
 |---|---|---|---|
@@ -124,16 +144,20 @@ Kinds: puzzle (counted), story (a beat with no datum), transit (moving between w
 | G4 | every clue is 40 m or a world away from its machine | stones page 2 | page 2 is 3 m from the machine (the rule is 40 m or another world) |
 | G4 | every clue is 40 m or a world away from its machine | stones page 3 | page 3 is 3 m from the machine (the rule is 40 m or another world) |
 | G5 | no two puzzles share an answer | archive-gates+chime-pool+stones | 3 puzzles are all answered by "tide wind stone" |
-| G6 | at least two puzzles are open when a player chooses (after the first of a world) | chime-pool | when chime-pool is chosen only ["chime-pool"] is open: a chain, not a web |
-| G6 | at least two puzzles are open when a player chooses (after the first of a world) | door-plates | when door-plates is chosen only ["door-plates"] is open: a chain, not a web |
+| G6 | at least two puzzles are open when a player chooses (after the first of a world) | chime-pool | when chime-pool is chosen only ["chime-pool"] is open on ilse's route: a chain, not a web |
+| G6 | at least two puzzles are open when a player chooses (after the first of a world) | door-plates | when door-plates is chosen only ["door-plates"] is open on ilse's route: a chain, not a web |
+| G6 | at least two puzzles are open when a player chooses (after the first of a world) | archive-catalogue | when archive-catalogue is chosen only ["archive-catalogue"] is open on ilse's route: a chain, not a web |
+| G6 | at least two puzzles are open when a player chooses (after the first of a world) | archive-orrery | when archive-orrery is chosen only ["archive-orrery"] is open on oren's route: a chain, not a web |
 | G7 | every machine answers with progress, on two senses, within 1 s | door-plates senses | within 1.0 s it answers on ["sound"] and not on two senses |
 | G7 | every machine answers with progress, on two senses, within 1 s | lens-ring senses | within 1.0 s it answers on ["sight"] and not on two senses |
+| G7 | every machine answers with progress, on two senses, within 1 s | archive-marks senses | within 1.0 s it answers on ["sound"] and not on two senses |
 | G8 | 3 to 6 manipulations; 1 to 2 clue sources | stones clues | 3 clue sources (budget 1...2) |
+| G8 | 3 to 6 manipulations; 1 to 2 clue sources | archive-marks clues | 0 clue sources (budget 1...2) |
 | G8 | 3 to 6 manipulations; 1 to 2 clue sources | archive-gates-beam manipulations | 15 manipulations (budget 3...6) |
 | G9 | every puzzle has its own verb and channel | chime-pool+stones | 2 puzzles share the verb and channel strike/hear |
 | G9 | every puzzle has its own verb and channel | archive-gates+lens-ring | 2 puzzles share the verb and channel turn/aim |
 | G10 | the answer is not handed over as a sentence | stones page 3 | page 3 says the order in words |
-| G10 | the answer is not handed over as a sentence | archive-gates-tone page 13 | page 13 says the order in words |
+| G10 | the answer is not handed over as a sentence | archive-pipes page 13 | page 13 says the order in words |
 | G10 | the answer is not handed over as a sentence | archive-gates-beam page 13 | page 13 says the order in words |
 
 Rules with no break: G1, G2, G11

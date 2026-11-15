@@ -30,7 +30,7 @@ enum PuzzleGraphReport {
         o.append("| id | world | kind | verb / channel | answer | man. | needs | sets | clues (distance from machine) |")
         o.append("|---|---|---|---|---|---|---|---|---|")
         for n in g.puzzles {
-            o.append("| \(n.id)\(n.optional ? " (opt)" : "")\(n.group.map { " [\($0)]" } ?? "") | \(world(n.world)) | \(n.kind.rawValue) | \(n.verb) / \(n.channel.rawValue) | \(n.answer.isEmpty ? "-" : n.answer.joined(separator: ", ")) | \(n.manipulations == 0 ? "-" : String(n.manipulations)) | \(n.requires.isEmpty ? "-" : n.requires.joined(separator: ", ")) | \(n.sets ?? "-") | \(n.clues.isEmpty ? "none" : n.clues.map { clueText($0, in: n, g) }.joined(separator: "; ")) |")
+            o.append("| \(n.id)\(n.optional ? " (opt)" : "")\(n.group.map { " [\($0)]" } ?? "")\(n.route.map { " <\($0.rawValue)>" } ?? "")\(n.planned != nil ? " **(planned)**" : "") | \(world(n.world)) | \(n.kind.rawValue) | \(n.verb) / \(n.channel.rawValue) | \(n.answer.isEmpty ? "-" : n.answer.joined(separator: ", ")) | \(n.manipulations == 0 ? "-" : String(n.manipulations)) | \(n.requires.isEmpty ? "-" : n.requires.joined(separator: ", ")) | \(n.sets ?? "-") | \(n.clues.isEmpty ? "none" : n.clues.map { clueText($0, in: n, g) }.joined(separator: "; ")) |")
         }
 
         o.append("")
@@ -63,13 +63,16 @@ enum PuzzleGraphReport {
         }
 
         o.append("")
-        o.append("### What is open when the player chooses (a player who always takes the first open puzzle)")
+        o.append("### What is open when the player chooses (a player who always takes the first open puzzle; the Archive once per route: `<ilse>` / `<oren>` mark a puzzle that is one sibling's)")
         o.append("")
-        o.append("| step | solves | world | open at that moment | verdict |")
-        o.append("|---|---|---|---|---|")
-        let steps = PuzzleRules.timeline(g)
+        o.append("| route | step | solves | world | open at that moment | verdict |")
+        o.append("|---|---|---|---|---|---|")
+        let routes = Set(g.puzzles.compactMap(\.route)).sorted { $0.rawValue < $1.rawValue }
+        for r in routes.isEmpty ? [nil] : routes.map({ Optional($0) }) {
+        let steps = PuzzleRules.timeline(g, route: r)
         for (i, s) in steps.enumerated() {
-            o.append("| \(i + 1) | \(s.id) | \(world(s.world)) | \(s.open.joined(separator: ", ")) | \(s.firstInWorld ? "first of its world (exempt)" : (i == steps.count - 1 ? "the last puzzle (exempt)" : (s.open.count >= PuzzleRules.minOpen ? "ok" : "**only \(s.open.count)**"))) |")
+            o.append("| \(r?.rawValue ?? "all") | \(i + 1) | \(s.id) | \(world(s.world)) | \(s.open.joined(separator: ", ")) | \(s.firstInWorld ? "first of its world (exempt)" : (i == steps.count - 1 ? "the last puzzle (exempt)" : (s.open.count >= PuzzleRules.minOpen ? "ok" : "**only \(s.open.count)**"))) |")
+        }
         }
 
         o.append("")

@@ -73,6 +73,10 @@ struct PuzzleNode {
     var optional = false
     /// Alternative ways of one machine (Ilse's held tone, Oren's turned beam) share a group: they count once, and may share an answer.
     var group: String?
+    /// S05: the sibling whose route this puzzle belongs to (nil: both walk it, or it is not in the Archive). A player is on one route, so "open at once" (G6) is judged per route.
+    var route: PageAuthor?
+    /// S05.0: set when the puzzle is in the graph as DESIGN and is not built yet (what is missing and whose it is). It is scored like the rest (the design is what is being checked) and flagged in the report.
+    var planned: String?
     var verb: String
     var channel: PuzzleChannel
     /// The answer as glyph tokens ("tide", "wind", "stone", "angle:-45"...), in the order it is given. Empty for a story beat.
@@ -253,7 +257,8 @@ enum PuzzleRules {
 
     /// Play the graph as a player who always takes the first open puzzle: transits and story beats happen as soon as their flags are there; before each choice, how many (non-optional) puzzles
     /// are open. A puzzle that is open together with its alternative way counts once.
-    static func timeline(_ g: PuzzleGraph) -> [OpenStep] {
+    static func timeline(_ g: PuzzleGraph, route: PageAuthor? = nil) -> [OpenStep] {
+        let g = route.map { r in PuzzleGraph(puzzles: g.puzzles.filter { $0.route == nil || $0.route == r }, pages: g.pages, external: g.external, keys: g.keys) } ?? g
         var flags = g.external, done: Set<String> = [], doneGroups: Set<String> = [], seenWorlds: Set<WorldKind> = []
         var out: [OpenStep] = []
         func ready(_ n: PuzzleNode) -> Bool { !done.contains(n.id) && n.requires.allSatisfy { flags.contains($0) } }
@@ -275,9 +280,16 @@ enum PuzzleRules {
 
     /// The first puzzle of each world and the last of the game are exempt: nothing can be open beside the very last one, and a player entering a world has not had its first ten minutes yet.
     static func openAtOnce(_ g: PuzzleGraph) -> [PuzzleBreak] {
-        let steps = timeline(g)
-        return steps.enumerated().filter { !$0.element.firstInWorld && $0.offset < steps.count - 1 && $0.element.open.count < minOpen }.map(\.element)
-            .map { PuzzleBreak(rule: "G6", subject: $0.id, detail: "when \($0.id) is chosen only \($0.open) is open: a chain, not a web") }
+        // S05: a player walks ONE route, so the Archive is judged once for Ilse and once for Oren (a puzzle on the other's route is not open to them); a shared puzzle found twice is reported once.
+        let routes = Set(g.puzzles.compactMap(\.route)).sorted { "\($0)" < "\($1)" }
+        var seen = Set<String>(), out: [PuzzleBreak] = []
+        for r in routes.isEmpty ? [nil] : routes.map({ Optional($0) }) {
+            let steps = timeline(g, route: r)
+            for s in steps.enumerated().filter({ !$0.element.firstInWorld && $0.offset < steps.count - 1 && $0.element.open.count < minOpen }).map(\.element) where seen.insert(s.id).inserted {
+                out.append(PuzzleBreak(rule: "G6", subject: s.id, detail: "when \(s.id) is chosen only \(s.open) is open\(r.map { " on \($0)'s route" } ?? ""): a chain, not a web"))
+            }
+        }
+        return out
     }
 
     // MARK: G7: feedback
@@ -379,15 +391,17 @@ extension PuzzleGraph {
         let keys: [PuzzleKey] = [
             PuzzleKey(id: "stones-tones", title: "the stones' tones", channel: .hear, learnedAt: "stones", learnedWorld: .varrow, learnedPosition: centre("stone_tide", .varrow), usedAt: ["chime-pool"],
                       value: "tide D4, wind A4, stone D5: the three of the pool's five chimes that are not decoys"),
-            PuzzleKey(id: "three-heights", title: "the three heights", channel: .see, learnedAt: "chime-pool", learnedWorld: .glassWood, learnedPosition: centre("gw_chime_0", .glassWood), usedAt: ["archive-gates-tone", "archive-gates-beam"], planted: true,
+            PuzzleKey(id: "three-heights", title: "the three heights", channel: .see, learnedAt: "chime-pool", learnedWorld: .glassWood, learnedPosition: centre("gw_chime_0", .glassWood), usedAt: ["archive-pipes", "archive-gates-beam"], planted: true,
                       status: .planned("the gates' water marks (builder A, Q76): until they exist nothing at the gates uses it, so the gates do not list it as a clue"),
                       value: "the non-decoy chimes hang in the order of the sluice rooms' floors (tide highest): an ORDER today, not a scale, and the gates carry no mark for it yet (Q76)"),
             PuzzleKey(id: "lantern-count", title: "the lit-lantern count", channel: .count, learnedAt: "dock-lanterns", learnedWorld: .varrow, learnedPosition: dockLantern, usedAt: ["archive-gates-beam"], planted: true,
                       value: "\(PlantedClues.litCount) of the first \(PlantedClues.lanternSpan) dock lanterns are lit = \(PlantedClues.firstRingMarkSteps) steps to the prism ring's first mark (Oren's way; Ilse's fork has no counterpart yet, Q75)"),
             PuzzleKey(id: "stones-order", title: "the stones' altitude order", channel: .see, learnedAt: "the island-profile diagram on page \(PageArt.islandProfilePage)", learnedWorld: .varrow, learnedPosition: pages.first { $0.id == PageArt.islandProfilePage }?.position, usedAt: ["stones", "door-plates"], planted: true,
                       value: "a drawn profile of the climb with a mark at each stone's real height (\(PageArt.stonesByAltitude.map(\.name).joined(separator: " < "))); a mark shows its rubbing once the stone has been looked at closely (Q51); the plates use it to name a flash's length (short = low = tide)"),
-            PuzzleKey(id: "beam-rhythm", title: "the beam rhythm", channel: .watch, learnedAt: "the lighthouse beam at dusk, from the dock", learnedWorld: .varrow, learnedPosition: Layout.dockEnd, usedAt: ["door-plates"], planted: true,
+            PuzzleKey(id: "beam-rhythm", title: "the beam rhythm", channel: .watch, learnedAt: "the lighthouse beam at dusk, from the dock", learnedWorld: .varrow, learnedPosition: Layout.dockEnd, usedAt: ["door-plates", "archive-orrery"], planted: true,
                       value: "three groups of flashes of \(Layout.Navigation.SignalPattern.groupSeconds.map { String(format: "%.1f", $0) }.joined(separator: ", ")) s, read by RANK (short = tide, middle = wind, long = stone): the plates are struck in the order flashed, \(TonePlatePuzzle.order.map { stoneTokens[$0] }.joined(separator: ", "))"),
+            PuzzleKey(id: "catalogue-diagram", title: "the catalogue diagram", channel: .see, learnedAt: "the catalogue diagram on page \(PageArt.cataloguePage) (Ilse's voice)", learnedWorld: .tideArchive, learnedPosition: pages.first { $0.id == PageArt.cataloguePage }?.position, usedAt: ["archive-catalogue"], planted: true,
+                      value: "three glyphs joined by arrows: the shelf bays to ring, in order (\(IlseRoute.sequence.map { "bay \($0)" }.joined(separator: ", "))); drawn by the overlay, no words"),
             PuzzleKey(id: "map-shape", title: "the map's empty last ring", channel: .see, learnedAt: "the chain map (Archive)", learnedWorld: .tideArchive, learnedPosition: nil, usedAt: [],
                       status: .planned("the Salt Flats' first lamp (not built)"), value: "the shape of the last ring"),
         ]
@@ -429,17 +443,36 @@ extension PuzzleGraph {
             feedback: [sight(.progress, 0.0, "a beam preview runs from the ring's pointer, and the receiver takes a light while the gate is ready"), sound(.binary, 0.0, "a stone-on-brass grind with a detent click")]))
         nodes.append(PuzzleNode(id: "enter-archive", title: "take an exit from the lens room (Ilse touches the lens; Oren walks into the opened doorway)", world: .varrow, kind: .transit, verb: "touch", channel: .touch,
                                 requires: [Game.doorOpenFlag], sets: "route_begun", machine: centres([Game.lampLensName], .varrow), machineIDs: [Game.lampLensName]))
+        // S05.0/S05.3: the Archive as two routes (docs/plans/S05-divergent-routes.md section 3): A0 shared, then Ilse's I1 and I2, Oren's O1 and O2 (the two end in the same gates, so they share a group and an answer), F shared.
+        let marksQuay: [SIMD3<Float>] = [ArchiveLayout.lampEnd, ArchiveLayout.openEnd]
         nodes.append(PuzzleNode(
-            id: "archive-gates-tone", title: "the three sluice gates by the held tone (Archive, Ilse's way)", world: .tideArchive, group: "archive-gates", verb: "touch+hold", channel: .hear, answer: gatesAnswer,
-            manipulations: TideArchivePuzzle.sluiceFlags.count, requires: ["route_begun"], sets: Game.routeSolvedFlag,
-            machine: centres(TideArchivePuzzle.sluiceNames, .tideArchive), machineIDs: TideArchivePuzzle.sluiceNames,
+            id: "archive-marks", title: "A0: the tide marks (Archive, both routes)", world: .tideArchive, verb: "count", channel: .count, answer: IlseRoute.markLevels.map { String(format: "level:%.2f", $0) }, manipulations: IlseRoute.markFlags.count,
+            requires: ["route_begun"], sets: IlseRoute.marksFlag, machine: marksQuay,
+            feedback: [sound(.progress, 0.0, "each mark chimes in a stone's tone as the water passes it, highest level first (counted from the quay)"),
+                       sight(.binary, 0.0, "nothing marks the levels on the quay yet (builder A's prop, Q80): the water itself is the only sign")]))
+        nodes.append(PuzzleNode(
+            id: "archive-catalogue", title: "I1: the catalogue (Archive, Ilse's way)", world: .tideArchive, route: .ilse, verb: "ring", channel: .see, answer: IlseRoute.sequence.map { "bay\($0)" }, manipulations: IlseRoute.sequence.count,
+            requires: [IlseRoute.marksFlag], sets: IlseRoute.keyFlag, machine: centres(IlseRoute.bayNames, .tideArchive),
+            machineIDs: IlseRoute.bayNames, clues: [keyClue("catalogue-diagram")],
+            feedback: [sight(.progress, 0.0, "a right bay's glyph glows warm and stays; a wrong one turns sour green and the glyphs go dark"), sound(.progress, 0.0, "a right bell rings clean; a wrong one is cracked and short")]))
+        nodes.append(PuzzleNode(
+            id: "archive-pipes", title: "I2: the bell pipes (Archive, Ilse's way)", world: .tideArchive, group: "archive-gates", route: .ilse, verb: "hold fork", channel: .hear, answer: gatesAnswer,
+            manipulations: TideArchivePuzzle.sluiceFlags.count, requires: [IlseRoute.keyFlag], sets: Game.routeSolvedFlag, machine: centres(IlseRoute.pipeNames, .tideArchive), machineIDs: IlseRoute.pipeNames,
             clues: [memory("stones", .varrow, "the stones' order"), pageClue(13)],
-            feedback: [sight(.progress, 0.0, "the gate lifts and its wheel turns; the water over the room's floor shows whether it can answer"), sound(.progress, 0.0, "the held tone, souring if wrong")]))
+            feedback: [sound(.progress, 0.0, "the pipe's tone beats against the fork's and the beats slow as the water nears the gate's level"), sight(.progress, 0.0, "the pipe's water column shows the sea and its crown glows as the fork agrees")]))
         nodes.append(PuzzleNode(
-            id: "archive-gates-beam", title: "the three sluice gates by the prism ring (Archive, Oren's way)", world: .tideArchive, group: "archive-gates", verb: "turn", channel: .aim, answer: gatesAnswer,
-            manipulations: beamSteps, requires: ["route_begun"], sets: Game.routeSolvedFlag, machine: centres([TideArchivePuzzle.ringName], .tideArchive), machineIDs: [TideArchivePuzzle.ringName],
+            id: "archive-orrery", title: "O1: the orrery (Archive, Oren's way)", world: .tideArchive, route: .oren, planned: "Oren's site: the dome's orrery (builder A's S05.2 API); the logic is stubbed until it lands", verb: "stop arm", channel: .watch,
+            answer: ["arm:0", "arm:1", "arm:2"], manipulations: 3, requires: [IlseRoute.marksFlag], sets: "ti_windows", machine: [ArchiveLayout.dome],
+            clues: [keyClue("beam-rhythm")],
+            feedback: [sight(.progress, 0.0, "an arm stopped at the right moment lights its window in the dome"), sound(.live, 0.0, "the collar's detent clicks")]))
+        nodes.append(PuzzleNode(
+            id: "archive-gates-beam", title: "O2: the prism ring (Archive, Oren's way)", world: .tideArchive, group: "archive-gates", route: .oren, verb: "turn", channel: .aim, answer: gatesAnswer,
+            manipulations: beamSteps, requires: ["ti_windows"], sets: Game.routeSolvedFlag, machine: centres([TideArchivePuzzle.ringName], .tideArchive), machineIDs: [TideArchivePuzzle.ringName],
             clues: [pageClue(13), keyClue("lantern-count")],
             feedback: [sight(.progress, 0.0, "the component brightens on its mark and the matching room's lamp lights"), sound(.progress, 0.0, "the held drone")]))
+        nodes.append(PuzzleNode(
+            id: "gallery-chain", title: "F: the gallery and the chain map (Archive, both routes)", world: .tideArchive, kind: .story, verb: "read", channel: .see, manipulations: 1,
+            requires: [Game.routeSolvedFlag], machine: centres([ChainMap.interactableName], .tideArchive), machineIDs: [ChainMap.interactableName]))
         nodes.append(PuzzleNode(
             id: "contradiction", title: "the Notebook's two accounts (optional)", world: .varrow, kind: .story, optional: true, verb: "set", channel: .see,
             manipulations: Contradictions.groupSize, requires: ["returned"], sets: "contradiction",
