@@ -449,7 +449,7 @@ extension PuzzleGraph {
             id: "archive-marks", title: "A0: the tide marks (Archive, both routes)", world: .tideArchive, verb: "count", channel: .count, answer: IlseRoute.markLevels.map { String(format: "level:%.2f", $0) }, manipulations: IlseRoute.markFlags.count,
             requires: ["route_begun"], sets: IlseRoute.marksFlag, machine: marksQuay,
             feedback: [sound(.progress, 0.0, "each mark chimes in a stone's tone as the water passes it, highest level first (counted from the quay)"),
-                       sight(.binary, 0.0, "nothing marks the levels on the quay yet (builder A's prop, Q80): the water itself is the only sign")]))
+                       sight(.progress, 0.0, "a brass bar on the gauge in the shallows glows as the water crosses it (A, Q97) and a counted mark stays lit (B6)")]))
         nodes.append(PuzzleNode(
             id: "archive-catalogue", title: "I1: the catalogue (Archive, Ilse's way)", world: .tideArchive, route: .ilse, verb: "ring", channel: .see, answer: IlseRoute.sequence.map { "bay\($0)" }, manipulations: IlseRoute.sequence.count,
             requires: [IlseRoute.marksFlag], sets: IlseRoute.keyFlag, machine: centres(IlseRoute.bayNames, .tideArchive),

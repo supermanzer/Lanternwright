@@ -531,10 +531,10 @@ About 50 minutes is walking the island before leaving each place (the bot visits
 *Default taken:* none; informational for the user's first play ("how long did it take you?").
 *Status:* open.
 
-### Q109 (2026-11-15, builder B, B6): the 19 pinned breaks, triaged (18 left): who owns each
-The graph's pinned breaks (P02-graph-report.md, `SelfTestRunner.pinnedPuzzleBreaks`). **Fixed (B6):** G7 `door-plates senses` (each right strike held glows the plates a step brighter). **Not mine, not cheap:**
+### Q109 (2026-11-15, builder B, B6): the 19 pinned breaks, triaged (17 left): who owns each
+The graph's pinned breaks (P02-graph-report.md, `SelfTestRunner.pinnedPuzzleBreaks`). **Fixed (B6), two:** G7 `door-plates senses` (each right strike held glows the plates a step brighter: `Game.plateHeldStep`; frames `shots/b6/plates-*.png`: the glyphs wash from black to grey) and G7 `archive-marks senses` (A's gauge, Q97, now has B's half: a counted mark is held lit with `TideMarks.set`, on both routes and after a load; the graph's feedback line says so). **Not mine, not cheap:**
 - *the user (page text):* G3 page 6 (no puzzle lists it); G10 stones page 3, archive-pipes page 13, archive-gates-beam page 13 (pages that state the order); G4 stones pages 2 and 3 (the pages lie 3 m from the stones: D3, a placement choice that is the user's with the wording).
-- *builder A:* G7 `lens-ring senses` (a sound that says how close; `Audio/**`), G7 `archive-marks senses` (the brass marks on the quay: Q80), G8 `archive-gates-beam manipulations` and G9 `archive-gates+lens-ring` (the ring's step and the two rings sharing a verb: Q70).
+- *builder A:* G7 `lens-ring senses` (a sound that says how close; `Audio/**`), G8 `archive-gates-beam manipulations` and G9 `archive-gates+lens-ring` (the ring's step and the two rings sharing a verb: Q70).
 - *the reviewer (rule definitions, see Q110):* G5 (three puzzles share an answer: the Archive's gates answer by S05 and the stones and chime pool by design: Q49, Q50), G6 for four puzzles, G8 `stones clues` (three clue sources, two of them the pages beside the stones), G8 `archive-marks clues` (zero: the marks have no clue source; the design says the dark-lantern count gives the first mark, which is not built, and the graph does not declare a clue that does not exist), G9 `chime-pool+stones` (both strike/hear: the chime pool is the stones' tones carried).
 *Default taken:* none changed beyond G7.
 *Status:* open.

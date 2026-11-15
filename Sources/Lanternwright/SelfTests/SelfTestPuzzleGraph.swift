@@ -13,7 +13,7 @@ extension SelfTestRunner {
         "G4 stones page 2", "G4 stones page 3",
         "G5 archive-gates+chime-pool+stones",
         "G6 chime-pool", "G6 door-plates", "G6 archive-catalogue", "G6 archive-orrery",
-        "G7 lens-ring senses", "G7 archive-marks senses",
+        "G7 lens-ring senses",
         "G8 archive-gates-beam manipulations", "G8 stones clues", "G8 archive-marks clues",
         "G9 archive-gates+lens-ring", "G9 chime-pool+stones",
         "G10 archive-gates-beam page 13", "G10 archive-pipes page 13", "G10 stones page 3",

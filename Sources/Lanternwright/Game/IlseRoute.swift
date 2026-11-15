@@ -159,6 +159,8 @@ final class IlseRoute: WorldPuzzle {
             }
         }
         lastLevel = now
+        // B6 (G7, Q97): a counted mark stays lit on the quay's gauge, on both routes (`TideMarks.set` holds the bar; set again after a load or a new scene).
+        for k in 0..<3 where state.has(Self.markFlags[k]) && sc.archive.markHeld[0][k] < 1 { TideMarks.set(sc, k, lit: 1) }
         guard isActive else { release(); return }
         // I2: the pipes show the sea; the held one shows how well the fork agrees; the gate answers at the crossing.
         var agrees = [Float](repeating: 0, count: 3)

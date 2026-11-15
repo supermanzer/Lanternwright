@@ -85,7 +85,7 @@ Kinds: puzzle (counted), story (a beat with no datum), transit (moving between w
 | lens-ring | sight | progress | 0.00 s | a beam preview runs from the ring's pointer, and the receiver takes a light while the gate is ready |
 | lens-ring | sound | binary | 0.00 s | a stone-on-brass grind with a detent click |
 | archive-marks | sound | progress | 0.00 s | each mark chimes in a stone's tone as the water passes it, highest level first (counted from the quay) |
-| archive-marks | sight | binary | 0.00 s | nothing marks the levels on the quay yet (builder A's prop, Q80): the water itself is the only sign |
+| archive-marks | sight | progress | 0.00 s | a brass bar on the gauge in the shallows glows as the water crosses it (A, Q97) and a counted mark stays lit (B6) |
 | archive-catalogue | sight | progress | 0.00 s | a right bay's glyph glows warm and stays; a wrong one turns sour green and the glyphs go dark |
 | archive-catalogue | sound | progress | 0.00 s | a right bell rings clean; a wrong one is cracked and short |
 | archive-pipes | sound | progress | 0.00 s | the pipe's tone beats against the fork's and the beats slow as the water nears the gate's level |
@@ -136,7 +136,7 @@ Kinds: puzzle (counted), story (a beat with no datum), transit (moving between w
 | oren | 6 | archive-orrery | tideArchive | archive-orrery | **only 1** |
 | oren | 7 | archive-gates-beam | tideArchive | archive-gates | the last puzzle (exempt) |
 
-### Rule breaks (18)
+### Rule breaks (17)
 
 | rule | what it asks | subject | found |
 |---|---|---|---|
@@ -149,7 +149,6 @@ Kinds: puzzle (counted), story (a beat with no datum), transit (moving between w
 | G6 | at least two puzzles are open when a player chooses (after the first of a world) | archive-catalogue | when archive-catalogue is chosen only ["archive-catalogue"] is open on ilse's route: a chain, not a web |
 | G6 | at least two puzzles are open when a player chooses (after the first of a world) | archive-orrery | when archive-orrery is chosen only ["archive-orrery"] is open on oren's route: a chain, not a web |
 | G7 | every machine answers with progress, on two senses, within 1 s | lens-ring senses | within 1.0 s it answers on ["sight"] and not on two senses |
-| G7 | every machine answers with progress, on two senses, within 1 s | archive-marks senses | within 1.0 s it answers on ["sound"] and not on two senses |
 | G8 | 3 to 6 manipulations; 1 to 2 clue sources | stones clues | 3 clue sources (budget 1...2) |
 | G8 | 3 to 6 manipulations; 1 to 2 clue sources | archive-marks clues | 0 clue sources (budget 1...2) |
 | G8 | 3 to 6 manipulations; 1 to 2 clue sources | archive-gates-beam manipulations | 15 manipulations (budget 3...6) |

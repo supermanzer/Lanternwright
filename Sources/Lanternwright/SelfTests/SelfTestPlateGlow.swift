@@ -28,5 +28,17 @@ extension SelfTestRunner {
         // Once the door is open the plates only ring: no held glow.
         g.state.set(Game.doorOpenFlag); run(0.4)
         check(glow() <= 0.001, "plateglow: with the door open the plates are dark again (\(glow()))")
+        // B6 (G7, Q97): a counted tide mark stays lit on the quay's gauge (A's `TideMarks.set`), on both routes, and again after a load.
+        for route in [PageAuthor.ilse, .oren] {
+            let a = Game(scenes: [.varrow: Scene.makeWorld(device: device), .glassWood: GlassWood.build(device: device), .tideArchive: TideArchive.build(device: device)])
+            for n in [1, 2, 3, 5, 6, 7] { a.restorePage(n) }
+            a.state.set("gw_end"); a.state.set(Game.doorOpenFlag); a.simulate(seconds: 0.1)
+            guard a.beginRoute(route) else { check(false, "plateglow: \(route) could not begin"); continue }
+            a.simulate(seconds: Game.fadeOutSeconds + Game.holdSeconds + Game.fadeInSeconds + 0.8)
+            let held = { (k: Int) in a.scenes[.tideArchive]!.archive.markHeld[route == .ilse ? 0 : 1][k] }
+            check((0..<3).allSatisfy { held($0) == 0 }, "plateglow: \(route): no mark is held lit before one is counted")
+            a.state.set(IlseRoute.markFlags[1]); a.simulate(seconds: 0.2)
+            check(held(1) == 1 && held(0) == 0 && held(2) == 0, "plateglow: \(route): the counted mark (and only it) is held lit on the gauge (\((0..<3).map(held)))")
+        }
     }
 }

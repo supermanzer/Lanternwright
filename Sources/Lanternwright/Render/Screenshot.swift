@@ -67,6 +67,9 @@ enum Screenshot {
             for sc in scenesForState.values { for k in 0..<Orrery.armCount { Orrery.hold(sc, k, at: Orrery.alignmentClock(k)); DomeWindows.set(sc, k, lit: 1) } }
         case "marks":                       // A6: every tide mark held lit (the pulse is driven by the clock: use --clock to see the water cross a bar)
             for sc in scenesForState.values { for k in 0..<TideMarks.count { TideMarks.set(sc, k, lit: 1) } }
+        case "platesheld", "platesheld1":          // B6 (G7): the door plates after two (or one) right strikes held: the whole set glows a step brighter for each
+            for k in TonePlatePuzzle.order.prefix(name == "platesheld1" ? 1 : 2) { g.tonePlates.strike(k) }
+            g.advance(now: 5000, input: InputState()); g.advance(now: 5000.05, input: InputState())          // one tick: the glow is applied by the game's own sync
         case "tide": g.puzzle.strike(.tide)
         case "tidewind": g.puzzle.strike(.tide); g.simulate(seconds: 0.7); g.puzzle.strike(.wind)
         case "fork", "forkoren":            // F08.1: the lens room at the fork (the altar solved, the gate ready, the door open); forkoren: the ring turned onto the receiver and the doorway of light open

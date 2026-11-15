@@ -4,6 +4,48 @@ Everything here was verified by self-tests or by looking at rendered frames, but
 
 How to play: `scripts/bundle.sh && open Lanternwright.app`. Headless views: `.build/release/Lanternwright --screenshot shots/x.png --view dock` (see README for flags).
 
+## Route by route (B6, 2026-11-15): what to look at and listen for, in the order a player meets it
+
+Written from the no-knowledge bot's run (`docs/plans/P02-acceptance-report.md`), so the order is the one a player who tries everything meets. **Nothing in this list has been seen or heard by a person**: where it says "listen", it was only measured as numbers. Status of every row: **needs-inspection**. The older sections below are history; where one disagrees with a row here, this list is newer.
+
+### Both routes (Varrow, the Glass Wood, the return, the lighthouse)
+
+| # | Where | Look for | Listen for |
+|---|---|---|---|
+| 1 | The dock (spawn) | Page 9 at the seaward end, page 1 (the island profile) on the dock. The lanterns lit and dark along the dock (two of the first eight are dark: a planted count) | The sea; footsteps on planks |
+| 2 | The unfinished quay | The quay lamp ("The quay is not raised"). Nothing else tells you what to do: the stones wake once you have stood here | Stones struck before the quay ring and answer nothing else |
+| 3 | The three stones (up the hill) | A right stone lights and stays; a wrong one dims all three. The pages by the first two stones | A held drone for each right stone; a sour drone on a wrong one; the full chord when all three are right |
+| 4 | After the stones | The causeway rises; a guide light leads you down and across to the lens on the islet and waits there | The lens's chime on touching it |
+| 5 | The Glass Wood: mirror court | The beam is retraced on every turn; each of the three receiving crystals lights in its colour the moment the beam reaches it and goes dark when it is lost; a wrong colour flutters dully | A glass tick on each turn; a lit crystal rings its stone's tone |
+| 6 | The chime pool | A right chime lights and stays; a wrong one sours and resets (five chimes, three are the stones' tones) | The chimes' tones, the sour note |
+| 7 | The altar, then the return ring | Both lights; the pages that appear | The altar's tones |
+| 8 | Varrow again, the lighthouse door | The three plates glint quietly (they were dark before); each has a copper bar in the beam's proportions. **Each right strike held makes the whole set glow a step brighter (B6: the glyphs wash from black to grey); a wrong one drops it back.** The beam at dusk flashes three groups (short, middle, long) | A held tone for each right plate; a sour note on a wrong one; the lamp's answer and the door opening after the third |
+| 9 | The stair and the lens room | The two exits lit: warm beads round the lens (Ilse), a cool rim round the receiver (Oren). Words on each: "Ilse's way: touch the lens", "Oren's way: turn the ring", "Oren's way: step into the light" | The ring's grind and detent; the portal's hum once open |
+
+### Ilse's route (the lens): the lamp quay, the stacks, the bell pipes
+
+| # | Where | Look for | Listen for |
+|---|---|---|---|
+| 10 | The lamp quay (arrival, facing the sea) | A tide gauge in the shallows with three brass bars; a bar glows as the water crosses it **and a counted mark stays lit (B6)**; the guide light waits by the quay | Three chimes, one per mark, highest water first (you must be within 40 m of the quay) |
+| 11 | The shelf bays (the stacks) | A bell on each of five bays; before the marks are counted a bell only rings and the guide light flares for 3 s; after, the right ones glow warm and stay, a wrong one turns sour green and the glyphs go dark. The catalogue diagram (page 10) | A clean bell for a right one; a cracked, short bell for a wrong one |
+| 12 | The ledger room | Its door sinks into the floor when the catalogue is done; the rod | The door's grind |
+| 13 | The three sluice rooms (bell pipes) | A pipe's water column shows the sea and its crown glows as the fork agrees; a pale answer line on the pier; a wade lamp on the rim says whether you can walk in; **the guide light breathes slowly instead of flickering while its way is under water** | The pipe's tone beating against the fork's; the beats slow to nothing as the water reaches the gate's level; the gate answers |
+| 14 | Oren's machines, seen from Ilse's side | The orrery in the dome and the prism chamber's glass, dark. **The collar clicks and does nothing on this route (Q103)** | A click |
+| 15 | After the third gate | The gallery drains; page 15 on the gallery floor; the tableau | The drain; the lantern lighting |
+
+### Oren's route (the ring and the doorway): the open quay, the orrery, the prism
+
+| # | Where | Look for | Listen for |
+|---|---|---|---|
+| 16 | The open quay (arrival, facing the sea) | The same tide gauge and bars (his own gauge); the three marks counted by standing within 40 m | The three mark chimes |
+| 17 | The dome's orrery | Three arms moving over one tide; an arm's bead brightens for about 3 s as it lines up with its window; **the collar has six notches: turn it onto the arm's notch while that arm's bead is bright (notches 1, 2, 3 = tide, wind, stone by the beam's rhythm)**; the caught arm stands at its window and the window fades up in its gate's colour over 1.4 s. A collar turned before the marks are counted flares the guide light | The collar's click at each notch; a brass tick as each arm passes its window (Q92); the gate's tone when an arm is caught |
+| 18 | The prism chamber | **The ghost components (dim) for dark windows; a component is solid only when its window is lit**; turn the ring with the arrow keys under the crosshair until the component rests on a gate's mark, hold it two seconds; the lamp in that sluice room lights | The held drone |
+| 19 | Ilse's machines, seen from Oren's side | The stacks' bells and pipes, dark; **they take a press and answer nothing (Q103)** | Nothing |
+| 20 | After the third gate | As Ilse's (row 15) | As Ilse's |
+
+### What the bot could not tell you (so only a person can)
+Whether the puzzles feel fair with the pages and diagrams (the bot read none); whether a wrong press feels free or tiresome (Q100); whether the mirror court's plateau is frustrating (Q102); whether the orrery's six notches read as luck (Q104); how long the tide waits feel (the bot needed 100 to 140 minutes of play: Q108); and every sound.
+
 ## M2-M4 (earlier work)
 
 | Status | Task | What changed | How to see / hear it | What to look for |
