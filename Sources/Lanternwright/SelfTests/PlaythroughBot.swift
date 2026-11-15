@@ -87,6 +87,18 @@ final class PlaythroughBot {
         return true
     }
 
+    /// B6: the arrow keys as a player turns a ring: the crosshair on the interactable, then `steps` presses of left (negative) or right (positive), a frame apart, through the real `Game.advance` input
+    /// (`pageFlip`, which turns the ring under the crosshair). False when the ring is not under the crosshair (too far, or not there).
+    @discardableResult
+    func pressArrows(on id: String, steps: Int) -> Bool {
+        guard let it = interactable(id), it.enabled else { return false }
+        aim(at: (it.min + it.max) * 0.5)
+        tick()
+        guard game.hovered?.id == id else { return false }
+        for _ in 0..<abs(steps) { var input = InputState(); input.pageFlip = steps > 0 ? 1 : -1; tick(input); tick() }
+        return true
+    }
+
     /// Close the journal (J) after reading a page.
     func closeJournal() {
         guard game.journal.isOpen else { return }

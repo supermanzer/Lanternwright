@@ -41,6 +41,19 @@ extension SelfTestRunner {
         let peaks = (1..<max(l.count - 1, 1)).filter { l[$0] > l[$0 - 1] && l[$0] >= l[$0 + 1] }.count
         return (l.max() ?? 0, m, peaks)
     }
+    /// O2 by the real input path: walk to the prism ring, wait until the gate's water is at its level (a window open now and still open in 5 s), press the arrow keys until the ring rests on the mark, and let it
+    /// rest. Returns whether gate k opened.
+    func orenRing(_ k: Int, _ g: Game, _ bot: PlaythroughBot) -> Bool {
+        guard let t = g.tideArchive else { return false }
+        let c = TideSpots.prismRing
+        guard bot.walk(to: SIMD3(c.x, 0, c.z + 1.8), within: 1.0, timeout: 400) else { print("orenRing: could not walk to the ring: ended \(bot.feet)"); return false }
+        var guardTicks = 0
+        while !(Tide.inWindow(k, level: Tide.level(g.time)) && Tide.inWindow(k, level: Tide.level(g.time + 5))) && guardTicks < 800 { bot.wait(0.25); guardTicks += 1 }
+        let steps = Int(((TideArchivePuzzle.beamTargets[k] - t.ringAngle) / TideArchivePuzzle.ringStep).rounded())
+        guard bot.pressArrows(on: TideArchivePuzzle.ringName, steps: steps) else { print("orenRing: the ring is not under the crosshair at \(bot.feet)"); return false }
+        bot.wait(TideArchivePuzzle.Timing.beamHold + 0.4)
+        return t.opened > k
+    }
     func runOrenRoute() {
         guard name == "all" || name == "orenroute" else { return }
         typealias R = OrenRoute
@@ -119,6 +132,14 @@ extension SelfTestRunner {
         let a3 = g3.scenes[.tideArchive]!.archive
         check(r3.lit(0) && r3.lit(1) && !r3.lit(2) && r3.notch == route.notch, "orenroute: a save with two windows lit loads with them lit and the collar where it was (notch \(r3.notch))")
         check(a3.armStops[0] != nil && a3.armStops[1] != nil && a3.armStops[2] == nil && a3.prismLit == [true, true, false] && a3.collarDetent == r3.notch && windowGlow(g3, 0) > 1 && windowGlow(g3, 1) > 1 && windowGlow(g3, 2) < 0.1, "orenroute: and the held arms, the windows and the prism's components are put back on the new scene")
+        // O2 with the third window still dark: the ring turned by the arrow keys onto the stone's mark rests on nothing.
+        let ringAt = TideSpots.prismRing
+        var darkRest = false
+        if bot3.walk(to: SIMD3(ringAt.x, 0, ringAt.z + 1.8), within: 1.0, timeout: 400), let t3 = g3.tideArchive {
+            let steps = Int(((TideArchivePuzzle.beamTargets[2] - t3.ringAngle) / TideArchivePuzzle.ringStep).rounded())
+            darkRest = bot3.pressArrows(on: TideArchivePuzzle.ringName, steps: steps) && abs(Orrery.wrap(t3.ringAngle - TideArchivePuzzle.beamTargets[2])) < 0.01 && t3.aimedSluice == nil
+        }
+        check(darkRest, "orenroute: O2: the ring turned by the arrow keys onto the stone's mark with its window dark rests on nothing")
         // The third, from the loaded game.
         var prismAt: [[Bool]] = []
         let finished = orenPrerequisites(g3, bot3, upTo: 3, afterCatch: { k in if k == 2 { bot3.wait(0.2); prismAt.append(g3.scenes[.tideArchive]!.archive.prismLit); bot3.wait(OrenRoute.windowSeconds + 0.1); prismAt.append(g3.scenes[.tideArchive]!.archive.prismLit) } })
@@ -126,14 +147,12 @@ extension SelfTestRunner {
         check(g3.scenes[.tideArchive]!.archive.collarDetent == r3.notch, "orenroute: the loaded game's collar is turned on the scene, not only in the state")
         check(finished && r3.windowsDone && g3.state.has(R.windowsFlag) && g3.scenes[.tideArchive]!.archive.prismLit == [true, true, true], "orenroute: from the loaded game the third arm is caught: three windows lit, the prism whole (\(r3.litCount))")
 
-        // O2: the ring rests on a component only while its window is lit (a rule test on a game with the flags set).
-        if let (g2, _) = arrive(), let t2 = g2.tideArchive {
-            let steps = { (k: Int) in Int(((TideArchivePuzzle.beamTargets[k] - t2.ringAngle) / TideArchivePuzzle.ringStep).rounded()) }
-            t2.turn(steps(2))
-            check(t2.aimedSluice == nil, "orenroute: O2: the ring turned onto the stone's mark with its window dark rests on nothing")
-            g2.state.set(R.windowFlags[2]); g2.simulate(seconds: 0.2)
-            check(t2.aimedSluice == 2, "orenroute: O2: once that window is lit the same ring angle is the stone's mark")
-        }
+        // O2 by the real input path: the same ring angle is now the stone's mark, and the three gates answer one after the other, each at its tide, from arrow-key turns under the crosshair.
+        check(g3.tideArchive?.aimedSluice == 2, "orenroute: O2: once that window is lit the same ring angle is the stone's mark")
+        var answered = true
+        for k in 0..<3 { answered = answered && orenRing(k, g3, bot3) }
+        bot3.wait(TideArchivePuzzle.Timing.drainDelay + 1)
+        check(answered && g3.tideArchive?.opened == 3 && g3.routeSolved, "orenroute: O2: the ring turned by the arrow keys opens the three gates in turn and the gallery drains")
         // Ilse's route does not see the windows: all components, as before S05.
         if let ilse = Optional(world3()) {
             if let sc = ilse.scenes[.tideArchive] { DomeWindows.set(sc, 1, lit: 1); Orrery.hold(sc, 1, at: 10) }          // set from outside BEFORE the game's first tick (as `--state` does: a check made after that tick is blind to a reset on it)

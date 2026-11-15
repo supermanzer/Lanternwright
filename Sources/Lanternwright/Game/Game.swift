@@ -316,8 +316,9 @@ final class Game {
     /// F08.1 (Q35): the prompt as shown. At the fork (the gate ready, no route chosen: `exitLightsOn`) each exit names the sibling whose way it is; before that and after, the plain words, so no text
     /// appears once the choice is made and nothing is named on a lens that does not yet begin a route.
     static let portalStepName = "lh_portal_step"
-    var hoverPrompt: String? {
-        guard let h = hovered else { return nil }
+    var hoverPrompt: String? { hovered.flatMap { displayPrompt(for: $0) } }
+    /// The words the crosshair shows on `h` (B6: also what a player reads of a thing in sight).
+    func displayPrompt(for h: Interactable) -> String? {
         if h.id == TideArchivePuzzle.ringName, tideArchive?.hasLens != true { return "The ring is empty" }        // F09.1 (#96): the prism's ring is in plain view; say why it does not turn yet
         guard exitLightsOn else { return h.id == Game.portalStepName ? nil : h.prompt }
         switch h.id {
@@ -651,13 +652,16 @@ final class Game {
     }
     /// The plates beside the door glint, faintly and slowly, while they would be answered: the altar solved, the player back on Varrow, the gate ready and the door shut.
     static let plateGlintPeak: Float = 0.05
+    /// B6: how much brighter the plates glow for each right strike held (three right strikes: 0.05 + 0.24).
+    static let plateHeldStep: Float = 0.08
     var plateGlint: Float {
         guard hasReturned, gate.ready, !state.has(Game.doorOpenFlag), !platesSealed else { return 0 }
         return Game.plateGlintPeak * (0.55 + 0.45 * sin(time * 1.3))
     }
     private func syncPlateGlint() {
         guard let sc = scenes[.varrow] else { return }
-        let w = plateGlint
+        // B6 (G7): the plates are one mesh, so each right strike raises the whole set's glow a step (the held part of the answer, seen) and a wrong strike drops it back: sight says how much is right, as the drone does for the ear.
+        let w = plateGlint + (state.has(Game.doorOpenFlag) || platesSealed ? 0 : Float(tonePlates.sequence.count) * Game.plateHeldStep)
         sc.update("tone_plates") { $0.uniforms.emissive = SIMD4<Float>(1.0, 0.82, 0.5, w) }
     }
 

@@ -41,19 +41,9 @@ extension SelfTestRunner {
             check(route == .ilse ? puzzle.hasFork : puzzle.hasLens, "\(label): and holding the route's own tool")
             // Ilse's gates by the held tone, each when the water is at its level; Oren's by the ring in the prism chamber, each at its window. Walk the real world to each place.
             var game = g, gbot = bot, gp = puzzle
-            /// A player waits for the water to be at the gate's level with time to hold the tone (a window that is about to close is no use): the window open now and still open in 5 s.
-            func untilReady(_ k: Int) {
-                var guardTicks = 0
-                while !(Tide.inWindow(k, level: Tide.level(game.time)) && Tide.inWindow(k, level: Tide.level(game.time + 5))) && guardTicks < 4 * 200 { gbot.wait(0.25); guardTicks += 1 }
-            }
             func answer(_ k: Int) -> Bool {
                 if route == .ilse { return ilsePipe(k, game, gbot) }                              // S05.3: Ilse's gates answer to the bell pipes: walked to, no teleport
-                do {
-                    guard stand(gbot, TideSpots.prismRing, "the prism ring") else { return false }
-                    untilReady(k)
-                    let steps = Int(((T.beamTargets[k] - gp.ringAngle) / T.ringStep).rounded())
-                    gp.turn(steps); gbot.wait(T.Timing.beamHold + 0.4)
-                }
+                _ = orenRing(k, game, gbot)                                                           // B6: the ring by the arrow keys under the crosshair (the real input path), not `turn()`
                 if gp.opened <= k { print("\(label): gate \(k) did not answer: feet \(gbot.feet), tide \(Tide.level(game.time)), window \(Tide.inWindow(k, level: Tide.level(game.time))), hovered \(game.hovered?.id ?? "-")") }
                 return gp.opened > k
             }

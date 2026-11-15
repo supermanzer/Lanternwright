@@ -29,7 +29,7 @@ The rules (`PuzzleRules`, `Game/PuzzleGraph.swift`) are pure functions over a gr
 | G4 clue distance | each clue is 40 m or a world away from its machine | stones pages 2 and 3 are 3 m from the stones (they lie beside them: D3); the plates' memory of the stones is 35 m | P02.2 (the stones' clue by diagram, one area away); the plates change with P02.3 | pages 2, 3: wording |
 | G5 shared answer | no two puzzles share an answer | stones, mirror court, chime pool, door plates and the Archive's gates are all "tide, wind, stone" (D1) | mirror court P02.1 (order stops mattering), plates P02.3 (beam rhythm), the gates by S05 | no (defaults Q49, Q50) |
 | G6 open at once | two or more puzzles open when the player chooses, after the first of a world | the chime pool and the door plates are each the only one open (D5); the Glass Wood offers two together, then one | P02.5 (planted clues give a second open puzzle), S05 (two sites) | no |
-| G7 feedback | progress (how close) on two senses within 1 s | mirror court (sight only: the tick says nothing), door plates (sound only: the glint is "binary"), lens ring (sight only) | P02.1 (receivers light as hit), P02.4 (charge meters, A's glow) | no |
+| G7 feedback | progress (how close) on two senses within 1 s | mirror court (sight only: the tick says nothing; this was fixed in B2), lens ring (sight only: the grind says nothing about how close); the door plates were sound-only until B6 (each right strike held now glows the plates a step brighter) | P02.1 (receivers light as hit), P02.4 (charge meters, A's glow) | no |
 | G8 budgets | 3 to 6 manipulations, 1 to 2 clue sources | mirror court 11, prism ring 15 (6 + 4 + 5 clicks), plates have 4 clue sources | P02.1 (the court gets partial feedback, then measure with a greedy bot); the prism ring: Q (below); plates P02.3 | no |
 | G9 verb and channel | each puzzle has its own | stones, plates and chime pool all "strike / hear"; the lens ring and the prism ring both "turn / aim" | plates P02.3; the two rings were meant to be a pair (P02 section 3 keeps both) | the rings: a decision, logged as Q70 |
 | G10 sentence | the answer is not handed over as a sentence | pages 3 (stones, plates), 5 (mirror court, plates), 6 (plates), 13 (both gates) | **only the user's page wording can fix this**; drafts go in `docs/plans/P02-page-drafts.md` (P02.2), nothing is applied | **yes** |
@@ -80,7 +80,7 @@ Kinds: puzzle (counted), story (a beat with no datum), transit (moving between w
 | mirror-court | sound | progress | 0.00 s | a glass tick on every turn, and a lit crystal rings its own stone tone |
 | chime-pool | sight | progress | 0.30 s | a right chime lights and stays lit; a wrong one sours and resets |
 | chime-pool | sound | progress | 0.00 s | each chime rings its tone; a wrong one sours |
-| door-plates | sight | binary | 0.00 s | the plates glint only while they would be answered |
+| door-plates | sight | progress | 0.00 s | the plates glint while they would be answered, and glow a step brighter for each right strike held (a wrong one drops it back) |
 | door-plates | sound | progress | 0.00 s | a right strike holds its tone; a wrong one sours and resets |
 | lens-ring | sight | progress | 0.00 s | a beam preview runs from the ring's pointer, and the receiver takes a light while the gate is ready |
 | lens-ring | sound | binary | 0.00 s | a stone-on-brass grind with a detent click |
@@ -136,7 +136,7 @@ Kinds: puzzle (counted), story (a beat with no datum), transit (moving between w
 | oren | 6 | archive-orrery | tideArchive | archive-orrery | **only 1** |
 | oren | 7 | archive-gates-beam | tideArchive | archive-gates | the last puzzle (exempt) |
 
-### Rule breaks (19)
+### Rule breaks (18)
 
 | rule | what it asks | subject | found |
 |---|---|---|---|
@@ -148,7 +148,6 @@ Kinds: puzzle (counted), story (a beat with no datum), transit (moving between w
 | G6 | at least two puzzles are open when a player chooses (after the first of a world) | door-plates | when door-plates is chosen only ["door-plates"] is open on ilse's route: a chain, not a web |
 | G6 | at least two puzzles are open when a player chooses (after the first of a world) | archive-catalogue | when archive-catalogue is chosen only ["archive-catalogue"] is open on ilse's route: a chain, not a web |
 | G6 | at least two puzzles are open when a player chooses (after the first of a world) | archive-orrery | when archive-orrery is chosen only ["archive-orrery"] is open on oren's route: a chain, not a web |
-| G7 | every machine answers with progress, on two senses, within 1 s | door-plates senses | within 1.0 s it answers on ["sound"] and not on two senses |
 | G7 | every machine answers with progress, on two senses, within 1 s | lens-ring senses | within 1.0 s it answers on ["sight"] and not on two senses |
 | G7 | every machine answers with progress, on two senses, within 1 s | archive-marks senses | within 1.0 s it answers on ["sound"] and not on two senses |
 | G8 | 3 to 6 manipulations; 1 to 2 clue sources | stones clues | 3 clue sources (budget 1...2) |

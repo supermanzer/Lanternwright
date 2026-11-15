@@ -436,7 +436,7 @@ extension PuzzleGraph {
             id: "door-plates", title: "the lighthouse door plates (Varrow)", world: .varrow, verb: "strike", channel: .watch, answer: platesAnswer, manipulations: TonePlatePuzzle.order.count,
             requires: ["returned", "gate_pages"], sets: Game.doorOpenFlag, machine: centres(TonePlates.names, .varrow), machineIDs: TonePlates.names,
             clues: [keyClue("beam-rhythm"), keyClue("stones-order")],
-            feedback: [sight(.binary, 0.0, "the plates glint only while they would be answered"), sound(.progress, 0.0, "a right strike holds its tone; a wrong one sours and resets")]))
+            feedback: [sight(.progress, 0.0, "the plates glint while they would be answered, and glow a step brighter for each right strike held (a wrong one drops it back)"), sound(.progress, 0.0, "a right strike holds its tone; a wrong one sours and resets")]))
         nodes.append(PuzzleNode(
             id: "lens-ring", title: "the lens-room ring and receiver (Oren's exit)", world: .varrow, optional: true, verb: "turn", channel: .aim, answer: ["angle:\(Int((LensPortalProps.receiverAngle * 180 / .pi).rounded()))"],
             manipulations: lensSteps, requires: [Game.doorOpenFlag], sets: Game.portalOpenFlag, machine: centres(["lens_ring"], .varrow), machineIDs: ["lens_ring"],

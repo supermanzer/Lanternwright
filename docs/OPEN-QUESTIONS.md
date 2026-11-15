@@ -473,6 +473,79 @@ Hold the fork to a sluice room's pipe (touch it; touch again or walk 7 m away to
 *Open:* the room is a place for a real lamp (a lit patch on the floor and walls), which the renderer does not have; that is a renderer question, not a prop.
 *Status:* open.
 
+### Q100 (2026-11-15, builder B, B6): every ordering puzzle can be solved by trial, without its clue
+*What the no-knowledge bot found* (`docs/plans/P02-acceptance-report.md`): the stones (18 presses), the chime pool (16), the door plates (23 over three visits) and the catalogue (29) were all solved by a player who knew nothing and only tried things: a wrong press resets everything and so tells the player exactly which part held, at no cost beyond 0.8 s. The clues (the altitude diagram, the beam's rhythm, the catalogue diagram) are shortcuts, not requirements.
+*Default taken:* nothing changed (the design says "no penalty", and the clues are what make a first play feel like a discovery). 
+*Open:* whether a wrong press should cost something (a longer lock-out that grows with wrong presses, or a dimmer lamp), so that the clue is worth finding. That is a feel question for the user; the reviewer may prefer it after the user's first play.
+*What changes if the answer differs:* one constant per puzzle (`LighthousePuzzle.Timing`, `TonePlatePuzzle.Timing.wrongResetDelay`, the chime pool's and the bays' reset delays), and the pinned press counts in `SelfTestNoKnowledge` (`blindPressBudget`).
+*Status:* open.
+
+### Q101 (2026-11-15, builder B, B6): the door plates can be solved before the door can open
+*Default taken:* kept. Struck blind before the altar, the plates ring, bloom, say the gate's cue and reset; the bot learned nothing from it and did them again after the return. A player who solves them early gets the cue ("what kind of thing is missing") and is not told the plates were right.
+*Open:* should the plates' bloom say they were right (so an early solver knows the order to come back with)? Today that is deliberately withheld (S03.6: nothing is lost, nothing is blocked).
+*What changes if the answer differs:* `TonePlatePuzzle.complete()` (the not-ready branch), one line.
+*Status:* open.
+
+### Q102 (2026-11-15, builder B, B6): the mirror court defeats a feedback-only player (hill climb 181 presses, never settled)
+The three receiving crystals light only when the whole beam reaches them (P02.1), so most settings of the six dials show no change: a plateau. The bot's coordinate climb found nothing in two passes. A person reasons about the beam (it is drawn); a trial-and-error player does not.
+*Default taken:* nothing changed; the court is designed as a seen puzzle (the beam retraces on each turn, and a receiver lights the moment the beam reaches it).
+*Open:* if the user finds the court too hard without insight, a partial glow on a receiver the beam *nearly* reaches would give the climb a slope. That is A's glow on B's rule.
+*What changes if the answer differs:* `GlassWoodLogic.applyReceiverGlow` (B) and `ReceiverGlow` (A).
+*Status:* open.
+
+### Q103 (2026-11-15, builder B, B6): the other sibling's machines take presses and answer nothing
+On Ilse's route the orrery's collar clicks (32 and 35 presses by the bot) and does nothing; on Oren's the shelf bays, the sluice gates' wheels and the bell pipes do nothing. S05 section 4: the other site is "a visible problem it cannot yet reach", and a thing that takes a press and says nothing reads as broken, not as locked.
+*Default taken:* left. The collar's click is the one sound; the others are silent. 
+*Open:* a dormant thing could answer with a dull, quiet tick and nothing else (the bell: a muffled thud; the collar: no notch), the same voice for "not yours": a small audio item for A (`Audio/**`) and an event for B (`GameEvent.dormant`).
+*What changes if the answer differs:* one event, one `Foley` voice, the `activate` branch of the three other-route handlers.
+*Status:* open.
+
+### Q104 (2026-11-15, builder B, B6): the orrery is luck for a player without the beam rhythm
+"Watch and press as it brightens" caught all three arms on earlier runs and not on the final one: the notch has to be right at the moment, and a player who does not know the rhythm (the key) turns notches at random. 
+*Default taken:* kept (Q85: the rhythm is the key). The report lists it as helped on Oren's route.
+*Open:* none for the build; for the user's first play: if the orrery feels like luck, the collar could click louder on a notch that has an arm.
+*What changes if the answer differs:* `OrenRoute.turnCollar` (the chime on a catching notch), one line.
+*Status:* open.
+
+### Q105 (2026-11-15, builder B, B6): the prism ring is not reached blind
+It needs the windows lit and the gate's tide; with three dark ghosts and nothing to say which to turn to, the bot's dial found nothing in 400 s. With Q70 (15 manipulations: the ring's step) it is the long pole of Oren's route.
+*Default taken:* none; helped in the report.
+*Open:* Q70 (A / the user): a coarser ring step.
+*Status:* open.
+
+### Q106 (2026-11-15, builder B, B6): the opening's stones ring for 14 minutes before they matter
+Before the quay is seen the stones only ring (F09.8). The bot, which visits the island's ground in order and strikes what it finds, rang them four times in 14 minutes before it reached the quay. A person who finds the quay first is not delayed; one who finds the stones first is, and gets no sign why.
+*Default taken:* none (it is the design: quay, "it does not rise", the search).
+*Open:* a soft cue on a stone struck before the quay (a faint pointing light toward the quay, as Q86 does for the Archive) is cheap: `Game.nudgeGuide`'s pattern.
+*What changes if the answer differs:* one line in `Game.activate` and the Varrow guide.
+*Status:* open.
+
+### Q107 (2026-11-15, builder B, B6): the spiral stair is on no trail
+A follower of the lanterns' path cannot climb to the lens room (the navigation network ends at the door); the lens and the ring are in sight but 24 to 26 m overhead. Players walk it; the bots need a knowing walk. Not a game defect.
+*Default taken:* none; the stair is the one help counted on both routes.
+*Open:* if a future bot (or a guide light) should lead up the stair, `Layout.Navigation` needs a trail up the spiral.
+*Status:* open.
+
+### Q108 (2026-11-15, builder B, B6): a player who knows nothing needs 100 to 140 minutes
+About 50 minutes is walking the island before leaving each place (the bot visits every trail point), 30 to 60 minutes is the tide (marks, pipes, gates), the rest is the puzzles. A person finishes sooner or later; this is the bound for someone who tries everything.
+*Default taken:* none; informational for the user's first play ("how long did it take you?").
+*Status:* open.
+
+### Q109 (2026-11-15, builder B, B6): the 19 pinned breaks, triaged (18 left): who owns each
+The graph's pinned breaks (P02-graph-report.md, `SelfTestRunner.pinnedPuzzleBreaks`). **Fixed (B6):** G7 `door-plates senses` (each right strike held glows the plates a step brighter). **Not mine, not cheap:**
+- *the user (page text):* G3 page 6 (no puzzle lists it); G10 stones page 3, archive-pipes page 13, archive-gates-beam page 13 (pages that state the order); G4 stones pages 2 and 3 (the pages lie 3 m from the stones: D3, a placement choice that is the user's with the wording).
+- *builder A:* G7 `lens-ring senses` (a sound that says how close; `Audio/**`), G7 `archive-marks senses` (the brass marks on the quay: Q80), G8 `archive-gates-beam manipulations` and G9 `archive-gates+lens-ring` (the ring's step and the two rings sharing a verb: Q70).
+- *the reviewer (rule definitions, see Q110):* G5 (three puzzles share an answer: the Archive's gates answer by S05 and the stones and chime pool by design: Q49, Q50), G6 for four puzzles, G8 `stones clues` (three clue sources, two of them the pages beside the stones), G8 `archive-marks clues` (zero: the marks have no clue source; the design says the dark-lantern count gives the first mark, which is not built, and the graph does not declare a clue that does not exist), G9 `chime-pool+stones` (both strike/hear: the chime pool is the stones' tones carried).
+*Default taken:* none changed beyond G7.
+*Status:* open.
+
+### Q110 (2026-11-15, builder B, B6): G6 (two puzzles open at once) as the rule is written flags four things; is the rule the problem?
+G6 simulates a player who always takes the first open puzzle. It flags the chime pool (the last of the Glass Wood after the mirror court), the door plates (alone in Varrow after the return), and, on each route, the catalogue and the orrery (both gated on the marks). The bot's real play shows two things open at once at the second world (the mirror court and the chime pool, so "at least two puzzles open off the first world" holds: `nokbot metrics`), but the rule's "after the first of a world" exemption does not cover the chime pool.
+*Default taken:* the rule is not changed. Ungating the catalogue and the orrery from the marks would clear two of the four but departs from S05 section 3 (A0 first); not done.
+*Open:* the reviewer: change the rule (a world's last puzzle is exempt, as the game's last is), or build the second open puzzle (the lens ring beside the plates; a second optional puzzle in the Archive).
+*What changes if the answer differs:* `PuzzleRules.openAtOnce` (one exemption) and its pins, or a new puzzle.
+*Status:* open.
+
 ## Answered
 - 2026-10-28 S03 Oren's exit location: both exits at the original lighthouse; Oren's is a lens portal in the lens room, the dock arch is not an exit.
 - 2026-10-28 Page gate: 3 pages of each sibling.
