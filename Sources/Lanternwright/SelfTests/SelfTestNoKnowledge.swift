@@ -177,19 +177,27 @@ extension SelfTestRunner {
         } else { try block.write(toFile: path, atomically: true, encoding: .utf8) }
     }
 
+    /// The words the blind player's brain must not use: the game's puzzles, layouts, tables, flags' prefixes and the handles that reach past `Perception`. Comments (whole-line or trailing) are not code.
+    static func brainForbidden(in source: String) -> [String] {
+        let code = source.split(separator: "\n").map { line -> String in
+            let l = String(line); if let r = l.range(of: "//") { return String(l[..<r.lowerBound]) }; return l
+        }.joined(separator: "\n")
+        let forbidden = ["LighthousePuzzle", "MirrorCourt", "GlassWoodLogic", "TonePlatePuzzle", "IlseRoute", "OrenRoute", "TideArchivePuzzle", "ArchiveLayout", "ShelfBays", "Tide.", "Orrery", "Layout", "state.set", "restorePage", "setClaim", "simulate", "Game", "harnessHands", "PlaythroughBot", "GameEvent", "ChimeKind", "TideSpots", "LensPortalProps", "TonePlates", "GlassPuzzleProps", "LighthouseInterior", "TideMarks", "IlseTones", "ToneTable", "PuzzleGraph", "Mirror(", "stone_", "gw_", "ti_", "plate_", "lh_", "lens_ring", "page_", ".state", "StoryPages", "Notebook"]
+        return forbidden.filter { code.contains($0) }
+    }
+
     func runNoKnowledge() {
         guard name == "all" || name == "nokbot" else { return }
-        // ---- The brain's file may name nothing of the game's: not a puzzle, not a layout constant, not a flag, not an answer.
+        // ---- The brain's file may name nothing of the game's: not a puzzle, not a layout constant, not a flag, not an answer. (A denylist: a determined cheat can get past it; it catches the honest slip, and the brain holds
+        // only a `Perception` in any case.)
         let brainPath = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent("NoKnowledge/BlindPlayer.swift").path
         if let brain = try? String(contentsOfFile: brainPath, encoding: .utf8) {
-            let code = brain.split(separator: "\n").filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("///") && !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }.joined(separator: "\n")
-            let forbidden = ["LighthousePuzzle", "MirrorCourt", "GlassWoodLogic", "TonePlatePuzzle", "IlseRoute", "OrenRoute", "TideArchivePuzzle", "ArchiveLayout", "ShelfBays", "Tide.", "Orrery", "Layout.", "state.set", "restorePage", "setClaim", "simulate", "Game(", "harnessHands", "PlaythroughBot", "GameEvent", "ChimeKind", "stone_", "gw_", "ti_", "plate_", "lh_", "lens_ring", "page_"]
-            let hits = forbidden.filter { code.contains($0) }
+            let hits = Self.brainForbidden(in: brain)
             check(hits.isEmpty, "nokbot: the brain's file names no puzzle, layout constant, flag or answer (found: \(hits))")
         } else { check(false, "nokbot: could not read the brain's file at \(brainPath)") }
-        // The check itself can fail: a brain with a forbidden word in its code is caught (the same filter on a sample).
-        let sample = "let x = 1\n    eyes.click(handle: \"stone_tide\")\n"
-        check(["stone_", "LighthousePuzzle"].contains { sample.contains($0) }, "nokbot mutation: the forbidden-name filter finds \"stone_\" in a line of code")
+        // The check itself can fail: the REAL filter, run on lines of code that cheat, finds them; on a comment it does not.
+        check(!Self.brainForbidden(in: "let x = 1\n    eyes.click(handle: \"stone_tide\")\n").isEmpty && !Self.brainForbidden(in: "    let g = Game.shared\n").isEmpty && !Self.brainForbidden(in: "    let t = TideSpots.gate(0) // fine\n").isEmpty, "nokbot mutation: the real forbidden-name filter finds a flag, `Game.` and a spots table in lines of code")
+        check(Self.brainForbidden(in: "    /// the stones: stone_tide, Layout.lighthouse\n    let ok = 1 // gw_ is a flag prefix\n").isEmpty, "nokbot: the filter ignores comments (a doc line and a trailing note)")
 
         var runs: [NokRun] = []
         for route in [PageAuthor.ilse, .oren] { runs.append(playNoKnowledge(route)) }
@@ -207,14 +215,16 @@ extension SelfTestRunner {
     /// is a change in how the game plays for someone who knows nothing, so it fails here until the pin is moved on purpose (and `P02-acceptance-report.md` regenerated).
     static let pinnedBlindSolved: [PageAuthor: [String]] = [
         .ilse: ["altar", "archive-catalogue", "archive-marks", "archive-pipes", "chime-pool", "door-plates", "stones"],
-        .oren: ["altar", "archive-marks", "chime-pool", "door-plates", "stones"],
+        .oren: ["altar", "archive-marks", "archive-orrery", "chime-pool", "door-plates", "stones"],
     ]
     static let pinnedHelped: [PageAuthor: [String]] = [
         .ilse: ["mirror-court"],
-        .oren: ["archive-gates-beam", "archive-orrery", "lens-ring", "mirror-court"],
+        .oren: ["archive-gates-beam", "lens-ring", "mirror-court"],
     ]
     /// The most presses a puzzle the blind player solved may have taken (its designed least is 3 to 6): a row of three to five things found by trial costs a few dozen, not a few hundred.
     static let blindPressBudget = 40
+    /// A timed puzzle watched and pressed as it brightens costs more presses (each arm's window comes round once a tide): the orrery's budget.
+    static let blindPressBudgetTimed = 90
 
     func nokMetrics(_ runs: [NokRun]) {
         for run in runs {
@@ -226,8 +236,8 @@ extension SelfTestRunner {
             check(blind == Self.pinnedBlindSolved[run.route]!, "nokbot metrics: \(who): the puzzles solved blind are exactly the pinned list (found \(blind); pinned \(Self.pinnedBlindSolved[run.route]!))")
             check(helped == Self.pinnedHelped[run.route]!, "nokbot metrics: \(who): the puzzles that needed a knowing helper are exactly the pinned list (found \(helped); pinned \(Self.pinnedHelped[run.route]!))")
             check(never.isEmpty, "nokbot metrics: \(who): every puzzle was solved, blind or helped (never solved: \(never))")
-            let heavy = rows.filter { !$0.helped && $0.solvedAt != nil && $0.presses > Self.blindPressBudget }.map { "\($0.node.id) \($0.presses)" }
-            check(heavy.isEmpty, "nokbot metrics: \(who): each puzzle solved blind took \(Self.blindPressBudget) presses or fewer (over: \(heavy); most: \(rows.filter { !$0.helped }.map { $0.presses }.max() ?? 0))")
+            let heavy = rows.filter { !$0.helped && $0.solvedAt != nil && $0.presses > ($0.node.id == "archive-orrery" ? Self.blindPressBudgetTimed : Self.blindPressBudget) }.map { "\($0.node.id) \($0.presses)" }
+            check(heavy.isEmpty, "nokbot metrics: \(who): each puzzle solved blind took \(Self.blindPressBudget) presses or fewer (the timed orrery \(Self.blindPressBudgetTimed)) (over: \(heavy); most: \(rows.filter { !$0.helped }.map { $0.presses }.max() ?? 0))")
             check(run.stalls.count <= 30, "nokbot metrics: \(who): the stalls stay under thirty (\(run.stalls.count))")
         }
         // The graph's own measures per route: two puzzles open at once off the first world, and a continuous feedback named for every puzzle.

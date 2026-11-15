@@ -661,7 +661,7 @@ final class Game {
     private func syncPlateGlint() {
         guard let sc = scenes[.varrow] else { return }
         // B6 (G7): the plates are one mesh, so each right strike raises the whole set's glow a step (the held part of the answer, seen) and a wrong strike drops it back: sight says how much is right, as the drone does for the ear.
-        let w = plateGlint + (state.has(Game.doorOpenFlag) || platesSealed ? 0 : Float(tonePlates.sequence.count) * Game.plateHeldStep)
+        let w = plateGlint + (plateGlint > 0 ? Float(tonePlates.sequence.count) * Game.plateHeldStep : 0)          // only while the plates would be answered (the same condition as the glint): an early strike is not shown to be right (Q101)
         sc.update("tone_plates") { $0.uniforms.emissive = SIMD4<Float>(1.0, 0.82, 0.5, w) }
     }
 

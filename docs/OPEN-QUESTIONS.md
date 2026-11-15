@@ -474,7 +474,7 @@ Hold the fork to a sluice room's pipe (touch it; touch again or walk 7 m away to
 *Status:* open.
 
 ### Q100 (2026-11-15, builder B, B6): every ordering puzzle can be solved by trial, without its clue
-*What the no-knowledge bot found* (`docs/plans/P02-acceptance-report.md`): the stones (18 presses), the chime pool (16), the door plates (23 over three visits) and the catalogue (29) were all solved by a player who knew nothing and only tried things: a wrong press resets everything and so tells the player exactly which part held, at no cost beyond 0.8 s. The clues (the altitude diagram, the beam's rhythm, the catalogue diagram) are shortcuts, not requirements.
+*What the no-knowledge bot found* (`docs/plans/P02-acceptance-report.md`): the stones (18 presses), the chime pool (16), the door plates (23 over four visits) and the catalogue (29) were all solved by a player who knew nothing and only tried things: a wrong press resets everything and so tells the player exactly which part held, at no cost beyond 0.8 s. The clues (the altitude diagram, the beam's rhythm, the catalogue diagram) are shortcuts, not requirements.
 *Default taken:* nothing changed (the design says "no penalty", and the clues are what make a first play feel like a discovery). 
 *Open:* whether a wrong press should cost something (a longer lock-out that grows with wrong presses, or a dimmer lamp), so that the clue is worth finding. That is a feel question for the user; the reviewer may prefer it after the user's first play.
 *What changes if the answer differs:* one constant per puzzle (`LighthousePuzzle.Timing`, `TonePlatePuzzle.Timing.wrongResetDelay`, the chime pool's and the bays' reset delays), and the pinned press counts in `SelfTestNoKnowledge` (`blindPressBudget`).
@@ -487,7 +487,7 @@ Hold the fork to a sluice room's pipe (touch it; touch again or walk 7 m away to
 *Status:* open.
 
 ### Q102 (2026-11-15, builder B, B6): the mirror court defeats a feedback-only player (hill climb 181 presses, never settled)
-The three receiving crystals light only when the whole beam reaches them (P02.1), so most settings of the six dials show no change: a plateau. The bot's coordinate climb found nothing in two passes. A person reasons about the beam (it is drawn); a trial-and-error player does not.
+The three receiving crystals light only when the whole beam reaches them (P02.1), so most settings of the six dials show no change: a plateau. The bot's coordinate climb did not settle in two passes (184 clicks). *Bot-limited:* the ascent moves one dial at a time and cannot tell a helpful move on a flat stretch; the plateau is a hypothesis, not measured (B2's knowing greedy solver needs 6 clicks). A person reasons about the beam (it is drawn).
 *Default taken:* nothing changed; the court is designed as a seen puzzle (the beam retraces on each turn, and a receiver lights the moment the beam reaches it).
 *Open:* if the user finds the court too hard without insight, a partial glow on a receiver the beam *nearly* reaches would give the climb a slope. That is A's glow on B's rule.
 *What changes if the answer differs:* `GlassWoodLogic.applyReceiverGlow` (B) and `ReceiverGlow` (A).
@@ -501,14 +501,14 @@ On Ilse's route the orrery's collar clicks (32 and 35 presses by the bot) and do
 *Status:* open.
 
 ### Q104 (2026-11-15, builder B, B6): the orrery is luck for a player without the beam rhythm
-"Watch and press as it brightens" caught all three arms on earlier runs and not on the final one: the notch has to be right at the moment, and a player who does not know the rhythm (the key) turns notches at random. 
+"Watch and press as it brightens" caught the arms on the final run (67 presses in two visits) and not on earlier builds of the bot: the notch has to be right at the moment, and a player who does not know the rhythm (the key) turns notches at random. 
 *Default taken:* kept (Q85: the rhythm is the key). The report lists it as helped on Oren's route.
 *Open:* none for the build; for the user's first play: if the orrery feels like luck, the collar could click louder on a notch that has an arm.
 *What changes if the answer differs:* `OrenRoute.turnCollar` (the chime on a catching notch), one line.
 *Status:* open.
 
 ### Q105 (2026-11-15, builder B, B6): the prism ring is not reached blind
-It needs the windows lit and the gate's tide; with three dark ghosts and nothing to say which to turn to, the bot's dial found nothing in 400 s. With Q70 (15 manipulations: the ring's step) it is the long pole of Oren's route.
+It needs the windows lit and the gate's tide; with three dark ghosts and nothing to say which to turn to, the bot's dial (arrow keys used, 25 presses in 8 min) found nothing. Bot-limited in part. With Q70 (15 manipulations: the ring's step) it is the long pole of Oren's route.
 *Default taken:* none; helped in the report.
 *Open:* Q70 (A / the user): a coarser ring step.
 *Status:* open.
@@ -527,7 +527,7 @@ A follower of the lanterns' path cannot climb to the lens room (the navigation n
 *Status:* open.
 
 ### Q108 (2026-11-15, builder B, B6): a player who knows nothing needs 100 to 140 minutes
-About 50 minutes is walking the island before leaving each place (the bot visits every trail point), 30 to 60 minutes is the tide (marks, pipes, gates), the rest is the puzzles. A person finishes sooner or later; this is the bound for someone who tries everything.
+The largest blocks the tables show: 34 min to the first lens touch (the bot visits every trail point before it leaves a place) and 390 to 680 s of holding at the pipes; the tide marks and the rest are in the report's tables (solved-at is an upper bound). This bot's 103 to 145 minutes is not a bound for a person.
 *Default taken:* none; informational for the user's first play ("how long did it take you?").
 *Status:* open.
 
@@ -540,7 +540,7 @@ The graph's pinned breaks (P02-graph-report.md, `SelfTestRunner.pinnedPuzzleBrea
 *Status:* open.
 
 ### Q110 (2026-11-15, builder B, B6): G6 (two puzzles open at once) as the rule is written flags four things; is the rule the problem?
-G6 simulates a player who always takes the first open puzzle. It flags the chime pool (the last of the Glass Wood after the mirror court), the door plates (alone in Varrow after the return), and, on each route, the catalogue and the orrery (both gated on the marks). The bot's real play shows two things open at once at the second world (the mirror court and the chime pool, so "at least two puzzles open off the first world" holds: `nokbot metrics`), but the rule's "after the first of a world" exemption does not cover the chime pool.
+G6 simulates a player who always takes the first open puzzle. It flags the chime pool (the last of the Glass Wood after the mirror court), the door plates (alone in Varrow after the return), and, on each route, the catalogue and the orrery (both gated on the marks). The graph's timeline (not the bot's play: `nokbot metrics` reads `PuzzleRules.timeline`, and only at the first step of the second world, a weaker test than G6) shows two things open at once there (the mirror court and the chime pool), but the rule's "after the first of a world" exemption does not cover the chime pool.
 *Default taken:* the rule is not changed. Ungating the catalogue and the orrery from the marks would clear two of the four but departs from S05 section 3 (A0 first); not done.
 *Open:* the reviewer: change the rule (a world's last puzzle is exempt, as the game's last is), or build the second open puzzle (the lens ring beside the plates; a second optional puzzle in the Archive).
 *What changes if the answer differs:* `PuzzleRules.openAtOnce` (one exemption) and its pins, or a new puzzle.

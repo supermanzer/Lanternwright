@@ -6,7 +6,7 @@ How to play: `scripts/bundle.sh && open Lanternwright.app`. Headless views: `.bu
 
 ## Route by route (B6, 2026-11-15): what to look at and listen for, in the order a player meets it
 
-Written from the no-knowledge bot's run (`docs/plans/P02-acceptance-report.md`), so the order is the one a player who tries everything meets. **Nothing in this list has been seen or heard by a person**: where it says "listen", it was only measured as numbers. Status of every row: **needs-inspection**. The older sections below are history; where one disagrees with a row here, this list is newer.
+Written from the no-knowledge bot's run (`docs/plans/P02-acceptance-report.md`), so the order is the one a player who tries everything meets. **Nothing in this list has been seen or heard by a person; audio is untested by ear**: where it says "listen", it was only measured as numbers. Status of every row: **needs-inspection**. The older sections below are history; where one disagrees with a row here, this list is newer.
 
 ### Both routes (Varrow, the Glass Wood, the return, the lighthouse)
 
@@ -19,7 +19,7 @@ Written from the no-knowledge bot's run (`docs/plans/P02-acceptance-report.md`),
 | 5 | The Glass Wood: mirror court | The beam is retraced on every turn; each of the three receiving crystals lights in its colour the moment the beam reaches it and goes dark when it is lost; a wrong colour flutters dully | A glass tick on each turn; a lit crystal rings its stone's tone |
 | 6 | The chime pool | A right chime lights and stays; a wrong one sours and resets (five chimes, three are the stones' tones) | The chimes' tones, the sour note |
 | 7 | The altar, then the return ring | Both lights; the pages that appear | The altar's tones |
-| 8 | Varrow again, the lighthouse door | The three plates glint quietly (they were dark before); each has a copper bar in the beam's proportions. **Each right strike held makes the whole set glow a step brighter (B6: the glyphs wash from black to grey); a wrong one drops it back.** The beam at dusk flashes three groups (short, middle, long) | A held tone for each right plate; a sour note on a wrong one; the lamp's answer and the door opening after the third |
+| 8 | Varrow again, the lighthouse door | The three plates glint quietly once you are back with the altar solved and the gate ready (dark before that); each has a copper bar in the beam's proportions. **Once they glint, each right strike held makes the whole set glow a step brighter (B6: the glyphs wash from black to grey); a wrong one drops it back. Struck earlier, they only ring.** The beam at dusk flashes three groups (short, middle, long) | A held tone for each right plate; a sour note on a wrong one; the lamp's answer and the door opening after the third |
 | 9 | The stair and the lens room | The two exits lit: warm beads round the lens (Ilse), a cool rim round the receiver (Oren). Words on each: "Ilse's way: touch the lens", "Oren's way: turn the ring", "Oren's way: step into the light" | The ring's grind and detent; the portal's hum once open |
 
 ### Ilse's route (the lens): the lamp quay, the stacks, the bell pipes

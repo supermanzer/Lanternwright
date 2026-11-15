@@ -76,12 +76,10 @@ final class Perception {
     }
     /// The guide light (a floating lantern) if one is drawn, and the lamps that are lit.
     var guideLight: SIMD3<Float>? { (game.guideLantern ?? game.varrowGuide).map { SIMD3($0.x, feet.y, $0.y) } }
-    var guideLamps: [SIMD3<Float>] { game.guideLamps.filter { $0.lit }.map { SIMD3($0.position.x, feet.y, $0.position.y) } }
     /// The points of the trails in this world, in the order they are laid: where the lanterns' path goes.
     func trailPoints() -> [SIMD2<Float>] { (Layout.Navigation.active(for: game.world)?.trails ?? []).flatMap { $0.points } }
 
     // MARK: Sound
-    private var heardNow: [Sound] = []
     /// Everything that sounded since the last call.
     func listen() -> [Sound] {
         var out: [Sound] = []
@@ -101,7 +99,6 @@ final class Perception {
             default: out.append(.other)
             }
         }
-        heardNow = out
         return out
     }
     private static func sound(of k: ChimeKind) -> Sound {

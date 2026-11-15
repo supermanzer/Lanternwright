@@ -44,6 +44,7 @@ final class BlindPlayer {
     private var finished = Set<String>()                 // things the crosshair showed as done
     private var worked = [String: Int]()                 // handle -> times its site was worked
     private var workedWhen = [String: Int]()             // handle -> what the player knew (`knowledge`) when it was last worked
+    private var workedAt = [String: Float]()            // handle -> the clock when its site was last worked
     private var knowledge = 0                            // grows when something new comes into sight or a new line of words appears
     private var wordsSeen = Set<String>()
     private var visitedTrail = Set<Int>()
@@ -125,7 +126,7 @@ final class BlindPlayer {
 
     /// A site is the things of one kind within 45 m of each other; the nearest to the guide light (or to the feet) first; crossings last.
     private func chooseSite(_ seen: [Seen]) -> [Seen]? {
-        let live = seen.filter { s in !finished.contains(s.handle) && ((worked[s.handle] ?? 0) < 2 || (workedWhen[s.handle] ?? -1) < knowledge) && !shunned(s.prompt) }
+        let live = seen.filter { s in !finished.contains(s.handle) && ((worked[s.handle] ?? 0) < 2 || (workedWhen[s.handle] ?? -1) < knowledge ) && !shunned(s.prompt) && !(eyes.guideLight != nil && s.prompt.lowercased().contains("return")) }          // a light still leading somewhere says the way back is not yet the way on
         guard !live.isEmpty else { return nil }
         let anchor = eyes.guideLight ?? eyes.feet
         func near(_ s: Seen) -> Float { simd_length(s.at - anchor) }
@@ -147,7 +148,7 @@ final class BlindPlayer {
     private func work(_ site: [Seen]) {
         guard let head = site.first else { return }
         exploreFails = 0
-        for s in site { worked[s.handle, default: 0] += 1; workedWhen[s.handle] = knowledge }
+        for s in site { worked[s.handle, default: 0] += 1; workedWhen[s.handle] = knowledge; workedAt[s.handle] = eyes.clock }
         go(head); aim(at: head)
         if let seenPrompt = eyes.inspect(head)?.prompt, shunned(seenPrompt) { for s in site { finished.insert(s.handle) }; return }          // the words under the crosshair name the other sibling's way: not mine
         let handles = site.map { $0.handle }
@@ -192,14 +193,15 @@ final class BlindPlayer {
     }
     private struct Reaction { var sour = false; var sounded = false; var done = false; var rise: Float = 0; var heard: [Perception.Sound] = [] }
     /// One manipulation: go there, click, listen and watch for `dwell` seconds, and ask the crosshair whether it is done.
-    private func press(_ s: Seen, dwell: Float = 0.9, glowAround: SIMD3<Float>? = nil, radius: Float = 12) -> Reaction {
+    private func press(_ s: Seen, dwell: Float = 0.9, glowAround: SIMD3<Float>? = nil, radius: Float = 12, arrow: Int = 0) -> Reaction {
         go(s)
         aim(at: s)
         let gap = simd_length(SIMD2(s.at.x - eyes.feet.x, s.at.z - eyes.feet.z))
         if gap > 4 { current?.note += " [could not get closer than \(Int(gap)) m]" }
         let g0 = eyes.glow(near: glowAround ?? s.at, radius: radius)
         _ = eyes.listen()
-        eyes.click(s); presses += 1; current?.manipulations += 1
+        if arrow != 0 { eyes.arrows(s, steps: arrow) } else { eyes.click(s) }
+        presses += 1; current?.manipulations += 1
         eyes.wait(dwell)
         var r = Reaction(); r.heard = eyes.listen()
         if let b = eyes.banner, !wordsSeen.contains(b) { wordsSeen.insert(b); knowledge += 1; lastNew = eyes.clock }
@@ -221,7 +223,7 @@ final class BlindPlayer {
     private func hold(_ s: Seen) {
         var r = press(s)
         var t: Float = 0
-        while !r.done && t < 150 {
+        while !r.done && t < 300 {
             eyes.wait(2); t += 2
             let heard = eyes.listen()
             for h in heard { if case .rumble = h { r.done = true }; if case .bloom = h { r.done = true } }
@@ -284,17 +286,20 @@ final class BlindPlayer {
                 _ = eyes.listen(); eyes.wait(dwell)
                 let base = level()
                 var best: (steps: Int, v: Float) = (0, base)
-                var cycle = 12
+                let arrowed = e.prompt.contains("\u{2039}")                                              // a prompt with arrows on it: the arrow keys turn it either way; otherwise one click turns it one way
+                var turned = 0
                 for s in 1...12 {
-                    let r = press(e, dwell: dwell, glowAround: centre, radius: radius)
+                    let r = press(e, dwell: dwell, glowAround: centre, radius: radius, arrow: arrowed ? 1 : 0); turned += 1
                     let v = level()
                     if r.heard.contains(where: { if case .rumble = $0 { return true }; return $0 == .bloom }) { knowledge += 1; current?.outcome = .solvedByTrial; current?.note = "something big moved while it was turned" }
                     if r.done { finished.insert(e.handle); current?.outcome = .solvedByTrial; return }
                     if v > best.v + 0.05 { best = (s, v); improved = true }
-                    if s >= 2 && abs(v - base) < 0.02 { cycle = s; break }
                 }
-                if best.steps > 0 { for _ in 0..<best.steps { _ = press(e, dwell: dwell, glowAround: centre, radius: radius) } }
-                _ = cycle
+                // Back to the brightest: with arrows, straight back; with clicks, on round the cycle until it is as bright as it was (at most another twelve).
+                if best.steps > 0 {
+                    if arrowed { _ = press(e, dwell: dwell, glowAround: centre, radius: radius, arrow: -(turned - best.steps)) }
+                    else { var back = 0; while level() < best.v - 0.02 && back < 12 { _ = press(e, dwell: dwell, glowAround: centre, radius: radius); back += 1 } }
+                }
                 let before = Set(memory.keys); _ = eyes.listen(); eyes.wait(3)
                 let after = scan()
                 if after.contains(where: { !before.contains($0.handle) && !isRead($0.prompt) }) { current?.outcome = .solvedByTrial; finished.formUnion(site.map { $0.handle }); return }
