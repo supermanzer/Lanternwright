@@ -106,6 +106,10 @@ final class Game {
     /// B5 (Q86): a puzzle asked too early (before the tide marks are counted) flares the guide light for `nudgeSeconds`; `guideFlare` is how bright it is now (1 normally).
     static let nudgeSeconds: Float = 3
     private var nudgeUntil: Float = -1
+    /// B7 (Q102): how nearly the beam reaches each of the mirror court's three receivers, 0...1 (nil off the Glass Wood).
+    var receiverNear: [Float] { glass?.receiverNear ?? [0, 0, 0] }
+    /// B7 (Q104): the orrery's collar is on a notch with an arm still to catch (false off Oren's route).
+    var collarNotchHasArm: Bool { (orenRoute?.isActive ?? false) && orenRoute?.notchHasArm == true }
     func nudgeGuide() { nudgeUntil = time + Game.nudgeSeconds }
     var guideFlare: Float { time < nudgeUntil ? 1.9 : 1 }
     /// Metres from the player to the nearest water the tide moves (the Archive's galleries): the wash is loud beside it and gone far from it. The stand-in's water is a notional spot west of the arrival pad; builder A's world replaces it with the gallery's surface (the nearest point of `ti_gallery_water`).
@@ -352,6 +356,7 @@ final class Game {
         }
         if Game.stonesWaitForQuay, id.hasPrefix("stone_"), !state.has(Game.quaySeenFlag), !puzzle.isSolved, let stone = StoneID.allCases.first(where: { "stone_\($0.name)" == id }) {
             puzzle.hear(stone)                                                                 // F09.8: the stone rings and goes into the Notebook; it does not wake yet
+            quayHintUntil = time + Game.quayHintSeconds; nudgeGuide()                          // B7 (Q106): and a light shows the way to the quay, as the Archive's does for a puzzle asked too early (Q86)
             return
         }
         if let owner = puzzles.first(where: { $0.handles(id) }) {
@@ -661,7 +666,7 @@ final class Game {
     private func syncPlateGlint() {
         guard let sc = scenes[.varrow] else { return }
         // B6 (G7): the plates are one mesh, so each right strike raises the whole set's glow a step (the held part of the answer, seen) and a wrong strike drops it back: sight says how much is right, as the drone does for the ear.
-        let w = plateGlint + (plateGlint > 0 ? Float(tonePlates.sequence.count) * Game.plateHeldStep : 0)          // only while the plates would be answered (the same condition as the glint): an early strike is not shown to be right (Q101)
+        let w = plateGlint + (platesSealed ? 0 : Float(tonePlates.sequence.count) * Game.plateHeldStep)          // B7 (Q101): a right strike is shown right even before the altar (the sequence only grows while the plates take strikes: not with the door open or the exit sealed); the glint stays gated
         sc.update("tone_plates") { $0.uniforms.emissive = SIMD4<Float>(1.0, 0.82, 0.5, w) }
     }
 
@@ -673,19 +678,24 @@ final class Game {
     private var varrowKey: String?
     private(set) var varrowGuide: SIMD2<Float>?
     /// F09.8 (#114): once the stones have raised the quay, a guide light leads down the hill and across to Oren's lens and parks there until the player has touched it (same rule as the Archive's: `GuideLight`).
+    /// B7 (Q106): a stone struck before the quay was seen lights a guide light toward the quay for this long (a strike again renews it); it is gone once the quay is seen.
+    static let quayHintSeconds: Float = 60
+    private var quayHintUntil: Float = -1
     private func syncVarrowGuide(dt: Float, _ sc: Scene) {
-        let key: String? = world == .varrow && state.has("causewayUp") && !state.has("lensTouched") ? "lens" : nil
+        let toLens = world == .varrow && state.has("causewayUp") && !state.has("lensTouched")
+        let toQuay = world == .varrow && !toLens && !state.has(Game.quaySeenFlag) && time < quayHintUntil
+        let key: String? = toLens ? "lens" : (toQuay ? "quay" : nil)
         guard let key, let net = Layout.Navigation.active(for: .varrow) else { varrowLight = nil; varrowKey = nil; varrowGuide = nil; sc.update(GuideLanterns.lanternName) { $0.hidden = true }; return }
         let me = SIMD2(player.position.x, player.position.z)
         if varrowKey != key {
-            let lens = SIMD2(PuzzleProps.lensRestPosition.x, PuzzleProps.lensRestPosition.z + 2.5)          // the islet's lens (Oren's), the light waits just south of it
+            let lens = key == "quay" ? SIMD2(Layout.causewayStart.x, Layout.causewayStart.z) : SIMD2(PuzzleProps.lensRestPosition.x, PuzzleProps.lensRestPosition.z + 2.5)          // the islet's lens (Oren's), the light waits just south of it; or the quay's start (Q106)
             varrowLight = GuideLight(path: GuidePath(net.route(from: me, to: lens) + [lens]), player: me); varrowKey = key
         }
         varrowLight?.step(dt: dt, player: me)
         varrowGuide = varrowLight?.position
         sc.update(GuideLanterns.lanternName) { item in
             item.hidden = self.varrowGuide == nil
-            if let p = self.varrowGuide { item.uniforms.model = translation(SIMD3(p.x, sc.groundHeight(x: p.x, z: p.y) + 1.5 + 0.08 * sin(self.time * 1.3), p.y)); item.uniforms.emissive.w = 2.4 * (0.85 + 0.15 * sin(self.time * 5.3)) }
+            if let p = self.varrowGuide { item.uniforms.model = translation(SIMD3(p.x, sc.groundHeight(x: p.x, z: p.y) + 1.5 + 0.08 * sin(self.time * 1.3), p.y)); item.uniforms.emissive.w = 2.4 * (0.85 + 0.15 * sin(self.time * 5.3)) * self.guideFlare }
         }
     }
     private func syncQuay(dt: Float = 0) {

@@ -21,6 +21,7 @@ final class Perception {
         case tick                  // a small mechanical click
         case page                  // a page picked up
         case arrival               // the whiteout of a crossing
+        case dull                  // one dull, quiet tick: "not yours" (a dormant machine)
         case other
     }
 
@@ -96,6 +97,7 @@ final class Perception {
             case .forkTone(let i, let on): out.append(on ? .tone("fork\(i)") : .held(false)); if on { out.append(.held(true)) }
             case .bell(let bay, let sour): out.append(sour ? .sour : .tone("bell\(bay)"))
             case .orreryTick(let k, _): out.append(.tone("brass\(k)"))
+            case .dormant: out.append(.dull)
             default: out.append(.other)
             }
         }

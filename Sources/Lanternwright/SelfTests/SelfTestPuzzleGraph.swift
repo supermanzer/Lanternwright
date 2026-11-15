@@ -12,9 +12,9 @@ extension SelfTestRunner {
         "G3 page 6",
         "G4 stones page 2", "G4 stones page 3",
         "G5 archive-gates+chime-pool+stones",
-        "G6 chime-pool", "G6 door-plates", "G6 archive-catalogue", "G6 archive-orrery",
+        "G6 archive-catalogue", "G6 archive-orrery",
         "G7 lens-ring senses",
-        "G8 archive-gates-beam manipulations", "G8 stones clues", "G8 archive-marks clues",
+        "G8 stones clues", "G8 archive-marks clues",
         "G9 archive-gates+lens-ring", "G9 chime-pool+stones",
         "G10 archive-gates-beam page 13", "G10 archive-pipes page 13", "G10 stones page 3",
     ].sorted()
@@ -88,6 +88,11 @@ extension SelfTestRunner {
                                 pages: [PageFact(id: 1, world: .tideArchive, position: SIMD3(500, 0, 0), states: [])], external: ["go"])
         check(R.timeline(routed).dropFirst().first.map { $0.open.count } == 2, "puzzlegraph G6 route: unfiltered, the two siblings' first puzzles look open together")
         check(R.openAtOnce(routed).map(\.subject) == ["P2", "Q2"], "puzzlegraph G6 route: judged per route, each sibling's second puzzle is a chain and is flagged (\(R.openAtOnce(routed).map(\.subject)))")
+        // B7 (Q110): a world's last puzzle is exempt (nothing is left there to be open beside it): V2 is the last of the first world, so only V1 (a chain mid-world) is flagged.
+        let worlds = PuzzleGraph(puzzles: [rn("F0", ["go"], "f", nil, .varrow, "a", .see, ["1"]), rn("V1", ["f"], "v1", nil, .varrow, "b", .hear, ["2"]), rn("V2", ["v1"], "v2", nil, .varrow, "c", .count, ["3"]),
+                                           rn("W0", ["v2"], "w0", nil, .glassWood, "d", .watch, ["4"]), rn("W1", ["w0"], "w1", nil, .glassWood, "e", .aim, ["5"])],
+                                 pages: [PageFact(id: 1, world: .tideArchive, position: SIMD3(500, 0, 0), states: [])], external: ["go"])
+        check(R.openAtOnce(worlds).map(\.subject) == ["V1"], "puzzlegraph G6 last of a world: the world's last puzzle is exempt, a mid-world chain is not (\(R.openAtOnce(worlds).map(\.subject)))")
         check(rules(chain) == ["G6"], "puzzlegraph G6: a chain (one open at each choice) is flagged (\(rules(chain)), steps \(R.timeline(chain).map { $0.open.count }))")
         let noFeedback = broken { $0.puzzles[idx($0, "B")].feedback = [] }
         check(rules(noFeedback) == ["G7"] && R.feedback(noFeedback).count == 2, "puzzlegraph G7: no feedback fails both progress and two senses (\(R.feedback(noFeedback).map(\.subject)))")
@@ -156,7 +161,7 @@ extension SelfTestRunner {
         let byHand = zip(MirrorCourt.solutionMirrors, MirrorCourt.initialMirrors).map { ($0 - $1 + 4) % 4 }.reduce(0, +) + zip(MirrorCourt.solutionPanes, MirrorCourt.initialPanes).map { ($0 - $1 + 3) % 3 }.reduce(0, +)
         check(search.solutions == 1 && search.cheapest == byHand && g.node("mirror-court")?.manipulations == byHand, "puzzlegraph: the mirror court has exactly 1 of 1728 settings and the fewest clicks from where it is found is \(byHand) (search: \(search))")
         check(g.node("lens-ring")?.manipulations == 3, "puzzlegraph: the lens ring is 3 clicks from where it starts to the receiver")
-        check(g.node("archive-gates-beam")?.manipulations == 15, "puzzlegraph: the prism ring is 15 clicks through the three marks in order (6 + 4 + 5)")
+        check(g.node("archive-gates-beam")?.manipulations == 5, "puzzlegraph: the prism ring is 5 clicks through the three marks in order (2 + 1 + 2)")
         check(g.node("stones")?.manipulations == 3 && g.node("door-plates")?.manipulations == 3 && g.node("chime-pool")?.manipulations == 3 && g.node("archive-pipes")?.manipulations == 3 && g.node("archive-catalogue")?.manipulations == 3 && g.node("archive-marks")?.manipulations == 3, "puzzlegraph: three strikes or touches each for the stones, plates, chimes, pipes, bays and marks")
 
         // What the text says, and where the structure sits.

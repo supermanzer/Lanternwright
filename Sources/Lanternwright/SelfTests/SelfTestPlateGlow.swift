@@ -25,12 +25,18 @@ extension SelfTestRunner {
         g.activate(TonePlates.names[wrong == order[2] ? order[0] : wrong]); run(Double(TonePlatePuzzle.Timing.wrongResetDelay) + 0.4)
         let after = glow()
         check(after <= Game.plateGlintPeak + 0.001, "plateglow: a wrong strike resets it: the glow drops back to the glint (\(after))")
-        // Before the plates would be answered (no altar yet) a right strike is not shown: the glow stays dark (Q101).
+        // B7 (Q101): before the altar a right strike is shown right (a step per strike held) but the quiet glint is not there, and the door does not open; a wrong strike drops it.
         let early = Game(scenes: [.varrow: Scene.makeWorld(device: device), .glassWood: GlassWood.build(device: device)])
         for n in [1, 2, 3, 5, 6, 7] { early.restorePage(n) }
         var eclock = 7000.0
-        for k in TonePlatePuzzle.order.prefix(2) { early.activate(TonePlates.names[k]); for _ in 0..<8 { eclock += 0.05; early.advance(now: eclock, input: InputState()) } }
-        check((early.scene.items.first { $0.name == "tone_plates" }?.uniforms.emissive.w ?? -1) == 0, "plateglow: before the altar a right strike is not shown on the plates (they stay dark)")
+        func eglow() -> Float { early.scene.items.first { $0.name == "tone_plates" }?.uniforms.emissive.w ?? -1 }
+        func erun(_ n: Int) { for _ in 0..<n { eclock += 0.05; early.advance(now: eclock, input: InputState()) } }
+        erun(8); let e0 = eglow()
+        early.activate(TonePlates.names[order[0]]); erun(8); let e1 = eglow()
+        early.activate(TonePlates.names[order[1]]); erun(8); let e2 = eglow()
+        check(e0 == 0 && abs(e1 - Game.plateHeldStep) < 0.001 && abs(e2 - 2 * Game.plateHeldStep) < 0.001, "plateglow: before the altar each right strike glows a step with no glint under it (\(e0) -> \(e1) -> \(e2))")
+        early.activate(TonePlates.names[wrong == order[2] ? order[0] : wrong]); erun(Int((TonePlatePuzzle.Timing.wrongResetDelay + 0.4) * 20))
+        check(eglow() == 0 && !early.state.has(Game.doorOpenFlag), "plateglow: before the altar a wrong strike drops the glow, and the door stays shut (\(eglow()))")
         // Once the door is open the plates only ring: no held glow.
         g.state.set(Game.doorOpenFlag); run(0.4)
         check(glow() <= 0.001, "plateglow: with the door open the plates are dark again (\(glow()))")

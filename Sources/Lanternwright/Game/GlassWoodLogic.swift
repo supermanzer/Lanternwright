@@ -28,6 +28,16 @@ final class GlassWoodLogic: WorldPuzzle {
     private var receiverGlow = [Float](repeating: 0, count: MirrorCourt.receivers.count)
     /// Receivers lit by the court as it stands (the live reading the tests and the graph use).
     var receiversLit: [Bool] { (0..<MirrorCourt.receivers.count).map(trace.lit) }
+    /// B7 (Q102): per receiver, 0...1, how nearly the beam reaches it (one click away 1, two 0.4, lit or further 0: `MirrorCourt.nearness`). For builder A's faint glow (`ReceiverGlow.set(..., near:)`); the solved rule does not read it.
+    var receiverNear: [Float] {
+        let key = mirrors + panes
+        if key != nearKey { nearKey = key; nearCache = MirrorCourt.nearness(mirrors: mirrors, panes: panes) }
+        return nearCache
+    }
+    private var nearKey: [Int] = [], nearCache = [Float](repeating: 0, count: MirrorCourt.receivers.count)
+    /// Until A's `near:` parameter lands, a stand-in for measuring only (the no-knowledge bot's court climb): the near value drawn as a faint glow in the receiver's own colour. Off in the game, so no frame changes.
+    nonisolated(unsafe) static var nearStandIn = false
+    static let nearStandInLevel: Float = 0.12
 
     static let columnHeight: Float = 46
 
@@ -308,6 +318,8 @@ final class GlassWoodLogic: WorldPuzzle {
         if level > 0.02 { ReceiverGlow.set(scene, k, level: level, color: GlassPuzzleProps.color(MirrorCourt.receiverColors[k])); return }
         if let a = trace.arrivals[k].last {                    // reached by the wrong colour: a dull, uneven flutter of what arrived
             ReceiverGlow.set(scene, k, level: 0.22 + 0.08 * sin(time * 9), color: GlassPuzzleProps.color(a))
+        } else if GlassWoodLogic.nearStandIn, receiverNear[k] > 0 {
+            ReceiverGlow.set(scene, k, level: receiverNear[k] * GlassWoodLogic.nearStandInLevel, color: GlassPuzzleProps.color(MirrorCourt.receiverColors[k]))
         } else { ReceiverGlow.set(scene, k, level: 0) }
     }
 

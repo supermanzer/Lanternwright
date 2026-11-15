@@ -24,9 +24,10 @@ final class TideArchivePuzzle: WorldPuzzle {
     static let forkFlag = "ti_tool_fork", lensFlag = "ti_tool_lens", wayTone = "ti_way_tone", wayBeam = "ti_way_beam", drainedFlag = "ti_drained"
     static let ringName = "ti_prism_ring", findForkName = "ti_find_fork", findLensName = "ti_find_lens"
     static let sluiceNames = ["ti_sluice_0", "ti_sluice_1", "ti_sluice_2"]
-    /// The ring's turn: 15 degrees a touch, the same as the lighthouse's; the beam angle that feeds each sluice (multiples of a step), and how near it must be.
-    static let ringStep: Float = .pi / 12
-    static let beamTargets: [Float] = [-6 * ringStep, -2 * ringStep, 3 * ringStep]
+    /// The ring's turn (see `ringStep`); the beam angle that feeds each sluice (multiples of a step), and how near it must be.
+    /// B7 (Q105, Q70): 45 degrees a touch (it was 15: fifteen clicks to the third mark). The three marks stand at -2, -1 and +1 steps from where the ring starts (0): 2 + 1 + 2 = 5 clicks in all. A 90-degree step would be 4, but leaves four settings for three marks (the ring would be tried, not aimed); 45 keeps eight, with the marks 45 degrees apart on the floor. One constant (A reads it to paint the floor marks).
+    static let ringStep: Float = .pi / 4
+    static let beamTargets: [Float] = [-2 * ringStep, -1 * ringStep, 1 * ringStep]
     static let beamTolerance: Float = 3 * .pi / 180
     static let initialRing: Float = 0
 
@@ -106,6 +107,7 @@ final class TideArchivePuzzle: WorldPuzzle {
     // MARK: Ilse's way: the held tone
     func touchSluice(_ k: Int) {
         emit(.chime(chime(k)))                                                       // a touch always rings, with the fork or without
+        if hasFork, !touchHolds() { emit(.dormant) }                                  // B7 (Q103): on Ilse's route the wheel's touch is not her way (the pipes are): a dull tick after the ring
         guard hasFork, touchHolds(), !isSolved, !busy, k >= opened, TideArchivePuzzle.sluiceNames.indices.contains(k) else { return }
         busy = true
         emit(.drone(k, true)); emit(.forkTone(k, true))
@@ -115,6 +117,7 @@ final class TideArchivePuzzle: WorldPuzzle {
     // MARK: Oren's way: the turned beam
     /// Turn the ring `steps` quarter-twelfths (positive: clockwise seen from above). The beam is where the ring points; resting on a sluice's mark for `beamHold` s tries that sluice.
     func turn(_ steps: Int) {
+        if hasLens, !ringWorks(), steps != 0 { emit(.dormant) }                        // B7 (Q103): the lens ring is Oren's, not Ilse's
         guard hasLens, ringWorks(), !isSolved, steps != 0 else { return }
         var a = ringAngle + Float(steps) * TideArchivePuzzle.ringStep
         while a > .pi { a -= 2 * .pi }

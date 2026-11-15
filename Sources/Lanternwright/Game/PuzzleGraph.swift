@@ -278,14 +278,16 @@ enum PuzzleRules {
         return out
     }
 
-    /// The first puzzle of each world and the last of the game are exempt: nothing can be open beside the very last one, and a player entering a world has not had its first ten minutes yet.
+    /// The first puzzle of each world, the last puzzle of each world (B7, Q110) and the last of the game are exempt: nothing can be open beside the very last one, and a player entering a world has not had its first ten minutes yet.
     static func openAtOnce(_ g: PuzzleGraph) -> [PuzzleBreak] {
         // S05: a player walks ONE route, so the Archive is judged once for Ilse and once for Oren (a puzzle on the other's route is not open to them); a shared puzzle found twice is reported once.
         let routes = Set(g.puzzles.compactMap(\.route)).sorted { "\($0)" < "\($1)" }
         var seen = Set<String>(), out: [PuzzleBreak] = []
         for r in routes.isEmpty ? [nil] : routes.map({ Optional($0) }) {
             let steps = timeline(g, route: r)
-            for s in steps.enumerated().filter({ !$0.element.firstInWorld && $0.offset < steps.count - 1 && $0.element.open.count < minOpen }).map(\.element) where seen.insert(s.id).inserted {
+            // B7 (Q110): the last puzzle of each world is exempt too (as the game's last already is): nothing is left in that world to be open beside it, and the player is about to leave.
+            let lastOfWorld = Dictionary(steps.enumerated().map { ($0.element.world, $0.offset) }, uniquingKeysWith: max)
+            for s in steps.enumerated().filter({ !$0.element.firstInWorld && $0.offset < steps.count - 1 && lastOfWorld[$0.element.world] != $0.offset && $0.element.open.count < minOpen }).map(\.element) where seen.insert(s.id).inserted {
                 out.append(PuzzleBreak(rule: "G6", subject: s.id, detail: "when \(s.id) is chosen only \(s.open) is open\(r.map { " on \($0)'s route" } ?? ""): a chain, not a web"))
             }
         }
@@ -394,8 +396,8 @@ extension PuzzleGraph {
             PuzzleKey(id: "three-heights", title: "the three heights", channel: .see, learnedAt: "chime-pool", learnedWorld: .glassWood, learnedPosition: centre("gw_chime_0", .glassWood), usedAt: ["archive-pipes", "archive-gates-beam"], planted: true,
                       status: .planned("the gates' water marks (builder A, Q76): until they exist nothing at the gates uses it, so the gates do not list it as a clue"),
                       value: "the non-decoy chimes hang in the order of the sluice rooms' floors (tide highest): an ORDER today, not a scale, and the gates carry no mark for it yet (Q76)"),
-            PuzzleKey(id: "lantern-count", title: "the lit-lantern count", channel: .count, learnedAt: "dock-lanterns", learnedWorld: .varrow, learnedPosition: dockLantern, usedAt: ["archive-gates-beam"], planted: true,
-                      value: "\(PlantedClues.litCount) of the first \(PlantedClues.lanternSpan) dock lanterns are lit = \(PlantedClues.firstRingMarkSteps) steps to the prism ring's first mark (Oren's way; Ilse's fork has no counterpart yet, Q75)"),
+            PuzzleKey(id: "lantern-count", title: "the dark-lantern count", channel: .count, learnedAt: "dock-lanterns", learnedWorld: .varrow, learnedPosition: dockLantern, usedAt: ["archive-gates-beam"], planted: true,
+                      value: "\(PlantedClues.darkCount) of the first \(PlantedClues.lanternSpan) dock lanterns are unlit = \(PlantedClues.firstRingMarkSteps) steps to the prism ring's first mark (Oren's way; Ilse's fork has no counterpart yet, Q75)"),
             PuzzleKey(id: "stones-order", title: "the stones' altitude order", channel: .see, learnedAt: "the island-profile diagram on page \(PageArt.islandProfilePage)", learnedWorld: .varrow, learnedPosition: pages.first { $0.id == PageArt.islandProfilePage }?.position, usedAt: ["stones", "door-plates"], planted: true,
                       value: "a drawn profile of the climb with a mark at each stone's real height (\(PageArt.stonesByAltitude.map(\.name).joined(separator: " < "))); a mark shows its rubbing once the stone has been looked at closely (Q51); the plates use it to name a flash's length (short = low = tide)"),
             PuzzleKey(id: "beam-rhythm", title: "the beam rhythm", channel: .watch, learnedAt: "the lighthouse beam at dusk, from the dock", learnedWorld: .varrow, learnedPosition: Layout.dockEnd, usedAt: ["door-plates", "archive-orrery"], planted: true,

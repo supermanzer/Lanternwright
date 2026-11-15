@@ -82,7 +82,7 @@ final class IlseRoute: WorldPuzzle {
     }
     func handles(_ id: String) -> Bool { Self.bayNames.contains(id) || Self.pipeNames.contains(id) || id == Self.keyName }
     func activate(_ id: String) {
-        guard isActive else { return }
+        guard isActive else { if handles(id) { emit(.dormant) }; return }          // B7 (Q103): the other sibling's machine answers with a dull tick, not with silence
         if let k = Self.bayNames.firstIndex(of: id) { ring(k) }
         else if let k = Self.pipeNames.firstIndex(of: id) { touchPipe(k) }
         else if id == Self.keyName { takeRod() }

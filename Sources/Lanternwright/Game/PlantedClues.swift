@@ -4,10 +4,9 @@ import simd
 /// P02.5 (plan P02 section 3.1 and 3.2): the two PLANTED CLUES the plan builds first, each one unexplained physical datum that pays off a world later and is never flagged: no page states it, nothing
 /// glows at it, the player has to notice it. Each is data here, the graph (`PuzzleGraph.keys`) names its consumer, and `SelfTestPlantedClues` pins that the datum and its consumer still agree.
 ///
-///  1. **The lantern count** (Varrow, COUNT). Of the first `lanternSpan` stone lanterns along the dock path (the first 135 m, one every 18 m from 9 m) two are unlit and `litCount` = 6 are. Six is the number
-///     of ring steps to the first mark of the Archive's prism ring (`TideArchivePuzzle.beamTargets[0]` is six steps from `initialRing`): a player who counted the lit lanterns on the way up knows the first
-///     mark of the ring before they turn it. The plan's default was "the dark count equals the first step"; 40 m holds only two lanterns and six dark ones of eight would leave the dock looking unlit, so the
-///     count is of the LIT ones (Q75).
+///  1. **The lantern count** (Varrow, COUNT). Of the first `lanternSpan` stone lanterns along the dock path (the first 135 m, one every 18 m from 9 m) two are unlit (`darkCount`) and six are lit. Since B7 (the ring's step went 15 to 45 degrees, Q105) the number
+///     of ring steps to the first mark of the Archive's prism ring (`TideArchivePuzzle.beamTargets[0]`) is two, the DARK count: a player who counted the unlit lanterns on the way up knows the first
+///     mark of the ring before they turn it. That is the plan's own default ("the dark count equals the first step"); until B7 the first mark was six steps off and the count was of the lit ones (Q75).
 ///  2. **The chimes' heights** (Glass Wood, SEE). The pool's five glass chimes hang at five heights; the three that are not decoys (`GlassWoodLogic.chimeSolution`) are the tide, wind and stone tones, and
 ///     they hang in the same order as the three sluice rooms' floors in the Archive (`ArchiveLayout.sluiceFloors`: the tide room's floor is the highest, the stone room's the lowest): the tallest of the three is the gate that answers at the highest water.
 ///     Today that is an ORDER, not a scale (the heights' proportions are not the floors'), and the gates carry no mark for it yet (the plan's "visible level line the water passes" is builder A's, Q76).
@@ -19,9 +18,11 @@ enum PlantedClues {
     static let darkLanterns: Set<Int> = [2, 5]
     static let darkGlow: Float = 0.5
     static var litCount: Int { lanternSpan - darkLanterns.count }
+    /// The clue: how many of the first eight lanterns are unlit (what a player counts).
+    static var darkCount: Int { darkLanterns.count }
     /// The resting glow of lantern `k` (in route order): lit unless it is one of the unlit ones.
     static func baseGlow(lantern k: Int) -> Float { darkLanterns.contains(k) ? darkGlow : LanternChain.baseGlow }
-    /// The ring steps from where Oren finds the Archive's prism ring to its first mark (the number the lit lanterns count to).
+    /// The ring steps from where Oren finds the Archive's prism ring to its first mark (the number the unlit lanterns count to).
     static var firstRingMarkSteps: Int { Int((abs(TideArchivePuzzle.beamTargets[0] - TideArchivePuzzle.initialRing) / TideArchivePuzzle.ringStep).rounded()) }
 
     // MARK: 2. the chimes' heights

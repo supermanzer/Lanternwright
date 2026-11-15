@@ -6,7 +6,7 @@ import simd
 extension SelfTestRunner {
     func runPlantedClues() {
         guard name == "all" || name == "planted" else { return }
-        // 1. The lantern count: the lit ones of the first eight stand in the world at their base glow, the unlit ones dim; six lit = six ring steps to the prism ring's first mark.
+        // 1. The lantern count: the lit ones of the first eight stand in the world at their base glow, the unlit ones dim; two unlit = two ring steps to the prism ring's first mark (B7).
         let varrow = Scene.make(.varrow, device: device)
         let cores = (0..<PlantedClues.lanternSpan).map { k in varrow.items.first { $0.name == "\(LanternChain.coreName)\(k)" } }
         check(cores.allSatisfy { $0 != nil }, "planted: the first \(PlantedClues.lanternSpan) dock lanterns exist as cores")
@@ -14,7 +14,7 @@ extension SelfTestRunner {
         let dark = cores.enumerated().filter { $0.element?.uniforms.emissive.w == PlantedClues.darkGlow }.map(\.offset)
         check(lit.count == PlantedClues.litCount && Set(dark) == PlantedClues.darkLanterns && lit.count + dark.count == PlantedClues.lanternSpan, "planted: in the built Varrow \(lit.count) of the first \(PlantedClues.lanternSpan) lanterns are lit and \(dark) are not")
         check(PlantedClues.darkGlow > 0 && PlantedClues.darkGlow < LanternChain.baseGlow / 4, "planted: an unlit lantern is dim, clearly less than a lit one, not invisible (\(PlantedClues.darkGlow) against \(LanternChain.baseGlow))")
-        check(PlantedClues.litCount == PlantedClues.firstRingMarkSteps && PlantedClues.firstRingMarkSteps == 6, "planted: the lit-lantern count (\(PlantedClues.litCount)) is the prism ring's steps to its first mark (\(PlantedClues.firstRingMarkSteps))")
+        check(PlantedClues.darkCount == PlantedClues.firstRingMarkSteps && PlantedClues.firstRingMarkSteps == 2, "planted: the dark-lantern count (\(PlantedClues.darkCount)) is the prism ring's steps to its first mark (\(PlantedClues.firstRingMarkSteps))")
         let noneAdjacent = PlantedClues.darkLanterns.sorted().adjacentPairs().allSatisfy { $1 - $0 > 1 }
         check(noneAdjacent && !PlantedClues.darkLanterns.contains(0), "planted: the unlit ones are not next to each other and the first lantern by the dock is lit (the lit path still reads as a path)")
         // After the return the lanterns flare for a while and settle back to THEIR base glow (the dark ones stay dark).

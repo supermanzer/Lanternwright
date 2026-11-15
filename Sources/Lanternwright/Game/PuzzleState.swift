@@ -26,6 +26,10 @@ enum GameEvent: Equatable {
     case bell(Int, Bool)
     /// S05.4 / A5: orrery arm k passes its dome window (Q92); the gain 0...1 is already scaled by the listener's distance (`Orrery.tickGain`).
     case orreryTick(Int, Float)
+    /// B7 (Q103): the player pressed a machine that is not theirs (the other sibling's bays, pipes and key on Oren's route; the orrery's collar on Ilse's; the sluice wheels' tuning-fork touch and the lens ring on Ilse's): one dull, quiet tick and nothing else, so it reads as "not yours", never as broken. Builder A's audio voice maps it (`ArchiveAudio.Event.dormant`); until then it is silent.
+    case dormant
+    /// B7 (Q104): the orrery's collar turned a notch: `armHere` is true when that notch has an arm that can be caught (the notch is right; the moment may not be), so a click can sound louder on it. Builder A's audio maps it (`Orrery.clickGain`).
+    case collar(armHere: Bool)
 }
 
 /// The world's memory: named flags (a "blackboard"). Puzzles read and write these, and rendering reads them,

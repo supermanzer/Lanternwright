@@ -79,6 +79,21 @@ extension SelfTestRunner {
         let kept = Game(scenes: [.varrow: Scene.makeWorld(device: device)]); kept.restore(fresh.makeSave()); adv(kept, 0.2)
         check(kept.state.has(Game.quaySeenFlag), "varrow opening: a save keeps that the quay has been seen")
 
+        // B7 (Q106): a stone struck before the quay was seen lights a guide light toward the quay (and flares it); it keeps ahead of the player, parks at the quay's start and is gone once the quay is seen.
+        let qh = Game(scenes: [.varrow: Scene.makeWorld(device: device)]); adv(qh, 0.2)
+        let hill = SIMD2(Layout.lighthouse.x, Layout.lighthouse.z + 8)
+        qh.player = Player(position: SIMD3(hill.x, qh.scene.groundHeight(x: hill.x, z: hill.y), hill.y), yaw: 0); adv(qh, 0.3)
+        let quayXZ = SIMD2(Layout.causewayStart.x, Layout.causewayStart.z)
+        check(qh.varrowGuide == nil, "quay hint: with no stone struck there is no light on Varrow")
+        qh.activate("stone_\(LighthousePuzzle.order[0].name)"); adv(qh, 0.3)
+        check(qh.varrowGuide != nil && qh.guideFlare > 1 && !qh.state.has(Game.quaySeenFlag), "quay hint: a stone struck before the quay lights a guide light and flares it")
+        let qnet = Layout.Navigation.active(for: .varrow)!, qwalk = qnet.route(from: hill, to: quayXZ), qpath = GuidePath(qwalk + [quayXZ])
+        var qprev: Float = 0, qok = true
+        for q in qwalk { qh.player.position = SIMD3(q.x, qh.scene.groundHeight(x: q.x, z: q.y), q.y); adv(qh, 0.6); if let v = qh.varrowGuide { let s2 = qpath.progress(of: v); qok = qok && s2 >= qprev - 0.05; qprev = s2 } else if !qh.state.has(Game.quaySeenFlag) { qok = false } }
+        check(qok, "quay hint: walking the way the light only ever goes forward")
+        adv(qh, 12)
+        check(qh.state.has(Game.quaySeenFlag) && qh.varrowGuide == nil, "quay hint: at the quay it is seen, and the light is gone")
+
         // #114: with the quay up, a guide light leads to Oren's lens and parks there; it stays when the player turns round, and goes when the lens has been touched.
         let vg = Game(scenes: [.varrow: Scene.makeWorld(device: device)]); adv(vg, 0.2)
         check(vg.varrowGuide == nil && item(vg, GuideLanterns.lanternName)?.hidden == true, "varrow guide: before the quay is up there is no guide light on Varrow")

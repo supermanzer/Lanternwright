@@ -21,6 +21,8 @@ final class OrenRoute: WorldPuzzle {
     /// The notch that catches arm k (the beam rhythm's rank + 1: the shortest flash is the tide's), and the arm a notch catches (nil: a notch that does nothing).
     static func notch(forArm k: Int) -> Int { k + 1 }
     static func arm(atNotch n: Int) -> Int? { (1...3).contains(n) ? n - 1 : nil }
+    /// B7 (Q104): the collar's notch now points at an arm that is still to be caught (a notch the right moment would answer): what makes its click louder. `Game.collarNotchHasArm` is the same for A.
+    var notchHasArm: Bool { Self.arm(atNotch: notch).map { !lit($0) } ?? false }
     /// How long a window takes to come up once its arm is caught.
     static let windowSeconds: Float = 1.4
     /// The old machinery's tests (the ring on its own, with no windows) switch the windows' hold on the ring off.
@@ -66,7 +68,7 @@ final class OrenRoute: WorldPuzzle {
         reapply()
     }
     func handles(_ id: String) -> Bool { id == Self.collarName }
-    func activate(_ id: String) { if id == Self.collarName { turnCollar() } }
+    func activate(_ id: String) { if id == Self.collarName { if isActive { turnCollar() } else { emit(.dormant) } } }          // B7 (Q103): on Ilse's route the collar is not hers
 
     // MARK: O1
     /// Turn the collar one notch on (the sixth goes back to the first). If it lands on a notch that catches an arm and that arm is lined up with its window now, the arm is caught and the window lights.
@@ -76,6 +78,7 @@ final class OrenRoute: WorldPuzzle {
         for (n, f) in Self.collarFlags.enumerated() { state.set(f, n == notch) }
         if let sc = scene() { Orrery.setCollar(sc, detent: notch) }
         emit(.chime(.glassTick))
+        emit(.collar(armHere: notchHasArm))                                   // B7 (Q104): A's click can sound louder on a notch that has an arm
         guard let k = Self.arm(atNotch: notch), !lit(k) else { return }
         guard state.has(IlseRoute.marksFlag) else { nudge(); return }                    // the water has not been counted yet: nothing is asked of the instrument (the light flares)
         guard Orrery.aligned(k, clock: clock()) else { return }                          // the arm runs on

@@ -188,6 +188,8 @@ extension SelfTestRunner {
 
     func runNoKnowledge() {
         guard name == "all" || name == "nokbot" else { return }
+        GlassWoodLogic.nearStandIn = ProcessInfo.processInfo.environment["NOKBOT_NEAR"] == "1"          // B7 (Q102): measure the court with the receivers' "nearly" glow drawn (off in the game until A's `near:` lands)
+        defer { GlassWoodLogic.nearStandIn = false }
         // ---- The brain's file may name nothing of the game's: not a puzzle, not a layout constant, not a flag, not an answer. (A denylist: a determined cheat can get past it; it catches the honest slip, and the brain holds
         // only a `Perception` in any case.)
         let brainPath = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent("NoKnowledge/BlindPlayer.swift").path
@@ -215,11 +217,11 @@ extension SelfTestRunner {
     /// is a change in how the game plays for someone who knows nothing, so it fails here until the pin is moved on purpose (and `P02-acceptance-report.md` regenerated).
     static let pinnedBlindSolved: [PageAuthor: [String]] = [
         .ilse: ["altar", "archive-catalogue", "archive-marks", "archive-pipes", "chime-pool", "door-plates", "stones"],
-        .oren: ["altar", "archive-marks", "archive-orrery", "chime-pool", "door-plates", "stones"],
+        .oren: ["altar", "archive-gates-beam", "archive-marks", "chime-pool", "door-plates", "stones"],
     ]
     static let pinnedHelped: [PageAuthor: [String]] = [
         .ilse: ["mirror-court"],
-        .oren: ["archive-gates-beam", "lens-ring", "mirror-court"],
+        .oren: ["archive-orrery", "lens-ring", "mirror-court"],
     ]
     /// The most presses a puzzle the blind player solved may have taken (its designed least is 3 to 6): a row of three to five things found by trial costs a few dozen, not a few hundred.
     static let blindPressBudget = 40
@@ -251,6 +253,6 @@ extension SelfTestRunner {
         let counted = graph.puzzles.filter { $0.kind == .puzzle && !$0.optional }
         check(noProgress.isEmpty && counted.allSatisfy { n in n.feedback.contains { $0.kind == .progress } }, "nokbot metrics: every puzzle names a continuous (progress) feedback (\(counted.count) puzzles; missing: \(noProgress.map(\.subject)))")
         let off = counted.filter { !(3...6).contains($0.manipulations) }.map { "\($0.id) \($0.manipulations)" }
-        check(off == ["archive-gates-beam 15"], "nokbot metrics: every puzzle's designed least is 3 to 6 manipulations but the prism ring's 15 (Q70, A's marks): \(off)")
+        check(off.isEmpty, "nokbot metrics: every puzzle's designed least is 3 to 6 manipulations (the prism ring is 5 since B7, Q105; off: \(off))")
     }
 }

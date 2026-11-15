@@ -266,7 +266,7 @@ final class BlindPlayer {
             }
             alone = false
         }
-        current?.note = "gave up after \(current?.manipulations ?? 0) presses with \(confirmed.count) held"
+        let gaveUp = "gave up after \(current?.manipulations ?? 0) presses with \(confirmed.count) held"; current?.note = gaveUp
     }
 
     /// A dial, or several: click each round its cycle, keep the brightest, and go round again.
@@ -308,7 +308,7 @@ final class BlindPlayer {
             if !improved { break }
         }
         if current?.outcome != .solvedByTrial && site.count == 1 && watched[site[0].handle, default: 0] < 3 { watched[site[0].handle, default: 0] += 1; watchAndPress(site[0], centre: centre) }
-        if current?.outcome != .solvedByTrial { current?.note = "went round \(passes) time(s), \(current?.manipulations ?? 0) clicks; the light never settled" }
+        if current?.outcome != .solvedByTrial { let went = "went round \(passes) time(s), \(current?.manipulations ?? 0) clicks; the light never settled"; current?.note = went }
     }
 
     /// A single dial that nothing answered by going round: watch the place, and press at the moment something there brightens (what a player does with a thing that has a time to it). Counts as an answer when more

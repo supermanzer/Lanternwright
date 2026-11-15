@@ -67,6 +67,25 @@ enum MirrorCourt {
         var solved: Bool { litCount == MirrorCourt.receivers.count }
     }
 
+    /// B7 (Q102): how nearly the beam reaches each receiver, 0...1, for a faint glow that gives a hill-climb a slope. A receiver that is lit reads 0 (it has its own glow). Otherwise the nearest arrangement that lights it, counted in
+    /// CLICKS (a mirror turn is a click on a mirror, a pane's colour a click on a pane; each click advances one element one step, as the player's clicks do): one click away reads `nearOne` (the beam passes within one mirror turn or one pane
+    /// of the receiver), two clicks away `nearTwo`, further 0. The solved rule (all three lit at once) is untouched; this reads the same trace the rule reads.
+    static let nearOne: Float = 1, nearTwo: Float = 0.4
+    static func nearness(mirrors: [Int], panes: [Int]) -> [Float] {
+        let here = trace(mirrors: mirrors, panes: panes)
+        var best = [Float](repeating: 0, count: receivers.count)
+        func consider(_ t: Trace, _ v: Float) { for k in 0..<receivers.count where t.lit(k) && !here.lit(k) { best[k] = max(best[k], v) } }
+        var oneAway: [([Int], [Int])] = []
+        for i in 0..<mirrors.count { var m = mirrors; m[i] = (m[i] + 1) % 4; oneAway.append((m, panes)) }
+        for i in 0..<panes.count { var p = panes; p[i] = (p[i] + 1) % 3; oneAway.append((mirrors, p)) }
+        for (m, p) in oneAway {
+            consider(trace(mirrors: m, panes: p), nearOne)
+            for i in 0..<m.count { var m2 = m; m2[i] = (m2[i] + 1) % 4; consider(trace(mirrors: m2, panes: p), nearTwo) }
+            for i in 0..<p.count { var p2 = p; p2[i] = (p2[i] + 1) % 3; consider(trace(mirrors: m, panes: p2), nearTwo) }
+        }
+        return best
+    }
+
     static func trace(mirrors: [Int], panes: [Int]) -> Trace {
         var t = Trace()
         var pos = source
