@@ -29,7 +29,7 @@ extension SelfTestRunner {
         // 3. The keys table in today's graph.
         let g = PuzzleGraph.today(game: Game(scenes: [.varrow: varrow, .glassWood: Scene.make(.glassWood, device: device), .tideArchive: Scene.make(.tideArchive, device: device)]))
         func k(_ id: String) -> PuzzleKey? { g.keys.first { $0.id == id } }
-        check(g.keys.count == 6 && g.keys.filter { $0.status == .built }.map(\.id) == ["stones-tones", "lantern-count", "stones-order", "beam-rhythm"], "planted: the plan's six keys are in the table, four of them built (the heights are data and a test only, until the gates have marks; the map is the Salt Flats') (\(g.keys.map(\.id)))")
+        check(g.keys.count == 7 && g.keys.filter { $0.status == .built }.map(\.id) == ["stones-tones", "lantern-count", "stones-order", "beam-rhythm", "catalogue-diagram"], "planted: the plan's six keys and S05.3's catalogue diagram are in the table, five of them built (the heights are data and a test only, until the gates have marks; the map is the Salt Flats') (\(g.keys.map(\.id)))")
         check(k("lantern-count")?.usedAt == ["archive-gates-beam"] && k("three-heights")?.usedAt == ["archive-pipes", "archive-gates-beam"] && k("three-heights")?.status != .built && k("stones-tones")?.usedAt == ["chime-pool"], "planted: each key names its consumer (the heights' is planned: the gates' marks)")
         check(g.keys.filter { $0.status == .built }.allSatisfy { key in key.usedAt.allSatisfy { u in g.node(u)?.clues.contains { $0.source == .key(key.id) } == true } }, "planted: every consumer of a built key lists it as one of its clues")
         check(PuzzleRules.keyRule(g).isEmpty, "planted: the keys rule (G11) finds nothing wrong with today's built keys (\(PuzzleRules.keyRule(g).map(\.key)))")

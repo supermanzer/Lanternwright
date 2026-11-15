@@ -113,6 +113,25 @@ extension SelfTestRunner {
             check(g3.ilseRoute?.catalogueDone == true && g3.ilseRoute?.marksDone == true, "ilseroute: a save after the catalogue loads with the marks counted and the catalogue done")
         }
 
+        // Rules of the pipes, on a second game placed at pipe 1 with the marks, catalogue and rod done (a rule test, not a route walk): a pipe that agrees out of turn does not answer; a held fork is let go when the player walks off.
+        if let (g2, bot2) = arrive(), let r2 = g2.ilseRoute, let t2 = g2.tideArchive {
+            for f in R.markFlags + [R.marksFlag, R.catalogueFlag, R.keyFlag] { g2.state.set(f) }
+            let p = ArchiveLayout.pipe(1)
+            g2.player.position = SIMD3(p.x, g2.scene.groundHeight(x: p.x, z: p.z + 2), p.z + 2); bot2.wait(0.3)
+            _ = bot2.click(R.pipeNames[1])
+            check(r2.holding == 1, "ilseroute: I2: the fork can be held at any pipe")
+            var crossed = 0, was = false
+            for _ in 0..<(Int(Tide.period) * 4) { bot2.wait(0.25); let near = abs(r2.pipeHz(1) - r2.forkHz(1)) <= IlseTones.agreeHz; if near && !was { crossed += 1 }; was = near }
+            check(crossed >= 2 && t2.opened == 0 && !g2.state.has(TideArchivePuzzle.sluiceFlags[1]) && !g2.routeSolved, "ilseroute: I2: pipe 1 agreed with the fork \(crossed) times while gate 0 was still shut and did not answer (out of turn: no penalty, no change)")
+            _ = bot2.click(R.pipeNames[1])
+            check(r2.holding == nil, "ilseroute: I2: touching the same pipe again lets the fork go")
+            _ = bot2.click(R.pipeNames[1]); g2.player.position = SIMD3(p.x + 30, g2.scene.groundHeight(x: p.x + 30, z: p.z), p.z); bot2.wait(0.3)
+            check(r2.holding == nil, "ilseroute: I2: walking away from the pipe lets the held fork go")
+            // Without the rod a pipe does nothing.
+            g2.state.set(R.keyFlag, false); g2.player.position = SIMD3(p.x, g2.scene.groundHeight(x: p.x, z: p.z + 2), p.z + 2); bot2.wait(0.3); _ = bot2.click(R.pipeNames[1])
+            check(r2.holding == nil, "ilseroute: I2: without the rod a pipe does nothing")
+        }
+
         // The rod, then the pipes.
         let rodAt = ArchiveLayout.ledgerKey
         let doorAt = ArchiveLayout.ledgerDoor
