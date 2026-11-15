@@ -20,3 +20,9 @@ It names the three colours, and the court's crystals are tuned to them. Left alo
 
 ## Pages 2, 3 (Varrow), 7 (chimes): B3 (P02.2), not drafted here
 Page 3 states the stones' order (a pinned G10 and G4 break); the stones' clue moves to the island-profile diagram in B3. Page 7 ("tuned to the same three tones as the stones") is the plan's chime-pool row; both are drafted with B3.
+
+## S05.5 drafts (B4, NOT applied; the puzzles work without them)
+The Ilse route has no new page: the desk in the ledger room has an empty page spot (`ArchiveLayout.ledgerPage`) and the stacks have a lectern at page 11. Proposed, one each, short, in the keeper's voice, saying nothing the diagram and the machines do not already show:
+- **Ilse, the ledger room's desk:** "Five bells, and the catalogue wants three. The room keeps its rod for whoever has read the order and not merely rung it. A rod rings one note, however the water stands; the pipes ring the water's."
+- **Oren, a note at the orrery (when S05.2 lands):** "Three arms, one year. I did not need to understand the brass, only to stop each arm where the sky shows through its window."
+Neither line states the bays' order, a pipe's level or the sluices' order (G10).
