@@ -22,6 +22,8 @@ enum GameEvent: Equatable {
     /// S04.4: a sluice gate of the Tide Archive opening (true) or closing (false), and the tuning fork's tone for a stone held (true) or let go: builder B's Archive audio plays them.
     case sluice(Int, Bool)
     case forkTone(Int, Bool)
+    /// S05.3: a shelf bay's bell struck on the Ilse route (bay, sour).
+    case bell(Int, Bool)
 }
 
 /// The world's memory: named flags (a "blackboard"). Puzzles read and write these, and rendering reads them,

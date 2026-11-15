@@ -56,6 +56,7 @@ final class AudioEngine {
         case .droneBloom: synth.bloomDrone()
         case .sluice(let k, let opening): archive.handle(.sluice(k, opening: opening))
         case .forkTone(let k, let on): archive.handle(.fork(k, on: on))
+        case .bell(let k, let sour): archive.handle(.bell(k, sour: sour))
         default: break
         }
     }

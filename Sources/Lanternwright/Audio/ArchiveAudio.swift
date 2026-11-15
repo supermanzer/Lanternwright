@@ -321,7 +321,7 @@ extension ArchiveAudio {
     /// the selftests drive what the engine drives.
     static func inputs(game: Game) -> Inputs {
         let inArchive = game.tideArchive != nil && game.world == game.routeWorld && game.chosenPath != nil
-        return Inputs(active: inArchive, route: game.chosenPath, tide: Tide.level(game.time), tideRate: Tide.rate(game.time), waterDistance: game.archiveWaterDistance)
+        return Inputs(active: inArchive, route: game.chosenPath, tide: Tide.level(game.time), tideRate: Tide.rate(game.time), waterDistance: game.archiveWaterDistance, pipe: inArchive ? game.ilseRoute?.pipeInput : nil)
     }
 }
 

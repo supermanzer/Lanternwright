@@ -79,6 +79,13 @@ final class Game {
                                       scene: { [weak self] in self.flatMap { $0.scenes[$0.routeWorld] } }, solved: { [weak self] in self?.routeSolved ?? false })
             tideArchive = t
             puzzles.append(t)
+            let r = IlseRoute(state: state, animator: animator, emit: { [weak self] in self?.pending.append($0) }, scene: { [weak self] in self?.scenes[.tideArchive] }, tide: t,
+                              route: { [weak self] in self?.chosenPath }, level: { [weak self] in Tide.level(self?.time ?? 0) }, player: { [weak self] in self?.player.position ?? .zero },
+                              inArchive: { [weak self] in self.map { $0.realArchive && $0.chosenPath != nil } ?? false })
+            ilseRoute = r
+            t.touchHolds = { [weak self] in self?.chosenPath != .ilse }
+            t.ringWorks = { [weak self] in self?.chosenPath != .ilse }
+            puzzles.append(r)
         }
         if tideArchive != nil, scenes[.tideArchive] == nil { scenes[.glassWood]?.update(ChainMap.interactableName) { $0.hidden = false } }          // S04.9: with no Archive built the Glass Wood's own chain map stands in
         buildInteractables()
@@ -87,6 +94,8 @@ final class Game {
     /// S04.6/S04.9: the Tide Archive's key puzzle. ON by default since S04.9; `LW_TIDE_ARCHIVE=0` is the dev switch back to the old placeholder (the route leads to the Glass Wood and nothing is solved there). Without the Archive's scene in `Game(scenes:)` the Glass Wood stands in for it.
     nonisolated(unsafe) static var tideArchiveEnabled = ProcessInfo.processInfo.environment["LW_TIDE_ARCHIVE"] != "0"
     private(set) var tideArchive: TideArchivePuzzle?
+    /// S05.3: Ilse's site (A0 marks, I1 catalogue, I2 pipes); nil with the Archive switched off.
+    private(set) var ilseRoute: IlseRoute?
     /// Metres from the player to the nearest water the tide moves (the Archive's galleries): the wash is loud beside it and gone far from it. The stand-in's water is a notional spot west of the arrival pad; builder A's world replaces it with the gallery's surface (the nearest point of `ti_gallery_water`).
     var archiveWaterDistance: Float {
         guard realArchive else { return TideStandIn.waterDistance(from: player.position) }
@@ -485,6 +494,7 @@ final class Game {
         setInteractable(TideArchivePuzzle.ringName, enabled: true)          // F09.1 (#96): always touchable; without a lens it says it is empty (`hoverPrompt`)
         setInteractable(TideArchivePuzzle.findForkName, enabled: !t.hasFork)
         setInteractable(TideArchivePuzzle.findLensName, enabled: !t.hasLens)
+        if let r = ilseRoute { setInteractable(IlseRoute.keyName, enabled: r.catalogueDone && !r.hasRod) }
         for side in [PageAuthor.ilse, .oren] { setInteractable(TideArchivePuzzle.tableauLightName(side), enabled: t.tableauSideAvailable(side, route: chosenPath)) }       // S04 optional: the tableau's two lanterns
     }
 
@@ -516,6 +526,13 @@ final class Game {
         guard routeWorld == .tideArchive, let t = tideArchive else { return nil }
         if !routeSolved {
             guard route == .ilse else { return nil }
+            if let r = ilseRoute {                                                           // S05.3: the marks, the stacks, the ledger room, then the pipes
+                if !r.marksDone { return ("marks", SIMD2(ArchiveLayout.lampEnd.x + 3.5, ArchiveLayout.lampEnd.z - 4)) }
+                if !r.catalogueDone { let b = ArchiveLayout.bayXZ(ShelfBays.count / 2); return ("bays", SIMD2(b.x + 6, b.y)) }
+                if !r.hasRod { let d = ArchiveLayout.ledgerKey; return ("rod", SIMD2(d.x, d.z + 2)) }
+                let k = min(t.opened, 2), p = ArchiveLayout.pipe(k)
+                return ("pipe\(k)", SIMD2(p.x, p.z))
+            }
             let k = min(t.opened, 2); let g = TideSpots.gate(k)
             return ("gate\(k)", SIMD2(g.x, g.z))
         }

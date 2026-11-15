@@ -44,6 +44,9 @@ enum TideSpots {
         list.append(box(TideArchivePuzzle.ringName, prismRing, "Turn the ring  \u{2039} \u{203A}", half: 0.9))
         list.append(box(TideArchivePuzzle.findForkName, fork, "Take the fork"))
         list.append(box(TideArchivePuzzle.findLensName, lens, "Take the lens"))
+        for k in 0..<ShelfBays.count { list.append(box(IlseRoute.bayNames[k], ShelfBays.bellPoint(scene, k), "Ring the bell", half: 0.45, reach: 3.6)) }
+        list.append(box(IlseRoute.keyName, ArchiveLayout.ledgerKey, "Take the rod", half: 0.4, enabled: false))
+        for k in 0..<3 { list.append(box(IlseRoute.pipeNames[k], BellPipes.holdPoint(k), "Hold the fork to the pipe", half: 0.55, reach: 3.6)) }
         list.append(box(ChainMap.interactableName, chainMap, "Read the map"))
         for n in StoryPages.archiveIDs { list.append(box("page_\(n)", page(n), "Read the page", half: 0.5, enabled: n != 15)) }
         for side in [PageAuthor.ilse, .oren] { list.append(box(TideArchivePuzzle.tableauLightName(side), tableauLight(side), "Light the lantern", enabled: false)) }

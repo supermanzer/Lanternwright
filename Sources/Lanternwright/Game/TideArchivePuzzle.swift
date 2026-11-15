@@ -30,6 +30,10 @@ final class TideArchivePuzzle: WorldPuzzle {
     static let beamTolerance: Float = 3 * .pi / 180
     static let initialRing: Float = 0
 
+    /// S05.3: on Ilse's route the wheel-touch hold and the lens ring are not her ways (the pipes are): the game turns them off by route.
+    var touchHolds: () -> Bool = { true }
+    var ringWorks: () -> Bool = { true }
+
     var world: WorldKind { Game.routeWorldOverride ?? .glassWood }
     private let state: PuzzleState
     private let animator: Animator
@@ -100,7 +104,7 @@ final class TideArchivePuzzle: WorldPuzzle {
     // MARK: Ilse's way: the held tone
     func touchSluice(_ k: Int) {
         emit(.chime(chime(k)))                                                       // a touch always rings, with the fork or without
-        guard hasFork, !isSolved, !busy, k >= opened, TideArchivePuzzle.sluiceNames.indices.contains(k) else { return }
+        guard hasFork, touchHolds(), !isSolved, !busy, k >= opened, TideArchivePuzzle.sluiceNames.indices.contains(k) else { return }
         busy = true
         emit(.drone(k, true)); emit(.forkTone(k, true))
         animator.after(Timing.toneHold) { [weak self] in self?.endAttempt(k, .tone) }
@@ -109,7 +113,7 @@ final class TideArchivePuzzle: WorldPuzzle {
     // MARK: Oren's way: the turned beam
     /// Turn the ring `steps` quarter-twelfths (positive: clockwise seen from above). The beam is where the ring points; resting on a sluice's mark for `beamHold` s tries that sluice.
     func turn(_ steps: Int) {
-        guard hasLens, !isSolved, steps != 0 else { return }
+        guard hasLens, ringWorks(), !isSolved, steps != 0 else { return }
         var a = ringAngle + Float(steps) * TideArchivePuzzle.ringStep
         while a > .pi { a -= 2 * .pi }
         while a <= -.pi { a += 2 * .pi }
@@ -148,6 +152,18 @@ final class TideArchivePuzzle: WorldPuzzle {
             animator.after(Timing.wrongResetDelay) { [weak self] in self?.closeAll() }
             return
         }
+        openGate(k, way)
+    }
+
+    /// S05.3: Ilse's pipe agreed at the gate's level: the same answer as a held tone that ended in the window. Only the next gate answers; true when it did.
+    @discardableResult
+    func answerByPipe(_ k: Int) -> Bool {
+        guard !isSolved, k == opened, TideArchivePuzzle.sluiceNames.indices.contains(k) else { return false }
+        openGate(k, .tone)
+        return true
+    }
+
+    private func openGate(_ k: Int, _ way: Way) {
         state.set(TideArchivePuzzle.sluiceFlags[k])
         emit(.sluice(k, true))
         spinWheel(k, to: 2, duration: Timing.wheelSpin)
