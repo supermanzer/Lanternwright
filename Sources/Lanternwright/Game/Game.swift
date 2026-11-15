@@ -856,7 +856,7 @@ final class Game {
         updateDiscoveries()
         Birds.update(scene, time: time)
         Player.sea = world == .tideArchive ? Tide.metres(time) : 0           // S04.2: the sea's height where the player wades
-        if world == .tideArchive, let push = ArchiveProps.floodPush(position: player.position, sea: Player.sea) { player.position.x += push.x * 1.6 * Game.tick; player.position.z += push.y * 1.6 * Game.tick }       // Q32: walked out of a room the tide has flooded
+        if world == .tideArchive, let push = ArchiveProps.floodPush(position: player.position, sea: Player.sea, suspended: scene.archive.gatesDone) { player.position.x += push.x * 1.6 * Game.tick; player.position.z += push.y * 1.6 * Game.tick }       // Q32: walked out of a room the tide has flooded
         if world == .tideArchive { ArchiveProps.update(scene, time: time, ringAngle: tideArchive?.ringAngle, tableau: tableauShown) }          // S04.3: gates, prism, tableau (builder A's items)
         if world == .tideArchive {                                              // A5 (Q92): a brass tick as each orrery arm passes its window, as loud as the player is near it
             let ticking = Orrery.ticks(scene, from: time - Game.tick, to: time)

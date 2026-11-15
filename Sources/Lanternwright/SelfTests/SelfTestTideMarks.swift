@@ -76,6 +76,23 @@ extension SelfTestRunner {
         ArchiveProps.update(scene, time: 0, ringAngle: nil, tableau: nil); let lowGlow = lampGlow(2)
         ArchiveProps.update(scene, time: P / 2, ringAngle: nil, tableau: nil); let highGlow = lampGlow(2)
         check(lowGlow > 2 && highGlow < 0.5, "tidemarks: the stone room's lamp glows at low water (\(String(format: "%.1f", lowGlow))) and goes dark at high (\(String(format: "%.1f", highGlow)))")
+        func lampColour(_ k: Int) -> SIMD3<Float> { let e = scene.items.first { $0.name == WadeLamps.glowName(k) }!.uniforms.emissive; return SIMD3(e.x, e.y, e.z) }
+        ArchiveProps.update(scene, time: 0, ringAngle: nil, tableau: nil); let litC = lampColour(2)
+        ArchiveProps.update(scene, time: P / 2, ringAngle: nil, tableau: nil); let darkC = lampColour(2)
+        check(litC.y > litC.x && litC.y > litC.z * 2 && darkC.x > darkC.y * 2 && darkC.x > darkC.z * 2, "tidemarks: the lamp reads by colour: warm green when the room is safe to wade (\(litC)), a dim ember when it is not (\(darkC))")
+        // A7 (Q84 point 3): after the third gate is open the rising tide leaves the player where they stand.
+        let deep = SIMD3(ArchiveLayout.sluices[2].x + 2, ArchiveLayout.sluices[2].y, ArchiveLayout.sluices[2].z)
+        let closedPush = ArchiveProps.floodPush(position: deep, sea: 1.2, suspended: scene.archive.gatesDone)
+        for k in 0..<2 { scene.update(ArchiveProps.gateName(k)) { $0.uniforms.emissive.w = 1.4 } }
+        ArchiveProps.update(scene, time: 0, ringAngle: nil, tableau: nil); let twoOpen = scene.archive.gatesDone
+        scene.update(ArchiveProps.gateName(2)) { $0.uniforms.emissive.w = 1.4 }
+        ArchiveProps.update(scene, time: P / 2, ringAngle: nil, tableau: nil); let threeOpen = scene.archive.gatesDone
+        let openPush = ArchiveProps.floodPush(position: deep, sea: 1.2, suspended: scene.archive.gatesDone)
+        scene.update(ArchiveProps.gateName(2)) { $0.uniforms.emissive.w = 0 }
+        ArchiveProps.update(scene, time: 0, ringAngle: nil, tableau: nil)
+        let reclosed = ArchiveProps.floodPush(position: deep, sea: 1.2, suspended: scene.archive.gatesDone)
+        for k in 0..<2 { scene.update(ArchiveProps.gateName(k)) { $0.uniforms.emissive.w = 0 } }
+        check(closedPush != nil && !twoOpen && threeOpen && openPush == nil && reclosed != nil, "tidemarks: the flood walks the player out until all three gates are open (two open: still pushed), then it stops; closing a gate restores it")
         var dry = true, clearOfWalk = true
         for k in 0..<3 {
             let p = WadeLamps.position(k, terrain: terrain)

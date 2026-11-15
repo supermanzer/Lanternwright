@@ -402,3 +402,7 @@ Nothing here has been played by a person; the numbers and frames are in `shots/f
 - Try the collar or a bay before the marks: the guide light should flare for 3 s. Is that a cue or just noise? (Q86)
 - At high tide, with the light's way under water, the light should breathe slowly rather than flicker. Does that read as "wait"? (Q87)
 - Frames: `shots/b5/o-ta-windows-held.png`, `o-ta-orrery-held.png` (A's `--state orreryheld`, what the route leaves).
+
+## A7 (s05-a5, builder A): the flood stops pushing, the lamp has a colour (nothing here has been seen by a person)
+| needs-inspection | Q99 | After the third sluice gate opens, the rising tide no longer walks you out of the room; each room's lamp is warm green when it can be waded and a dim ember when not | In the stone room open all three gates and wait for high water; `--view ta-lamp2 --clock 0` (green) and `--clock 45` (ember) | Does green read "safe" and ember "wait" with no text? Is the eye under water at high tide acceptable (Q32)? |
+

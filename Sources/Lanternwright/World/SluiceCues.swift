@@ -39,7 +39,10 @@ enum WadeLamps {
     }
     /// True while room k can be waded at clock `t` (the same function the movement uses).
     static func lit(_ k: Int, clock t: Float) -> Bool { Tide.isWadeable(ground: ArchiveLayout.sluiceFloors[k], time: t) }
-    static let litEmissive: Float = 3.2, darkEmissive: Float = 0.0
+    static let litEmissive: Float = 3.2, darkEmissive: Float = 0.2
+    /// A7: the lamp's meaning is in its colour, not the gate's: warm green = safe to wade, a dim ember = wait.
+    static let litColour = SIMD3<Float>(0.55, 1.0, 0.35), darkColour = SIMD3<Float>(0.6, 0.12, 0.05)
+    static func emissive(lit on: Bool) -> SIMD4<Float> { SIMD4(on ? litColour : darkColour, on ? litEmissive : darkEmissive) }
 
     static func add(to scene: Scene, device: MTLDevice) {
         let stone = Surface(color: SIMD3(0.42, 0.45, 0.45), roughness: 0.88, material: .dressed)
@@ -47,14 +50,14 @@ enum WadeLamps {
             let p = position(k, terrain: scene.terrain)
             var m = MeshBuilder()
             m.chamferBox(size: SIMD3(0.7, 0.35, 0.7), chamfer: 0.04, surface: stone, transform: translation(SIMD3(0, 0.1, 0)))
-            m.chamferBox(size: SIMD3(0.22, postHeight, 0.22), chamfer: 0.02, surface: stone, transform: translation(SIMD3(0, postHeight / 2 - 0.2, 0)))
+            m.chamferBox(size: SIMD3(0.22, postHeight + 0.24, 0.22), chamfer: 0.02, surface: stone, transform: translation(SIMD3(0, postHeight / 2 - 0.08, 0)))          // (A7: the post reaches the cage's base; it stopped 0.24 m short and the lantern floated)
             m.chamferBox(size: SIMD3(0.62, 0.08, 0.62), chamfer: 0.02, surface: ArchiveProps.iron, transform: translation(SIMD3(0, postHeight + 0.08, 0)))
             m.chamferBox(size: SIMD3(0.62, 0.08, 0.62), chamfer: 0.02, surface: ArchiveProps.iron, transform: translation(SIMD3(0, postHeight + 0.62, 0)))
             for dx: Float in [-1, 1] { for dz: Float in [-1, 1] { m.box(size: SIMD3(0.05, 0.6, 0.05), surface: ArchiveProps.iron, transform: translation(SIMD3(dx * 0.28, postHeight + 0.35, dz * 0.28))) } }
             scene.add(name(k), mesh: m.build(device: device, label: "sluice lamp \(k)"), uniforms: ObjectUniforms(model: translation(p)))
             var g = MeshBuilder()
-            g.chamferBox(size: SIMD3(0.46, 0.46, 0.46), chamfer: 0.03, surface: Surface(color: ArchiveProps.beamColours[k] * 0.45, roughness: 0.2, material: .emissiveGlass), transform: translation(SIMD3(0, postHeight + 0.35, 0)))
-            scene.add(glowName(k), mesh: g.build(device: device, label: "sluice lamp glow \(k)"), uniforms: ObjectUniforms(model: translation(p), emissive: SIMD4(ArchiveProps.beamColours[k], darkEmissive)))
+            g.chamferBox(size: SIMD3(0.46, 0.46, 0.46), chamfer: 0.03, surface: Surface(color: SIMD3(0.12, 0.12, 0.12), roughness: 0.2, material: .emissiveGlass), transform: translation(SIMD3(0, postHeight + 0.35, 0)))
+            scene.add(glowName(k), mesh: g.build(device: device, label: "sluice lamp glow \(k)"), uniforms: ObjectUniforms(model: translation(p), emissive: emissive(lit: false)))
             scene.colliders.addCylinder(center: SIMD2(p.x, p.z), radius: 0.4, minY: p.y - 0.5, maxY: p.y + postHeight + 1)
         }
     }
@@ -64,7 +67,7 @@ enum WadeLamps {
         let st = scene.archive
         for k in 0..<3 {
             let on = lit(k, clock: clock)
-            if st.lampLit[k] != on { st.lampLit[k] = on; scene.update(glowName(k)) { $0.uniforms.emissive = SIMD4(ArchiveProps.beamColours[k], on ? litEmissive : darkEmissive) } }
+            if st.lampLit[k] != on { st.lampLit[k] = on; scene.update(glowName(k)) { $0.uniforms.emissive = emissive(lit: on) } }
         }
     }
 }

@@ -40,6 +40,7 @@ enum ArchiveProps {
         var markHeld = [[Float]](repeating: [0, 0, 0], count: 2)                  // A6: builder B's hold on each tide mark's glow (per quay gauge, per bar)
         var markAge: [Float] = [99, 99, 99]                                       // A6: seconds since the water crossed each bar
         var markShown = [[Float]](repeating: [-1, -1, -1], count: 2)              // A6: the glow last written
+        var gatesDone = false                                                     // A7 (Q84 pt 3): all three sluice gates are open; the flood no longer walks the player out
         var lampLit: [Bool?] = [nil, nil, nil]                                    // A6: each sluice room's lamp as last written
         var ledgerBlocking = true                                                 // S05.1: the ledger room's door collider is in (`LedgerRoom.setDoor` takes it out when the door is open)
     }
@@ -67,6 +68,7 @@ enum ArchiveProps {
                 scene.colliders.cylinders.removeAll { $0.center == col.center && $0.radius == col.radius }; st.gateCollider[k] = false
             }
         }
+        st.gatesDone = st.gate.allSatisfy { $0 >= 0.5 }
         let g = ArchiveTerrain.gallery
         Player.galleryWater = (g.centre, g.half, ArchiveStory.waterLevel(scene, clock: time))
         updatePrism(scene, ringAngle: ringAngle ?? TideArchivePuzzle.initialRing)
@@ -79,8 +81,8 @@ enum ArchiveProps {
     /// S04.2 (decision on Q32, the eye under water in a sluice room): a player standing in a room the rising tide has made deeper than `floodDepth` m is walked out of it, away from the room's centre, at 1.6 m/s
     /// (never into a wall: the pit's slopes are walkable and the push stops when the water is shallow again). Rooms only: the sea elsewhere is no deeper than the route's lowest point allows.
     static let floodDepth: Float = 0.7
-    static func floodPush(position p: SIMD3<Float>, sea: Float) -> SIMD2<Float>? {
-        guard sea - p.y > floodDepth else { return nil }
+    static func floodPush(position p: SIMD3<Float>, sea: Float, suspended: Bool = false) -> SIMD2<Float>? {
+        guard !suspended, sea - p.y > floodDepth else { return nil }
         for s in ArchiveLayout.sluiceSites {
             let d = SIMD2(p.x, p.z) - s, r = simd_length(d)
             if r < ArchiveLayout.sluiceFlat + ArchiveLayout.sluiceBlend { return r < 0.05 ? SIMD2(0, 1) : d / r }
