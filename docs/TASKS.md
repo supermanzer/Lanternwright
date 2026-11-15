@@ -731,6 +731,8 @@ Started 2026-10-27 when F03 closed (main at a9ae0a3, bundle built from it). Orde
 - [x] **A8 closing phase (builder A, 2026-11-14; tag `s05-a6`).** The A7 walk's open items: (1) arrival yaw faces the gauge (Q120, one constant in B's `Fork.swift`); (2) dome door and slit are a clean dark panel (Q121); (3) prism chamber floor lit (Q122); (4) grass-free apron at the ledger door (Q123); (5) bolder sluice answer line plus pier level ticks (Q124). Frames before and after in `shots/s05/a8-*.png` (git-ignored). Selftest `tidemarks` +3 checks, `orensite` +1.
   - review: pass (independent reviewer, 2026-11-14, no required changes). Notes: the arrival gauge is about 80 px wide and low contrast, so enlarge its face if a play-through still misses it; the prism floor's glow is unchecked at night (no dusk view option); `Game.swift:788`'s non-route arrival still uses yaw 0 (B's file). Four mutations each caught by one FAIL (yaw 0, floor glow 0, apron radius, wrong-floor tick; the last only after the test was strengthened).
 
+- [x] **A9 closing phase (builder A, 2026-11-14; tag `s05-a7`).** The arrival gauge is a landmark (Q125): pale stele 3.4 m wide and about 7 m from foot, brass rails, cap, bars 8.4 x 0.44 m with a dim brass glow that brightens when crossed. Levels and crossing logic unchanged. Frames `shots/s05/a9-arrive0|1-c20|c58.6|c71.1|c80.6.png`. Selftest tidemarks +1 (bar >= 180 px at the real distance, stele >= 4 m, bars >= 0.4 m, idle glow); four mutations each caught by one FAIL.
+
 ## M6+: Full game (outline)
 More Refractions (3–4 total), the ending choice, credits, an app icon, notarization (requires an Apple Developer ID), and a settings persistence and accessibility pass (subtitle captions for chimes, color-blind-safe glyph cues).
 
@@ -739,6 +741,7 @@ More Refractions (3–4 total), the ending choice, credits, an app icon, notariz
 |---|---|---|---|
 | 2026-11-14 | A6 (plate bars, tide gauges, sluice cues) | `s05-a4` | Done; B: `TideMarks.set(scene, k, lit:, site:)` is optional (the marks already light on the crossing); no B file edited. Q96-Q98. |
 | 2026-11-14 | A8 (arrival yaw, dome panel, prism floor, ledger apron, sluice ticks) | `s05-a6` | Done; one constant in B's `Game/Fork.swift` (`arrivalYaw`), announced on ownership. Q120-Q124. Next: the reviewer's own frame review. |
+| 2026-11-14 | A9 (landmark tide gauge) | `s05-a7` | Done; `TideMarks.swift` only, no B file. Q125. Next: the reviewer's own frame review. |
 | 2026-11-14 | A7 (re-review, flood push, lamp colour) | `s05-a5` | Done; one line in B's `Game.swift` (floodPush `suspended:`), announced on ownership. Q99. |
 | 2026-11-14 | A5 (plate bars, S05.4 vantage stations, dome slit, ledger floor, orrery tick) | `s05-a3` | Done; B: `Orrery.ticks`/`tickGain` are wired in `Game.fixedStep`; plate rule unchanged. Quay vantage (S05.4b) is the user's call (Q91). |
 | 2026-11-14 | A4 (S05.2 Oren's site: orrery, dome windows, prism inputs, dormant views) | `s05-a2` | Done; B drives `Orrery.hold`/`setCollar`, `DomeWindows.set`, `PrismInputs.set`, `DormantViews.setMast`, reads `Orrery.armAngle`/`aligned`/`alignmentClock`. Next: S05.4 (vantage stations) or A5 only when the reviewer sends it, else the INSPECT polish list marked A. |

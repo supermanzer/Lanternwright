@@ -415,3 +415,8 @@ Nothing here has been played by a person; the numbers and frames are in `shots/f
 | Ledger room door | No blades standing at the sill (Q123). |
 | Sluice piers | A bold white line at the foot, and (wind and stone rooms) pale ticks higher up the piers (Q124). |
 
+## A9 (s05-a7, builder A): the tide gauge as a landmark (nothing here has been seen by a person)
+| What | Look for |
+|---|---|
+| Arrival at either quay | A pale stone stele with a glowing brass crossbeam and brass rails out in the sea, impossible to miss (Q125). Does it read as an instrument, not a wall? |
+| The bars over a tide | Dim brass always; they flare when the water crosses them. At high tide the lower bars are under water (the rails and cap still show). |
