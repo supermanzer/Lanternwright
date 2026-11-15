@@ -718,7 +718,7 @@ Started 2026-10-27 when F03 closed (main at a9ae0a3, bundle built from it). Orde
   - **Geometry:** the orrery at (5, -88) on the dome's pad (11.6 m off the route), three portholes in the drum, a bell mast at (-72, 36) and a prism spire at (18, -114), all with colliders clear of every guided walk. Fixed from S05.1's Found: grass through the ledger room floor (`ArchiveLayout.bareDiscs` in the terrain texture's grass mask); its dark interior is NOT fixed (Q69).
   - **Selftest `orensite`** (pure functions and alignment order and window length, walkability with the new solids, the calls, rendered frames from walking distance and from the west quay). Mutation-checked: six breaks (rising-limb alignment, hold ignored, dead window, prism inputs ignored, mast onto the route, grass disc shrunk) each failed their test and were restored.
   - Frames in `shots/s05/a4-*.png` (git-ignored). Q66-Q69 in OPEN-QUESTIONS, rows in INSPECT. No sound added (Q66 notes the tick as a one-liner).
-  - review: PENDING
+  - review: pass (independent reviewer, 2026-11-14, no required changes). Notes: Q67 ghost wording corrected; B must re-apply window, collar and hold state after a Game restore (a rebuilt scene resets to arms running, windows dark, prism all lit); the collar frame at clock 40 has an arm bead in front of it, use clock 5.
 
 ## M6+: Full game (outline)
 More Refractions (3–4 total), the ending choice, credits, an app icon, notarization (requires an Apple Developer ID), and a settings persistence and accessibility pass (subtitle captions for chimes, color-blind-safe glyph cues).
