@@ -72,7 +72,7 @@ final class IlseRoute: WorldPuzzle {
     var persistentFlags: [String] { Self.markFlags + [Self.marksFlag, Self.catalogueFlag, Self.keyFlag] }
     func restore(from flags: Set<String>) {
         for f in persistentFlags where flags.contains(f) { state.set(f) }
-        progress = 0; holding = nil; lastLevel = nil; sourSerial += 1
+        release(); progress = 0; lastLevel = nil; sourSerial += 1
         looks = [ShelfBays.Look](repeating: catalogueDone ? .warm : .dormant, count: ShelfBays.count)
         swings = [Float](repeating: 0, count: ShelfBays.count)
         doorOpen = catalogueDone ? 1 : 0
@@ -144,7 +144,7 @@ final class IlseRoute: WorldPuzzle {
 
     // MARK: Each tick
     func updateVisuals(time: Float) {
-        guard inArchive(), let sc = scene() else { lastLevel = nil; return }
+        guard inArchive(), let sc = scene() else { release(); lastLevel = nil; return }          // leaving the Archive lets the fork go
         let now = level(), me = player()
         // A0: a mark is counted when the water crosses its level while the player stands near their quay.
         if let was = lastLevel, route() != nil, !marksDone {

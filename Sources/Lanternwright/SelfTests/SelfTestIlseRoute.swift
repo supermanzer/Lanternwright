@@ -90,7 +90,7 @@ extension SelfTestRunner {
         if let (g2, bot2) = arrive() {
             _ = bot2.walk(to: stand(3), within: 1.2, timeout: 200)
             bot2.wait(Tide.period + 5)
-            check(g2.ilseRoute?.marksCounted == 0 || (g2.ilseRoute?.marksCounted ?? 0) < 3, "ilseroute: a player who walked off to the stacks and stayed there has counted nothing (A0 is counted at the quay: \(g2.ilseRoute?.marksCounted ?? -1) of 3)")
+            check((g2.ilseRoute?.marksCounted ?? 3) < 3, "ilseroute: a player who walked off to the stacks and stayed a whole cycle has NOT counted all three (A0 is counted at the quay: \(g2.ilseRoute?.marksCounted ?? -1) of 3; the first marks pass while they are still walking away)")
         }
 
         // I1: a wrong bay sours and the sequence starts over; the right order opens the ledger room.
