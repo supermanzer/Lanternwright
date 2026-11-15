@@ -188,8 +188,6 @@ extension SelfTestRunner {
 
     func runNoKnowledge() {
         guard name == "all" || name == "nokbot" else { return }
-        GlassWoodLogic.nearStandIn = ProcessInfo.processInfo.environment["NOKBOT_NEAR"] == "1"          // B7 (Q102): measure the court with the receivers' "nearly" glow drawn (off in the game until A's `near:` lands)
-        defer { GlassWoodLogic.nearStandIn = false }
         // ---- The brain's file may name nothing of the game's: not a puzzle, not a layout constant, not a flag, not an answer. (A denylist: a determined cheat can get past it; it catches the honest slip, and the brain holds
         // only a `Perception` in any case.)
         let brainPath = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent("NoKnowledge/BlindPlayer.swift").path

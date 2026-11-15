@@ -77,7 +77,6 @@ final class OrenRoute: WorldPuzzle {
         notch = (notch + 1) % Orrery.collarDetents
         for (n, f) in Self.collarFlags.enumerated() { state.set(f, n == notch) }
         if let sc = scene() { Orrery.setCollar(sc, detent: notch) }
-        emit(.chime(.glassTick))
         emit(.collar(armHere: notchHasArm))                                   // B7 (Q104): A's click can sound louder on a notch that has an arm
         guard let k = Self.arm(atNotch: notch), !lit(k) else { return }
         guard state.has(IlseRoute.marksFlag) else { nudge(); return }                    // the water has not been counted yet: nothing is asked of the instrument (the light flares)

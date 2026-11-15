@@ -6,10 +6,10 @@
 
 | | Ilse | Oren |
 |---|---|---|
-| reaches the drained gallery from a fresh game | yes, 148 min of play (145), 433 manipulations (413) | yes, 99 min of play (103), 384 manipulations (381) |
+| reaches the drained gallery from a fresh game | yes, 148 min of play (145), 374 manipulations (413) | yes, 98 min of play (103), 358 manipulations (381) |
 | puzzles solved **blind** (feedback only, no text, no diagram, no rhythm) | stones, chime pool, altar, door plates, tide marks, catalogue, bell pipes (7 of 8; same) | stones, chime pool, altar, door plates, tide marks, **prism ring** (6 of 9; the orrery was blind in the first run) |
 | puzzles that needed the **knowing helper** | the mirror court (and the stair, a bot limit; same) | the mirror court, Oren's lens ring (up the stair), **the orrery** (the prism ring was helped in the first run) |
-| stall points | 17 (18) | 12 (11) |
+| stall points | 16 (18) | 11 (11) |
 
 **What B7 changed in these numbers.** The prism ring's step went from 15 to 45 degrees (five clicks, was fifteen: Q118) and the bot now solves it blind in 70 s (it did not in 8 min). The orrery moved the other way: its "watch and press as it brightens" did not catch an arm this time (49 clicks in two tries); that solve is timing luck (Q104, Q119) and it moves with any change to the world's clocks. The plates, stones and court rows moved by seconds only (the plates' early glow and the quay light are for a person; this bot does not follow a guide light while a stone is in sight to press).
 
@@ -21,8 +21,8 @@ Each finding is marked **game** (a property of the game the run shows), **bot** 
 
 1. **Every ordering puzzle is solvable by trial** (stones 18 presses, chime pool 16, plates 23 over four visits, catalogue 29: 3 to 5 things in a row). A wrong press names exactly the part that held, at no cost beyond 0.8 s, so the clue is a shortcut, not a requirement. *Game.* Q100.
 2. **The door plates answer before they can open the door.** Struck blind at the lighthouse before the altar, the plates ring true, bloom, show the gate's cue and reset; the bot solved them a second time after the return and the door opened. Since B7 the plates' held-strike glow **is** shown before they would be answered (a step per right strike, no glint, the door does not open), so an early solver sees they were right (Q112). *Game, fixed.*
-3. **The mirror court did not settle under the bot's ascent** (207 clicks this run, 184 before) and **B7 measured why: the plateau was not real.** The bot sums every glow within 22 m of the dials (about 37.5, flickering by 0.3 to 0.7), so it climbed the flicker; a climb that watches only the three crystals solves the court from all 41 starts tried (median 49 clicks, 45 from the court's own start), with or without the new faint 'nearly' glow (38 from the start with it). *Bot-limited.* Q102 and Q117.
-4. **Dormant machines answered with nothing.** On Ilse's route the orrery's collar clicked (47 and 47 presses) and did nothing; on Oren's the bays, the sluice gates' wheels and the bell pipes took presses and answered nothing. B7 fires `GameEvent.dormant` for each (Q115); it is **silent until A's voice is mapped**, so the bot's run (which hears `.dull` as nothing new) is unchanged. *Game, half fixed.*
+3. **The mirror court did not settle under the bot's ascent** (207 clicks this run, 184 before) and **B7 measured why: the plateau was not real.** The bot sums every glow within 22 m of the dials (about 37.5, flickering by 0.3 to 0.7), so it climbed the flicker; a climb that watches only the three crystals solves the court from all 41 starts tried (median 49 clicks, 45 from the court's own start), with or without A's new 'nearly' glow (median 49 clicks without, 32 with it). *Bot-limited.* Q102 and Q117.
+4. **Dormant machines answered with nothing.** On Ilse's route the orrery's collar clicked (47 and 47 presses) and did nothing; on Oren's the bays, the sluice gates' wheels and the bell pipes took presses and answered nothing. B7 fires `GameEvent.dormant` for each (Q115), and A's dull tick (A10) now sounds; the bot hears it as `.dull`, which is nothing new, so its run is unchanged. *Game, half fixed.*
 5. **The orrery** was solved blind in the first run (67 presses in 6 min) and **helped in this one** (49 clicks, two tries): the notch has to be right at the moment, so for a player without the beam rhythm it is luck over a few tides. B7 exposes the notch that has an arm (`GameEvent.collar(armHere:)`) so A can click louder on it (Q116). *Both.* Q104.
 6. **The prism ring** was not solved blind in the first run (25 presses in 8 min, helped, fifteen clicks designed) and **is now** (25 presses in 70 s, five clicks designed: the step is 45 degrees, Q118). *Game, fixed.* Q105, Q70.
 7. **Stones before the quay** rang and answered nothing (F09.8's design); the bot spent its first 14 min mostly on that and walking. Since B7 a stone struck early lights a guide light toward the quay (Q113); this bot works every site in sight before it follows a light, so its time (17 min) did not change. *Game, fixed for a person; bot-limited evidence.*
@@ -53,26 +53,26 @@ It reads **no page text, no diagram and no beam rhythm** (a page is opened and s
 
 **Not modelled:** a player's patience (the bot never gives up on its own account), a player's eyes (a thing is "in sight" if it is within 250 m and in front or within 5 m: nothing hides it), the page text (the bot cannot read, so every puzzle that is solved here is solved without text, and a puzzle that is helped may have a page that would help a person), and sound as a person hears it (a tone is an identity and a sour note is a sour note).
 
-## Ilse's route: the gallery drains after 148 min of play, 433 manipulations, 17 stalls, 5 helps
+## Ilse's route: the gallery drains after 148 min of play, 374 manipulations, 16 stalls, 5 helps
 
 | # | puzzle | verb / channel | designer's least | blind presses | blind time at it | solved at | how |
 |---|---|---|---|---|---|---|---|
 | 1 | stones | strike / hear | 3 | 18 | 487 s | 17 min | blind, by trial and the feedback |
-| 2 | mirror-court | turn+change / aim | 6 | 207 | 596 s | 45 min | **helped** (the bot stalled: went round 2 time(s), 207 clicks; the light never settled) |
-| 3 | chime-pool | strike / hear | 3 | 16 | 55 s | 47 min | blind, by trial and the feedback |
-| 4 | altar | touch / touch | 2 | 2 | 1 s | 50 min | blind, by trial and the feedback |
-| 5 | door-plates | strike / watch | 3 | 22 | 57 s | 61 min | blind, by trial and the feedback |
-| 6 | archive-marks | count / count | 3 | 0 | 0 s | 88 min | by waiting and listening |
+| 2 | mirror-court | turn+change / aim | 6 | 146 | 454 s | 43 min | **helped** (the bot stalled: went round 2 time(s), 146 clicks; the light never settled) |
+| 3 | chime-pool | strike / hear | 3 | 16 | 55 s | 45 min | blind, by trial and the feedback |
+| 4 | altar | touch / touch | 2 | 2 | 1 s | 47 min | blind, by trial and the feedback |
+| 5 | door-plates | strike / watch | 3 | 22 | 57 s | 59 min | blind, by trial and the feedback |
+| 6 | archive-marks | count / count | 3 | 0 | 0 s | 86 min | by waiting and listening |
 | 7 | archive-catalogue | ring / see | 3 | 29 | 126 s | 108 min | blind, by trial and the feedback |
-| 8 | archive-pipes | hold fork / hear | 3 | 5 | 716 s | 148 min | blind, by trial and the feedback |
+| 8 | archive-pipes | hold fork / hear | 3 | 5 | 725 s | 148 min | blind, by trial and the feedback |
 
 **Helps** (what the knowing helper did, and when):
 
-- 45 min: sets the mirrors and panes of the court (solution known)
+- 42 min: sets the mirrors and panes of the court (solution known)
+- 68 min: climbs the spiral stair (on no trail)
 - 70 min: climbs the spiral stair (on no trail)
-- 73 min: climbs the spiral stair (on no trail)
-- 76 min: climbs the spiral stair (on no trail)
-- 83 min: climbs the spiral stair (on no trail)
+- 74 min: climbs the spiral stair (on no trail)
+- 80 min: climbs the spiral stair (on no trail)
 
 **Stall points** (each is 150 s with nothing new, or a machine worked without an answer; `at` is where the bot stood):
 
@@ -81,14 +81,13 @@ It reads **no page text, no diagram and no beam rhythm** (a page is opened and s
 | 8 | (-28, -42) | plate_tide, plate_wind, plate_stone | the whole row rang true and nothing said it was done |
 | 8 | (-28, -42) | plate_tide, plate_wind, plate_stone | the whole row rang true and nothing said it was done |
 | 14 | (-26, -44) | plate_stone, plate_wind, plate_tide | the whole row rang true and nothing said it was done |
-| 45 | (-78, 15) | gw_mirror_0, gw_pane_1, gw_pane_0, ... | went round 2 time(s), 207 clicks; the light never settled |
-| 70 | (-28, -52) | lh_lens_touch | in sight 26 m overhead; no trail leads up to it |
-| 73 | (-31, -52) | (nothing in sight) | nothing in sight to press, nowhere new to walk |
-| 76 | (-28, -52) | lh_lens_touch | in sight 26 m overhead; no trail leads up to it |
-| 83 | (170, 198) | (nothing in sight) | nothing in sight to press, nowhere new to walk |
-| 93 | (73, 109) | ti_sluice_2, ti_sluice_0, ti_sluice_1 | the whole row rang true and nothing said it was done |
+| 42 | (-78, 15) | gw_mirror_0, gw_pane_1, gw_pane_0, ... | went round 2 time(s), 146 clicks; the light never settled |
+| 68 | (-28, -52) | lh_lens_touch | in sight 26 m overhead; no trail leads up to it |
+| 70 | (-31, -52) | (nothing in sight) | nothing in sight to press, nowhere new to walk |
+| 74 | (-28, -52) | lh_lens_touch | in sight 26 m overhead; no trail leads up to it |
+| 80 | (170, 198) | (nothing in sight) | nothing in sight to press, nowhere new to walk |
 | 99 | (0, 126) | ti_pipe_2, ti_pipe_0, ti_pipe_1 | no progress working 3 hold machine(s) |
-| 105 | (-11, 122) | ti_pipe_2, ti_pipe_0, ti_pipe_1 | no progress working 3 hold machine(s) |
+| 105 | (-11, 123) | ti_pipe_2, ti_pipe_0, ti_pipe_1 | no progress working 3 hold machine(s) |
 | 108 | (-64, 27) | ti_bay_4, ti_bay_3, ti_bay_2, ... | the whole row rang true and nothing said it was done |
 | 109 | (-64, 25) | ti_bay_4, ti_bay_3, ti_bay_2, ... | the whole row rang true and nothing said it was done |
 | 121 | (-64, 25) | ti_bay_4, ti_bay_3, ti_bay_2, ... | the whole row rang true and nothing said it was done |
@@ -115,56 +114,57 @@ It reads **no page text, no diagram and no beam rhythm** (a page is opened and s
 | 890 | Try the door (1) | press | 1 | 0 | stalled: pressed, nothing answered |
 | 904 | Touch the stone (3) | press | 6 | 167 | solved by trial |
 | 2052 | Touch the lens (1) | press | 1 | 0 | pressed once |
-| 2116 | Turn the mirror (6) | dial | 207 | 596 | stalled (helped): went round 2 time(s), 207 clicks; the light never settled |
-| 2808 | Strike the glass (5) | press | 16 | 55 | solved by trial |
-| 3000 | Touch Ilse's light (1) | press | 1 | 0 | pressed once |
-| 3003 | Touch Oren's light (1) | press | 1 | 0 | pressed once |
-| 3567 | Return through the lens (1) | press | 1 | 0 | pressed once |
-| 3701 | Touch the plate (3) | press | 5 | 14 | solved by trial |
-| 4245 | Ilse’s way: touch the lens (1) | press | 0 | 24 | stalled: in sight 26 m overhead; no trail leads up to it |
-| 4609 | Ilse’s way: touch the lens (1) | press | 0 | 24 | stalled: in sight 26 m overhead; no trail leads up to it |
-| 5188 | Ilse’s way: touch the lens (1) | press | 1 | 0 | pressed once |
-| 5239 | Touch the gate (3) | press | 3 | 100 | stalled: the whole row rang true and nothing said it was done |
-| 5406 | Touch the gate (3) | press | 4 | 198 | stalled: the whole row rang true and nothing said it was done |
-| 5660 | Hold the fork to the pipe (3) | hold | 1 | 302 | stalled: held 300 s, nothing answered |
-| 6021 | Hold the fork to the pipe (3) | hold | 1 | 302 | stalled: held 300 s, nothing answered |
-| 6407 | Ring the bell (5) | press | 19 | 86 | stalled: the whole row rang true and nothing said it was done |
-| 6516 | Take the rod (1) | press | 1 | 11 | pressed once |
-| 6537 | Ring the bell (5) | press | 5 | 18 | stalled: the whole row rang true and nothing said it was done |
-| 6623 | Touch the gate (3) | press | 3 | 117 | stalled: the whole row rang true and nothing said it was done |
-| 6822 | Hold the fork to the pipe (3) | hold | 1 | 49 | waited for |
-| 6986 | Light the lantern (1) | press | 1 | 0 | pressed once |
-| 7095 | Hold the fork to the pipe (2) | hold | 1 | 33 | waited for |
-| 7131 | Touch the gate (3) | press | 3 | 92 | stalled: the whole row rang true and nothing said it was done |
-| 7288 | Ring the bell (5) | press | 5 | 21 | stalled: the whole row rang true and nothing said it was done |
-| 7417 | Light the lantern (1) | press | 1 | 59 | stalled: every press was ruled out at position 1 |
-| 7531 | Light the lantern (1) | press | 1 | 59 | stalled: every press was ruled out at position 1 |
-| 7654 | Turn the collar (1) | dial | 47 | 439 | stalled: went round 1 time(s), 47 clicks; the light never settled |
-| 8094 | Turn the collar (1) | dial | 47 | 439 | stalled: went round 1 time(s), 47 clicks; the light never settled |
-| 8562 | The ring is empty (1) | press | 1 | 0 | stalled: pressed, nothing answered |
-| 8745 | Hold the fork to the pipe (1) | hold | 1 | 29 | waited for |
-| 8777 | Touch the gate (3) | press | 3 | 107 | stalled: every press was ruled out at position 3 |
+| 2116 | Turn the mirror (6) | dial | 146 | 454 | stalled (helped): went round 2 time(s), 146 clicks; the light never settled |
+| 2663 | Strike the glass (5) | press | 16 | 55 | solved by trial |
+| 2855 | Touch Ilse's light (1) | press | 1 | 0 | pressed once |
+| 2858 | Touch Oren's light (1) | press | 1 | 0 | pressed once |
+| 3423 | Return through the lens (1) | press | 1 | 0 | pressed once |
+| 3557 | Touch the plate (3) | press | 5 | 14 | solved by trial |
+| 4100 | Ilse’s way: touch the lens (1) | press | 0 | 24 | stalled: in sight 26 m overhead; no trail leads up to it |
+| 4465 | Ilse’s way: touch the lens (1) | press | 0 | 24 | stalled: in sight 26 m overhead; no trail leads up to it |
+| 5043 | Ilse’s way: touch the lens (1) | press | 1 | 0 | pressed once |
+| 5095 | Touch the gate (3) | press | 3 | 117 | stalled: the whole row rang true and nothing said it was done |
+| 5297 | Touch the gate (3) | press | 3 | 112 | stalled: every press was ruled out at position 3 |
+| 5471 | Touch the gate (3) | press | 3 | 118 | stalled: every press was ruled out at position 3 |
+| 5651 | Hold the fork to the pipe (3) | hold | 1 | 311 | stalled: held 300 s, nothing answered |
+| 6022 | Hold the fork to the pipe (3) | hold | 1 | 302 | stalled: held 300 s, nothing answered |
+| 6408 | Ring the bell (5) | press | 19 | 86 | stalled: the whole row rang true and nothing said it was done |
+| 6517 | Take the rod (1) | press | 1 | 11 | pressed once |
+| 6538 | Ring the bell (5) | press | 5 | 18 | stalled: the whole row rang true and nothing said it was done |
+| 6624 | Touch the gate (3) | press | 3 | 117 | stalled: the whole row rang true and nothing said it was done |
+| 6823 | Hold the fork to the pipe (3) | hold | 1 | 49 | waited for |
+| 6987 | Light the lantern (1) | press | 1 | 0 | pressed once |
+| 7096 | Hold the fork to the pipe (2) | hold | 1 | 33 | waited for |
+| 7132 | Touch the gate (3) | press | 3 | 92 | stalled: the whole row rang true and nothing said it was done |
+| 7289 | Ring the bell (5) | press | 5 | 21 | stalled: the whole row rang true and nothing said it was done |
+| 7418 | Light the lantern (1) | press | 1 | 59 | stalled: every press was ruled out at position 1 |
+| 7532 | Light the lantern (1) | press | 1 | 59 | stalled: every press was ruled out at position 1 |
+| 7655 | Turn the collar (1) | dial | 47 | 439 | stalled: went round 1 time(s), 47 clicks; the light never settled |
+| 8095 | Turn the collar (1) | dial | 47 | 439 | stalled: went round 1 time(s), 47 clicks; the light never settled |
+| 8563 | The ring is empty (1) | press | 1 | 0 | stalled: pressed, nothing answered |
+| 8746 | Hold the fork to the pipe (1) | hold | 1 | 29 | waited for |
+| 8778 | Touch the gate (3) | press | 3 | 107 | stalled: every press was ruled out at position 3 |
 
-## Oren's route: the gallery drains after 99 min of play, 384 manipulations, 12 stalls, 4 helps
+## Oren's route: the gallery drains after 98 min of play, 358 manipulations, 11 stalls, 4 helps
 
 | # | puzzle | verb / channel | designer's least | blind presses | blind time at it | solved at | how |
 |---|---|---|---|---|---|---|---|
 | 1 | stones | strike / hear | 3 | 18 | 487 s | 17 min | blind, by trial and the feedback |
-| 2 | mirror-court | turn+change / aim | 6 | 207 | 596 s | 45 min | **helped** (the bot stalled: went round 2 time(s), 207 clicks; the light never settled) |
-| 3 | chime-pool | strike / hear | 3 | 16 | 55 s | 47 min | blind, by trial and the feedback |
-| 4 | altar | touch / touch | 2 | 2 | 1 s | 50 min | blind, by trial and the feedback |
-| 5 | door-plates | strike / watch | 3 | 22 | 57 s | 61 min | blind, by trial and the feedback |
-| 6 | lens-ring | turn / aim | 3 | 0 | 42 s | 63 min | **helped** (the bot stalled: in sight 24 m overhead; no trail leads up to it) |
-| 7 | archive-marks | count / count | 3 | 0 | 0 s | 69 min | by waiting and listening |
-| 8 | archive-orrery | turn collar / watch | 3 | 49 | 483 s | 97 min | **helped** (the bot stalled: went round 2 time(s), 49 clicks; the light never settled) |
-| 9 | archive-gates-beam | turn / aim | 5 | 25 | 70 s | 99 min | blind, by trial and the feedback |
+| 2 | mirror-court | turn+change / aim | 6 | 146 | 454 s | 43 min | **helped** (the bot stalled: went round 2 time(s), 146 clicks; the light never settled) |
+| 3 | chime-pool | strike / hear | 3 | 16 | 55 s | 45 min | blind, by trial and the feedback |
+| 4 | altar | touch / touch | 2 | 2 | 1 s | 47 min | blind, by trial and the feedback |
+| 5 | door-plates | strike / watch | 3 | 22 | 57 s | 59 min | blind, by trial and the feedback |
+| 6 | lens-ring | turn / aim | 3 | 0 | 42 s | 61 min | **helped** (the bot stalled: in sight 24 m overhead; no trail leads up to it) |
+| 7 | archive-marks | count / count | 3 | 0 | 0 s | 66 min | by waiting and listening |
+| 8 | archive-orrery | turn collar / watch | 3 | 85 | 580 s | 97 min | **helped** (the bot stalled: watched and pressed as it brightened: 1 presses in 2 s; went round 3 time(s), 72 clicks; the light never settled) |
+| 9 | archive-gates-beam | turn / aim | 5 | 25 | 70 s | 98 min | blind, by trial and the feedback |
 
 **Helps** (what the knowing helper did, and when):
 
-- 45 min: sets the mirrors and panes of the court (solution known)
-- 63 min: climbs the spiral stair (on no trail)
-- 63 min: turns Oren's lens ring onto its receiver
-- 97 min: catches the three orrery arms (notch and moment known)
+- 42 min: sets the mirrors and panes of the court (solution known)
+- 60 min: climbs the spiral stair (on no trail)
+- 61 min: turns Oren's lens ring onto its receiver
+- 95 min: catches the three orrery arms (notch and moment known)
 
 **Stall points** (each is 150 s with nothing new, or a machine worked without an answer; `at` is where the bot stood):
 
@@ -173,15 +173,14 @@ It reads **no page text, no diagram and no beam rhythm** (a page is opened and s
 | 8 | (-28, -42) | plate_tide, plate_wind, plate_stone | the whole row rang true and nothing said it was done |
 | 8 | (-28, -42) | plate_tide, plate_wind, plate_stone | the whole row rang true and nothing said it was done |
 | 14 | (-26, -44) | plate_stone, plate_wind, plate_tide | the whole row rang true and nothing said it was done |
-| 45 | (-78, 15) | gw_mirror_0, gw_pane_1, gw_pane_0, ... | went round 2 time(s), 207 clicks; the light never settled |
-| 63 | (-29, -43) | lens_ring | in sight 24 m overhead; no trail leads up to it |
-| 69 | (75, 110) | ti_sluice_2, ti_sluice_0, ti_sluice_1 | the whole row rang true and nothing said it was done |
-| 76 | (-71, 110) | ti_pipe_0, ti_pipe_2, ti_pipe_1 | no progress working 3 hold machine(s) |
-| 81 | (-71, 110) | ti_pipe_0, ti_pipe_2, ti_pipe_1 | no progress working 3 hold machine(s) |
-| 83 | (-64, 33) | ti_bay_2, ti_bay_1, ti_bay_3, ... | every press was ruled out at position 1 |
-| 83 | (-64, 25) | ti_bay_4, ti_bay_3, ti_bay_2, ... | every press was ruled out at position 1 |
-| 86 | (48, -37) | ti_tableau_light_oren | no progress working 1 press machine(s) |
-| 97 | (4, -89) | ti_orrery_collar | went round 2 time(s), 49 clicks; the light never settled |
+| 42 | (-78, 15) | gw_mirror_0, gw_pane_1, gw_pane_0, ... | went round 2 time(s), 146 clicks; the light never settled |
+| 60 | (-29, -43) | lens_ring | in sight 24 m overhead; no trail leads up to it |
+| 73 | (74, 116) | ti_pipe_1, ti_pipe_2, ti_pipe_0 | no progress working 3 hold machine(s) |
+| 78 | (65, 117) | ti_pipe_1, ti_pipe_2, ti_pipe_0 | no progress working 3 hold machine(s) |
+| 79 | (-64, 33) | ti_bay_2, ti_bay_1, ti_bay_3, ... | every press was ruled out at position 1 |
+| 80 | (-64, 25) | ti_bay_4, ti_bay_3, ti_bay_2, ... | every press was ruled out at position 1 |
+| 82 | (48, -37) | ti_tableau_light_oren | no progress working 1 press machine(s) |
+| 95 | (4, -89) | ti_orrery_collar | went round 3 time(s), 72 clicks; the light never settled |
 
 **Every machine worked, in order** (a record is one visit; a row of presses is one record):
 
@@ -202,24 +201,25 @@ It reads **no page text, no diagram and no beam rhythm** (a page is opened and s
 | 890 | Try the door (1) | press | 1 | 0 | stalled: pressed, nothing answered |
 | 904 | Touch the stone (3) | press | 6 | 167 | solved by trial |
 | 2052 | Touch the lens (1) | press | 1 | 0 | pressed once |
-| 2116 | Turn the mirror (6) | dial | 207 | 596 | stalled (helped): went round 2 time(s), 207 clicks; the light never settled |
-| 2808 | Strike the glass (5) | press | 16 | 55 | solved by trial |
-| 3000 | Touch Ilse's light (1) | press | 1 | 0 | pressed once |
-| 3003 | Touch Oren's light (1) | press | 1 | 0 | pressed once |
-| 3567 | Return through the lens (1) | press | 1 | 0 | pressed once |
-| 3701 | Touch the plate (3) | press | 5 | 14 | solved by trial |
-| 3783 | Oren’s way: turn the ring  ‹ › (1) | dial | 0 | 42 | stalled (helped): in sight 24 m overhead; no trail leads up to it |
-| 3848 | Oren’s way: step into the light (1) | press | 1 | 0 | pressed once |
-| 3970 | Touch the gate (3) | press | 4 | 198 | stalled: the whole row rang true and nothing said it was done |
-| 4168 | Touch the gate (3) | press | 3 | 120 | stalled: the whole row rang true and nothing said it was done |
-| 4291 | Hold the fork to the pipe (3) | hold | 1 | 302 | stalled: held 300 s, nothing answered |
-| 4593 | Hold the fork to the pipe (3) | hold | 1 | 302 | stalled: held 300 s, nothing answered |
-| 4953 | Take the fork (1) | press | 1 | 0 | pressed once |
-| 4967 | Ring the bell (5) | press | 5 | 19 | stalled: every press was ruled out at position 1 |
-| 4986 | Ring the bell (5) | press | 5 | 15 | stalled: every press was ruled out at position 1 |
-| 5105 | Light the lantern (1) | press | 1 | 59 | stalled: pressed, nothing answered |
-| 5234 | Light the lantern (1) | press | 1 | 55 | stalled: pressed, nothing answered |
-| 5353 | Turn the collar (1) | dial | 49 | 483 | stalled (helped): went round 2 time(s), 49 clicks; the light never settled |
+| 2116 | Turn the mirror (6) | dial | 146 | 454 | stalled (helped): went round 2 time(s), 146 clicks; the light never settled |
+| 2663 | Strike the glass (5) | press | 16 | 55 | solved by trial |
+| 2855 | Touch Ilse's light (1) | press | 1 | 0 | pressed once |
+| 2858 | Touch Oren's light (1) | press | 1 | 0 | pressed once |
+| 3423 | Return through the lens (1) | press | 1 | 0 | pressed once |
+| 3557 | Touch the plate (3) | press | 5 | 14 | solved by trial |
+| 3638 | Oren’s way: turn the ring  ‹ › (1) | dial | 0 | 42 | stalled (helped): in sight 24 m overhead; no trail leads up to it |
+| 3703 | Oren’s way: step into the light (1) | press | 1 | 0 | pressed once |
+| 3858 | Touch the gate (3) | press | 3 | 111 | stalled: every press was ruled out at position 3 |
+| 3978 | Touch the gate (3) | press | 3 | 100 | stalled: the whole row rang true and nothing said it was done |
+| 4090 | Hold the fork to the pipe (3) | hold | 1 | 306 | stalled: held 300 s, nothing answered |
+| 4398 | Hold the fork to the pipe (3) | hold | 1 | 302 | stalled: held 300 s, nothing answered |
+| 4757 | Take the fork (1) | press | 1 | 0 | pressed once |
+| 4771 | Ring the bell (5) | press | 5 | 19 | stalled: every press was ruled out at position 1 |
+| 4790 | Ring the bell (5) | press | 5 | 15 | stalled: every press was ruled out at position 1 |
+| 4909 | Light the lantern (1) | press | 1 | 59 | stalled: pressed, nothing answered |
+| 5034 | Light the lantern (1) | press | 1 | 55 | stalled: pressed, nothing answered |
+| 5153 | Turn the collar (1) | dial | 13 | 38 | solved by trial: watched and pressed as it brightened: 1 presses in 2 s |
+| 5205 | Turn the collar (1) | dial | 72 | 541 | stalled (helped): went round 3 time(s), 72 clicks; the light never settled |
 | 5869 | Turn the ring  ‹ › (1) | dial | 25 | 70 | solved by trial: something big moved while it was turned (new things came into sight) |
 
 <!-- nokbot:end -->

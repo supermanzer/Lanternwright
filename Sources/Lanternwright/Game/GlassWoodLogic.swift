@@ -35,9 +35,8 @@ final class GlassWoodLogic: WorldPuzzle {
         return nearCache
     }
     private var nearKey: [Int] = [], nearCache = [Float](repeating: 0, count: MirrorCourt.receivers.count)
-    /// Until A's `near:` parameter lands, a stand-in for measuring only (the no-knowledge bot's court climb): the near value drawn as a faint glow in the receiver's own colour. Off in the game, so no frame changes.
-    nonisolated(unsafe) static var nearStandIn = false
-    static let nearStandInLevel: Float = 0.12
+    /// B7 (Q102, A10 Q128): the near-miss channel of A's crystals is drawn (`ReceiverGlow.set(..., near:)`); a switch only so the court climb can be measured with and without it.
+    nonisolated(unsafe) static var nearGlow = true
 
     static let columnHeight: Float = 46
 
@@ -314,13 +313,12 @@ final class GlassWoodLogic: WorldPuzzle {
     /// Drives builder A's three receiving crystals (`ReceiverGlow`): dormant, flickering with the colour that arrived if it is the wrong one, lit in its own colour, all blazing when solved.
     private func applyReceiverGlow(_ k: Int, time: Float) {
         let level = receiverGlow[k]
+        let near = GlassWoodLogic.nearGlow && !mirrorsSolved ? receiverNear[k] : 0
         if mirrorsSolved { ReceiverGlow.set(scene, k, level: 1, blaze: true); return }
-        if level > 0.02 { ReceiverGlow.set(scene, k, level: level, color: GlassPuzzleProps.color(MirrorCourt.receiverColors[k])); return }
+        if level > 0.02 { ReceiverGlow.set(scene, k, level: level, color: GlassPuzzleProps.color(MirrorCourt.receiverColors[k]), near: near); return }
         if let a = trace.arrivals[k].last {                    // reached by the wrong colour: a dull, uneven flutter of what arrived
-            ReceiverGlow.set(scene, k, level: 0.22 + 0.08 * sin(time * 9), color: GlassPuzzleProps.color(a))
-        } else if GlassWoodLogic.nearStandIn, receiverNear[k] > 0 {
-            ReceiverGlow.set(scene, k, level: receiverNear[k] * GlassWoodLogic.nearStandInLevel, color: GlassPuzzleProps.color(MirrorCourt.receiverColors[k]))
-        } else { ReceiverGlow.set(scene, k, level: 0) }
+            ReceiverGlow.set(scene, k, level: 0.22 + 0.08 * sin(time * 9), color: GlassPuzzleProps.color(a), near: near)
+        } else { ReceiverGlow.set(scene, k, level: 0, color: GlassPuzzleProps.color(MirrorCourt.receiverColors[k]), near: near) }
     }
 
     func updateVisuals(time: Float) {

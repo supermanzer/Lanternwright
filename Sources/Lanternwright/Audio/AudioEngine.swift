@@ -58,6 +58,8 @@ final class AudioEngine {
         case .forkTone(let k, let on): archive.handle(.fork(k, on: on))
         case .bell(let k, let sour): archive.handle(.bell(k, sour: sour))
         case .orreryTick(let k, let gain): archive.handle(.tick(k, gain: gain))
+        case .dormant: archive.handle(.dormant)                                  // B7 (Q103), A10's voice
+        case .collar(let armHere): archive.handle(.collar(armHere: armHere))      // B7 (Q104), A10's voice
         default: break
         }
     }

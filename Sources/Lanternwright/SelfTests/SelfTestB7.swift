@@ -89,7 +89,7 @@ extension SelfTestRunner {
         // ---- Q102, measured: a climb that watches only the three crystals (what a person looking at the court sees), one dial at a time, from the court's own start and from 40 other arrangements; with and without the faint glow drawn.
         func climb(near: Bool, mirrors m0: [Int], panes p0: [Int]) -> (solved: Bool, clicks: Int) {
             let g = Game(scenes: [.varrow: Scene.makeWorld(device: device), .glassWood: GlassWood.build(device: device)])
-            GlassWoodLogic.nearStandIn = near; defer { GlassWoodLogic.nearStandIn = false }
+            GlassWoodLogic.nearGlow = near; defer { GlassWoodLogic.nearGlow = true }
             for n in [1, 2, 3, 5, 6, 7] { g.restorePage(n) }
             g.state.set("gw_end"); g.simulate(seconds: 0.2)
             guard let gw = g.glass else { return (false, 0) }
