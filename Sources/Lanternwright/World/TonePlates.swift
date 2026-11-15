@@ -30,7 +30,7 @@ enum TonePlates {
     static func build(into scene: Scene, device: MTLDevice) {
         let stone = Surface(color: SIMD3(0.40, 0.38, 0.35), roughness: 0.9, material: .dressed)
         let iron = Surface(color: SIMD3(0.05, 0.055, 0.07), roughness: 0.5, material: .iron)
-        let brass = Surface(color: SIMD3(0.78, 0.58, 0.22), roughness: 0.4, material: .copper)
+        let brass = Surface(color: SIMD3(0.64, 0.47, 0.20), roughness: 0.32, material: .paleMetal)
         var m = MeshBuilder()
         for k in 0..<3 {
             let l = local(k)

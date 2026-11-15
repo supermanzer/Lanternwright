@@ -103,7 +103,7 @@ extension SelfTestRunner {
         guard let bays = frame(cam1) else { check(false, "vantage: no frame"); return }
         var board = 0
         for y in 100..<250 { for x in 100..<540 { let i = (y * wpx + x) * 4; let b = Int(bays[i]), g = Int(bays[i + 1]), r = Int(bays[i + 2]); if r > b + 25 && g > b + 15 { board += 1 } } }     // BGRA: warm oak and brass
-        check(board > 6000, "vantage: from station 1 at full zoom the five bays' warm oak and brass fill the middle of the frame (\(board) warm pixels of 59 400)")
+        check(board > 6000, "vantage: from station 1 at full zoom the five bays' warm oak and brass fill the middle of the frame (\(board) warm pixels of 66 000)")
 
         // ---- The dome's slit: every bar lies along the shell, and the next begins where this one ends.
         var along = true, joined = true
