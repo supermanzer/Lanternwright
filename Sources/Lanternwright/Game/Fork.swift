@@ -27,7 +27,7 @@ extension Game {
 
     /// Where the route world is entered for a route: its pose (position, yaw): the lamp end for Ilse, the open end for Oren (S02 section 3, lever 1). The stand-in's two ends are its arrival pad and its altar end.
     static func routeEntry(_ author: PageAuthor, in world: WorldKind = .glassWood) -> (position: SIMD3<Float>, yaw: Float) {
-        if world == .tideArchive { return (author == .oren ? ArchiveLayout.openEnd : ArchiveLayout.lampEnd, 0) }      // the two quays (S04.1), facing the tide steps
+        if world == .tideArchive { return (author == .oren ? ArchiveLayout.openEnd : ArchiveLayout.lampEnd, ArchiveLayout.arrivalYaw) }      // the two quays (S04.1); A8 (Q120): facing seaward, to the tide gauge standing in the water
         return author == .oren ? (GlassLayout.altar + SIMD3(0, 0, 7), 0) : (GlassLayout.arrival, 0)
     }
 

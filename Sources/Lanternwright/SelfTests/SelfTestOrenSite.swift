@@ -76,6 +76,10 @@ extension SelfTestRunner {
             ArchiveLayout.bareDiscs.contains { simd_length(SIMD2(rm.x + c.x * h.x, rm.z + c.y * h.y) - $0.center) < $0.radius - 0.1 }
         }
         check(covered, "orensite: the ledger room's four corners lie inside a grass-free disc")
+        // A8: and the apron in front of the door: the sill and the ground 2 m out from it are inside a disc well enough that the soft edge has not begun (radius - 0.8).
+        let door = ArchiveLayout.ledgerDoor
+        let apron = [0.0, 1.0, 2.0].allSatisfy { dz in ArchiveLayout.bareDiscs.contains { simd_length(SIMD2(door.x, door.z + Float(dz)) - $0.center) < $0.radius - 0.8 } }
+        check(apron, "orensite: the ledger door's sill and the apron 2 m out lie inside a grass-free disc (A8)")
 
         // ---- The calls B makes.
         let t0: Float = 20

@@ -217,6 +217,8 @@ enum ArchiveLayout {
     /// Where the two routes land (S02 section 3: the lamp end for Ilse, the open end for Oren): two quays at the south edge, either side of the tide steps.
     static let lampEnd = point(-46, 128)
     static let openEnd = point(46, 128)
+    /// A8 (Q120): the yaw a player arrives at either quay with: due south (+Z, the sea), so the tide gauge straight out from the quay is on screen at arrival (it stands 31-33 m out).
+    static let arrivalYaw: Float = .pi
     /// The first plaza, above the quays' landing: the tide steps start here.
     static let landing = point(0, 92)
     /// The shelves of ledgers on the second terrace, west.
@@ -318,7 +320,11 @@ extension ArchiveLayout {
 
 extension ArchiveLayout {
     /// Grass-free discs beyond the pads' own (`Renderer`'s terrain texture reads them): the ledger room's floor (S05.2: grass came up through the slab, Q62) with a short soft edge.
-    static var bareDiscs: [(center: SIMD2<Float>, radius: Float)] { [(SIMD2(ledgerRoom.x, ledgerRoom.z), simd_length(ledgerHalf) + 0.6)] }
+    /// A8 (Q123): and a second disc for the apron in front of the ledger room's door (blades stood right at the sill, a8-ledger-before.png): centred 1.2 m out from the door's line, 2.4 m radius.
+    static var bareDiscs: [(center: SIMD2<Float>, radius: Float)] {
+        [(SIMD2(ledgerRoom.x, ledgerRoom.z), simd_length(ledgerHalf) + 0.6), (SIMD2(ledgerDoor.x, ledgerDoor.z + ledgerApron.offset), ledgerApron.radius)]
+    }
+    static let ledgerApron: (offset: Float, radius: Float) = (1.2, 2.4)
 }
 
 /// S05.4 (A5, builder A): the two VANTAGE STATIONS, one for each route, where the other route's site can be read across the island's terraces (Q91). Station 0 is Ilse's: where the way to the dome climbs onto the third terrace's rim,

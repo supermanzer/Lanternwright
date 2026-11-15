@@ -69,6 +69,20 @@ extension SelfTestRunner {
             if abs(Tide.metres(Orrery.alignmentClock(k)) - ArchiveLayout.sluiceFloors[k] - y) > 0.02 { lineOK = false }          // the room's water is at the line at the gate's clock
         }
         check(lineOK, "tidemarks: each sluice room's answer line stands \((0..<3).map { String(format: "%.2f", SluiceLines.aboveFloor($0)) }.joined(separator: ", ")) m over its floor, inside the gate's painted band, and the water is at it at the gate's clock")
+        // A8: each pier's level ticks are measured from THIS room's floor (a wrong floor put the ticks nowhere): a room's own level reads as its line; room 2 (the stone room) carries two ticks on its piers.
+        let ownOK = (0..<3).allSatisfy { k in abs(SluiceLines.tickAbove(level: k, room: k) - SluiceLines.aboveFloor(k)) < 1e-5 }
+        let stoneTicks = (0..<3).filter { j in j != 2 && SluiceLines.tickAbove(level: j, room: 2) > SluiceLines.tickHeight && SluiceLines.tickAbove(level: j, room: 2) < SluiceLines.pierTop }.count
+        let f = ArchiveLayout.sluiceFloors, shift = (0..<3).allSatisfy { j in abs((SluiceLines.tickAbove(level: j, room: 0) - SluiceLines.tickAbove(level: j, room: 2)) - (f[2] - f[0])) < 1e-4 }       // the same level reads higher in a deeper room by exactly the floors' difference
+        check(ownOK && shift && stoneTicks == 2 && SluiceLines.outlineHeight > 0.3, "tidemarks: the pier ticks are measured from their own room's floor (a room's own level is its line; the stone room has \(stoneTicks) ticks) and the line is bold (A8)")
+        // A8 (Q120): a player arrives at either quay facing the tide gauge standing out in the sea (it is on screen at arrival).
+        let facing = (0..<2).map { site -> Float in
+            let e = Game.routeEntry(site == 0 ? .ilse : .oren, in: .tideArchive), f = TideMarks.foot(site, terrain: scene.terrain)
+            let fwd = SIMD2<Float>(sin(e.yaw), -cos(e.yaw)), to = simd_normalize(SIMD2(f.x - e.position.x, f.z - e.position.z))
+            return simd_dot(fwd, to)
+        }
+        check(facing.allSatisfy { $0 > 0.97 }, "tidemarks: both quays' arrival yaw faces the tide gauge (cosines \(facing.map { String(format: "%.3f", $0) }.joined(separator: ", ")))")
+        // A8 (Q122): the prism chamber's floor is lit on its own (it stands in the wall's shade).
+        check((scene.items.first { $0.name == ArchiveProps.floorName }?.uniforms.emissive.w ?? 0) > 0.1, "tidemarks: the prism chamber's floor is its own item with a light of its own (A8)")
         let share = (0..<3).map { k in Float((0..<900).filter { WadeLamps.lit(k, clock: Float($0) / 900 * P) }.count) / 900 }
         let sameAsRule = (0..<3).allSatisfy { k in (0..<90).allSatisfy { WadeLamps.lit(k, clock: Float($0)) == Tide.isWadeable(ground: ArchiveLayout.sluiceFloors[k], time: Float($0)) } }
         check(sameAsRule && share[2] < 0.35 && share[2] > 0.05 && share[0] > share[1] && share[1] > share[2] && WadeLamps.lit(2, clock: 0) && !WadeLamps.lit(2, clock: P / 2), "tidemarks: a room's lamp follows `Tide.isWadeable` (lit shares tide \(String(format: "%.2f", share[0])), wind \(String(format: "%.2f", share[1])), stone \(String(format: "%.2f", share[2]))): the stone room only near low water")

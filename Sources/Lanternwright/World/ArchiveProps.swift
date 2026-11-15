@@ -208,13 +208,15 @@ enum ArchiveProps {
             b.tube(points: pts, radii: [Float](repeating: 0.07, count: pts.count), sides: 5, caps: false, surface: brass)
         }
         b.torus(major: top.x + 0.2, minor: 0.12, segments: 24, sides: 6, surface: brass, transform: translation(SIMD3(0, top.y, 0)))
+        // A8 (Q121): the slit and the door's recess are a clean dark panel, not `iron` (whose rust speckle read as a glitch at walking distance on a flat 2 x 2.8 m face).
+        let panel = Surface(color: SIMD3(0.03, 0.034, 0.042), roughness: 0.55, material: .standard)
         // The slit: a dark strip up the south side of the dome (in the plane x = 0, on the +z side), in twelve short bars following the dome's curve.
         for k in 0..<12 {
             let bar = ArchiveProps.slitBar(k)
-            b.box(size: SIMD3(1.1, bar.length, 0.08), surface: iron, transform: translation(SIMD3(0, bar.mid.y, bar.mid.x)) * rotationX(bar.turn))
+            b.box(size: SIMD3(1.1, bar.length, 0.08), surface: panel, transform: translation(SIMD3(0, bar.mid.y, bar.mid.x)) * rotationX(bar.turn))
         }
         // The door on the south: a recess in an arch of dressed stone.
-        b.box(size: SIMD3(2.0, 2.8, 0.5), surface: iron, transform: translation(SIMD3(0, 1.4, drum + 0.1)))
+        b.box(size: SIMD3(2.0, 2.8, 0.5), surface: panel, transform: translation(SIMD3(0, 1.4, drum + 0.1)))
         for sx: Float in [-1, 1] { b.chamferBox(size: SIMD3(0.55, 3.2, 0.7), chamfer: 0.04, surface: slateLight, transform: translation(SIMD3(sx * 1.3, 1.6, drum + 0.15))) }
         b.chamferBox(size: SIMD3(3.2, 0.5, 0.7), chamfer: 0.04, surface: slateLight, transform: translation(SIMD3(0, 3.25, drum + 0.15)))
         scene.placed.append(Placement.record(kind: "ta_dome", mesh: b, transform: f.transform))
@@ -280,6 +282,9 @@ enum ArchiveProps {
     // MARK: The prism chamber
 
     static let chamberRadius: Float = 7.0
+    static let floorName = "ta_chamber_floor"
+    /// The prism chamber floor's own light (colour, strength): enough to lift the shaded slab to a pale grey, not so much that the beams stop reading.
+    static let floorEmissive = SIMD4<Float>(0.55, 0.58, 0.60, 0.2)
     static let prismPosition: SIMD3<Float> = ArchiveLayout.prismChamber + SIMD3(0, 1.75, 0)
 
     static func addPrismChamber(_ scene: Scene, device: MTLDevice) {
@@ -299,7 +304,11 @@ enum ArchiveProps {
         // A cornice of dressed stone round the wall's top.
         b.lathe(profile: [SIMD2(r + 0.2, h - 0.2), SIMD2(r + 0.2, h + 0.15), SIMD2(r - wall - 0.1, h + 0.15)], segments: 48, smooth: true, surface: slateLight, omit: [10, 11, 12, 13])
         // The floor: dressed slabs (a disc) and the brass pedestal with the prism's stand.
-        b.cylinder(radiusTop: r - wall, radiusBottom: r - wall, height: 0.12, segments: 40, smooth: false, surface: slateLight, transform: translation(SIMD3(0, -0.06, 0)))
+        // A8 (Q122): the floor was a dark mottle: the 4.6 m wall shades the whole disc and a dressed slab level with the ground takes only the sky's ambient light. It is its own item (`ta_chamber_floor`),
+        // a pale dressed slab 4 cm proud of the ground, with a little emissive so the shaded floor reads as stone, not as a hole; the three marks, the ring and the beams then read against it.
+        var fl = MeshBuilder()
+        fl.cylinder(radiusTop: r - wall, radiusBottom: r - wall, height: 0.3, segments: 40, smooth: false, surface: Surface(color: SIMD3(0.72, 0.74, 0.72), roughness: 0.85, material: .dressed), transform: translation(SIMD3(0, -0.26, 0)))
+        scene.add(floorName, mesh: fl.build(device: device, label: "prism chamber floor"), uniforms: ObjectUniforms(model: place, emissive: floorEmissive))
         b.cylinder(radiusTop: 0.42, radiusBottom: 0.55, height: 1.15, segments: 16, smooth: true, surface: brass, transform: translation(SIMD3(0, 0, 0)))
         b.torus(major: 0.55, minor: 0.05, segments: 24, sides: 6, surface: brass, transform: translation(SIMD3(0, 1.15, 0)))
         scene.colliders.addCylinder(center: SIMD2(c.x, c.z), radius: 0.7, minY: c.y - 1, maxY: c.y + 3)

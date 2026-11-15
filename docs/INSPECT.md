@@ -406,3 +406,12 @@ Nothing here has been played by a person; the numbers and frames are in `shots/f
 ## A7 (s05-a5, builder A): the flood stops pushing, the lamp has a colour (nothing here has been seen by a person)
 | needs-inspection | Q99 | After the third sluice gate opens, the rising tide no longer walks you out of the room; each room's lamp is warm green when it can be waded and a dim ember when not | In the stone room open all three gates and wait for high water; `--view ta-lamp2 --clock 0` (green) and `--clock 45` (ember) | Does green read "safe" and ember "wait" with no text? Is the eye under water at high tide acceptable (Q32)? |
 
+## A8 (s05-a6, builder A): arrival, dome door, prism floor, ledger apron, sluice ticks (nothing here has been seen by a person)
+| What | Look for |
+|---|---|
+| Arrival at either quay | You face the sea and see a small stone gauge out in the water (Q120). Does it read as "something to go to"? |
+| Dome door and slit | A flat dark panel, no orange speckle (Q121). |
+| Prism chamber floor | Pale stone, not a dark hole; the three marks and beams read against it (Q122). |
+| Ledger room door | No blades standing at the sill (Q123). |
+| Sluice piers | A bold white line at the foot, and (wind and stone rooms) pale ticks higher up the piers (Q124). |
+

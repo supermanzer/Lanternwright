@@ -509,6 +509,10 @@ enum Viewpoints {
             let site = name.hasPrefix("ta-marks0") ? 0 : 1, f = TideMarks.foot(site, terrain: Terrain(spec: .tideArchive)), far = name.hasSuffix("-far")
             let from = SIMD3(f.x + (site == 0 ? 3 : -3), 0, far ? TideMarks.quay(site).z + 2 : f.z - 14)
             return Self.lookFrom(SIMD3(from.x, Player.eyeHeight + ArchiveLayout.groundY(from.x, from.z), from.z), at: SIMD3(f.x, 0.4, f.z))
+        // A8: the arrival frame as the player gets it: standing on the quay at the route's entry pose (position and yaw from `Game.routeEntry`), level gaze.
+        case "ta-arrive0", "ta-arrive1":
+            let e = Game.routeEntry(name.hasSuffix("0") ? .ilse : .oren, in: .tideArchive)
+            return Camera(position: e.position + SIMD3(0, Player.eyeHeight, 0), yaw: e.yaw, pitch: 0)
         case "ta-sluice-line2", "ta-sluice-line0":
             let k = name.hasSuffix("0") ? 0 : 2, c = ArchiveLayout.sluices[k]
             return Self.lookFrom(c + SIMD3(2.0, 1.5, 7.0), at: c + SIMD3(-0.9, 0.6, 1.0))

@@ -8,9 +8,13 @@ import simd
 ///    `Tide.isWadeable`: the stone room only near low water), dark while the tide has flooded it. `ArchiveProps.update` drives it from the tide clock, the same function builder B's rule uses.
 enum SluiceLines {
     static func name(_ k: Int) -> String { "ta_sluice_line_\(k)" }
-    static let emissive = SIMD4<Float>(1.0, 0.95, 0.8, 0.9)
+    static let emissive = SIMD4<Float>(1.0, 0.95, 0.8, 1.6)
+    /// A8 (Q124): the line is bolder (0.34 m outline, 0.2 m core, was 0.24 / 0.12) and each pier also carries the three LEVEL TICKS: a short pale tick at each of the tide's three crossing heights that falls inside the pier, so the water climbing a pier reads against a scale and not only against one marker.
+    static let outlineHeight: Float = 0.34, coreHeight: Float = 0.2, tickHeight: Float = 0.07, tickWidth: Float = 0.34, pierTop: Float = 3.2
     /// Height of the line above the room's floor (m): the room is a pit in the sea's datum, so the line's world height is `TideMarks.height(k)`.
     static func aboveFloor(_ k: Int) -> Float { TideMarks.height(k) - ArchiveLayout.sluiceFloors[k] }
+    /// Height over room `room`'s floor of the sea's crossing level `level` (the tick for another gate's level, on this room's piers).
+    static func tickAbove(level: Int, room: Int) -> Float { TideMarks.height(level) - ArchiveLayout.sluiceFloors[room] }
     static func add(to scene: Scene, device: MTLDevice) {
         let gapHalf: Float = 1.1
         for k in 0..<3 {
@@ -18,9 +22,17 @@ enum SluiceLines {
             let y = aboveFloor(k)
             let pale = Surface(color: SIMD3(0.97, 0.95, 0.85), roughness: 0.6, material: .dressed)
             for sx: Float in [-1, 1] {       // a dark outline (stands off the painted band) with a pale glowing core
-                m.box(size: SIMD3(0.9, 0.24, 0.05), surface: ArchiveProps.iron, transform: translation(SIMD3(sx * (gapHalf + 0.45), y, 0.5)))
-                m.box(size: SIMD3(0.84, 0.12, 0.06), surface: pale, transform: translation(SIMD3(sx * (gapHalf + 0.45), y, 0.52)))
+                m.box(size: SIMD3(0.9, outlineHeight, 0.05), surface: ArchiveProps.iron, transform: translation(SIMD3(sx * (gapHalf + 0.45), y, 0.5)))
+                m.box(size: SIMD3(0.84, coreHeight, 0.06), surface: pale, transform: translation(SIMD3(sx * (gapHalf + 0.45), y, 0.52)))
             }          // on the piers' south face, over the painted band
+            for j in 0..<3 where j != k {     // the other two crossing heights as small ticks on the pier's inner edge (when they fall on the pier at all)
+                let yj = tickAbove(level: j, room: k)
+                guard yj > tickHeight && yj < pierTop else { continue }
+                for sx: Float in [-1, 1] {       // pale on a dark outline, like the line itself: pale alone vanishes against the sunlit pier
+                    m.box(size: SIMD3(tickWidth + 0.06, tickHeight + 0.07, 0.05), surface: ArchiveProps.iron, transform: translation(SIMD3(sx * (gapHalf + 0.17), yj, 0.5)))
+                    m.box(size: SIMD3(tickWidth, tickHeight, 0.06), surface: pale, transform: translation(SIMD3(sx * (gapHalf + 0.17), yj, 0.52)))
+                }
+            }
             let p = ArchiveLayout.pipeOffset, share = IlseTones.matchLevel(k)
             m.box(size: SIMD3(0.5, 0.09, 0.05), surface: pale, transform: translation(p + SIMD3(0, BellPipes.columnFoot + BellPipes.columnHeight * share, -0.27)))          // the pipe's back plate
             scene.add(name(k), mesh: m.build(device: device, label: "sluice line \(k)"), uniforms: ObjectUniforms(model: translation(ArchiveLayout.sluices[k]), emissive: emissive))
