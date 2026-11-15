@@ -327,6 +327,16 @@ M10 (guided movement, `docs/plans/M10-guided-movement.md`; tasks in `docs/TASKS-
 | needs-listening | I1 | A struck bell (each bay its own pitch), and a sour strike (Q61, Q65) | the hook is `ArchiveAudio.handle(.bell(k, sour:))` once B wires it; `--selftest ilsesite` prints the numbers | Five distinct bells; the sour one sounds WRONG (flat, beating, short), not pretty |
 | needs-listening | I2 | The pipe's tone against the fork: the beats slow as the water reaches the gate's level (Q64) | `ArchiveAudio.Inputs.pipe` once B wires it | Slow beats you can follow on a laptop speaker; they nearly stop (0.6 Hz floor) when the pitches agree |
 
+## S05.2 (builder A): Oren's site in the Tide Archive: the dome's orrery, the dome's windows, the prism's inputs, the dormant views (frames in `shots/s05/`; nothing here has been seen or heard by a person)
+
+| Status | Note | What changed | How to see it | What to look for |
+|---|---|---|---|---|
+| needs-inspection | O1 | A brass tide-orrery in front of the dome: three coloured arms that sweep once per tide cycle and a brass collar (Q66). The arms are a pure function of the tide clock | `--view ta-orrery` (from the route side), `--view ta-orrery-top` and `ta-collar` (close), with `--clock 5`, `40`, `75` | The arms read as moving between clocks and distinct from each other from 2.5-4 m; the coloured stops on the dial's edge point at the windows; the collar reads as something to turn |
+| needs-inspection | O1 | Three round windows above the dome's door; they light in the gate colours (Q67) | `--view ta-windows` with `--state windows` (all lit), `windows1`, `orreryheld` (arms stopped at their alignments, windows lit) | Dark they read as glass, lit they read as tide blue / wind green / stone orange in daylight; an arm at its window points at it |
+| needs-inspection | O2 | The prism chamber's components exist only for lit windows: a dark window leaves a dim ghost (Q67) | `--view ta-prism-inputs` with `--state prismdark`, `windows1`, `windows` | Three components when all lit (as before); a ghost is clearly "not yet", not "broken" |
+| needs-inspection | S05.4 | From each quay the other site shows as dark machines: the bell mast over the stacks, the dark spire beside the dome that glows with the windows (Q68) | `--view ta-quay-stacks`, `--view ta-quay-dome` with `--state windows` | Silhouettes legible against the sky at that distance; nothing says "play again"; the orrery's arms are NOT readable from a quay (known) |
+| needs-inspection | Q69 | Grass no longer comes up through the ledger room's floor; the room still reads dark | `--view ta-ledger-in --state ledger` | No blade through the floor; the dark floor is known |
+
 ## F10 A2 (builder A): the court's receiving crystals, the beam's three groups, a warmer lens ring (frames in `shots/p02/`; nothing here has been seen by a person)
 
 | Status | Note | What changed | How to see it | What to look for |

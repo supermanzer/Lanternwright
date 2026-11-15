@@ -32,6 +32,11 @@ enum ArchiveProps {
         var gate = [Float](repeating: 0, count: 3)
         var gateCollider = [Bool](repeating: true, count: 3)                    // closed gates block the gap from the start (`addSluice` adds the colliders)
         var lastTime: Float?
+        var armStops: [Float?] = [nil, nil, nil]                                  // S05.2: the clock each orrery arm is stopped at (nil: running)
+        var collarDetent = 0
+        var prismLit = [true, true, true]                                          // S05.2: which of the prism's components exist (the lit dome windows)
+        var lastRing: Float?
+        var windowLit: [Float] = [0, 0, 0]                                        // S05.2: how lit each dome window is (the spire's glow is their mean)
         var ledgerBlocking = true                                                 // S05.1: the ledger room's door collider is in (`LedgerRoom.setDoor` takes it out when the door is open)
     }
     static func gateCollider(_ k: Int) -> (center: SIMD2<Float>, radius: Float) { (SIMD2(ArchiveLayout.sluices[k].x, ArchiveLayout.sluices[k].z), 0.9) }
@@ -60,6 +65,7 @@ enum ArchiveProps {
         let g = ArchiveTerrain.gallery
         Player.galleryWater = (g.centre, g.half, ArchiveStory.waterLevel(scene, clock: time))
         updatePrism(scene, ringAngle: ringAngle ?? TideArchivePuzzle.initialRing)
+        Orrery.update(scene, clock: time)                                          // S05.2: the arms follow the tide clock unless B has stopped one
         updateTableau(scene, shown: tableau, time: time)
     }
 
@@ -83,6 +89,7 @@ enum ArchiveProps {
         addLanterns(scene, device: device)
         ArchiveStory.populate(scene, device: device)
         IlseSite.populate(scene, device: device)                                     // S05.1: the shelf bays, the ledger room, the bell pipes
+        OrenSite.populate(scene, device: device)                                     // S05.2: the dome's orrery and windows
     }
 
     // MARK: Placement helpers
@@ -337,12 +344,15 @@ enum ArchiveProps {
     }
     static func updateTableau(_ scene: Scene, shown: PageAuthor?, time: Float) { ArchiveStory.updateTableau(scene, shown: shown, time: time) }
     static func updatePrism(_ scene: Scene, ringAngle: Float) {
+        let have = scene.archive.prismLit
+        scene.archive.lastRing = ringAngle
         for k in 0..<3 {
-            let a = beamAngle(k, ring: ringAngle), lit = resting(k, ring: ringAngle)
+            let a = beamAngle(k, ring: ringAngle), avail = have[k], lit = avail && resting(k, ring: ringAngle)
             let dir = simd_normalize(SIMD3(cos(a), -0.02, sin(a)))
-            scene.update(beamOutName(k)) { $0.uniforms.model = translation(prismPosition) * rotation(aligningYTo: dir); $0.uniforms.emissive = SIMD4(beamColours[k], lit ? 8 : 5) }
+            scene.update(beamOutName(k)) { $0.uniforms.model = translation(prismPosition) * rotation(aligningYTo: dir); $0.uniforms.emissive = avail ? SIMD4(beamColours[k], lit ? 8 : 5) : SIMD4(beamColours[k] * 0.5, PrismInputs.ghostStrength) }
             scene.update(markName(k)) { $0.uniforms.emissive = lit ? SIMD4(beamColours[k], 3.5) : SIMD4(0, 0, 0, 0) }
         }
+        scene.update(beamInName) { $0.uniforms.emissive.w = 2 + 3 * Float(have.filter { $0 }.count) / 3 }
         scene.update(ringName) { $0.uniforms.model = translation(ArchiveLayout.prismChamber + SIMD3(0, 0.55, 0)) * rotationY(-ringAngle) }
     }
 

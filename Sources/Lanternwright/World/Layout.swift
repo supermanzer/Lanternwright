@@ -297,3 +297,26 @@ extension ArchiveLayout {
     static let pipeOffset = SIMD3<Float>(-1.9, 0, 3.2)
     static func pipe(_ k: Int) -> SIMD3<Float> { sluices[k] + pipeOffset }
 }
+
+/// S05.2 (builder A): Oren's site in the Tide Archive. The ORRERY stands on the dome's pad, in front of the dome's south face (the door side), off the walked route (the route's last leg runs about 13 m to its
+/// west); the three dome WINDOWS are portholes in the drum above the door, at the bearings below (radians from south, + east), 9.2 m from the dome's axis (`ArchiveProps.addDome`'s drum radius).
+extension ArchiveLayout {
+    static let orrery = point(5, -88)
+    static let domeDrum: Float = 9.2
+    static let domeWindowBearing: [Float] = [-0.46, 0, 0.46]
+    /// Window k's (x, z) on the drum's surface.
+    static func domeWindowXZ(_ k: Int) -> SIMD2<Float> { let b = domeWindowBearing[k]; return SIMD2(dome.x + sin(b) * domeDrum, dome.z + cos(b) * domeDrum) }
+}
+
+/// S05.4 (start, builder A): the DORMANT MODELS each route sees of the other's site from its own quay. Ilse's site is the stacks (the east quay, Oren's, looks across the terraces at them): a tall BELL MAST
+/// stands behind the bays, an unlit lantern and a bell at its top. Oren's site is the dome (the west quay, Ilse's, sees the brass dome on the third terrace): a slender dark glass SPIRE stands beside it, the prism
+/// chamber's glass in miniature, and it glows as the dome's windows light (`DomeWindows.set`). Both stand clear of every walked line.
+extension ArchiveLayout {
+    static let bellMast = point(-72, 36)
+    static let prismSpire = point(18, -114)
+}
+
+extension ArchiveLayout {
+    /// Grass-free discs beyond the pads' own (`Renderer`'s terrain texture reads them): the ledger room's floor (S05.2: grass came up through the slab, Q62) with a short soft edge.
+    static var bareDiscs: [(center: SIMD2<Float>, radius: Float)] { [(SIMD2(ledgerRoom.x, ledgerRoom.z), simd_length(ledgerHalf) + 0.6)] }
+}

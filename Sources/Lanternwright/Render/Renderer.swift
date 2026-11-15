@@ -276,6 +276,7 @@ final class Renderer {
                         let r = pad.radius * 0.62
                         bare = max(bare, 1 - smoothstep(r - 1.5, r + 1.5, d))
                     }
+                    if kind == .tideArchive { for disc in ArchiveLayout.bareDiscs { bare = max(bare, 1 - smoothstep(disc.radius - 0.8, disc.radius + 0.8, length(SIMD2(x - disc.center.x, z - disc.center.y)))) } }          // S05.2: the ledger room's floor
                     texels[(j * n + i) * 4 + 2] = bare
                     texels[(j * n + i) * 4 + 3] = sc.terrain.duffAt(x: x, z: z)
                 }

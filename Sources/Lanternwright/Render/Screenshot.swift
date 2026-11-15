@@ -58,6 +58,13 @@ enum Screenshot {
         case let s where s.hasPrefix("pipes"):          // `pipes` = every pipe's water at 60 %, `pipes25`, `pipes100`, ...
             let pct = Float(s.dropFirst(5)).map { $0 / 100 } ?? 0.6
             for sc in scenesForState.values { for k in 0..<BellPipes.count { BellPipes.set(sc, k, level: pct) } }
+        case "windows", "windows1", "windows2":          // S05.2: all three dome windows lit (the prism's components all there), or only the first, or the first two
+            let n = name == "windows1" ? 1 : (name == "windows2" ? 2 : 3)
+            for sc in scenesForState.values { for k in 0..<DomeWindows.count { DomeWindows.set(sc, k, lit: k < n ? 1 : 0) }; PrismInputs.set(sc, lit: (0..<3).map { $0 < n }) }
+        case "prismdark":                    // S05.2: no window lit: the prism's components are dim ghosts
+            for sc in scenesForState.values { PrismInputs.set(sc, lit: [false, false, false]) }
+        case "orreryheld":                   // S05.2: each arm stopped at its own alignment (pointing at its window), the windows lit
+            for sc in scenesForState.values { for k in 0..<Orrery.armCount { Orrery.hold(sc, k, at: Orrery.alignmentClock(k)); DomeWindows.set(sc, k, lit: 1) } }
         case "tide": g.puzzle.strike(.tide)
         case "tidewind": g.puzzle.strike(.tide); g.simulate(seconds: 0.7); g.puzzle.strike(.wind)
         case "fork", "forkoren":            // F08.1: the lens room at the fork (the altar solved, the gate ready, the door open); forkoren: the ring turned onto the receiver and the doorway of light open

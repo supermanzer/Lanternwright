@@ -482,6 +482,15 @@ enum Viewpoints {
         case "ta-ledger-in": return Self.lookFrom(ArchiveLayout.ledgerRoom + SIMD3(0.5, 1.7, 1.5), at: ArchiveLayout.ledgerPage + SIMD3(0, -0.1, 0))
         case "ta-pipe0":    return Self.lookFrom(BellPipes.holdPoint(0) + SIMD3(2.0, 0.1, 3.4), at: BellPipes.holdPoint(0))
         case "ta-pipe2":    return Self.lookFrom(BellPipes.holdPoint(2) + SIMD3(2.0, 0.1, 3.4), at: BellPipes.holdPoint(2))
+        // S05.2: Oren's site at walking distance: the orrery from the route side, its collar close, the dome's three windows from the orrery, the prism chamber's components; and the dormant views from the quays.
+        case "ta-orrery":   return Self.lookFrom(ArchiveLayout.orrery + SIMD3(-3.6, 1.7, 2.6), at: ArchiveLayout.orrery + SIMD3(0, 1.3, 0))
+        case "ta-orrery-top": return Self.lookFrom(ArchiveLayout.orrery + SIMD3(-1.5, 1.7, 1.7), at: ArchiveLayout.orrery + SIMD3(0, 1.2, 0))
+        case "ta-collar":   return Self.lookFrom(ArchiveLayout.orrery + SIMD3(-1.0, 1.55, 1.3), at: Orrery.collarPoint + SIMD3(0.1, 0, 0))
+        case "ta-windows":  return Self.lookFrom(ArchiveLayout.orrery + SIMD3(-1.5, 1.7, 2.0), at: ArchiveLayout.dome + SIMD3(0, 4.0, ArchiveLayout.domeDrum))
+        case "ta-prism-inputs": return Self.lookFrom(ArchiveProps.prismPosition + SIMD3(-1.6, 0.4, 5.6), at: ArchiveProps.prismPosition + SIMD3(1.8, 0, 0))
+        // S05.4 (start): what each route sees of the other's site from its own quay: from the east (Oren's) quay the stacks, from the west (Ilse's) quay the dome and orrery, both at eye height on the quay.
+        case "ta-quay-stacks": return Self.lookFrom(ArchiveLayout.openEnd + SIMD3(-4, Player.eyeHeight, -6), at: ArchiveLayout.bellMast + SIMD3(0, 8, 0))
+        case "ta-quay-dome":   return Self.lookFrom(ArchiveLayout.lampEnd + SIMD3(4, Player.eyeHeight, -6), at: ArchiveLayout.dome + SIMD3(8, 6, 0))
         case "ta-stacks":   return Self.lookFrom(ArchiveLayout.stacks + SIMD3(-3.0, 1.7, 7.5), at: ArchiveLayout.stacks + SIMD3(-9.5, 1.2, -3.0))
         case "ta-gallery":  return Self.lookFrom(ArchiveLayout.greatLedger + SIMD3(-27, 17, 9), at: ArchiveLayout.greatLedger + SIMD3(0, -1, 0))
         case "ta-sluice":   return Self.lookFrom(ArchiveLayout.sluices[0] + SIMD3(0, 6.5, 17), at: ArchiveLayout.sluices[0] + SIMD3(0, 0.8, 0))
