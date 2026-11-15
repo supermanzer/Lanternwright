@@ -546,6 +546,12 @@ G6 simulates a player who always takes the first open puzzle. It flags the chime
 *What changes if the answer differs:* `PuzzleRules.openAtOnce` (one exemption) and its pins, or a new puzzle.
 *Status:* open.
 
+### Q111 (2026-11-15, reviewer): decisions taken on B's acceptance findings Q100-Q110 (all defaults, none blocks)
+*Taken, built in the next phase (B7 and A10):* Q101 the plates' bloom says "right" when struck correctly even before the altar; Q102 a receiver the beam nearly reaches glows faintly (a slope for the mirror court's climb); Q103 the other sibling's machines answer with one dull, quiet tick ("not yours", never silence); Q104 the collar clicks louder on a notch that has an arm; Q105/Q70 a coarser prism ring step so it is 6 clicks or fewer (A repaints the floor marks); Q106 a stone struck before the quay nudges the guide light toward the quay (as Q86); Q110 G6 exempts a world's last puzzle, as the game's last already is.
+*Kept:* Q100 (wrong presses cost nothing; revisit after the user's first play), Q107 and Q108 (informational).
+*What changes if the answer differs:* each is a one-place change named in its Q.
+*Status:* open.
+
 ## Answered
 - 2026-10-28 S03 Oren's exit location: both exits at the original lighthouse; Oren's is a lens portal in the lens room, the dock arch is not an exit.
 - 2026-10-28 Page gate: 3 pages of each sibling.
