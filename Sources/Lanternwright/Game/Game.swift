@@ -83,9 +83,14 @@ final class Game {
                               route: { [weak self] in self?.chosenPath }, level: { [weak self] in Tide.level(self?.time ?? 0) }, player: { [weak self] in self?.player.position ?? .zero },
                               inArchive: { [weak self] in self.map { $0.realArchive && $0.chosenPath != nil } ?? false })
             ilseRoute = r
+            r.nudge = { [weak self] in self?.nudgeGuide() }
+            let o = OrenRoute(state: state, animator: animator, emit: { [weak self] in self?.pending.append($0) }, scene: { [weak self] in self?.scenes[.tideArchive] }, route: { [weak self] in self?.chosenPath },
+                              clock: { [weak self] in self?.time ?? 0 }, nudge: { [weak self] in self?.nudgeGuide() })
+            orenRoute = o
+            t.componentLit = { [weak self] k in !(OrenRoute.windowsFeedRing && self?.chosenPath == .oren) || (self?.orenRoute?.lit(k) ?? true) }
             t.touchHolds = { [weak self] in !(IlseRoute.pipesReplaceTouch && self?.chosenPath == .ilse) }
             t.ringWorks = { [weak self] in !(IlseRoute.pipesReplaceTouch && self?.chosenPath == .ilse) }
-            puzzles.append(r)
+            puzzles.append(r); puzzles.append(o)
         }
         if tideArchive != nil, scenes[.tideArchive] == nil { scenes[.glassWood]?.update(ChainMap.interactableName) { $0.hidden = false } }          // S04.9: with no Archive built the Glass Wood's own chain map stands in
         buildInteractables()
@@ -96,6 +101,13 @@ final class Game {
     private(set) var tideArchive: TideArchivePuzzle?
     /// S05.3: Ilse's site (A0 marks, I1 catalogue, I2 pipes); nil with the Archive switched off.
     private(set) var ilseRoute: IlseRoute?
+    /// S05.3 (B5): Oren's site (O1 the orrery; O2 is the ring, fed by its windows); nil with the Archive switched off.
+    private(set) var orenRoute: OrenRoute?
+    /// B5 (Q86): a puzzle asked too early (before the tide marks are counted) flares the guide light for `nudgeSeconds`; `guideFlare` is how bright it is now (1 normally).
+    static let nudgeSeconds: Float = 3
+    private var nudgeUntil: Float = -1
+    func nudgeGuide() { nudgeUntil = time + Game.nudgeSeconds }
+    var guideFlare: Float { time < nudgeUntil ? 1.9 : 1 }
     /// Metres from the player to the nearest water the tide moves (the Archive's galleries): the wash is loud beside it and gone far from it. The stand-in's water is a notional spot west of the arrival pad; builder A's world replaces it with the gallery's surface (the nearest point of `ti_gallery_water`).
     var archiveWaterDistance: Float {
         guard realArchive else { return TideStandIn.waterDistance(from: player.position) }
@@ -518,6 +530,20 @@ final class Game {
     private(set) var guideLamps: [(position: SIMD2<Float>, lit: Bool)] = []
     /// F09.2: the guide light's state in the Archive: the objective it is lit toward (a key and a place) and the light itself.
     private var guideLight: GuideLight?
+    /// B5 (Q84): the guide light's way is under water too deep to wade right now (the light breathes slowly instead of flickering); sampled every half second along the route within 30 m of the player.
+    private(set) var guideWaiting = false
+    private var guideSamples: [SIMD2<Float>] = []
+    private var waitingCheckedAt: Float = -1
+    static func sampled(_ pts: [SIMD2<Float>], every: Float) -> [SIMD2<Float>] {
+        var out: [SIMD2<Float>] = []
+        for i in pts.indices {
+            out.append(pts[i])
+            guard i + 1 < pts.count else { continue }
+            let d = simd_length(pts[i + 1] - pts[i]), n = Int(d / every)
+            if n > 0 { for s in 1...n { out.append(pts[i] + (pts[i + 1] - pts[i]) * (Float(s) * every / d)) } }
+        }
+        return out
+    }
     private var guideKey: String?
     var guideLightParked: Bool { guideLight?.parked ?? false }
     var guideLightKey: String? { guideKey }
@@ -553,11 +579,17 @@ final class Game {
             if here, let route = chosenPath, let obj = guideObjective(route), let net = Layout.Navigation.active(for: routeWorld) {
                 if guideKey != obj.key {
                     let from = guideLight?.position ?? me
-                    guideLight = GuideLight(path: GuidePath(GuideLanterns.avoidClosedGates(net.route(from: from, to: obj.at) + [obj.at], closed: GuideLanterns.closedGates(opened: tideArchive?.opened ?? 0))), player: me); guideKey = obj.key
+                    let way = GuideLanterns.avoidClosedGates(net.route(from: from, to: obj.at) + [obj.at], closed: GuideLanterns.closedGates(opened: tideArchive?.opened ?? 0))
+                    guideLight = GuideLight(path: GuidePath(way), player: me); guideKey = obj.key
+                    guideSamples = Self.sampled(way, every: 3); waitingCheckedAt = -1
+                }
+                if time - waitingCheckedAt >= 0.5 {                                       // B5 (Q84): the way ahead is under water the player cannot wade: the light waits (it breathes slowly) until the sea falls
+                    waitingCheckedAt = time
+                    guideWaiting = guideSamples.contains { simd_length($0 - me) < 30 && Tide.depth(ground: sc.groundHeight(x: $0.x, z: $0.y), time: time) > -Player.minGround }
                 }
                 guideLight?.step(dt: dt, player: me)
                 guideLantern = guideLight?.position
-            } else { guideLight = nil; guideKey = nil }
+            } else { guideLight = nil; guideKey = nil; guideWaiting = false }
             if on, let path, let route = chosenPath, route == .oren, path.length > 1 {
                 let prog = path.progress(of: me)
                 guideLamps = (0..<GuideLanterns.lampCount(pathLength: path.length)).map { k in (path.point(at: GuideLanterns.lampDistance(k)), GuideLanterns.lampLit(k, playerProgress: prog)) }
@@ -567,7 +599,7 @@ final class Game {
             if route == .ilse { guideLantern = path.point(at: GuideLanterns.lanternDistance(playerProgress: prog, pathLength: path.length)) }
             else { guideLamps = (0..<GuideLanterns.lampCount(pathLength: path.length)).map { k in (path.point(at: GuideLanterns.lampDistance(k)), GuideLanterns.lampLit(k, playerProgress: prog)) } }
         }
-        let flicker = 0.85 + 0.15 * sin(time * 5.3)
+        let flicker = (guideWaiting ? 0.55 + 0.45 * sin(time * 1.6) : 0.85 + 0.15 * sin(time * 5.3)) * guideFlare
         sc.update(GuideLanterns.lanternName) { item in
             item.hidden = self.guideLantern == nil
             if let p = self.guideLantern { item.uniforms.model = translation(SIMD3(p.x, sc.groundHeight(x: p.x, z: p.y) + 1.5 + 0.08 * sin(self.time * 1.3), p.y)); item.uniforms.emissive.w = 2.4 * flicker }

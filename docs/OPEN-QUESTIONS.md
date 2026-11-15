@@ -419,6 +419,28 @@ Hold the fork to a sluice room's pipe (touch it; touch again or walk 7 m away to
 ### Q84 (2026-11-14, builder B, B4 / S05.3): the bots walk Ilse's route with no teleport; what that showed
 `archiveEndToEnd` no longer teleports Ilse: she waits at the quay for the marks, rings the catalogue, takes the rod, walks to each pipe and back out (`ilsePrerequisites`, `ilsePipe`). The walks found three things, all handled by the bot waiting like a player, none fixed in the world: (1) the shore between the sluice rooms runs through the stone room's pit, which the high tide floods deeper than the wading limit (0.4 m): a player turned back there must wait for the water to fall; (2) the stone room is wadeable only near low water, so pipe 2 can only be reached then; (3) after the last gate answers the rising tide pushes the player out of the room (`floodPush`) onto the south shore, 2.4 m outside the corridor, from where the route walker is blocked by water until it falls. A player has the same waits; nothing tells them why. *Status:* open.
 
+### Q85 (2026-11-15, builder B, B5 / S05.3 O1): which collar notch catches which arm
+*Default taken:* the collar has six notches (A's `Orrery.collarDetents`); notches 1, 2 and 3 catch the tide's, wind's and stone's arms (notch = the beam rhythm's group-length rank + 1: shortest flash, middle, longest; the same ranks that strike the tone plates), notches 0, 4 and 5 catch nothing. Each touch turns one notch on. A catch is: the collar lands on the arm's notch while that arm is lined up (within `Orrery.alignTolerance`, about 3 s). The arm is then held at its window's exact alignment (it seats), the window lights in its gate's colour with the gate's tone. A notch turned to at the wrong moment does nothing and costs nothing. The lined-up arm's bead brightens (A's), which is the only sign of the moment.
+*What changes if the answer differs:* `OrenRoute.notch(forArm:)` / `arm(atNotch:)` and the bots; a harder rule (the rhythm's flashes as clicks to count) needs a bigger collar or a different tool.
+*Status:* open.
+
+### Q86 (2026-11-15, builder B, B5): the stall of Q80, a soft cue
+*Default taken:* a bay rung (Ilse) or the collar turned to an arm's notch (Oren) before the tide marks are counted flares the guide light for `Game.nudgeSeconds` (3 s; `Game.guideFlare` 1.9x). Ilse's light is already at the quay then; Oren's lamps flare along the route (his route has no lantern before the prism). Nothing is said and nothing is lost. **A could add** brass marks on the quay (Q80) and, for Oren, a lantern or lamp state that points back to the quay.
+*What changes if the answer differs:* `Game.nudgeGuide` and its two callers.
+*Status:* open.
+
+### Q87 (2026-11-15, builder B, B5): the Q84 waits
+*Default taken:* (1) and (2), the way to the light's objective under water the player cannot wade: the guide light breathes slowly (about 4 s a cycle) instead of flickering, until the sea falls (`Game.guideWaiting`: the route within 30 m, sampled every 3 m and every 0.5 s, deeper than `-Player.minGround`). (3) the tide pushing the player out of the stone room after the last gate (`ArchiveProps.floodPush`, A's) has no cue: **A should** either not push once the third gate is open, or show the water rising in the room (the pit's rim glowing, a wash sound) before the push. Not done by me: the push is A's file.
+*Status:* open (for A).
+
+### Q88 (2026-11-15, builder B, B5): what a load restores of the orrery
+*Default taken:* the saved state is the lit windows and the collar's notch (flags `ti_window_k`, `ti_windows`, `ti_collar_n`). A caught arm is held at its window's EXACT alignment, so after a load it stands where it seated (up to about 6 degrees from where it was caught). Windows, arms, collar and the prism's components are re-applied to the Archive scene after a load and after the scene is rebuilt (A's Found). Off Oren's route nothing is applied (A's own `--state` frames are untouched).
+*Status:* open.
+
+### Q89 (2026-11-15, builder B, B5): the collar waits for the marks, and nothing states the notch rule
+*Default taken:* O1 requires A0 on the graph (`ti_marks`), so the collar answers only once the marks are counted (a click before that is the Q86 nudge). The notch rule (Q85) is stated nowhere in the world: the beam rhythm is learnt on the Varrow dock and the rule is the player's inference. A line for page text is drafted in `docs/plans/P02-page-drafts.md` (S05.5), not applied.
+*Status:* open.
+
 ### Q90 (2026-11-14, reviewer, S05): the Archive's two sites and their puzzles
 *Default taken (docs/plans/S05-divergent-routes.md, user approved the direction in Q40):* each route spends most of its time at its own site: Ilse the stacks and sluice-room bell pipes (listen, read, tune), Oren the dome's tide-orrery and the prism ring (watch, aim). Shared: the tide marks at the entry (COUNT) and the gallery and chain map (SEE). The other sibling's machines are visible across the water, dark and unreachable. Nothing tells the player to replay. Pages for the new sites are drafted only (P02-page-drafts.md), never applied. Built after P02 phases; Archive first, later worlds only after you have played both routes.
 *What changes if the answer differs:* the puzzle table in S05 section 3 (bell pipes could be a different instrument, the orrery a different motion); the work packages S05.1 to S05.4 change with it.

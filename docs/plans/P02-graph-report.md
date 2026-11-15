@@ -65,7 +65,7 @@ Kinds: puzzle (counted), story (a beat with no datum), transit (moving between w
 | archive-marks | tideArchive | puzzle | count / count | level:0.79, level:0.38, level:0.10 | 3 | route_begun | ti_marks | none |
 | archive-catalogue <ilse> | tideArchive | puzzle | ring / see | bay3, bay0, bay4 | 3 | ti_marks | ti_rod | the catalogue diagram (89 m) |
 | archive-pipes [archive-gates] <ilse> | tideArchive | puzzle | hold fork / hear | tide, wind, stone | 3 | ti_rod | route_solved | the stones' order (another world); page 13 (242 m) |
-| archive-orrery <oren> **(planned)** | tideArchive | puzzle | stop arm / watch | arm:0, arm:1, arm:2 | 3 | ti_marks | ti_windows | the beam rhythm (another world) |
+| archive-orrery <oren> | tideArchive | puzzle | turn collar / watch | notch1:arm0, notch2:arm1, notch3:arm2 | 3 | ti_marks | ti_windows | the beam rhythm (another world) |
 | archive-gates-beam [archive-gates] <oren> | tideArchive | puzzle | turn / aim | tide, wind, stone | 15 | ti_windows | route_solved | page 13 (12 m); the lit-lantern count (another world) |
 | gallery-chain | tideArchive | story | read / see | - | 1 | route_solved | - | none |
 | contradiction (opt) | varrow | story | set / see | - | 3 | returned | contradiction | page 4 (no machine position); page 5 (another world); page 8 (another world); page 9 (no machine position); page 12 (another world) |
@@ -90,8 +90,8 @@ Kinds: puzzle (counted), story (a beat with no datum), transit (moving between w
 | archive-catalogue | sound | progress | 0.00 s | a right bell rings clean; a wrong one is cracked and short |
 | archive-pipes | sound | progress | 0.00 s | the pipe's tone beats against the fork's and the beats slow as the water nears the gate's level |
 | archive-pipes | sight | progress | 0.00 s | the pipe's water column shows the sea and its crown glows as the fork agrees |
-| archive-orrery | sight | progress | 0.00 s | an arm stopped at the right moment lights its window in the dome |
-| archive-orrery | sound | live | 0.00 s | the collar's detent clicks |
+| archive-orrery | sight | progress | 0.00 s | an arm's bead brightens as it lines up with its window; an arm caught there lights its window in the dome |
+| archive-orrery | sound | live | 0.00 s | the collar clicks at each notch; a caught arm rings its gate's tone |
 | archive-gates-beam | sight | progress | 0.00 s | the component brightens on its mark and the matching room's lamp lights |
 | archive-gates-beam | sound | progress | 0.00 s | the held drone |
 | contradiction | sight | binary | 0.00 s | a quiet "Settled." or silence |

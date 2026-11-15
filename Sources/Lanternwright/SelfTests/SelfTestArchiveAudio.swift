@@ -5,7 +5,8 @@ import Foundation
 extension SelfTestRunner {
     func runArchiveAudio() {
         guard name == "all" || name == "archiveaudio" || name == "story" else { return }
-        let pipesWere = IlseRoute.pipesReplaceTouch; IlseRoute.pipesReplaceTouch = false; defer { IlseRoute.pipesReplaceTouch = pipesWere }          // these test the old held-tone machinery on its own
+        let pipesWere = IlseRoute.pipesReplaceTouch; IlseRoute.pipesReplaceTouch = false; defer { IlseRoute.pipesReplaceTouch = pipesWere }
+        let windowsWere = OrenRoute.windowsFeedRing; OrenRoute.windowsFeedRing = false; defer { OrenRoute.windowsFeedRing = windowsWere }          // these test the old held-tone machinery on its own
         typealias A = FootstepAnalysis
         let sr: Float = 44100
         let verbose = name == "archiveaudio"

@@ -34,6 +34,8 @@ final class IlseRoute: WorldPuzzle {
 
     /// Ilse\'s route takes the wheel-touch hold away (the pipes replace it). The tests of the OLD held-tone machinery (`TideArchivePuzzle` on its own) switch this off.
     nonisolated(unsafe) static var pipesReplaceTouch = true
+    /// A bay rung before the marks are counted: the light is nudged (B5, Q86).
+    var nudge: () -> Void = {}
 
     var world: WorldKind { .tideArchive }
     private let state: PuzzleState
@@ -91,7 +93,7 @@ final class IlseRoute: WorldPuzzle {
     func ring(_ k: Int) {
         guard tide.hasFork, Self.bayNames.indices.contains(k) else { return }
         if catalogueDone { emit(.bell(k, false)); swing(k); return }
-        guard marksDone else { emit(.bell(k, false)); swing(k); return }                       // the water has not been counted yet: the bell rings, nothing is asked of it
+        guard marksDone else { emit(.bell(k, false)); swing(k); nudge(); return }                       // the water has not been counted yet: the bell rings, nothing is asked of it
         if k == Self.sequence[progress] {
             emit(.bell(k, false)); progress += 1; looks[k] = .warm; swing(k); syncBays()
             if progress == Self.sequence.count { openCatalogue() }

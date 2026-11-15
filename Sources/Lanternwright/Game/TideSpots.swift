@@ -47,13 +47,14 @@ enum TideSpots {
         for k in 0..<ShelfBays.count { list.append(box(IlseRoute.bayNames[k], ShelfBays.bellPoint(scene, k), "Ring the bell", half: 0.45, reach: 3.6)) }
         list.append(box(IlseRoute.keyName, ArchiveLayout.ledgerKey, "Take the rod", half: 0.4, enabled: false))
         for k in 0..<3 { list.append(box(IlseRoute.pipeNames[k], BellPipes.holdPoint(k), "Hold the fork to the pipe", half: 0.55, reach: 3.6)) }
+        list.append(box(OrenRoute.collarName, Orrery.collarPoint + SIMD3(0.45, 0, 0), "Turn the collar", half: 0.6, reach: 3.6))
         list.append(box(ChainMap.interactableName, chainMap, "Read the map"))
         for n in StoryPages.archiveIDs { list.append(box("page_\(n)", page(n), "Read the page", half: 0.5, enabled: n != 15)) }
         for side in [PageAuthor.ilse, .oren] { list.append(box(TideArchivePuzzle.tableauLightName(side), tableauLight(side), "Light the lantern", enabled: false)) }
         for (i, side) in [PageAuthor.ilse, .oren].enumerated() { list.append(box(returnIDs[i], quayReturn(side), "Return through the lens", half: 1.3, reach: 5)) }
         // The spots are written against the layout's base terrain; A's terraces and galleries lift some of it, so every box that rests on the ground is set on the real floor.
         return list.map { it in
-            guard !it.id.hasPrefix("ta_sluice_"), it.id != TideArchivePuzzle.ringName, !returnIDs.contains(it.id), it.id != "page_15" else { return it }
+            guard !it.id.hasPrefix("ta_sluice_"), it.id != TideArchivePuzzle.ringName, it.id != OrenRoute.collarName, !returnIDs.contains(it.id), it.id != "page_15" else { return it }
             var o = it
             let c = (it.min + it.max) / 2, lift = scene.groundHeight(x: c.x, z: c.z) - ArchiveLayout.groundY(c.x, c.z)
             o.min.y += lift; o.max.y += lift

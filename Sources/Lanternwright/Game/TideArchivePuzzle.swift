@@ -33,6 +33,8 @@ final class TideArchivePuzzle: WorldPuzzle {
     /// S05.3: on Ilse's route the wheel-touch hold and the lens ring are not her ways (the pipes are): the game turns them off by route.
     var touchHolds: () -> Bool = { true }
     var ringWorks: () -> Bool = { true }
+    /// S05.3: on Oren's route a gate's component of the prism exists only while its dome window is lit (`OrenRoute`); the ring cannot rest on a dark one.
+    var componentLit: (Int) -> Bool = { _ in true }
 
     var world: WorldKind { Game.routeWorldOverride ?? .glassWood }
     private let state: PuzzleState
@@ -130,6 +132,7 @@ final class TideArchivePuzzle: WorldPuzzle {
     /// The sluice the beam's component is on now, if any.
     var aimedSluice: Int? {
         TideArchivePuzzle.beamTargets.indices.first { k in
+            guard componentLit(k) else { return false }
             var d = abs(ringAngle - TideArchivePuzzle.beamTargets[k]).truncatingRemainder(dividingBy: 2 * .pi)
             if d > .pi { d = 2 * .pi - d }
             return d <= TideArchivePuzzle.beamTolerance

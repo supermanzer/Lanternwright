@@ -461,13 +461,13 @@ extension PuzzleGraph {
             clues: [memory("stones", .varrow, "the stones' order"), pageClue(13)],
             feedback: [sound(.progress, 0.0, "the pipe's tone beats against the fork's and the beats slow as the water nears the gate's level"), sight(.progress, 0.0, "the pipe's water column shows the sea and its crown glows as the fork agrees")]))
         nodes.append(PuzzleNode(
-            id: "archive-orrery", title: "O1: the orrery (Archive, Oren's way)", world: .tideArchive, route: .oren, planned: "Oren's site: the dome's orrery (builder A's S05.2 API); the logic is stubbed until it lands", verb: "stop arm", channel: .watch,
-            answer: ["arm:0", "arm:1", "arm:2"], manipulations: 3, requires: [IlseRoute.marksFlag], sets: "ti_windows", machine: [ArchiveLayout.dome],
+            id: "archive-orrery", title: "O1: the orrery (Archive, Oren's way)", world: .tideArchive, route: .oren, verb: "turn collar", channel: .watch,
+            answer: (0..<3).map { "notch\(OrenRoute.notch(forArm: $0)):arm\($0)" }, manipulations: 3, requires: [IlseRoute.marksFlag], sets: OrenRoute.windowsFlag, machine: [Orrery.collarPoint], machineIDs: [OrenRoute.collarName],
             clues: [keyClue("beam-rhythm")],
-            feedback: [sight(.progress, 0.0, "an arm stopped at the right moment lights its window in the dome"), sound(.live, 0.0, "the collar's detent clicks")]))
+            feedback: [sight(.progress, 0.0, "an arm's bead brightens as it lines up with its window; an arm caught there lights its window in the dome"), sound(.live, 0.0, "the collar clicks at each notch; a caught arm rings its gate's tone")]))
         nodes.append(PuzzleNode(
             id: "archive-gates-beam", title: "O2: the prism ring (Archive, Oren's way)", world: .tideArchive, group: "archive-gates", route: .oren, verb: "turn", channel: .aim, answer: gatesAnswer,
-            manipulations: beamSteps, requires: ["ti_windows"], sets: Game.routeSolvedFlag, machine: centres([TideArchivePuzzle.ringName], .tideArchive), machineIDs: [TideArchivePuzzle.ringName],
+            manipulations: beamSteps, requires: [OrenRoute.windowsFlag], sets: Game.routeSolvedFlag, machine: centres([TideArchivePuzzle.ringName], .tideArchive), machineIDs: [TideArchivePuzzle.ringName],
             clues: [pageClue(13), keyClue("lantern-count")],
             feedback: [sight(.progress, 0.0, "the component brightens on its mark and the matching room's lamp lights"), sound(.progress, 0.0, "the held drone")]))
         nodes.append(PuzzleNode(

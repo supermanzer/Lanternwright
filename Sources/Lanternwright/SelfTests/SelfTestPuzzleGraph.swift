@@ -139,8 +139,8 @@ extension SelfTestRunner {
         // The graph is the game's, not a copy: every machine is a real box, every flag is one the game sets, the answers are the puzzles' own constants.
         let missing = g.puzzles.flatMap { n in n.machineIDs.filter { id in !game.interactables(in: n.world).contains { $0.id == id } }.map { "\(n.id): \($0)" } }
         check(missing.isEmpty && g.puzzles.allSatisfy { $0.planned != nil || $0.machineIDs.isEmpty || $0.machine.count == $0.machineIDs.count }, "puzzlegraph: every machine of the graph is an interactable of its world (\(missing))")
-        let gameFlags = Set(game.puzzle.persistentFlags + (game.glass?.persistentFlags ?? []) + (game.tideArchive?.persistentFlags ?? []) + (game.ilseRoute?.persistentFlags ?? []) + Game.ownFlags)
-        let graphOnly: Set<String> = ["returned", "route_begun", "gate_pages", "contradiction", "ti_windows"]          // ti_windows: O1's consequence (planned)
+        let gameFlags = Set(game.puzzle.persistentFlags + (game.glass?.persistentFlags ?? []) + (game.tideArchive?.persistentFlags ?? []) + (game.ilseRoute?.persistentFlags ?? []) + (game.orenRoute?.persistentFlags ?? []) + Game.ownFlags)
+        let graphOnly: Set<String> = ["returned", "route_begun", "gate_pages", "contradiction"]
         let strange = g.puzzles.flatMap { n in (n.requires + (n.sets.map { [$0] } ?? [])).filter { !gameFlags.contains($0) && !graphOnly.contains($0) }.map { "\(n.id): \($0)" } }
         check(strange.isEmpty, "puzzlegraph: every flag a puzzle needs or sets is a flag the game keeps, or one of the graph's own markers (\(strange))")
         check(g.external.subtracting(gameFlags).subtracting(graphOnly).isEmpty, "puzzlegraph: the flags walking grants are real (quay_seen) or the graph's own (gate_pages)")
@@ -165,7 +165,7 @@ extension SelfTestRunner {
         let today = R.timeline(g, route: .ilse), todayOren = R.timeline(g, route: .oren)
         check(today.map(\.id) == ["stones", "mirror-court", "chime-pool", "door-plates", "archive-marks", "archive-catalogue", "archive-pipes"] && today.map { $0.open.count } == [1, 2, 1, 1, 1, 1, 1], "puzzlegraph: on Ilse's route a player is offered 1, 2, 1, 1, 1, 1, 1 puzzles (\(today.map { $0.open.count }))")
         check(todayOren.map(\.id) == ["stones", "mirror-court", "chime-pool", "door-plates", "archive-marks", "archive-orrery", "archive-gates-beam"] && todayOren.map { $0.open.count } == [1, 2, 1, 1, 1, 1, 1], "puzzlegraph: on Oren's route 1, 2, 1, 1, 1, 1, 1 (\(todayOren.map { $0.open.count }))")
-        check(g.node("archive-orrery")?.planned != nil && g.puzzles.filter { $0.planned != nil }.map(\.id) == ["archive-orrery"], "puzzlegraph: the orrery is in the graph as DESIGN (planned: A's S05.2 API), and is the only planned puzzle")
+        check(g.node("archive-orrery")?.planned == nil && g.node("archive-orrery")?.sets == OrenRoute.windowsFlag && g.puzzles.allSatisfy { $0.planned == nil }, "puzzlegraph: the orrery is BUILT (B5): no puzzle is planned, and O1 sets the windows O2 waits for")
         // The Archive's routes: each puzzle belongs to one sibling or both; the two ends share a group (and so an answer) and the gallery follows both.
         check(g.node("archive-catalogue")?.route == .ilse && g.node("archive-pipes")?.route == .ilse && g.node("archive-orrery")?.route == .oren && g.node("archive-gates-beam")?.route == .oren && g.node("archive-marks")?.route == nil && g.node("gallery-chain")?.route == nil, "puzzlegraph: S05: A0 and F are shared, I1/I2 are Ilse's, O1/O2 are Oren's")
         check(g.node("archive-pipes")?.group == g.node("archive-gates-beam")?.group && g.node("archive-pipes")?.sets == Game.routeSolvedFlag && g.node("archive-gates-beam")?.sets == Game.routeSolvedFlag && g.node("gallery-chain")?.requires == [Game.routeSolvedFlag], "puzzlegraph: both routes end in the same consequence (the gallery drains) and F follows it")

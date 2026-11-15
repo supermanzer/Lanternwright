@@ -58,6 +58,7 @@ extension SelfTestRunner {
                 return gp.opened > k
             }
             if route == .ilse { check(ilsePrerequisites(game, gbot), "\(label): Ilse counts the marks, rings the catalogue and takes the rod, by walking from the quay") }
+            if route == .oren { check(orenPrerequisites(game, gbot), "\(label): Oren counts the marks and catches the three arms at the orrery, by walking from the quay") }
             check(answer(0) && gp.opened == 1, "\(label): the first gate (the tide's) answers")
             // A save taken here, loaded, and the rest played from it.
             let saved = game.makeSave()

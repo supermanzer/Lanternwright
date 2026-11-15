@@ -387,3 +387,9 @@ Nothing here has been played by a person; the numbers and frames are in `shots/f
 - **Look:** zoom (right mouse / Z) on a stone's glyph within about 24 m, centred: its rubbing appears in the Notebook. Walking up and striking do not. Open the journal on page 1: the profile of the climb, three rings that become rubbings as you look. `shots/b3/o-profile0/2/3.png` are the overlay frames.
 - **Watch and strike:** after the altar and the sweeps, the beam at the door flashes three lengths; strike the plates stone (longest), tide (shortest), wind (middle), in the order flashed. The old order tide, wind, stone no longer opens the door. Miss three times and the Notebook gains a line.
 - **Listen:** nothing new to hear; the held tones are as before.
+
+## B5 (s05-b2): Oren's orrery and the Q84/Q86 cues (nothing here has been played or heard by a person)
+- Oren's route: from the open quay wait for the three tide chimes (stand near the quay), walk to the orrery in front of the dome, and turn the collar: it clicks one notch a touch. Watch an arm's bead brighten as it lines up with its window (about 3 s a cycle); turn the collar onto that arm's notch (tide 1, wind 2, stone 3) in that moment: the window lights and its tone rings. Three lit windows give the prism its three components; then the ring works as before. Is the bead bright enough to see from the pad, and is 3 s too short? (Q85)
+- Try the collar or a bay before the marks: the guide light should flare for 3 s. Is that a cue or just noise? (Q86)
+- At high tide, with the light's way under water, the light should breathe slowly rather than flicker. Does that read as "wait"? (Q87)
+- Frames: `shots/b5/o-ta-windows-held.png`, `o-ta-orrery-held.png` (A's `--state orreryheld`, what the route leaves).
