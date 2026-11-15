@@ -38,6 +38,10 @@ final class OrenRoute: WorldPuzzle {
     private(set) var notch = 0
     private var applied: [Bool]?
     private var touched = false
+    /// Windows still coming up (their tween writes them), and the prism's components as shown (a lit window's component follows its light by the fade).
+    private var fading = Set<Int>()
+    private var shown = [false, false, false]
+    private var prismShown: [Bool] { isActive && Self.windowsFeedRing ? shown : [true, true, true] }
     private weak var appliedScene: Scene?
 
     init(state: PuzzleState, animator: Animator, emit: @escaping (GameEvent) -> Void, scene: @escaping () -> Scene?, route: @escaping () -> PageAuthor?, clock: @escaping () -> Float, nudge: @escaping () -> Void) {
@@ -57,7 +61,7 @@ final class OrenRoute: WorldPuzzle {
     func restore(from flags: Set<String>) {
         for f in persistentFlags where flags.contains(f) { state.set(f) }
         notch = Self.collarFlags.firstIndex { state.has($0) } ?? 0
-        applied = nil
+        applied = nil; fading = []
         if litCount == 3 { state.set(Self.windowsFlag) }
         reapply()
     }
@@ -81,18 +85,18 @@ final class OrenRoute: WorldPuzzle {
         state.set(Self.windowFlags[k])
         if let sc = scene() { Orrery.hold(sc, k, at: Orrery.alignmentClock(k)) }
         emit(.chime(IlseRoute.markChime(k)))
-        applied = nil
+        fading.insert(k)                                                                  // the tween below is the window's only writer until it ends (`reapply` leaves it alone)
         animator.tween(duration: Self.windowSeconds, ease: .inOutCubic) { [weak self] t in
             guard let self, let sc = self.scene() else { return }
             DomeWindows.set(sc, k, lit: t)
         }
-        if litCount == 3 {
-            state.set(Self.windowsFlag)
-            animator.after(Self.windowSeconds) { [weak self] in
-                guard let self, let sc = self.scene() else { return }
-                PrismInputs.set(sc, lit: self.prismLit); self.emit(.chime(.lens))
-            }
-        } else if let sc = scene() { PrismInputs.set(sc, lit: prismLit) }
+        if litCount == 3 { state.set(Self.windowsFlag) }
+        animator.after(Self.windowSeconds) { [weak self] in                                // the prism's component comes with the window's light, not before it
+            guard let self else { return }
+            self.fading.remove(k); self.shown[k] = true
+            if let sc = self.scene() { PrismInputs.set(sc, lit: self.prismShown) }
+            if self.litCount == 3 { self.emit(.chime(.lens)) }
+        }
     }
 
     // MARK: Each tick
@@ -109,10 +113,11 @@ final class OrenRoute: WorldPuzzle {
         touched = true
         for k in 0..<3 {
             Orrery.hold(sc, k, at: active && lit(k) ? Orrery.alignmentClock(k) : nil)
-            DomeWindows.set(sc, k, lit: active && lit(k) ? 1 : 0)
+            if !fading.contains(k) { DomeWindows.set(sc, k, lit: active && lit(k) ? 1 : 0) }
+            shown[k] = lit(k) && !fading.contains(k)
         }
         Orrery.setCollar(sc, detent: active ? notch : 0)
-        PrismInputs.set(sc, lit: prismLit)
+        PrismInputs.set(sc, lit: prismShown)
         applied = prismLit + [active]; appliedScene = sc
     }
 }

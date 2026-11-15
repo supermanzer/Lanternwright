@@ -82,6 +82,8 @@ extension SelfTestRunner {
         _ = bot.click(R.bayNames[3]); bot.wait(0.3)
         check(route.progress == 0 && !route.marksDone, "ilseroute: before the marks are counted a bay rings and asks nothing of the sequence")
         check(g.guideFlare > 1, "ilseroute: ringing a bay before the marks are counted flares the guide light (the soft cue toward the quay: \(g.guideFlare))")
+        let flaredL = guideSweep(g, bot, seconds: 1.5); bot.wait(Game.nudgeSeconds); let calmL = guideSweep(g, bot, seconds: 1.5)
+        check(flaredL.maxLantern > 1.5 * max(calmL.maxLantern, 0.1) && calmL.maxLantern > 0.5, "ilseroute: the lantern as drawn flares for a bay rung too early (brightest \(String(format: "%.1f", flaredL.maxLantern)) against \(String(format: "%.1f", calmL.maxLantern)) after)")
         // A0: stand near the quay while the water passes the three levels. (The bot walked away from the quay: go back and wait there, as a player told to wait would.)
         let atQuay = bot.walk(to: SIMD3(ArchiveLayout.lampEnd.x + 3, 0, ArchiveLayout.lampEnd.z - 4), within: 3, timeout: 200)
         var waited: Float = 0
@@ -173,13 +175,15 @@ extension SelfTestRunner {
             let p = ArchiveLayout.pipe(2)
             gw.player.position = SIMD3(p.x + 3, gw.scene.groundHeight(x: p.x + 3, z: p.z + 10), p.z + 10); botw.wait(0.6)
             var high = false, low = false, w: Float = 0
+            var breathing = (maxLantern: Float(0), maxLamp: Float(0), peaks: -1), steady = (maxLantern: Float(0), maxLamp: Float(0), peaks: -1)
             while !(high && low) && w < 200 {
                 let lv = Tide.level(gw.time)
-                if lv > 0.95 && !high { botw.wait(0.7); high = gw.guideWaiting && gw.guideLightKey == "pipe2" }
-                if lv < 0.05 && !low { botw.wait(0.7); low = !gw.guideWaiting }
+                if lv > 0.95 && !high { botw.wait(0.7); high = gw.guideWaiting && gw.guideLightKey == "pipe2"; breathing = guideSweep(gw, botw, seconds: 5) }
+                if lv < 0.05 && !low { botw.wait(0.7); low = !gw.guideWaiting; steady = guideSweep(gw, botw, seconds: 5) }
                 botw.wait(0.5); w += 0.5
             }
             check(gw.guideLightKey == "pipe2" && high && low, "ilseroute: Q84: with the sea high the light to the stone room's pipe waits (breathes); with it low it does not (waiting at high: \(high), steady at low: \(low))")
+            check(breathing.peaks >= 0 && steady.peaks >= 0 && breathing.peaks <= 2 && steady.peaks >= 3, "ilseroute: Q84: as drawn the waiting light turns brighter and dimmer \(breathing.peaks) times in 5 s, the steady one \(steady.peaks) times (a slow breath against a flicker)")
         }
     }
 }

@@ -425,7 +425,7 @@ Hold the fork to a sluice room's pipe (touch it; touch again or walk 7 m away to
 *Status:* open.
 
 ### Q86 (2026-11-15, builder B, B5): the stall of Q80, a soft cue
-*Default taken:* a bay rung (Ilse) or the collar turned to an arm's notch (Oren) before the tide marks are counted flares the guide light for `Game.nudgeSeconds` (3 s; `Game.guideFlare` 1.9x). Ilse's light is already at the quay then; Oren's lamps flare along the route (his route has no lantern before the prism). Nothing is said and nothing is lost. **A could add** brass marks on the quay (Q80) and, for Oren, a lantern or lamp state that points back to the quay.
+*Default taken:* a bay rung (Ilse) or the collar turned to an arm's notch (Oren) before the tide marks are counted flares the guide light for `Game.nudgeSeconds` (3 s; `Game.guideFlare` 1.9x). Ilse's light is already at the quay then; Oren's lamps flare along the route (his route has no lantern before the prism). The flare fires only for a notch that would catch an arm (1-3) or a bay; a click on a dead notch before the marks gives none. Nothing is said and nothing is lost. **A could add** brass marks on the quay (Q80) and, for Oren, a lantern or lamp state that points back to the quay.
 *What changes if the answer differs:* `Game.nudgeGuide` and its two callers.
 *Status:* open.
 

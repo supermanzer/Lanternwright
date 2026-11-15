@@ -10,7 +10,7 @@ extension SelfTestRunner {
 
     /// A0 and O1 by real walking and clicks from the open quay: wait at the quay for the marks, walk to the orrery, and for each arm (the first `upTo`) turn the collar to the notch before its own, watch for the
     /// bead, and turn the last notch as it brightens. Returns whether that many windows are lit.
-    func orenPrerequisites(_ g: Game, _ bot: PlaythroughBot, upTo: Int = 3) -> Bool {
+    func orenPrerequisites(_ g: Game, _ bot: PlaythroughBot, upTo: Int = 3, afterCatch: ((Int) -> Void)? = nil) -> Bool {
         guard let r = g.orenRoute else { return false }
         var w: Float = 0
         while !(g.ilseRoute?.marksDone ?? false) && w < 100 { bot.wait(1); w += 1 }
@@ -21,12 +21,26 @@ extension SelfTestRunner {
             while (r.notch + 1) % Orrery.collarDetents != OrenRoute.notch(forArm: k) && clicks < 8 { _ = bot.click(OrenRoute.collarName); bot.wait(0.1); clicks += 1 }
             var s: Float = 0
             while !armHot(g, k) && s < 100 { bot.wait(0.1); s += 0.1 }
-            _ = bot.click(OrenRoute.collarName); bot.wait(0.2)
+            _ = bot.click(OrenRoute.collarName); afterCatch?(k); bot.wait(0.2)
         }
         bot.wait(OrenRoute.windowSeconds + 0.5)
         return r.litCount >= upTo
     }
 
+    /// What the player sees of the guide light: the lantern's glow and the brightest of the lamps' (the Archive scene's items, as drawn).
+    func guideGlow(_ g: Game) -> (lantern: Float, lamp: Float) {
+        guard let sc = g.scenes[.tideArchive] else { return (-1, -1) }
+        let lantern = sc.items.first { $0.name == GuideLanterns.lanternName && !$0.hidden }?.uniforms.emissive.w ?? 0
+        let lamp = (0..<GuideLanterns.maxLamps).compactMap { k in sc.items.first { $0.name == GuideLanterns.lampName(k) && !$0.hidden }?.uniforms.emissive.w }.max() ?? 0
+        return (lantern, lamp)
+    }
+    /// The brightest the guide light is over `seconds` (sampled every 0.1 s), and how many times its glow turns from rising to falling (a flicker turns often, a slow breath seldom).
+    func guideSweep(_ g: Game, _ bot: PlaythroughBot, seconds: Float) -> (maxLantern: Float, maxLamp: Float, peaks: Int) {
+        var l: [Float] = [], m: Float = 0
+        for _ in 0..<Int(seconds * 10) { let x = guideGlow(g); l.append(x.lantern); m = max(m, x.lamp); bot.wait(0.1) }
+        let peaks = (1..<max(l.count - 1, 1)).filter { l[$0] > l[$0 - 1] && l[$0] >= l[$0 + 1] }.count
+        return (l.max() ?? 0, m, peaks)
+    }
     func runOrenRoute() {
         guard name == "all" || name == "orenroute" else { return }
         typealias R = OrenRoute
@@ -65,9 +79,13 @@ extension SelfTestRunner {
         check(g.guideFlare == 1, "orenroute: the guide light is steady before anything is tried too early")
         _ = bot.click(R.collarName); bot.wait(0.2)
         check(route.notch == 1 && route.litCount == 0 && g.guideFlare > 1, "orenroute: the collar turns to the first notch before the marks are counted: no window lights, and the guide light flares (\(g.guideFlare))")
-        bot.wait(Game.nudgeSeconds + 0.5)
+        let flared = guideSweep(g, bot, seconds: 1.5)
+        bot.wait(Game.nudgeSeconds)
+        let calm = guideSweep(g, bot, seconds: 1.5)
         check(g.guideFlare == 1, "orenroute: the flare is over after \(Game.nudgeSeconds) s")
+        check(flared.maxLamp > 1.5 * max(calm.maxLamp, 0.1) && calm.maxLamp > 0.5, "orenroute: on Oren's route the lamps as drawn flare while the collar is tried too early (brightest \(String(format: "%.1f", flared.maxLamp)) against \(String(format: "%.1f", calm.maxLamp)) after)")
 
+        let windowGlow = { (g: Game, k: Int) in g.scenes[.tideArchive]?.items.first { $0.name == DomeWindows.name(k) }?.uniforms.emissive.w ?? -1 }
         // A0 at the open quay (Oren's own), then back.
         let atQuay = bot.walk(to: SIMD3(ArchiveLayout.openEnd.x - 3, 0, ArchiveLayout.openEnd.z - 4), within: 3, timeout: 400)
         var waited: Float = 0
@@ -83,9 +101,10 @@ extension SelfTestRunner {
         _ = bot.click(R.collarName); bot.wait(0.2)
         check(route.notch == 1 && !route.lit(0) && arch().armStops[0] == nil, "orenroute: O1: the collar turned to the tide's notch while its arm is NOT lined up catches nothing (the arm runs on)")
         for _ in 0..<(Orrery.collarDetents - 1) { _ = bot.click(R.collarName); bot.wait(0.1) }
-        check(orenPrerequisites(g, bot, upTo: 1) && route.lit(0) && !route.lit(1) && route.litCount == 1, "orenroute: O1: caught at the right moment, the tide's arm lights its window")
+        var fade0: [Float] = []
+        check(orenPrerequisites(g, bot, upTo: 1, afterCatch: { _ in for _ in 0..<8 { fade0.append(windowGlow(g, 0)); bot.wait(1.0 / 60) }; for _ in 0..<6 { bot.wait(0.1); fade0.append(windowGlow(g, 0)) } }) && route.lit(0) && !route.lit(1) && route.litCount == 1, "orenroute: O1: caught at the right moment, the tide's arm lights its window")
         let held0 = arch().armStops[0]
-        let windowGlow = { (g: Game, k: Int) in g.scenes[.tideArchive]?.items.first { $0.name == DomeWindows.name(k) }?.uniforms.emissive.w ?? -1 }
+        check(fade0.count == 14 && fade0[0] < 1 && fade0[13] > fade0[0] + 0.3 && zip(fade0, fade0.dropFirst()).allSatisfy { $0 <= $1 + 0.001 }, "orenroute: the window FADES up after the catch (no pop to full and back): \(fade0.map { String(format: "%.2f", $0) })")
         check(held0 != nil && abs(Orrery.wrap(Orrery.armAngle(0, clock: held0!) - Orrery.bearing(0))) < 0.01 && windowGlow(g, 0) > 1 && windowGlow(g, 1) < 0.1, "orenroute: the caught arm stands at its window and the window glows (\(String(format: "%.2f", windowGlow(g, 0)))), the others are dark")
         check(arch().prismLit == [true, false, false] && tide.componentLit(0) && !tide.componentLit(1), "orenroute: the prism has the first component only")
         bot.wait(1)
@@ -99,9 +118,12 @@ extension SelfTestRunner {
         g3.restore(saved); bot3.wait(0.6)
         let a3 = g3.scenes[.tideArchive]!.archive
         check(r3.lit(0) && r3.lit(1) && !r3.lit(2) && r3.notch == route.notch, "orenroute: a save with two windows lit loads with them lit and the collar where it was (notch \(r3.notch))")
-        check(a3.armStops[0] != nil && a3.armStops[1] != nil && a3.armStops[2] == nil && a3.prismLit == [true, true, false] && windowGlow(g3, 0) > 1 && windowGlow(g3, 1) > 1 && windowGlow(g3, 2) < 0.1, "orenroute: and the held arms, the windows and the prism's components are put back on the new scene")
+        check(a3.armStops[0] != nil && a3.armStops[1] != nil && a3.armStops[2] == nil && a3.prismLit == [true, true, false] && a3.collarDetent == r3.notch && windowGlow(g3, 0) > 1 && windowGlow(g3, 1) > 1 && windowGlow(g3, 2) < 0.1, "orenroute: and the held arms, the windows and the prism's components are put back on the new scene")
         // The third, from the loaded game.
-        let finished = orenPrerequisites(g3, bot3, upTo: 3)
+        var prismAt: [[Bool]] = []
+        let finished = orenPrerequisites(g3, bot3, upTo: 3, afterCatch: { k in if k == 2 { bot3.wait(0.2); prismAt.append(g3.scenes[.tideArchive]!.archive.prismLit); bot3.wait(OrenRoute.windowSeconds + 0.1); prismAt.append(g3.scenes[.tideArchive]!.archive.prismLit) } })
+        check(prismAt == [[true, true, false], [true, true, true]], "orenroute: the third component of the prism comes up when its window has finished lighting, not at the catch (\(prismAt))")
+        check(g3.scenes[.tideArchive]!.archive.collarDetent == r3.notch, "orenroute: the loaded game's collar is turned on the scene, not only in the state")
         check(finished && r3.windowsDone && g3.state.has(R.windowsFlag) && g3.scenes[.tideArchive]!.archive.prismLit == [true, true, true], "orenroute: from the loaded game the third arm is caught: three windows lit, the prism whole (\(r3.litCount))")
 
         // O2: the ring rests on a component only while its window is lit (a rule test on a game with the flags set).
