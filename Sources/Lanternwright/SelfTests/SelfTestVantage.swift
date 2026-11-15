@@ -14,7 +14,7 @@ extension SelfTestRunner {
         let lens = (0..<3).map { TonePlates.barLength($0) }
         var rankOK = true
         for k in 0..<3 { if abs(lens[k] - groups[ranks.firstIndex(of: k)!] * TonePlates.barScale) > 1e-6 { rankOK = false } }       // plate k (tide, wind, stone) carries the length of the group of rank k
-        let plateFits = lens.allSatisfy { $0 > 0.04 && $0 <= TonePlates.size.x - 0.06 } && abs(TonePlates.barY) + 0.017 <= TonePlates.size.y / 2
+        let plateFits = lens.allSatisfy { $0 > 0.04 && $0 <= TonePlates.size.x + 1e-5 } && abs(TonePlates.barY) + TonePlates.barH / 2 <= TonePlates.size.y / 2
         check(lens[0] < lens[1] && lens[1] < lens[2] && rankOK && plateFits, "vantage: the plates' bars are short, middle, long (\(lens.map { String(format: "%.2f", $0) }.joined(separator: ", ")) m), each the length of the beam's group of its rank, and fit the plate")
         // Ratios: the bars keep the beam's proportions (long : short = 2.6 : 0.7), so the eye reads the same ratio the beam shows.
         check(abs(lens[2] / lens[0] - groups.max()! / groups.min()!) < 1e-4, "vantage: the long bar is \(String(format: "%.1f", lens[2] / lens[0])) times the short one, as the long flash is to the short")

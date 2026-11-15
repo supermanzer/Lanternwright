@@ -65,6 +65,8 @@ enum Screenshot {
             for sc in scenesForState.values { PrismInputs.set(sc, lit: [false, false, false]) }
         case "orreryheld":                   // S05.2: each arm stopped at its own alignment (pointing at its window), the windows lit
             for sc in scenesForState.values { for k in 0..<Orrery.armCount { Orrery.hold(sc, k, at: Orrery.alignmentClock(k)); DomeWindows.set(sc, k, lit: 1) } }
+        case "marks":                       // A6: every tide mark held lit (the pulse is driven by the clock: use --clock to see the water cross a bar)
+            for sc in scenesForState.values { for k in 0..<TideMarks.count { TideMarks.set(sc, k, lit: 1) } }
         case "tide": g.puzzle.strike(.tide)
         case "tidewind": g.puzzle.strike(.tide); g.simulate(seconds: 0.7); g.puzzle.strike(.wind)
         case "fork", "forkoren":            // F08.1: the lens room at the fork (the altar solved, the gate ready, the door open); forkoren: the ring turned onto the receiver and the doorway of light open

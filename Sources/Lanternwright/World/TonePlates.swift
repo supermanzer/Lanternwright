@@ -22,22 +22,24 @@ enum TonePlates {
     }
     /// A5 (Q79, Q91): each plate carries a SIGNAL-LENGTH BAR under its stone's mark: brass, short for the tide's plate, middle for the wind's, long for the stone's, so the beam's three flash lengths can be matched
     /// without a page. The lengths are the beam's own group seconds sorted (plate k takes the k-th shortest: the stones' altitude order, which is `SignalPattern.ranks`), scaled to the plate; one place, read by the mesh and the test.
-    static let barScale: Float = 0.1             // m of bar per second of flash
+    static var barScale: Float { size.x / Layout.Navigation.SignalPattern.groupSeconds.max()! }   // m of bar per second of flash: the LONGEST group is as wide as the plate (A6: the cue must read from the walk)
     static let barY: Float = -0.185              // below the plate's centre (the marks above it stay within +-0.15)
+    static let barH: Float = 0.07                // thick enough to read at 8 m (A6)
+    static let barEmissive = SIMD4<Float>(1.0, 0.9, 0.62, 0.55)   // a pale bar that keeps its brightness in shade
     static func barLength(_ k: Int) -> Float { Layout.Navigation.SignalPattern.groupSeconds.sorted()[k] * barScale }
     static func world(_ k: Int) -> SIMD3<Float> { Layout.lighthouse + local(k).position }
 
     static func build(into scene: Scene, device: MTLDevice) {
         let stone = Surface(color: SIMD3(0.40, 0.38, 0.35), roughness: 0.9, material: .dressed)
         let iron = Surface(color: SIMD3(0.05, 0.055, 0.07), roughness: 0.5, material: .iron)
-        let brass = Surface(color: SIMD3(0.78, 0.58, 0.22), roughness: 0.4, material: .copper)
-        var m = MeshBuilder()
+        var m = MeshBuilder(), bars = MeshBuilder()
+        let pale = Surface(color: SIMD3(0.93, 0.89, 0.76), roughness: 0.8, material: .dressed)
         for k in 0..<3 {
             let l = local(k)
             let frame = translation(Layout.lighthouse + l.position) * rotationY(l.facing)       // local z = out of the wall
             m.chamferBox(size: SIMD3(size.x, size.y, 0.1), chamfer: 0.012, surface: stone, transform: frame * translation(SIMD3(0, 0, -0.01)))
             let face = frame * translation(SIMD3(0, 0, 0.045))
-            m.box(size: SIMD3(barLength(k), 0.034, 0.014), surface: brass, transform: face * translation(SIMD3(0, barY, 0)))      // the signal-length mark (A5)
+            bars.box(size: SIMD3(barLength(k), barH, 0.02), surface: pale, transform: face * translation(SIMD3(0, barY, 0.004)))      // the signal-length mark (A5, A6: pale, emissive, 1 : 2.1 : 3.7)
             switch k {
             case 0:                                                                          // tide: waves, three offset bars
                 for (i, dx) in ([-0.03, 0.03, -0.03] as [Float]).enumerated() { m.box(size: SIMD3(0.2, 0.035, 0.012), surface: iron, transform: face * translation(SIMD3(dx, (Float(i) - 1) * 0.1, 0))) }
@@ -47,6 +49,7 @@ enum TonePlates {
                 m.box(size: SIMD3(0.2, 0.2, 0.012), surface: iron, transform: face)
             }
         }
+        scene.add("tone_plate_bars", mesh: bars.build(device: device, label: "plate bars"), uniforms: ObjectUniforms(model: matrix_identity_float4x4, emissive: barEmissive))
         // Debug: LW_PLATE_GLINT=1 sets the glint's starting strength, for frame tools that do not run the game (once the game runs it drives the glint itself: `Game.plateGlint`).
         let glint: Float = ProcessInfo.processInfo.environment["LW_PLATE_GLINT"] == "1" ? Game.plateGlintPeak * 0.8 : 0
         scene.add("tone_plates", mesh: m.build(device: device, label: "tone plates"), uniforms: ObjectUniforms(model: matrix_identity_float4x4, emissive: SIMD4<Float>(1.0, 0.82, 0.5, glint)))

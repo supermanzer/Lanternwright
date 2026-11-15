@@ -448,6 +448,9 @@ enum Viewpoints {
             let a = Layout.route[0], b = Layout.route[1], d = normalize(SIMD2(b.x - a.x, b.z - a.z))
             return Camera(position: SIMD3(a.x - d.x * 4, a.y + 2.2, a.z - d.y * 4), yaw: atan2(d.x, -d.y), pitch: -0.08)
         // Lighthouse close-ups (R03). The tower stands at Layout.lighthouse with its door on the +Z (south) side; ground y = 68.
+        case "lh-plates3", "lh-plates8":    // A6: the plates from 3 m and 8 m out on the door's axis side (what a player sees walking up to the door)
+            let c = TonePlates.world(1), out = simd_normalize(SIMD3(c.x - Layout.lighthouse.x, 0, c.z - Layout.lighthouse.z))
+            return Self.lookFrom(c + out * (name == "lh-plates3" ? 3 : 8) + SIMD3(0, 0.3, 0), at: c)
         case "lh-plates":    // A5: the three door plates with their signal-length bars, from 1.5 m out
             let c = TonePlates.world(1), out = simd_normalize(SIMD3(c.x - Layout.lighthouse.x, 0, c.z - Layout.lighthouse.z))
             return Self.lookFrom(c + out * 1.5 + SIMD3(0, 0.05, 0), at: c)
@@ -501,6 +504,18 @@ enum Viewpoints {
         case "ta-quay-dome":   return Self.lookFrom(ArchiveLayout.lampEnd + SIMD3(4, Player.eyeHeight, -6), at: ArchiveLayout.dome + SIMD3(8, 6, 0))
         case "ta-stacks":   return Self.lookFrom(ArchiveLayout.stacks + SIMD3(-3.0, 1.7, 7.5), at: ArchiveLayout.stacks + SIMD3(-9.5, 1.2, -3.0))
         case "ta-gallery":  return Self.lookFrom(ArchiveLayout.greatLedger + SIMD3(-27, 17, 9), at: ArchiveLayout.greatLedger + SIMD3(0, -1, 0))
+        // A6: the tide gauges from the quay (far) and from the plaza's edge (near), and a sluice room's answer line and lamp.
+        case "ta-marks0", "ta-marks1", "ta-marks0-far", "ta-marks1-far":
+            let site = name.hasPrefix("ta-marks0") ? 0 : 1, f = TideMarks.foot(site, terrain: Terrain(spec: .tideArchive)), far = name.hasSuffix("-far")
+            let from = SIMD3(f.x + (site == 0 ? 3 : -3), 0, far ? TideMarks.quay(site).z + 2 : f.z - 14)
+            return Self.lookFrom(SIMD3(from.x, Player.eyeHeight + ArchiveLayout.groundY(from.x, from.z), from.z), at: SIMD3(f.x, 0.4, f.z))
+        case "ta-sluice-line2", "ta-sluice-line0":
+            let k = name.hasSuffix("0") ? 0 : 2, c = ArchiveLayout.sluices[k]
+            return Self.lookFrom(c + SIMD3(2.0, 1.5, 7.0), at: c + SIMD3(-0.9, 0.6, 1.0))
+        case "ta-lamp2", "ta-lamp2-far":
+            let p = WadeLamps.position(2, terrain: Terrain(spec: .tideArchive)), far = name.hasSuffix("-far")
+            let e = far ? ArchiveLayout.landing + SIMD3(0, Player.eyeHeight, 0) : p + SIMD3(2.5, 1.7, -5.0)
+            return Self.lookFrom(e, at: p + SIMD3(0, 2.4, 0))
         case "ta-sluice":   return Self.lookFrom(ArchiveLayout.sluices[0] + SIMD3(0, 6.5, 17), at: ArchiveLayout.sluices[0] + SIMD3(0, 0.8, 0))
         case "ta-dome":     return Self.lookFrom(ArchiveLayout.upperLamp + SIMD3(30, 3.0, 24), at: ArchiveLayout.dome + SIMD3(0, 5, 0))
         case "ta-prism":    return Self.lookFrom(ArchiveProps.prismPosition + SIMD3(1.0, 0.2, 5.4), at: ArchiveProps.prismPosition + SIMD3(0.3, 0, 0))

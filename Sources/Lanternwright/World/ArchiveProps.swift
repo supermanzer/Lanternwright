@@ -37,6 +37,10 @@ enum ArchiveProps {
         var prismLit = [true, true, true]                                          // S05.2: which of the prism's components exist (the lit dome windows)
         var lastRing: Float?
         var windowLit: [Float] = [0, 0, 0]                                        // S05.2: how lit each dome window is (the spire's glow is their mean)
+        var markHeld = [[Float]](repeating: [0, 0, 0], count: 2)                  // A6: builder B's hold on each tide mark's glow (per quay gauge, per bar)
+        var markAge: [Float] = [99, 99, 99]                                       // A6: seconds since the water crossed each bar
+        var markShown = [[Float]](repeating: [-1, -1, -1], count: 2)              // A6: the glow last written
+        var lampLit: [Bool?] = [nil, nil, nil]                                    // A6: each sluice room's lamp as last written
         var ledgerBlocking = true                                                 // S05.1: the ledger room's door collider is in (`LedgerRoom.setDoor` takes it out when the door is open)
     }
     static func gateCollider(_ k: Int) -> (center: SIMD2<Float>, radius: Float) { (SIMD2(ArchiveLayout.sluices[k].x, ArchiveLayout.sluices[k].z), 0.9) }
@@ -47,6 +51,7 @@ enum ArchiveProps {
         let st = scene.archive
         let jump = st.lastTime == nil || abs(time - st.lastTime!) > 0.5 || time < st.lastTime!          // first update, a restore or a return to the Archive: the gates stand at their state at once
         let dt = min(max(time - (st.lastTime ?? time), 0), 0.25)
+        let previousTime = jump ? nil : st.lastTime
         st.lastTime = time
         for k in 0..<3 {
             guard let item = scene.items.first(where: { $0.name == gateName(k) }) else { continue }
@@ -65,6 +70,8 @@ enum ArchiveProps {
         let g = ArchiveTerrain.gallery
         Player.galleryWater = (g.centre, g.half, ArchiveStory.waterLevel(scene, clock: time))
         updatePrism(scene, ringAngle: ringAngle ?? TideArchivePuzzle.initialRing)
+        TideMarks.update(scene, from: previousTime, to: time, dt: dt)               // A6: a bar lights as the water crosses it
+        WadeLamps.update(scene, clock: time)                                     // A6: each room's lamp is lit while the room is wadeable
         Orrery.update(scene, clock: time)                                          // S05.2: the arms follow the tide clock unless B has stopped one
         updateTableau(scene, shown: tableau, time: time)
     }
@@ -90,6 +97,9 @@ enum ArchiveProps {
         ArchiveStory.populate(scene, device: device)
         IlseSite.populate(scene, device: device)                                     // S05.1: the shelf bays, the ledger room, the bell pipes
         OrenSite.populate(scene, device: device)                                     // S05.2: the dome's orrery and windows
+        TideMarks.add(to: scene, device: device)                                     // A6: the tide gauges at both quays
+        SluiceLines.add(to: scene, device: device)                                   // A6: the answer line in each sluice room
+        WadeLamps.add(to: scene, device: device)                                   // A6: the wadeable lamps
     }
 
     // MARK: Placement helpers

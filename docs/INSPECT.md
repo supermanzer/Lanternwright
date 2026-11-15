@@ -347,6 +347,15 @@ M10 (guided movement, `docs/plans/M10-guided-movement.md`; tasks in `docs/TASKS-
 | needs-inspection | Q95 | The ledger room's floor reads as flagged stone, not dark ground | `--view ta-ledger-in` (before: `a5-ledger-in-before.png`) | Cracks between flags visible; the room is still dim (no point lights) |
 | needs-inspection | Q92 | A short brass tick as each orrery arm passes its window, loud within 8 m of the orrery, gone by 40 m | Play: stand at the orrery and wait (the arms line up at tide clock 58.6, 71.1, 80.6 s of each 90 s) | Is it pleasant, audible on laptop speakers, not a nuisance on the third pass? |
 
+## A6 (builder A): brighter plate bars, tide gauges at the quays, the sluice rooms' answer lines and wadeable lamps (frames in `shots/s05/a6-*.png`; nothing here has been seen by a person)
+
+| Status | Note | What changed | How to see it | What to look for |
+|---|---|---|---|---|
+| needs-inspection | Q96 | The door plates' length bars are pale, glow a little, and the longest is as wide as the plate (0.09 / 0.20 / 0.34 m) | `--view lh-plates3`, `lh-plates8`, `lh-plates` | Short, middle, long readable from 3 m and from 8 m without a page |
+| needs-inspection | Q97 | A stone gauge stands in the water out from each quay with three brass bars at B's three tide levels (stone's mark above each); a bar lights as the water crosses it | `--view ta-marks0 --clock 58.6` (then 71.1, 80.6), `ta-marks1`, `ta-marks0-far`; `--state marks` holds all lit | The water is seen to rise past a bar; the bar glows briefly; is the gauge findable from where the player arrives (it is behind them, 31 m)? |
+| needs-inspection | Q98 | A brass answer line on each sluice room's gate piers and the pipe's back plate | `--view ta-sluice-line2 --clock 80.6` | Does the line read as "when the water is here"? It is only 0.1-0.15 m over the floor |
+| needs-inspection | Q98 | A lamp on a post at each room's north rim, lit while the room can be waded | `--view ta-lamp2 --clock 0` (lit) and `--clock 45` (dark), `ta-lamp2-far` | Lit and dark read apart from the landing; does a player know what it means? |
+
 ## F10 A2 (builder A): the court's receiving crystals, the beam's three groups, a warmer lens ring (frames in `shots/p02/`; nothing here has been seen by a person)
 
 | Status | Note | What changed | How to see it | What to look for |
